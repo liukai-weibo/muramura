@@ -22,6 +22,8 @@ import type {
   Review,
   ReviewRepository,
   ReviewWorkflowRepository,
+  SearchRepository,
+  SearchResult,
 } from '@knowledge-base/contracts'
 import { assertTransition } from '@knowledge-base/domain'
 
@@ -213,6 +215,44 @@ export class IndexedDbItemRepository implements ItemRepository {
         }
       },
     )
+  }
+}
+
+export class IndexedDbSearchRepository implements SearchRepository {
+  constructor(private readonly database: KnowledgeDatabase) {}
+
+  async search(query: string): Promise<SearchResult[]> {
+    const normalized = query.trim().toLocaleLowerCase('zh-CN')
+    if (!normalized) return []
+    const contains = (...values: string[]) => values.some((value) => value.toLocaleLowerCase('zh-CN').includes(normalized))
+    const [items, reviews, methods, versions] = await Promise.all([
+      this.database.items.filter((item) => !item.deletedAt).toArray(),
+      this.database.reviews.toArray(),
+      this.database.methods.toArray(),
+      this.database.methodVersions.toArray(),
+    ])
+    const itemById = new Map(items.map((item) => [item.id, item]))
+    const itemResults: SearchResult[] = items.filter((item) => contains(item.title, item.content)).map((item) => ({
+      id: `item:${item.id}`, type: 'item', title: item.title, excerpt: item.content || `状态：${item.status}`, itemId: item.id,
+    }))
+    const reviewResults: SearchResult[] = reviews.filter((review) => itemById.has(review.itemId) && contains(
+      review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas,
+    )).map((review) => ({
+      id: `review:${review.id}`, type: 'review', title: itemById.get(review.itemId)?.title ?? '复盘',
+      excerpt: [review.actualAction, review.result].filter(Boolean).join(' · '), itemId: review.itemId,
+    }))
+    const methodResults: SearchResult[] = methods.filter((method) => contains(method.title, method.applicable, method.unsuitable, method.steps)).map((method) => ({
+      id: `method:${method.id}`, type: 'method', title: method.title, excerpt: method.steps, methodId: method.id,
+    }))
+    const historicalResults: SearchResult[] = versions.filter((version) => {
+      const current = methods.find((method) => method.id === version.methodId)
+      return contains(version.title, version.applicable, version.unsuitable, version.steps)
+        && !(current?.version === version.version && methodResults.some((result) => result.methodId === version.methodId))
+    }).map((version) => ({
+      id: `method-version:${version.id}`, type: 'method', title: `${version.title} v${version.version}`,
+      excerpt: version.steps, methodId: version.methodId, methodVersion: version.version,
+    }))
+    return [...itemResults, ...reviewResults, ...methodResults, ...historicalResults]
   }
 }
 
@@ -502,6 +542,7 @@ export function createIndexedDbRepository(name?: string): {
   repository: IndexedDbItemRepository
   reviewRepository: IndexedDbReviewRepository
   methodRepository: IndexedDbMethodRepository
+  searchRepository: IndexedDbSearchRepository
   methodApplicationRepository: IndexedDbMethodApplicationRepository
   backupRepository: IndexedDbBackupRepository
   reviewWorkflowRepository: IndexedDbReviewWorkflowRepository
@@ -510,6 +551,7 @@ export function createIndexedDbRepository(name?: string): {
   const repository = new IndexedDbItemRepository(database)
   const reviewRepository = new IndexedDbReviewRepository(database)
   const methodRepository = new IndexedDbMethodRepository(database)
+  const searchRepository = new IndexedDbSearchRepository(database)
   const methodApplicationRepository = new IndexedDbMethodApplicationRepository(database, repository)
   const backupRepository = new IndexedDbBackupRepository(database)
   return {
@@ -517,6 +559,7 @@ export function createIndexedDbRepository(name?: string): {
     repository,
     reviewRepository,
     methodRepository,
+    searchRepository,
     methodApplicationRepository,
     backupRepository,
     reviewWorkflowRepository: new IndexedDbReviewWorkflowRepository(

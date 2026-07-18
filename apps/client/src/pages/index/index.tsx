@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import { BackupApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review } from '@knowledge-base/contracts'
+import { BackupApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, SearchApplicationService, type ItemAction } from '@knowledge-base/application'
+import type { BackupDocument, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -53,8 +53,11 @@ export default function IndexPage() {
   const reviewApplication = useMemo(() => new ReviewApplicationService(
     storage.reviewRepository, storage.methodRepository, storage.reviewWorkflowRepository,
   ), [storage])
+  const searchApplication = useMemo(() => new SearchApplicationService(storage.searchRepository), [storage])
   const methodApplication = useMemo(() => new MethodApplicationService(storage.methodApplicationRepository), [storage])
   const backupApplication = useMemo(() => new BackupApplicationService(storage.backupRepository), [storage])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [items, setItems] = useState<Item[]>([])
@@ -111,6 +114,14 @@ export default function IndexPage() {
   }, [storage])
 
   useEffect(() => {
+    let active = true
+    searchApplication.search(searchQuery).then((results) => active && setSearchResults(results)).catch((error: unknown) => {
+      if (active) setMessage(error instanceof Error ? error.message : '搜索失败')
+    })
+    return () => { active = false }
+  }, [searchQuery, searchApplication, items, methods])
+
+  useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages)
   }, [currentPage, totalPages])
 
@@ -141,6 +152,29 @@ export default function IndexPage() {
     try { await operation() }
     catch (error: unknown) { setMessage(error instanceof Error ? error.message : '操作失败') }
     finally { setBusy(false) }
+  }
+
+  const locateSearchResult = (result: SearchResult) => {
+    if (result.itemId) {
+      setShowTrash(false)
+      setFilter(undefined)
+      setCurrentPage(1)
+      setSelectedId(result.itemId)
+      document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    if (!result.methodId) return
+    run(async () => {
+      if (result.methodVersion && expandedMethodId !== result.methodId) {
+        const versions = methodHistories[result.methodId!] ?? await reviewApplication.listMethodVersions(result.methodId!)
+        const reviewIds = [...new Set(versions.flatMap((version) => version.sourceReviewId ? [version.sourceReviewId] : []))]
+        const loadedReviews = await Promise.all(reviewIds.filter((reviewId) => !historyReviews[reviewId]).map((reviewId) => reviewApplication.getReview(reviewId)))
+        setMethodHistories((current) => ({ ...current, [result.methodId!]: versions }))
+        setHistoryReviews((current) => ({ ...current, ...Object.fromEntries(loadedReviews.filter((review): review is Review => Boolean(review)).map((review) => [review.id, review])) }))
+        setExpandedMethodId(result.methodId)
+      }
+      window.setTimeout(() => document.getElementById(`method-${result.methodId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0)
+    })
   }
 
   const createIdea = (saveForLater: boolean) => run(async () => {
@@ -367,6 +401,27 @@ export default function IndexPage() {
         <View className='local-status'><View className='status-dot' /><Text>{message}</Text></View>
       </View>
 
+      <View className='search-panel'>
+        <View className='search-heading'><Text className='section-kicker'>全局搜索</Text><Text>查找事项、复盘、当前方法与历史版本</Text></View>
+        <View className='search-input-row'>
+          <Input className='search-input' value={searchQuery} maxlength={120} placeholder='输入关键词，例如：练字、启动、低能量' onInput={(event) => setSearchQuery(event.detail.value)} />
+          {searchQuery && <View className='search-clear' onClick={() => setSearchQuery('')}><Text>清空</Text></View>}
+        </View>
+        {searchQuery.trim() && <View className='search-results'>
+          {searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method'] as const).map((type) => {
+            const grouped = searchResults.filter((result) => result.type === type)
+            if (!grouped.length) return null
+            return <View className='search-group' key={type}>
+              <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : '方法'} · {grouped.length}</Text>
+              {grouped.map((result) => <View className='search-result' key={result.id} onClick={() => locateSearchResult(result)}>
+                <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.excerpt}</Text></View>
+                <Text className='search-result-action'>{result.methodVersion ? `定位 v${result.methodVersion}` : '定位'}</Text>
+              </View>)}
+            </View>
+          })}
+        </View>}
+      </View>
+
       <View className='capture-card'>
         <Text className='section-kicker'>快速捕获</Text>
         <Text className='field-label'>一句话标题</Text>
@@ -380,7 +435,7 @@ export default function IndexPage() {
         </View>
       </View>
 
-      <View className='workspace'>
+      <View className='workspace' id='workspace'>
         <View className='list-panel'>
           <View className='panel-heading'><View><Text className='section-kicker'>{showTrash ? '回收站' : '事项池'}</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
           <View className='filter-header'>
@@ -514,7 +569,7 @@ export default function IndexPage() {
         {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <View className='method-grid'>{methods.map((method) => {
           const history = methodHistories[method.id] ?? []
           const expanded = expandedMethodId === method.id
-          return <View className={`method-card ${expanded ? 'history-open' : ''}`} key={method.id}>
+          return <View id={`method-${method.id}`} className={`method-card ${expanded ? 'history-open' : ''}`} key={method.id}>
             <View className='method-card-heading'><Text>{method.title}</Text><Text>v{method.version} · 验证 {method.validationCount} 次</Text></View>
             <Text className='method-label'>适用情况</Text><Text className='method-value'>{method.applicable}</Text>
             {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}

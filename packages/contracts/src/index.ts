@@ -148,6 +148,22 @@ export interface BackupRepository {
   replaceData(data: BackupData): Promise<void>
 }
 
+export type SearchResultType = 'item' | 'review' | 'method'
+
+export interface SearchResult {
+  id: string
+  type: SearchResultType
+  title: string
+  excerpt: string
+  itemId?: string
+  methodId?: string
+  methodVersion?: number
+}
+
+export interface SearchRepository {
+  search(query: string): Promise<SearchResult[]>
+}
+
 export interface MethodApplicationRepository {
   createItem(input: CreateMethodApplicationInput): Promise<Item>
   getContextByItemId(itemId: string): Promise<MethodApplicationContext | undefined>

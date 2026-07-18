@@ -14,6 +14,8 @@ import type {
   Review,
   ReviewRepository,
   ReviewWorkflowRepository,
+  SearchRepository,
+  SearchResult,
 } from '@knowledge-base/contracts'
 import { allowedTransitions } from '@knowledge-base/domain'
 import { itemStatuses } from '@knowledge-base/contracts'
@@ -187,6 +189,15 @@ export class ReviewApplicationService {
 
   listMethodVersions(methodId: string): Promise<MethodVersion[]> {
     return this.methodRepository.listVersions(methodId)
+  }
+}
+
+export class SearchApplicationService {
+  constructor(private readonly repository: SearchRepository) {}
+
+  search(query: string): Promise<SearchResult[]> {
+    const normalized = query.trim()
+    return normalized ? this.repository.search(normalized) : Promise.resolve([])
   }
 }
 
