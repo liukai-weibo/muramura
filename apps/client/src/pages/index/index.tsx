@@ -34,6 +34,8 @@ const filterGroups: Array<{ label: string; entries: Array<{ label: string; statu
   },
 ]
 
+type MethodMode = 'none' | 'create' | 'validate'
+
 const ITEMS_PER_PAGE = 5
 
 const emptyReview = {
@@ -67,6 +69,9 @@ export default function IndexPage() {
   const [selectedReview, setSelectedReview] = useState<Review>()
   const [reviewForm, setReviewForm] = useState(emptyReview)
   const [methodForm, setMethodForm] = useState(emptyMethod)
+  const [methodMode, setMethodMode] = useState<MethodMode>('none')
+  const [selectedMethodId, setSelectedMethodId] = useState('')
+  const [reviseMethod, setReviseMethod] = useState(false)
   const [message, setMessage] = useState('正在读取本地事项…')
   const [busy, setBusy] = useState(false)
 
@@ -75,7 +80,8 @@ export default function IndexPage() {
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE))
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const hasCaptureContent = Boolean(title.trim() || content.trim())
-  const methodStarted = Object.values(methodForm).some((value) => value.trim())
+  const selectedMethod = methods.find((method) => method.id === selectedMethodId)
+  const methodStarted = methodMode === 'create' || (methodMode === 'validate' && reviseMethod)
   const [reviewError, setReviewError] = useState('')
 
   const refresh = async (nextSelectedId = selectedId) => {
@@ -197,6 +203,33 @@ export default function IndexPage() {
     setBackupMessage('备份恢复完成，全部数据已替换')
   })
 
+  const chooseMethodMode = (mode: MethodMode) => {
+    setMethodMode(mode)
+    setSelectedMethodId('')
+    setReviseMethod(false)
+    setMethodForm(emptyMethod)
+    setReviewError('')
+  }
+
+  const chooseExistingMethod = (methodId: string) => {
+    setSelectedMethodId(methodId)
+    setReviseMethod(false)
+    setMethodForm(emptyMethod)
+    setReviewError('')
+  }
+
+  const toggleRevision = () => {
+    if (!selectedMethod) return
+    const next = !reviseMethod
+    setReviseMethod(next)
+    setMethodForm(next ? {
+      title: selectedMethod.title,
+      applicable: selectedMethod.applicable,
+      unsuitable: selectedMethod.unsuitable,
+      steps: selectedMethod.steps,
+    } : emptyMethod)
+  }
+
   const completeReview = () => run(async () => {
     if (!selectedItem) return
     const missingReviewFields = ([
@@ -205,6 +238,11 @@ export default function IndexPage() {
     ] satisfies Array<[string, string]>).filter(([, value]) => !value.trim()).map(([label]) => label)
     if (missingReviewFields.length) {
       setReviewError(`请填写：${missingReviewFields.join('、')}`)
+      return
+    }
+
+    if (methodMode === 'validate' && !selectedMethodId) {
+      setReviewError('请选择本次复盘验证的方法')
       return
     }
 
@@ -224,11 +262,18 @@ export default function IndexPage() {
     const result = await reviewApplication.completeReview({
       itemId: selectedItem.id,
       ...reviewForm,
-      method: methodStarted ? methodForm : undefined,
+      method: methodMode === 'create' ? methodForm : undefined,
+      existingMethod: methodMode === 'validate' ? {
+        methodId: selectedMethodId,
+        revision: reviseMethod ? methodForm : undefined,
+      } : undefined,
     })
     setSelectedReview(result.review)
     setReviewForm(emptyReview)
     setMethodForm(emptyMethod)
+    setMethodMode('none')
+    setSelectedMethodId('')
+    setReviseMethod(false)
     await refresh(selectedItem.id)
     setMessage(result.createdIdea
       ? `复盘已完成，新想法“${result.createdIdea.title}”已进入想试试`
@@ -324,14 +369,32 @@ export default function IndexPage() {
               {reviewField('newIdeas', '产生了什么新想法', '先记录，后续再转成待验证想法', true)}
 
               <View className='method-draft'>
-                <Text className='section-kicker'>提炼当前有效的方法（可选）</Text>
-                <Input className='method-input' value={methodForm.title} placeholder='方法名称' onInput={(event) => { setReviewError(''); setMethodForm((current) => ({ ...current, title: event.detail.value })) }} />
-                <Textarea className='method-textarea' value={methodForm.applicable} placeholder='适用于什么情况' onInput={(event) => setMethodForm((current) => ({ ...current, applicable: event.detail.value }))} />
-                <Textarea className='method-textarea' value={methodForm.unsuitable} placeholder='不适用于什么情况（可选）' onInput={(event) => setMethodForm((current) => ({ ...current, unsuitable: event.detail.value }))} />
-                <Textarea className='method-textarea' value={methodForm.steps} placeholder='具体步骤' onInput={(event) => setMethodForm((current) => ({ ...current, steps: event.detail.value }))} />
+                <Text className='section-kicker'>本次复盘如何沉淀方法（可选）</Text>
+                <View className='method-mode-actions'>
+                  <Button className={`method-mode-button ${methodMode === 'none' ? 'active' : ''}`} size='mini' onClick={() => chooseMethodMode('none')}>不沉淀方法</Button>
+                  <Button className={`method-mode-button ${methodMode === 'create' ? 'active' : ''}`} size='mini' onClick={() => chooseMethodMode('create')}>形成新方法</Button>
+                  <Button className={`method-mode-button ${methodMode === 'validate' ? 'active' : ''}`} size='mini' disabled={methods.length === 0} onClick={() => chooseMethodMode('validate')}>验证已有方法</Button>
+                </View>
+
+                {methodMode === 'validate' && <View className='existing-methods'>
+                  {methods.map((method) => <Button key={method.id} className={`existing-method-button ${selectedMethodId === method.id ? 'active' : ''}`} size='mini' onClick={() => chooseExistingMethod(method.id)}>
+                    {method.title} · v{method.version} · 已验证 {method.validationCount} 次
+                  </Button>)}
+                  {selectedMethod && <View className='selected-method-summary'>
+                    <Text>当前步骤：{selectedMethod.steps}</Text>
+                    <Button className={`method-revision-button ${reviseMethod ? 'active' : ''}`} size='mini' onClick={toggleRevision}>{reviseMethod ? '取消修订，仅验证' : '根据本次复盘修订方法'}</Button>
+                  </View>}
+                </View>}
+
+                {(methodMode === 'create' || reviseMethod) && <>
+                  <Input className='method-input' value={methodForm.title} placeholder='方法名称' onInput={(event) => { setReviewError(''); setMethodForm((current) => ({ ...current, title: event.detail.value })) }} />
+                  <Textarea className='method-textarea' value={methodForm.applicable} placeholder='适用于什么情况' onInput={(event) => setMethodForm((current) => ({ ...current, applicable: event.detail.value }))} />
+                  <Textarea className='method-textarea' value={methodForm.unsuitable} placeholder='不适用于什么情况（可选）' onInput={(event) => setMethodForm((current) => ({ ...current, unsuitable: event.detail.value }))} />
+                  <Textarea className='method-textarea' value={methodForm.steps} placeholder='具体步骤' onInput={(event) => setMethodForm((current) => ({ ...current, steps: event.detail.value }))} />
+                </>}
               </View>
               {reviewError && <Text className='form-error'>{reviewError}</Text>}
-              <Button className='action-button primary' disabled={busy} onClick={completeReview}>完成复盘{methodStarted ? '并形成方法' : ''}</Button>
+              <Button className='action-button primary' disabled={busy} onClick={completeReview}>完成复盘{methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : ''}</Button>
             </View>}
 
             {!showTrash && selectedItem.status === 'reviewed' && selectedReview && <View className='review-record'>

@@ -8,6 +8,7 @@ import type {
   ItemStatus,
   Method,
   MethodRepository,
+  MethodVersion,
   Review,
   ReviewRepository,
   ReviewWorkflowRepository,
@@ -93,20 +94,31 @@ export class BackupApplicationService {
     if (value.version !== 1) throw new Error(`不支持的备份版本：${String(value.version)}`)
     if (!isRecord(value.data)) throw new Error('备份缺少 data 数据区')
 
-    const collectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
-    for (const name of collectionNames) {
+    const requiredCollectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
+    for (const name of requiredCollectionNames) {
       if (!Array.isArray(value.data[name])) throw new Error(`备份缺少 ${name} 数据表`)
       if (value.data[name].some((entry) => !isRecord(entry) || typeof entry.id !== 'string')) {
         throw new Error(`${name} 中存在无效记录`)
       }
     }
 
-    const document = value as unknown as BackupDocument
+    const rawDocument = value as unknown as BackupDocument
+    const legacyEvidence = rawDocument.data.methodEvidence
+    const methodVersions = Array.isArray(value.data.methodVersions)
+      ? value.data.methodVersions as unknown as MethodVersion[]
+      : rawDocument.data.methods.map((method) => ({
+        id: crypto.randomUUID(), methodId: method.id, version: method.version,
+        title: method.title, applicable: method.applicable, unsuitable: method.unsuitable, steps: method.steps,
+        sourceReviewId: legacyEvidence.find((entry) => entry.methodId === method.id)?.reviewId,
+        createdAt: method.createdAt,
+      }))
+    const document: BackupDocument = { ...rawDocument, data: { ...rawDocument.data, methodVersions } }
     const { items, reviews, methods, methodEvidence, itemLinks } = document.data
     requireUniqueIds(items, '事项')
     requireUniqueIds(reviews, '复盘')
     requireUniqueIds(methods, '方法')
     requireUniqueIds(methodEvidence, '方法证据')
+    requireUniqueIds(methodVersions, '方法版本')
     requireUniqueIds(itemLinks, '想法来源关系')
 
     const itemIds = new Set(items.map((item) => item.id))
@@ -116,6 +128,9 @@ export class BackupApplicationService {
     if (reviews.some((review) => !itemIds.has(review.itemId))) throw new Error('复盘引用了不存在的事项')
     if (methodEvidence.some((entry) => !methodIds.has(entry.methodId) || !reviewIds.has(entry.reviewId))) {
       throw new Error('方法证据引用了不存在的方法或复盘')
+    }
+    if (methodVersions.some((entry) => !methodIds.has(entry.methodId) || (entry.sourceReviewId && !reviewIds.has(entry.sourceReviewId)))) {
+      throw new Error('方法版本引用了不存在的方法或复盘')
     }
     if (itemLinks.some((link) => !reviewIds.has(link.sourceReviewId) || !itemIds.has(link.targetItemId) || link.type !== 'derived_from_review')) {
       throw new Error('想法来源关系存在无效引用')
@@ -149,6 +164,10 @@ export class ReviewApplicationService {
 
   listMethodsFromReview(reviewId: string): Promise<Method[]> {
     return this.methodRepository.listByReviewId(reviewId)
+  }
+
+  listMethodVersions(methodId: string): Promise<MethodVersion[]> {
+    return this.methodRepository.listVersions(methodId)
   }
 }
 

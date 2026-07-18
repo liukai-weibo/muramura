@@ -71,6 +71,23 @@ export interface CreateMethodInput {
   steps: string
 }
 
+export interface MethodVersion {
+  id: string
+  methodId: string
+  version: number
+  title: string
+  applicable: string
+  unsuitable: string
+  steps: string
+  sourceReviewId?: string
+  createdAt: string
+}
+
+export interface ValidateMethodInput {
+  methodId: string
+  revision?: CreateMethodInput
+}
+
 export interface MethodEvidence {
   id: string
   methodId: string
@@ -93,6 +110,7 @@ export interface BackupData {
   reviews: Review[]
   methods: Method[]
   methodEvidence: MethodEvidence[]
+  methodVersions: MethodVersion[]
   itemLinks: ItemLink[]
 }
 
@@ -130,10 +148,13 @@ export interface MethodRepository {
   createFromReview(input: CreateMethodInput, reviewId: string): Promise<Method>
   list(): Promise<Method[]>
   listByReviewId(reviewId: string): Promise<Method[]>
+  listVersions(methodId: string): Promise<MethodVersion[]>
+  validateFromReview(methodId: string, reviewId: string, revision?: CreateMethodInput): Promise<Method>
 }
 
 export interface CompleteReviewInput extends CreateReviewInput {
   method?: CreateMethodInput
+  existingMethod?: ValidateMethodInput
 }
 
 export interface CompleteReviewResult {

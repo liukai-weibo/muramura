@@ -202,6 +202,16 @@ button.filter-button {
   line-height: 1.6;
 }
 .method-draft { margin: 24px 0 16px; padding: 18px; border-radius: 14px; background: #f3efe7; }
+.method-mode-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 14px; }
+.method-mode-button, button.method-mode-button, .existing-method-button, button.existing-method-button, .method-revision-button, button.method-revision-button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 38px; margin: 0; padding: 0 8px; border: 1px solid #d8d0c4; border-radius: 8px; background: #fffdf9; color: #655e54; font-size: 12px; font-weight: 700; line-height: 1.25; white-space: normal; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+.method-mode-button.active, .existing-method-button.active, .method-revision-button.active { border-color: #282520; background: #282520; color: #fff; }
+.method-mode-button:hover:not(:disabled), .existing-method-button:hover:not(:disabled), .method-revision-button:hover:not(:disabled) { border-color: #94897b; background: #ded6ca; color: #282520; }
+.method-mode-button.active:hover:not(:disabled), .existing-method-button.active:hover:not(:disabled), .method-revision-button.active:hover:not(:disabled) { background: #454039; color: #fff; }
+.method-mode-button:disabled { opacity: 0.42; }
+.existing-methods { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+.existing-method-button, button.existing-method-button { justify-content: flex-start; min-height: 42px; text-align: left; }
+.selected-method-summary { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #ddd3c5; border-radius: 10px; background: #fffaf3; color: #5f574d; font-size: 13px; line-height: 1.6; }
+.method-revision-button, button.method-revision-button { width: auto; align-self: flex-start; }
 .method-input {
   box-sizing: border-box;
   width: 100%;
@@ -274,5 +284,6 @@ button.filter-button {
   .filter-header { align-items: flex-start; flex-direction: column; gap: 8px; }
   .auxiliary-actions { width: 100%; justify-content: flex-start; }
   .review-heading, .method-card-heading { align-items: flex-start; flex-direction: column; }
+  .method-mode-actions { grid-template-columns: 1fr; }
   .review-record-row { grid-template-columns: 1fr; gap: 4px; }
 }

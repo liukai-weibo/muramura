@@ -14,6 +14,7 @@ import type {
   Method,
   MethodEvidence,
   MethodRepository,
+  MethodVersion,
   Review,
   ReviewRepository,
   ReviewWorkflowRepository,
@@ -26,6 +27,7 @@ export class KnowledgeDatabase extends Dexie {
   reviews!: EntityTable<Review, 'id'>
   methods!: EntityTable<Method, 'id'>
   methodEvidence!: EntityTable<MethodEvidence, 'id'>
+  methodVersions!: EntityTable<MethodVersion, 'id'>
   itemLinks!: EntityTable<ItemLink, 'id'>
 
   constructor(name = 'knowledge-base') {
@@ -73,6 +75,29 @@ export class KnowledgeDatabase extends Dexie {
 
       await transaction.table<Item, string>('items').bulkAdd(ideasAndLinks.map(({ item }) => item))
       await transaction.table<ItemLink, string>('itemLinks').bulkAdd(ideasAndLinks.map(({ link }) => link))
+    })
+    this.version(4).stores({
+      items: 'id, status, createdAt, updatedAt, deletedAt',
+      reviews: 'id, &itemId, createdAt, updatedAt',
+      methods: 'id, createdAt, updatedAt',
+      methodEvidence: 'id, methodId, reviewId, [methodId+reviewId]',
+      methodVersions: 'id, methodId, version, [methodId+version], sourceReviewId',
+      itemLinks: 'id, sourceReviewId, targetItemId, type',
+    }).upgrade(async (transaction) => {
+      const methods = await transaction.table<Method, string>('methods').toArray()
+      const evidence = await transaction.table<MethodEvidence, string>('methodEvidence').toArray()
+      const versions: MethodVersion[] = methods.map((method) => ({
+        id: crypto.randomUUID(),
+        methodId: method.id,
+        version: method.version,
+        title: method.title,
+        applicable: method.applicable,
+        unsuitable: method.unsuitable,
+        steps: method.steps,
+        sourceReviewId: evidence.find((entry) => entry.methodId === method.id)?.reviewId,
+        createdAt: method.createdAt,
+      }))
+      await transaction.table<MethodVersion, string>('methodVersions').bulkAdd(versions)
     })
   }
 }
@@ -142,11 +167,14 @@ export class IndexedDbItemRepository implements ItemRepository {
 
     await this.database.transaction(
       'rw',
-      this.database.items,
-      this.database.reviews,
-      this.database.methods,
-      this.database.methodEvidence,
-      this.database.itemLinks,
+      [
+        this.database.items,
+        this.database.reviews,
+        this.database.methods,
+        this.database.methodEvidence,
+        this.database.methodVersions,
+        this.database.itemLinks,
+      ],
       async () => {
         for (const item of expiredItems) {
           const review = await this.database.reviews.where('itemId').equals(item.id).first()
@@ -156,6 +184,7 @@ export class IndexedDbItemRepository implements ItemRepository {
             await this.database.reviews.delete(review.id)
             for (const methodId of new Set(evidence.map((entry) => entry.methodId))) {
               if (await this.database.methodEvidence.where('methodId').equals(methodId).count() === 0) {
+                await this.database.methodVersions.where('methodId').equals(methodId).delete()
                 await this.database.methods.delete(methodId)
               }
             }
@@ -237,9 +266,22 @@ export class IndexedDbMethodRepository implements MethodRepository {
       createdAt: now,
     }
 
-    await this.database.transaction('rw', this.database.methods, this.database.methodEvidence, async () => {
+    const version: MethodVersion = {
+      id: crypto.randomUUID(),
+      methodId: method.id,
+      version: 1,
+      title,
+      applicable,
+      unsuitable: method.unsuitable,
+      steps,
+      sourceReviewId: reviewId,
+      createdAt: now,
+    }
+
+    await this.database.transaction('rw', this.database.methods, this.database.methodEvidence, this.database.methodVersions, async () => {
       await this.database.methods.add(method)
       await this.database.methodEvidence.add(evidence)
+      await this.database.methodVersions.add(version)
     })
     return method
   }
@@ -254,34 +296,76 @@ export class IndexedDbMethodRepository implements MethodRepository {
       methods.filter((method): method is Method => Boolean(method)),
     )
   }
+
+  listVersions(methodId: string): Promise<MethodVersion[]> {
+    return this.database.methodVersions.where('methodId').equals(methodId).sortBy('version')
+  }
+
+  async validateFromReview(methodId: string, reviewId: string, revision?: CreateMethodInput): Promise<Method> {
+    const method = await this.database.methods.get(methodId)
+    if (!method) throw new Error('选择的方法不存在')
+    if (await this.database.methodEvidence.where('[methodId+reviewId]').equals([methodId, reviewId]).count()) {
+      throw new Error('该复盘已经验证过这个方法')
+    }
+
+    const now = new Date().toISOString()
+    const nextVersion = revision ? method.version + 1 : method.version
+    const updated: Method = revision ? {
+      ...method,
+      title: revision.title.trim(),
+      applicable: revision.applicable.trim(),
+      unsuitable: revision.unsuitable?.trim() ?? '',
+      steps: revision.steps.trim(),
+      validationCount: method.validationCount + 1,
+      version: nextVersion,
+      updatedAt: now,
+    } : { ...method, validationCount: method.validationCount + 1, updatedAt: now }
+    if (!updated.title || !updated.applicable || !updated.steps) throw new Error('请完成方法标题、适用情况和具体步骤')
+
+    await this.database.methods.put(updated)
+    await this.database.methodEvidence.add({ id: crypto.randomUUID(), methodId, reviewId, createdAt: now })
+    if (revision) {
+      await this.database.methodVersions.add({
+        id: crypto.randomUUID(), methodId, version: nextVersion,
+        title: updated.title, applicable: updated.applicable, unsuitable: updated.unsuitable, steps: updated.steps,
+        sourceReviewId: reviewId, createdAt: now,
+      })
+    }
+    return updated
+  }
 }
 
 export class IndexedDbBackupRepository implements BackupRepository {
   constructor(private readonly database: KnowledgeDatabase) {}
 
   async exportData(): Promise<BackupData> {
-    const [items, reviews, methods, methodEvidence, itemLinks] = await Promise.all([
+    const [items, reviews, methods, methodEvidence, methodVersions, itemLinks] = await Promise.all([
       this.database.items.toArray(),
       this.database.reviews.toArray(),
       this.database.methods.toArray(),
       this.database.methodEvidence.toArray(),
+      this.database.methodVersions.toArray(),
       this.database.itemLinks.toArray(),
     ])
-    return { items, reviews, methods, methodEvidence, itemLinks }
+    return { items, reviews, methods, methodEvidence, methodVersions, itemLinks }
   }
 
   replaceData(data: BackupData): Promise<void> {
     return this.database.transaction(
       'rw',
-      this.database.items,
-      this.database.reviews,
-      this.database.methods,
-      this.database.methodEvidence,
-      this.database.itemLinks,
+      [
+        this.database.items,
+        this.database.reviews,
+        this.database.methods,
+        this.database.methodEvidence,
+        this.database.methodVersions,
+        this.database.itemLinks,
+      ],
       async () => {
         await Promise.all([
           this.database.itemLinks.clear(),
           this.database.methodEvidence.clear(),
+          this.database.methodVersions.clear(),
           this.database.reviews.clear(),
           this.database.methods.clear(),
           this.database.items.clear(),
@@ -290,6 +374,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
         await this.database.reviews.bulkAdd(data.reviews)
         await this.database.methods.bulkAdd(data.methods)
         await this.database.methodEvidence.bulkAdd(data.methodEvidence)
+        await this.database.methodVersions.bulkAdd(data.methodVersions)
         await this.database.itemLinks.bulkAdd(data.itemLinks)
       },
     )
@@ -307,20 +392,26 @@ export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowReposito
   async complete(input: CompleteReviewInput): Promise<CompleteReviewResult> {
     return this.database.transaction(
       'rw',
-      this.database.items,
-      this.database.reviews,
-      this.database.methods,
-      this.database.methodEvidence,
-      this.database.itemLinks,
+      [
+        this.database.items,
+        this.database.reviews,
+        this.database.methods,
+        this.database.methodEvidence,
+        this.database.methodVersions,
+        this.database.itemLinks,
+      ],
       async () => {
         const item = await this.itemRepository.getById(input.itemId)
         if (!item || item.deletedAt) throw new Error('事项不存在')
         if (item.status !== 'waiting_review') throw new Error('只有待复盘事项可以完成复盘')
 
         const review = await this.reviewRepository.create(input)
+        if (input.method && input.existingMethod) throw new Error('不能同时形成新方法和验证已有方法')
         const method = input.method
           ? await this.methodRepository.createFromReview(input.method, review.id)
-          : undefined
+          : input.existingMethod
+            ? await this.methodRepository.validateFromReview(input.existingMethod.methodId, review.id, input.existingMethod.revision)
+            : undefined
         const newIdeas = input.newIdeas?.trim() ?? ''
         const newIdeaTitle = newIdeas.split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
         const createdIdea = newIdeaTitle
