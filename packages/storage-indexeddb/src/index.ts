@@ -102,6 +102,10 @@ export class IndexedDbItemRepository implements ItemRepository {
     return this.database.items.filter((item) => !item.deletedAt).sortBy('createdAt')
   }
 
+  listDeleted(): Promise<Item[]> {
+    return this.database.items.filter((item) => Boolean(item.deletedAt)).sortBy('deletedAt')
+  }
+
   async changeStatus(id: string, status: ItemStatus): Promise<Item> {
     const item = await this.getById(id)
     if (!item || item.deletedAt) throw new Error('事项不存在')
@@ -114,12 +118,52 @@ export class IndexedDbItemRepository implements ItemRepository {
 
   async delete(id: string): Promise<void> {
     const item = await this.getById(id)
-    if (!item) return
-    await this.database.items.put({
-      ...item,
-      deletedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
+    if (!item || item.deletedAt) return
+    const now = new Date().toISOString()
+    await this.database.items.put({ ...item, deletedAt: now, updatedAt: now })
+  }
+
+  async restore(id: string): Promise<Item> {
+    const item = await this.getById(id)
+    if (!item?.deletedAt) throw new Error('回收站中不存在该事项')
+    const { deletedAt: _deletedAt, ...restoredItem } = item
+    const restored = { ...restoredItem, updatedAt: new Date().toISOString() }
+    await this.database.items.put(restored)
+    return restored
+  }
+
+  async purgeDeletedBefore(cutoff: string): Promise<void> {
+    const expiredItems = await this.database.items
+      .filter((item) => Boolean(item.deletedAt && item.deletedAt <= cutoff))
+      .toArray()
+    if (!expiredItems.length) return
+
+    await this.database.transaction(
+      'rw',
+      this.database.items,
+      this.database.reviews,
+      this.database.methods,
+      this.database.methodEvidence,
+      this.database.itemLinks,
+      async () => {
+        for (const item of expiredItems) {
+          const review = await this.database.reviews.where('itemId').equals(item.id).first()
+          if (review) {
+            const evidence = await this.database.methodEvidence.where('reviewId').equals(review.id).toArray()
+            await this.database.methodEvidence.bulkDelete(evidence.map((entry) => entry.id))
+            await this.database.reviews.delete(review.id)
+            for (const methodId of new Set(evidence.map((entry) => entry.methodId))) {
+              if (await this.database.methodEvidence.where('methodId').equals(methodId).count() === 0) {
+                await this.database.methods.delete(methodId)
+              }
+            }
+            await this.database.itemLinks.where('sourceReviewId').equals(review.id).delete()
+          }
+          await this.database.itemLinks.where('targetItemId').equals(item.id).delete()
+          await this.database.items.delete(item.id)
+        }
+      },
+    )
   }
 }
 
@@ -145,8 +189,11 @@ export class IndexedDbReviewRepository implements ReviewRepository {
       updatedAt: now,
     }
 
-    const required = [review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment]
-    if (required.some((value) => !value)) throw new Error('请完成所有必填复盘项')
+    const required = [
+      ['实际行动', review.actualAction],
+      ['结果', review.result],
+    ].filter(([, value]) => !value).map(([label]) => label)
+    if (required.length) throw new Error(`请填写：${required.join('、')}`)
     await this.database.reviews.add(review)
     return review
   }

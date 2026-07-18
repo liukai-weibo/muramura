@@ -78,6 +78,43 @@ describe('Sprint 2 复盘与方法工作流', () => {
     expect(await reviewApplication.listMethods()).toEqual([])
   })
 
+  it('只填写实际行动和结果也能完成复盘', async () => {
+    const { itemApplication, reviewApplication } = createServices()
+    const item = await itemApplication.createIdea({ title: '做一次轻量复盘' })
+    await itemApplication.changeStatus(item.id, 'doing')
+    await itemApplication.changeStatus(item.id, 'waiting_review')
+
+    const result = await reviewApplication.completeReview({
+      itemId: item.id,
+      actualAction: '完成了一次尝试',
+      result: '得到一个可观察结果',
+      effective: '',
+      incompatible: '',
+      reason: '',
+      adjustment: '',
+      newIdeas: '',
+    })
+
+    expect(result.item.status).toBe('reviewed')
+    expect(result.review.effective).toBe('')
+    expect(result.method).toBeUndefined()
+  })
+
+  it('缺少实际行动或结果时给出具体提示且不留下半成品', async () => {
+    const { itemApplication, reviewApplication, storage } = createServices()
+    const item = await itemApplication.createIdea({ title: '验证必填提示' })
+    await itemApplication.changeStatus(item.id, 'doing')
+    await itemApplication.changeStatus(item.id, 'waiting_review')
+
+    await expect(reviewApplication.completeReview({
+      itemId: item.id,
+      ...reviewInput,
+      actualAction: '',
+      result: '',
+    })).rejects.toThrow('请填写：实际行动、结果')
+    expect(await storage.reviewRepository.getByItemId(item.id)).toBeUndefined()
+  })
+
   it('将 v2 复盘中的历史新想法迁移到想试试且不会重复', async () => {
     const databaseName = `sprint-two-migration-${crypto.randomUUID()}`
     const legacyDatabase = new Dexie(databaseName)

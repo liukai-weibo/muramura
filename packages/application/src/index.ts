@@ -12,6 +12,12 @@ import type {
 } from '@knowledge-base/contracts'
 import { allowedTransitions } from '@knowledge-base/domain'
 
+export const TRASH_RETENTION_DAYS = 30
+
+function trashCutoff(now = new Date()): string {
+  return new Date(now.getTime() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}
+
 export interface CaptureIdeaInput {
   title?: string
   content?: string
@@ -91,8 +97,15 @@ export class ItemApplicationService {
   }
 
   async listItems(): Promise<Item[]> {
+    await this.repository.purgeDeletedBefore(trashCutoff())
     const items = await this.repository.list()
     return items.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+  }
+
+  async listTrash(): Promise<Item[]> {
+    await this.repository.purgeDeletedBefore(trashCutoff())
+    const items = await this.repository.listDeleted()
+    return items.sort((left, right) => (right.deletedAt ?? '').localeCompare(left.deletedAt ?? ''))
   }
 
   async getItem(id: string): Promise<Item> {
@@ -107,6 +120,10 @@ export class ItemApplicationService {
 
   deleteItem(id: string): Promise<void> {
     return this.repository.delete(id)
+  }
+
+  restoreItem(id: string): Promise<Item> {
+    return this.repository.restore(id)
   }
 
   actionsFor(item: Item): readonly ItemAction[] {

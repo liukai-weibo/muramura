@@ -7,7 +7,7 @@ const databases: KnowledgeDatabase[] = []
 function createApplication() {
   const storage = createIndexedDbRepository(`sprint-one-${crypto.randomUUID()}`)
   databases.push(storage.database)
-  return { application: new ItemApplicationService(storage.repository), repository: storage.repository }
+  return { application: new ItemApplicationService(storage.repository), repository: storage.repository, database: storage.database }
 }
 
 afterEach(async () => {
@@ -54,6 +54,35 @@ describe('Sprint 1 事项应用服务', () => {
 
     expect(waitingReview.status).toBe('waiting_review')
     expect(application.actionsFor(waitingReview).map((action) => action.status)).toEqual(['doing'])
+  })
+
+  it('删除后进入回收站并可以恢复', async () => {
+    const { application } = createApplication()
+    const item = await application.createIdea({ title: '可恢复事项' })
+
+    await application.deleteItem(item.id)
+
+    expect(await application.listItems()).toEqual([])
+    expect((await application.listTrash()).map((entry) => entry.id)).toEqual([item.id])
+
+    const restored = await application.restoreItem(item.id)
+    expect(restored.deletedAt).toBeUndefined()
+    expect((await application.listItems()).map((entry) => entry.id)).toEqual([item.id])
+    expect(await application.listTrash()).toEqual([])
+  })
+
+  it('自动永久清理超过三十天的回收站事项', async () => {
+    const { application, repository, database } = createApplication()
+    const item = await application.createIdea({ title: '过期事项' })
+    await application.deleteItem(item.id)
+    const deleted = await repository.getById(item.id)
+    await database.items.put({
+      ...deleted!,
+      deletedAt: '2020-01-01T00:00:00.000Z',
+    })
+
+    expect(await application.listTrash()).toEqual([])
+    expect(await repository.getById(item.id)).toBeUndefined()
   })
 
   it('软删除后无法从应用层读取或继续流转', async () => {

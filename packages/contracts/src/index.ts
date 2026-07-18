@@ -92,8 +92,11 @@ export interface ItemRepository {
   create(input: CreateItemInput): Promise<Item>
   getById(id: string): Promise<Item | undefined>
   list(): Promise<Item[]>
+  listDeleted(): Promise<Item[]>
   changeStatus(id: string, status: ItemStatus): Promise<Item>
   delete(id: string): Promise<void>
+  restore(id: string): Promise<Item>
+  purgeDeletedBefore(cutoff: string): Promise<void>
 }
 
 export interface ReviewRepository {
