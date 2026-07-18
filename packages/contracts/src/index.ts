@@ -27,10 +27,87 @@ export interface CreateItemInput {
   status?: ItemStatus
 }
 
+export interface Review {
+  id: string
+  itemId: string
+  actualAction: string
+  result: string
+  effective: string
+  incompatible: string
+  reason: string
+  adjustment: string
+  newIdeas: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateReviewInput {
+  itemId: string
+  actualAction: string
+  result: string
+  effective: string
+  incompatible: string
+  reason: string
+  adjustment: string
+  newIdeas?: string
+}
+
+export interface Method {
+  id: string
+  title: string
+  applicable: string
+  unsuitable: string
+  steps: string
+  validationCount: number
+  version: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateMethodInput {
+  title: string
+  applicable: string
+  unsuitable?: string
+  steps: string
+}
+
+export interface MethodEvidence {
+  id: string
+  methodId: string
+  reviewId: string
+  createdAt: string
+}
+
 export interface ItemRepository {
   create(input: CreateItemInput): Promise<Item>
   getById(id: string): Promise<Item | undefined>
   list(): Promise<Item[]>
   changeStatus(id: string, status: ItemStatus): Promise<Item>
   delete(id: string): Promise<void>
+}
+
+export interface ReviewRepository {
+  create(input: CreateReviewInput): Promise<Review>
+  getByItemId(itemId: string): Promise<Review | undefined>
+  delete(id: string): Promise<void>
+}
+
+export interface MethodRepository {
+  createFromReview(input: CreateMethodInput, reviewId: string): Promise<Method>
+  list(): Promise<Method[]>
+  listByReviewId(reviewId: string): Promise<Method[]>
+}
+
+export interface CompleteReviewInput extends CreateReviewInput {
+  method?: CreateMethodInput
+}
+
+export interface CompleteReviewResult {
+  item: Item
+  review: Review
+  method?: Method
+}
+
+export interface ReviewWorkflowRepository {
+  complete(input: CompleteReviewInput): Promise<CompleteReviewResult>
 }

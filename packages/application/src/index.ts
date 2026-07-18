@@ -1,4 +1,15 @@
-import type { Item, ItemRepository, ItemStatus } from '@knowledge-base/contracts'
+import type {
+  CompleteReviewInput,
+  CompleteReviewResult,
+  Item,
+  ItemRepository,
+  ItemStatus,
+  Method,
+  MethodRepository,
+  Review,
+  ReviewRepository,
+  ReviewWorkflowRepository,
+} from '@knowledge-base/contracts'
 import { allowedTransitions } from '@knowledge-base/domain'
 
 export interface CaptureIdeaInput {
@@ -38,6 +49,30 @@ const statusActions: Partial<Record<ItemStatus, readonly ItemAction[]>> = {
   abandoned: [
     { label: '重新考虑', status: 'idea_to_try', tone: 'primary' },
   ],
+}
+
+export class ReviewApplicationService {
+  constructor(
+    private readonly reviewRepository: ReviewRepository,
+    private readonly methodRepository: MethodRepository,
+    private readonly workflowRepository: ReviewWorkflowRepository,
+  ) {}
+
+  completeReview(input: CompleteReviewInput): Promise<CompleteReviewResult> {
+    return this.workflowRepository.complete(input)
+  }
+
+  getReviewForItem(itemId: string): Promise<Review | undefined> {
+    return this.reviewRepository.getByItemId(itemId)
+  }
+
+  listMethods(): Promise<Method[]> {
+    return this.methodRepository.list()
+  }
+
+  listMethodsFromReview(reviewId: string): Promise<Method[]> {
+    return this.methodRepository.listByReviewId(reviewId)
+  }
 }
 
 export class ItemApplicationService {

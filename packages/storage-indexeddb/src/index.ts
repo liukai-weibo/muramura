@@ -1,14 +1,38 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { CreateItemInput, Item, ItemRepository, ItemStatus } from '@knowledge-base/contracts'
+import type {
+  CompleteReviewInput,
+  CompleteReviewResult,
+  CreateItemInput,
+  CreateMethodInput,
+  CreateReviewInput,
+  Item,
+  ItemRepository,
+  ItemStatus,
+  Method,
+  MethodEvidence,
+  MethodRepository,
+  Review,
+  ReviewRepository,
+  ReviewWorkflowRepository,
+} from '@knowledge-base/contracts'
 import { assertTransition } from '@knowledge-base/domain'
 
 export class KnowledgeDatabase extends Dexie {
   items!: EntityTable<Item, 'id'>
+  reviews!: EntityTable<Review, 'id'>
+  methods!: EntityTable<Method, 'id'>
+  methodEvidence!: EntityTable<MethodEvidence, 'id'>
 
   constructor(name = 'knowledge-base') {
     super(name)
     this.version(1).stores({
       items: 'id, status, createdAt, updatedAt, deletedAt',
+    })
+    this.version(2).stores({
+      items: 'id, status, createdAt, updatedAt, deletedAt',
+      reviews: 'id, &itemId, createdAt, updatedAt',
+      methods: 'id, createdAt, updatedAt',
+      methodEvidence: 'id, methodId, reviewId, [methodId+reviewId]',
     })
   }
 }
@@ -61,10 +85,142 @@ export class IndexedDbItemRepository implements ItemRepository {
   }
 }
 
+export class IndexedDbReviewRepository implements ReviewRepository {
+  constructor(private readonly database: KnowledgeDatabase) {}
+
+  async create(input: CreateReviewInput): Promise<Review> {
+    const existing = await this.getByItemId(input.itemId)
+    if (existing) throw new Error('该事项已经完成复盘')
+
+    const now = new Date().toISOString()
+    const review: Review = {
+      id: crypto.randomUUID(),
+      itemId: input.itemId,
+      actualAction: input.actualAction.trim(),
+      result: input.result.trim(),
+      effective: input.effective.trim(),
+      incompatible: input.incompatible.trim(),
+      reason: input.reason.trim(),
+      adjustment: input.adjustment.trim(),
+      newIdeas: input.newIdeas?.trim() ?? '',
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    const required = [review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment]
+    if (required.some((value) => !value)) throw new Error('请完成所有必填复盘项')
+    await this.database.reviews.add(review)
+    return review
+  }
+
+  getByItemId(itemId: string): Promise<Review | undefined> {
+    return this.database.reviews.where('itemId').equals(itemId).first()
+  }
+
+  delete(id: string): Promise<void> {
+    return this.database.reviews.delete(id)
+  }
+}
+
+export class IndexedDbMethodRepository implements MethodRepository {
+  constructor(private readonly database: KnowledgeDatabase) {}
+
+  async createFromReview(input: CreateMethodInput, reviewId: string): Promise<Method> {
+    const title = input.title.trim()
+    const applicable = input.applicable.trim()
+    const steps = input.steps.trim()
+    if (!title || !applicable || !steps) throw new Error('请完成方法标题、适用情况和具体步骤')
+
+    const now = new Date().toISOString()
+    const method: Method = {
+      id: crypto.randomUUID(),
+      title,
+      applicable,
+      unsuitable: input.unsuitable?.trim() ?? '',
+      steps,
+      validationCount: 1,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const evidence: MethodEvidence = {
+      id: crypto.randomUUID(),
+      methodId: method.id,
+      reviewId,
+      createdAt: now,
+    }
+
+    await this.database.transaction('rw', this.database.methods, this.database.methodEvidence, async () => {
+      await this.database.methods.add(method)
+      await this.database.methodEvidence.add(evidence)
+    })
+    return method
+  }
+
+  list(): Promise<Method[]> {
+    return this.database.methods.orderBy('updatedAt').reverse().toArray()
+  }
+
+  async listByReviewId(reviewId: string): Promise<Method[]> {
+    const evidence = await this.database.methodEvidence.where('reviewId').equals(reviewId).toArray()
+    return this.database.methods.bulkGet(evidence.map((entry) => entry.methodId)).then((methods) =>
+      methods.filter((method): method is Method => Boolean(method)),
+    )
+  }
+}
+
+export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowRepository {
+  constructor(
+    private readonly database: KnowledgeDatabase,
+    private readonly itemRepository: IndexedDbItemRepository,
+    private readonly reviewRepository: IndexedDbReviewRepository,
+    private readonly methodRepository: IndexedDbMethodRepository,
+  ) {}
+
+  async complete(input: CompleteReviewInput): Promise<CompleteReviewResult> {
+    return this.database.transaction(
+      'rw',
+      this.database.items,
+      this.database.reviews,
+      this.database.methods,
+      this.database.methodEvidence,
+      async () => {
+        const item = await this.itemRepository.getById(input.itemId)
+        if (!item || item.deletedAt) throw new Error('事项不存在')
+        if (item.status !== 'waiting_review') throw new Error('只有待复盘事项可以完成复盘')
+
+        const review = await this.reviewRepository.create(input)
+        const method = input.method
+          ? await this.methodRepository.createFromReview(input.method, review.id)
+          : undefined
+        const reviewedItem = await this.itemRepository.changeStatus(item.id, 'reviewed')
+        return { item: reviewedItem, review, method }
+      },
+    )
+  }
+}
+
 export function createIndexedDbRepository(name?: string): {
   database: KnowledgeDatabase
   repository: IndexedDbItemRepository
+  reviewRepository: IndexedDbReviewRepository
+  methodRepository: IndexedDbMethodRepository
+  reviewWorkflowRepository: IndexedDbReviewWorkflowRepository
 } {
   const database = new KnowledgeDatabase(name)
-  return { database, repository: new IndexedDbItemRepository(database) }
+  const repository = new IndexedDbItemRepository(database)
+  const reviewRepository = new IndexedDbReviewRepository(database)
+  const methodRepository = new IndexedDbMethodRepository(database)
+  return {
+    database,
+    repository,
+    reviewRepository,
+    methodRepository,
+    reviewWorkflowRepository: new IndexedDbReviewWorkflowRepository(
+      database,
+      repository,
+      reviewRepository,
+      methodRepository,
+    ),
+  }
 }
