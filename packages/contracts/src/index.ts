@@ -140,6 +140,7 @@ export interface ItemRepository {
 
 export interface ReviewRepository {
   create(input: CreateReviewInput): Promise<Review>
+  getById(id: string): Promise<Review | undefined>
   getByItemId(itemId: string): Promise<Review | undefined>
   delete(id: string): Promise<void>
 }

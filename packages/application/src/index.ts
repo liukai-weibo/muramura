@@ -154,6 +154,10 @@ export class ReviewApplicationService {
     return this.workflowRepository.complete(input)
   }
 
+  getReview(reviewId: string): Promise<Review | undefined> {
+    return this.reviewRepository.getById(reviewId)
+  }
+
   getReviewForItem(itemId: string): Promise<Review | undefined> {
     return this.reviewRepository.getByItemId(itemId)
   }

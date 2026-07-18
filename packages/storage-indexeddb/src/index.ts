@@ -229,6 +229,10 @@ export class IndexedDbReviewRepository implements ReviewRepository {
     return review
   }
 
+  getById(id: string): Promise<Review | undefined> {
+    return this.database.reviews.get(id)
+  }
+
   getByItemId(itemId: string): Promise<Review | undefined> {
     return this.database.reviews.where('itemId').equals(itemId).first()
   }

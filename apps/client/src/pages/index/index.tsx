@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import { BackupApplicationService, ItemApplicationService, ReviewApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, Item, ItemStatus, Method, Review } from '@knowledge-base/contracts'
+import type { BackupDocument, Item, ItemStatus, Method, MethodVersion, Review } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -59,6 +59,9 @@ export default function IndexPage() {
   const [items, setItems] = useState<Item[]>([])
   const [trashItems, setTrashItems] = useState<Item[]>([])
   const [methods, setMethods] = useState<Method[]>([])
+  const [expandedMethodId, setExpandedMethodId] = useState<string>()
+  const [methodHistories, setMethodHistories] = useState<Record<string, MethodVersion[]>>({})
+  const [historyReviews, setHistoryReviews] = useState<Record<string, Review>>({})
   const [filter, setFilter] = useState<ItemStatus | undefined>()
   const [showTrash, setShowTrash] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -228,6 +231,25 @@ export default function IndexPage() {
       unsuitable: selectedMethod.unsuitable,
       steps: selectedMethod.steps,
     } : emptyMethod)
+  }
+
+  const toggleMethodHistory = (methodId: string) => {
+    if (expandedMethodId === methodId) {
+      setExpandedMethodId(undefined)
+      return
+    }
+    run(async () => {
+      const versions = methodHistories[methodId] ?? await reviewApplication.listMethodVersions(methodId)
+      const reviewIds = [...new Set(versions.flatMap((version) => version.sourceReviewId ? [version.sourceReviewId] : []))]
+      const missingReviewIds = reviewIds.filter((reviewId) => !historyReviews[reviewId])
+      const loadedReviews = await Promise.all(missingReviewIds.map((reviewId) => reviewApplication.getReview(reviewId)))
+      setMethodHistories((current) => ({ ...current, [methodId]: versions }))
+      setHistoryReviews((current) => ({
+        ...current,
+        ...Object.fromEntries(loadedReviews.filter((review): review is Review => Boolean(review)).map((review) => [review.id, review])),
+      }))
+      setExpandedMethodId(methodId)
+    })
   }
 
   const completeReview = () => run(async () => {
@@ -441,12 +463,38 @@ export default function IndexPage() {
 
       <View className='methods-panel'>
         <View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View>
-        {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <View className='method-grid'>{methods.map((method) => <View className='method-card' key={method.id}>
-          <View className='method-card-heading'><Text>{method.title}</Text><Text>v{method.version} · 验证 {method.validationCount} 次</Text></View>
-          <Text className='method-label'>适用情况</Text><Text className='method-value'>{method.applicable}</Text>
-          {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
-          <Text className='method-label'>具体步骤</Text><Text className='method-value'>{method.steps}</Text>
-        </View>)}</View>}
+        {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <View className='method-grid'>{methods.map((method) => {
+          const history = methodHistories[method.id] ?? []
+          const expanded = expandedMethodId === method.id
+          return <View className={`method-card ${expanded ? 'history-open' : ''}`} key={method.id}>
+            <View className='method-card-heading'><Text>{method.title}</Text><Text>v{method.version} · 验证 {method.validationCount} 次</Text></View>
+            <Text className='method-label'>适用情况</Text><Text className='method-value'>{method.applicable}</Text>
+            {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
+            <Text className='method-label'>具体步骤</Text><Text className='method-value'>{method.steps}</Text>
+            <View className={`method-history-button ${expanded ? 'active' : ''}`} onClick={() => toggleMethodHistory(method.id)}>
+              <Text>{expanded ? '收起版本历史' : `查看版本历史（${method.version}）`}</Text>
+            </View>
+            {expanded && <View className='method-history'>
+              <Text className='method-history-title'>演化轨迹与复盘证据</Text>
+              {[...history].reverse().map((version) => {
+                const sourceReview = version.sourceReviewId ? historyReviews[version.sourceReviewId] : undefined
+                return <View className='method-version' key={version.id}>
+                  <View className='method-version-heading'><Text>v{version.version}</Text><Text>{formatTime(version.createdAt)}</Text></View>
+                  <Text className='method-label'>方法名称</Text><Text className='method-value'>{version.title}</Text>
+                  <Text className='method-label'>适用情况</Text><Text className='method-value'>{version.applicable}</Text>
+                  {version.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{version.unsuitable}</Text></>}
+                  <Text className='method-label'>具体步骤</Text><Text className='method-value'>{version.steps}</Text>
+                  <View className='method-version-evidence'>
+                    <Text className='method-label'>来源复盘</Text>
+                    {sourceReview
+                      ? <><Text>实际行动：{sourceReview.actualAction}</Text><Text>结果：{sourceReview.result}</Text></>
+                      : <Text className='muted'>{version.sourceReviewId ? '来源复盘当前不可用' : '历史迁移快照，无来源复盘记录'}</Text>}
+                  </View>
+                </View>
+              })}
+            </View>}
+          </View>
+        })}</View>}
       </View>
     </View>
   )
