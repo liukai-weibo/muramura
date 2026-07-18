@@ -23,9 +23,66 @@ Taro + React + TypeScript
 
 ## 当前阶段
 
-**产品和架构设计阶段，尚未开始编码。**
+**Sprint 0 工程骨架与技术验证已完成。**
 
-初期先验证核心闭环，不同时开发年、月、周计划、AI、云同步和自由画布。
+当前已具备 Taro H5 客户端、共享领域包、IndexedDB Repository、自动化测试、H5 正式构建和 Docker/Nginx 部署配置。初期先验证核心闭环，不同时开发年、月、周计划、AI、云同步和自由画布。
+
+## 开发与验证
+
+### 环境要求
+
+- Node.js 22
+- Corepack
+- Docker（仅镜像构建与容器运行需要）
+
+### 安装依赖
+
+```bash
+corepack pnpm install
+```
+
+### 本地开发
+
+```bash
+corepack pnpm dev:h5
+```
+
+开发服务默认监听 `http://localhost:10086`。
+
+### 类型检查与测试
+
+```bash
+corepack pnpm typecheck
+corepack pnpm test
+```
+
+### H5 正式构建
+
+```bash
+corepack pnpm build:h5
+```
+
+构建产物位于 `apps/client/dist`。
+
+### Docker 构建与运行
+
+```bash
+docker build -t kkk-personal-system:local .
+docker run --rm -d --name kkk-personal-system-test -p 8080:80 kkk-personal-system:local
+```
+
+打开 `http://localhost:8080` 验证应用。停止测试容器：
+
+```bash
+docker stop kkk-personal-system-test
+```
+
+也可以使用 Compose：
+
+```bash
+docker compose up -d --build
+docker compose down
+```
 
 ## 文档入口
 

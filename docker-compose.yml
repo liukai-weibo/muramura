@@ -1,0 +1,8 @@
+services:
+  web:
+    build:
+      context: .
+    image: kkk-personal-system:local
+    ports:
+      - "8080:80"
+    restart: unless-stopped

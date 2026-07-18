@@ -1,0 +1,19 @@
+{
+  "name": "knowledge-base",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.2",
+  "scripts": {
+    "dev:h5": "npm --prefix apps/client run dev:h5",
+    "build:h5": "npm --prefix apps/client run build:h5",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.7",
+    "fake-indexeddb": "^6.2.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

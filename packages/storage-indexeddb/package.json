@@ -1,0 +1,14 @@
+{
+  "name": "@knowledge-base/storage-indexeddb",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@knowledge-base/contracts": "workspace:*",
+    "@knowledge-base/domain": "workspace:*",
+    "dexie": "^4.4.4"
+  }
+}
