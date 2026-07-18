@@ -88,6 +88,27 @@ export interface ItemLink {
   createdAt: string
 }
 
+export interface BackupData {
+  items: Item[]
+  reviews: Review[]
+  methods: Method[]
+  methodEvidence: MethodEvidence[]
+  itemLinks: ItemLink[]
+}
+
+export interface BackupDocument {
+  format: 'knowledge-base-backup'
+  version: 1
+  exportedAt: string
+  appVersion: string
+  data: BackupData
+}
+
+export interface BackupRepository {
+  exportData(): Promise<BackupData>
+  replaceData(data: BackupData): Promise<void>
+}
+
 export interface ItemRepository {
   create(input: CreateItemInput): Promise<Item>
   getById(id: string): Promise<Item | undefined>

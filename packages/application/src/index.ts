@@ -1,4 +1,6 @@
 import type {
+  BackupDocument,
+  BackupRepository,
   CompleteReviewInput,
   CompleteReviewResult,
   Item,
@@ -11,6 +13,7 @@ import type {
   ReviewWorkflowRepository,
 } from '@knowledge-base/contracts'
 import { allowedTransitions } from '@knowledge-base/domain'
+import { itemStatuses } from '@knowledge-base/contracts'
 
 export const TRASH_RETENTION_DAYS = 30
 
@@ -55,6 +58,74 @@ const statusActions: Partial<Record<ItemStatus, readonly ItemAction[]>> = {
   abandoned: [
     { label: '重新考虑', status: 'idea_to_try', tone: 'primary' },
   ],
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function requireUniqueIds(entries: Array<{ id: string }>, label: string): void {
+  const ids = new Set<string>()
+  for (const entry of entries) {
+    if (!entry.id || ids.has(entry.id)) throw new Error(`${label}存在空 ID 或重复 ID`)
+    ids.add(entry.id)
+  }
+}
+
+export class BackupApplicationService {
+  constructor(private readonly repository: BackupRepository) {}
+
+  async createBackup(): Promise<BackupDocument> {
+    return {
+      format: 'knowledge-base-backup',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      appVersion: '0.1.0',
+      data: await this.repository.exportData(),
+    }
+  }
+
+  parseAndValidate(input: string): BackupDocument {
+    let value: unknown
+    try { value = JSON.parse(input) }
+    catch { throw new Error('备份文件不是有效的 JSON') }
+    if (!isRecord(value) || value.format !== 'knowledge-base-backup') throw new Error('这不是本系统的备份文件')
+    if (value.version !== 1) throw new Error(`不支持的备份版本：${String(value.version)}`)
+    if (!isRecord(value.data)) throw new Error('备份缺少 data 数据区')
+
+    const collectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
+    for (const name of collectionNames) {
+      if (!Array.isArray(value.data[name])) throw new Error(`备份缺少 ${name} 数据表`)
+      if (value.data[name].some((entry) => !isRecord(entry) || typeof entry.id !== 'string')) {
+        throw new Error(`${name} 中存在无效记录`)
+      }
+    }
+
+    const document = value as unknown as BackupDocument
+    const { items, reviews, methods, methodEvidence, itemLinks } = document.data
+    requireUniqueIds(items, '事项')
+    requireUniqueIds(reviews, '复盘')
+    requireUniqueIds(methods, '方法')
+    requireUniqueIds(methodEvidence, '方法证据')
+    requireUniqueIds(itemLinks, '想法来源关系')
+
+    const itemIds = new Set(items.map((item) => item.id))
+    const reviewIds = new Set(reviews.map((review) => review.id))
+    const methodIds = new Set(methods.map((method) => method.id))
+    if (items.some((item) => !item.title || !itemStatuses.includes(item.status))) throw new Error('事项中存在空标题或非法状态')
+    if (reviews.some((review) => !itemIds.has(review.itemId))) throw new Error('复盘引用了不存在的事项')
+    if (methodEvidence.some((entry) => !methodIds.has(entry.methodId) || !reviewIds.has(entry.reviewId))) {
+      throw new Error('方法证据引用了不存在的方法或复盘')
+    }
+    if (itemLinks.some((link) => !reviewIds.has(link.sourceReviewId) || !itemIds.has(link.targetItemId) || link.type !== 'derived_from_review')) {
+      throw new Error('想法来源关系存在无效引用')
+    }
+    return document
+  }
+
+  restoreBackup(document: BackupDocument): Promise<void> {
+    return this.repository.replaceData(document.data)
+  }
 }
 
 export class ReviewApplicationService {

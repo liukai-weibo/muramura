@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import { ItemApplicationService, ReviewApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { Item, ItemStatus, Method, Review } from '@knowledge-base/contracts'
+import { BackupApplicationService, ItemApplicationService, ReviewApplicationService, type ItemAction } from '@knowledge-base/application'
+import type { BackupDocument, Item, ItemStatus, Method, Review } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -51,6 +51,7 @@ export default function IndexPage() {
   const reviewApplication = useMemo(() => new ReviewApplicationService(
     storage.reviewRepository, storage.methodRepository, storage.reviewWorkflowRepository,
   ), [storage])
+  const backupApplication = useMemo(() => new BackupApplicationService(storage.backupRepository), [storage])
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [items, setItems] = useState<Item[]>([])
@@ -60,6 +61,8 @@ export default function IndexPage() {
   const [showTrash, setShowTrash] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [pendingBackup, setPendingBackup] = useState<BackupDocument>()
+  const [backupMessage, setBackupMessage] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
   const [selectedReview, setSelectedReview] = useState<Review>()
   const [reviewForm, setReviewForm] = useState(emptyReview)
@@ -155,6 +158,44 @@ export default function IndexPage() {
     setSelectedId(undefined)
     setDeleteConfirm(false)
   }
+
+  const exportBackup = () => run(async () => {
+    const backup = await backupApplication.createBackup()
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `knowledge-base-backup-${backup.exportedAt.slice(0, 10)}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    setBackupMessage(`已导出 ${backup.data.items.length} 条事项、${backup.data.reviews.length} 条复盘和 ${backup.data.methods.length} 条方法`)
+  })
+
+  const selectBackup = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    try {
+      const backup = backupApplication.parseAndValidate(await file.text())
+      setPendingBackup(backup)
+      setBackupMessage('备份校验通过，请确认是否覆盖当前全部数据')
+    } catch (error: unknown) {
+      setPendingBackup(undefined)
+      setBackupMessage(error instanceof Error ? error.message : '备份文件校验失败')
+    }
+  }
+
+  const restoreBackup = () => run(async () => {
+    if (!pendingBackup) return
+    await backupApplication.restoreBackup(pendingBackup)
+    setPendingBackup(undefined)
+    setSelectedId(undefined)
+    setFilter(undefined)
+    setShowTrash(false)
+    setCurrentPage(1)
+    await refresh(undefined)
+    setBackupMessage('备份恢复完成，全部数据已替换')
+  })
 
   const completeReview = () => run(async () => {
     if (!selectedItem) return
@@ -312,6 +353,27 @@ export default function IndexPage() {
             </View>}
           </> : <View className='detail-empty'><Text className='detail-empty-title'>选择一件事</Text><Text>查看详情，并推动它进入下一个真实状态。</Text></View>}
         </View>
+      </View>
+
+      <View className='backup-panel'>
+        <View className='backup-heading'>
+          <View><Text className='section-kicker'>数据备份</Text><Text className='panel-title'>导出与恢复</Text></View>
+          <Text className='backup-description'>数据仅保存在当前浏览器。建议每周及重大更新前导出一次 JSON 备份。</Text>
+        </View>
+        <View className='backup-actions'>
+          <Button className='secondary-button' disabled={busy} onClick={exportBackup}>导出完整备份</Button>
+          <label className={`file-button ${busy ? 'disabled' : ''}`}>选择备份文件<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy} onChange={selectBackup} /></label>
+        </View>
+        {backupMessage && <Text className={`backup-message ${pendingBackup ? 'warning' : ''}`}>{backupMessage}</Text>}
+        {pendingBackup && <View className='restore-confirm'>
+          <Text>备份时间：{formatTime(pendingBackup.exportedAt)}</Text>
+          <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法</Text>
+          <Text className='restore-warning'>恢复会完整覆盖当前浏览器中的全部数据，此操作不可撤销。建议先导出当前数据。</Text>
+          <View className='restore-actions'>
+            <Button className='secondary-button' disabled={busy} onClick={() => { setPendingBackup(undefined); setBackupMessage('已取消恢复') }}>取消</Button>
+            <Button className='action-button delete-confirm-button' disabled={busy} onClick={restoreBackup}>确认覆盖并恢复</Button>
+          </View>
+        </View>}
       </View>
 
       <View className='methods-panel'>

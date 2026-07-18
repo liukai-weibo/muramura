@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type {
+  BackupData,
+  BackupRepository,
   CompleteReviewInput,
   CompleteReviewResult,
   CreateItemInput,
@@ -254,6 +256,46 @@ export class IndexedDbMethodRepository implements MethodRepository {
   }
 }
 
+export class IndexedDbBackupRepository implements BackupRepository {
+  constructor(private readonly database: KnowledgeDatabase) {}
+
+  async exportData(): Promise<BackupData> {
+    const [items, reviews, methods, methodEvidence, itemLinks] = await Promise.all([
+      this.database.items.toArray(),
+      this.database.reviews.toArray(),
+      this.database.methods.toArray(),
+      this.database.methodEvidence.toArray(),
+      this.database.itemLinks.toArray(),
+    ])
+    return { items, reviews, methods, methodEvidence, itemLinks }
+  }
+
+  replaceData(data: BackupData): Promise<void> {
+    return this.database.transaction(
+      'rw',
+      this.database.items,
+      this.database.reviews,
+      this.database.methods,
+      this.database.methodEvidence,
+      this.database.itemLinks,
+      async () => {
+        await Promise.all([
+          this.database.itemLinks.clear(),
+          this.database.methodEvidence.clear(),
+          this.database.reviews.clear(),
+          this.database.methods.clear(),
+          this.database.items.clear(),
+        ])
+        await this.database.items.bulkAdd(data.items)
+        await this.database.reviews.bulkAdd(data.reviews)
+        await this.database.methods.bulkAdd(data.methods)
+        await this.database.methodEvidence.bulkAdd(data.methodEvidence)
+        await this.database.itemLinks.bulkAdd(data.itemLinks)
+      },
+    )
+  }
+}
+
 export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowRepository {
   constructor(
     private readonly database: KnowledgeDatabase,
@@ -309,17 +351,20 @@ export function createIndexedDbRepository(name?: string): {
   repository: IndexedDbItemRepository
   reviewRepository: IndexedDbReviewRepository
   methodRepository: IndexedDbMethodRepository
+  backupRepository: IndexedDbBackupRepository
   reviewWorkflowRepository: IndexedDbReviewWorkflowRepository
 } {
   const database = new KnowledgeDatabase(name)
   const repository = new IndexedDbItemRepository(database)
   const reviewRepository = new IndexedDbReviewRepository(database)
   const methodRepository = new IndexedDbMethodRepository(database)
+  const backupRepository = new IndexedDbBackupRepository(database)
   return {
     database,
     repository,
     reviewRepository,
     methodRepository,
+    backupRepository,
     reviewWorkflowRepository: new IndexedDbReviewWorkflowRepository(
       database,
       repository,
