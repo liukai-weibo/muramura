@@ -56,8 +56,15 @@
 .panel-heading > view { display: flex; flex-direction: column; }
 .panel-title { margin-top: 5px; font-size: 24px; font-weight: 800; }
 
-.filters { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; padding-bottom: 16px; border-bottom: 1px solid #ece7df; }
-.filter-button { margin: 0; border: 1px solid #ded7cc; border-radius: 999px; background: transparent; color: #6d655a; font-size: 12px; line-height: 28px; }
+.filter-header { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-bottom: 12px; border-bottom: 1px solid #ece7df; }
+.filter-guidance { color: #8a8277; font-size: 12px; }
+.all-filter-button { margin: 0; border: 0; background: transparent; color: #8a8277; font-size: 11px; line-height: 26px; }
+.all-filter-button.active { color: #282520; font-weight: 800; }
+.filter-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 14px 0 16px; border-bottom: 1px solid #ece7df; }
+.filter-group { min-width: 0; padding: 10px; border-radius: 12px; background: #f7f3ec; }
+.filter-group-label { display: block; margin-bottom: 8px; color: #574f44; font-size: 12px; font-weight: 800; }
+.filters { display: flex; flex-direction: column; gap: 6px; }
+.filter-button { width: 100%; margin: 0; border: 1px solid #ded7cc; border-radius: 8px; background: #fffdf9; color: #6d655a; font-size: 12px; line-height: 28px; }
 .filter-button.active { border-color: #282520; background: #282520; color: #fff; }
 
 .item { display: flex; justify-content: space-between; gap: 18px; padding: 17px 12px; border-bottom: 1px solid #eee9e1; border-radius: 12px; cursor: pointer; }
@@ -145,6 +152,8 @@
   .capture-actions button { width: 100%; }
   .item { flex-direction: column; }
   .item-meta { align-items: flex-start; flex-direction: row; }
+  .filter-groups { grid-template-columns: 1fr; }
+  .filters { flex-direction: row; }
   .review-heading, .method-card-heading { align-items: flex-start; flex-direction: column; }
   .review-record-row { grid-template-columns: 1fr; gap: 4px; }
 }

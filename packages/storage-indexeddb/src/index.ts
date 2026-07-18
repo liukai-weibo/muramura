@@ -6,6 +6,7 @@ import type {
   CreateMethodInput,
   CreateReviewInput,
   Item,
+  ItemLink,
   ItemRepository,
   ItemStatus,
   Method,
@@ -17,11 +18,13 @@ import type {
 } from '@knowledge-base/contracts'
 import { assertTransition } from '@knowledge-base/domain'
 
+export { default as Dexie } from 'dexie'
 export class KnowledgeDatabase extends Dexie {
   items!: EntityTable<Item, 'id'>
   reviews!: EntityTable<Review, 'id'>
   methods!: EntityTable<Method, 'id'>
   methodEvidence!: EntityTable<MethodEvidence, 'id'>
+  itemLinks!: EntityTable<ItemLink, 'id'>
 
   constructor(name = 'knowledge-base') {
     super(name)
@@ -33,6 +36,41 @@ export class KnowledgeDatabase extends Dexie {
       reviews: 'id, &itemId, createdAt, updatedAt',
       methods: 'id, createdAt, updatedAt',
       methodEvidence: 'id, methodId, reviewId, [methodId+reviewId]',
+    })
+    this.version(3).stores({
+      items: 'id, status, createdAt, updatedAt, deletedAt',
+      reviews: 'id, &itemId, createdAt, updatedAt',
+      methods: 'id, createdAt, updatedAt',
+      methodEvidence: 'id, methodId, reviewId, [methodId+reviewId]',
+      itemLinks: 'id, sourceReviewId, targetItemId, type',
+    }).upgrade(async (transaction) => {
+      const reviews = await transaction.table<Review, string>('reviews').toArray()
+      const ideasAndLinks = reviews.flatMap((review) => {
+        const newIdeas = review.newIdeas.trim()
+        const title = newIdeas.split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
+        if (!title) return []
+
+        const itemId = crypto.randomUUID()
+        const item: Item = {
+          id: itemId,
+          title,
+          content: newIdeas === title ? '' : newIdeas,
+          status: 'idea_to_try',
+          createdAt: review.updatedAt,
+          updatedAt: review.updatedAt,
+        }
+        const link: ItemLink = {
+          id: crypto.randomUUID(),
+          sourceReviewId: review.id,
+          targetItemId: itemId,
+          type: 'derived_from_review',
+          createdAt: review.updatedAt,
+        }
+        return [{ item, link }]
+      })
+
+      await transaction.table<Item, string>('items').bulkAdd(ideasAndLinks.map(({ item }) => item))
+      await transaction.table<ItemLink, string>('itemLinks').bulkAdd(ideasAndLinks.map(({ link }) => link))
     })
   }
 }
@@ -184,6 +222,7 @@ export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowReposito
       this.database.reviews,
       this.database.methods,
       this.database.methodEvidence,
+      this.database.itemLinks,
       async () => {
         const item = await this.itemRepository.getById(input.itemId)
         if (!item || item.deletedAt) throw new Error('事项不存在')
@@ -193,8 +232,26 @@ export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowReposito
         const method = input.method
           ? await this.methodRepository.createFromReview(input.method, review.id)
           : undefined
+        const newIdeas = input.newIdeas?.trim() ?? ''
+        const newIdeaTitle = newIdeas.split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
+        const createdIdea = newIdeaTitle
+          ? await this.itemRepository.create({
+            title: newIdeaTitle,
+            content: newIdeas === newIdeaTitle ? '' : newIdeas,
+            status: 'idea_to_try',
+          })
+          : undefined
+        if (createdIdea) {
+          await this.database.itemLinks.add({
+            id: crypto.randomUUID(),
+            sourceReviewId: review.id,
+            targetItemId: createdIdea.id,
+            type: 'derived_from_review',
+            createdAt: new Date().toISOString(),
+          })
+        }
         const reviewedItem = await this.itemRepository.changeStatus(item.id, 'reviewed')
-        return { item: reviewedItem, review, method }
+        return { item: reviewedItem, review, method, createdIdea }
       },
     )
   }

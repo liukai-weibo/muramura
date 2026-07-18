@@ -78,6 +78,16 @@ export interface MethodEvidence {
   createdAt: string
 }
 
+export type ItemLinkType = 'derived_from_review'
+
+export interface ItemLink {
+  id: string
+  sourceReviewId: string
+  targetItemId: string
+  type: ItemLinkType
+  createdAt: string
+}
+
 export interface ItemRepository {
   create(input: CreateItemInput): Promise<Item>
   getById(id: string): Promise<Item | undefined>
@@ -106,6 +116,7 @@ export interface CompleteReviewResult {
   item: Item
   review: Review
   method?: Method
+  createdIdea?: Item
 }
 
 export interface ReviewWorkflowRepository {

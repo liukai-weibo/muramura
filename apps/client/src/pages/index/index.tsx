@@ -10,10 +10,28 @@ const statusLabels: Record<ItemStatus, string> = {
   waiting_review: '待复盘', reviewed: '已复盘', archived_no_review: '不复盘归档', abandoned: '已放弃',
 }
 
-const filters: Array<{ label: string; status?: ItemStatus }> = [
-  { label: '全部' }, { label: '想试试', status: 'idea_to_try' }, { label: '以后再说', status: 'idea_later' },
-  { label: '进行中', status: 'doing' }, { label: '已暂停', status: 'paused' },
-  { label: '待复盘', status: 'waiting_review' }, { label: '已复盘', status: 'reviewed' },
+const filterGroups: Array<{ label: string; entries: Array<{ label: string; status: ItemStatus }> }> = [
+  {
+    label: '想法 / 灵感',
+    entries: [
+      { label: '想试试', status: 'idea_to_try' },
+      { label: '以后再说', status: 'idea_later' },
+    ],
+  },
+  {
+    label: '正在做的事',
+    entries: [
+      { label: '进行中', status: 'doing' },
+      { label: '已暂停', status: 'paused' },
+    ],
+  },
+  {
+    label: '复盘',
+    entries: [
+      { label: '待复盘', status: 'waiting_review' },
+      { label: '已复盘', status: 'reviewed' },
+    ],
+  },
 ]
 
 const emptyReview = {
@@ -109,6 +127,9 @@ export default function IndexPage() {
     setReviewForm(emptyReview)
     setMethodForm(emptyMethod)
     await refresh(selectedItem.id)
+    setMessage(result.createdIdea
+      ? `复盘已完成，新想法“${result.createdIdea.title}”已进入想试试`
+      : '复盘已完成')
   })
 
   const reviewField = (key: keyof typeof emptyReview, label: string, placeholder: string, optional = false) => (
@@ -147,7 +168,16 @@ export default function IndexPage() {
       <View className='workspace'>
         <View className='list-panel'>
           <View className='panel-heading'><View><Text className='section-kicker'>事项池</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
-          <View className='filters'>{filters.map((entry) => <Button key={entry.label} className={`filter-button ${filter === entry.status ? 'active' : ''}`} size='mini' onClick={() => setFilter(entry.status)}>{entry.label}</Button>)}</View>
+          <View className='filter-header'>
+            <Text className='filter-guidance'>按运行阶段查看</Text>
+            <Button className={`all-filter-button ${filter === undefined ? 'active' : ''}`} size='mini' onClick={() => setFilter(undefined)}>全部事项</Button>
+          </View>
+          <View className='filter-groups'>
+            {filterGroups.map((group) => <View className='filter-group' key={group.label}>
+              <Text className='filter-group-label'>{group.label}</Text>
+              <View className='filters'>{group.entries.map((entry) => <Button key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} size='mini' onClick={() => setFilter(entry.status)}>{entry.label}</Button>)}</View>
+            </View>)}
+          </View>
           <View className='list'>
             {visibleItems.length === 0 ? <View className='empty'><Text>这个状态下还没有事项。</Text><Text>先捕获一个真实想法，让系统开始运转。</Text></View> : visibleItems.map((item) => (
               <View className={`item ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => setSelectedId(item.id)}>
@@ -166,7 +196,7 @@ export default function IndexPage() {
             <View className='detail-time'><Text>创建于 {formatTime(selectedItem.createdAt)}</Text><Text>更新于 {formatTime(selectedItem.updatedAt)}</Text></View>
 
             {selectedItem.status === 'waiting_review' && <View className='review-form'>
-              <View className='review-heading'><Text className='section-kicker'>完成复盘</Text><Text>先还原事实，再提炼方法。</Text></View>
+        <View className='review-heading'><Text className='section-kicker'>完成复盘</Text><Text>先还原事实，再提炼方法。</Text></View>
               {reviewField('actualAction', '实际做了什么', '只写实际发生的行动，不写计划')}
               {reviewField('result', '结果怎样', '结果、产出或可观察变化')}
               {reviewField('effective', '哪些地方有效或舒服', '保留哪些做法')}
