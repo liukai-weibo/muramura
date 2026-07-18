@@ -78,6 +78,8 @@ export default function IndexPage() {
     }
   }
 
+  const hasCaptureContent = Boolean(title.trim() || content.trim())
+
   const createIdea = (saveForLater: boolean) => run(async () => {
     const item = await application.createIdea({ title, content, saveForLater })
     setTitle('')
@@ -112,23 +114,26 @@ export default function IndexPage() {
 
       <View className='capture-card'>
         <Text className='section-kicker'>快速捕获</Text>
+        <Text className='field-label'>一句话标题</Text>
         <Input
           className='title-input'
           value={title}
           maxlength={120}
-          placeholder='我想做什么？'
+          placeholder='例如：我想学写字'
           onInput={(event) => setTitle(event.detail.value)}
         />
+        <Text className='field-label content-label'>补充说明（可选）</Text>
         <Textarea
           className='content-input'
           value={content}
           maxlength={1000}
-          placeholder='补充背景、目的或下一步（可选）'
+          placeholder='为什么想做、希望得到什么、准备从哪一步开始'
           onInput={(event) => setContent(event.detail.value)}
         />
+        <Text className='capture-hint'>只填补充说明也可以保存，第一行会自动成为标题。</Text>
         <View className='capture-actions'>
-          <Button className='secondary-button' disabled={busy || !title.trim()} onClick={() => createIdea(true)}>以后再说</Button>
-          <Button className='primary-button' disabled={busy || !title.trim()} onClick={() => createIdea(false)}>加入想试试</Button>
+          <Button className='secondary-button' disabled={busy || !hasCaptureContent} onClick={() => createIdea(true)}>以后再说</Button>
+          <Button className='primary-button' disabled={busy || !hasCaptureContent} onClick={() => createIdea(false)}>加入想试试</Button>
         </View>
       </View>
 

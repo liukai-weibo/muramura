@@ -1,5 +1,11 @@
-import type { CreateItemInput, Item, ItemRepository, ItemStatus } from '@knowledge-base/contracts'
+import type { Item, ItemRepository, ItemStatus } from '@knowledge-base/contracts'
 import { allowedTransitions } from '@knowledge-base/domain'
+
+export interface CaptureIdeaInput {
+  title?: string
+  content?: string
+  saveForLater?: boolean
+}
 
 export interface ItemAction {
   label: string
@@ -37,10 +43,14 @@ const statusActions: Partial<Record<ItemStatus, readonly ItemAction[]>> = {
 export class ItemApplicationService {
   constructor(private readonly repository: ItemRepository) {}
 
-  createIdea(input: Pick<CreateItemInput, 'title' | 'content'> & { saveForLater?: boolean }): Promise<Item> {
+  createIdea(input: CaptureIdeaInput): Promise<Item> {
+    const enteredTitle = input.title?.trim() ?? ''
+    const enteredContent = input.content?.trim() ?? ''
+    const title = enteredTitle || enteredContent.split(/\r?\n/, 1)[0]?.slice(0, 120) || ''
+
     return this.repository.create({
-      title: input.title,
-      content: input.content,
+      title,
+      content: enteredTitle ? enteredContent : '',
       status: input.saveForLater ? 'idea_later' : 'idea_to_try',
     })
   }

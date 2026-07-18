@@ -30,17 +30,20 @@
 }
 
 .capture-card { padding: 24px; }
-.title-input { height: 54px; margin-top: 12px; font-size: 25px; font-weight: 700; }
+.field-label { display: block; margin-top: 18px; color: #4f493f; font-size: 13px; font-weight: 750; }
+.content-label { margin-top: 22px; }
+.title-input { height: 54px; margin-top: 4px; border-bottom: 1px solid #e6dfd4; font-size: 25px; font-weight: 700; }
 .content-input {
   box-sizing: border-box;
   width: 100%;
   min-height: 86px;
-  margin-top: 6px;
+  margin-top: 4px;
   padding: 12px 0;
   color: #443f38;
   font-size: 15px;
 }
 
+.capture-hint { display: block; margin-top: 8px; color: #9a9287; font-size: 12px; }
 .capture-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 .primary-button, .secondary-button, .action-button { margin: 0; border-radius: 10px; font-size: 14px; }
 .primary-button { border: 0; background: #282520; color: #fff; }

@@ -28,6 +28,15 @@ describe('Sprint 1 事项应用服务', () => {
     expect((await application.listItems()).map((item) => item.id)).toEqual([laterIdea.id, activeIdea.id])
   })
 
+  it('只填写补充说明时自动取第一行作为标题', async () => {
+    const { application } = createApplication()
+
+    const item = await application.createIdea({ content: '我想学写字\n从每天十分钟开始' })
+
+    expect(item.title).toBe('我想学写字')
+    expect(item.content).toBe('')
+  })
+
   it('完成想法到待复盘的执行链路', async () => {
     const { application } = createApplication()
     const idea = await application.createIdea({ title: '完成 Sprint 1' })
