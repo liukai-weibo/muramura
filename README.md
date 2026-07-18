@@ -23,9 +23,9 @@ Taro + React + TypeScript
 
 ## 当前阶段
 
-**Sprint 0 工程骨架与技术验证已完成。**
+**Sprint 1 事项主链路已完成。**
 
-当前已具备 Taro H5 客户端、共享领域包、IndexedDB Repository、自动化测试、H5 正式构建和 Docker/Nginx 部署配置。初期先验证核心闭环，不同时开发年、月、周计划、AI、云同步和自由画布。
+当前已具备 Taro H5 客户端、共享领域与应用用例包、IndexedDB Repository、自动化测试、H5 正式构建和 Docker/Nginx 部署配置。用户可以捕获想法、区分“想试试/以后再说”，并推动事项经过执行、暂停、恢复直至待复盘。下一阶段将实现复盘记录与当前有效的方法。
 
 ## 开发与验证
 

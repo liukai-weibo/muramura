@@ -9,6 +9,7 @@
     "build:weapp": "taro build --type weapp"
   },
   "dependencies": {
+    "@knowledge-base/application": "workspace:*",
     "@knowledge-base/contracts": "workspace:*",
     "@knowledge-base/domain": "workspace:*",
     "@knowledge-base/storage-indexeddb": "workspace:*",

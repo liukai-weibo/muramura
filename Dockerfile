@@ -4,6 +4,7 @@ RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json vitest.config.ts ./
 COPY apps/client/package.json apps/client/package.json
+COPY packages/application/package.json packages/application/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/domain/package.json packages/domain/package.json
 COPY packages/storage-indexeddb/package.json packages/storage-indexeddb/package.json
