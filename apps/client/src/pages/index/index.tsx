@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import { BackupApplicationService, ItemApplicationService, ReviewApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, Item, ItemStatus, Method, MethodVersion, Review } from '@knowledge-base/contracts'
+import { BackupApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, type ItemAction } from '@knowledge-base/application'
+import type { BackupDocument, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -53,6 +53,7 @@ export default function IndexPage() {
   const reviewApplication = useMemo(() => new ReviewApplicationService(
     storage.reviewRepository, storage.methodRepository, storage.reviewWorkflowRepository,
   ), [storage])
+  const methodApplication = useMemo(() => new MethodApplicationService(storage.methodApplicationRepository), [storage])
   const backupApplication = useMemo(() => new BackupApplicationService(storage.backupRepository), [storage])
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -75,6 +76,10 @@ export default function IndexPage() {
   const [methodMode, setMethodMode] = useState<MethodMode>('none')
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [reviseMethod, setReviseMethod] = useState(false)
+  const [methodApplicationContext, setMethodApplicationContext] = useState<MethodApplicationContext>()
+  const [applyingMethodId, setApplyingMethodId] = useState<string>()
+  const [methodActionTitle, setMethodActionTitle] = useState('')
+  const [methodActionContent, setMethodActionContent] = useState('')
   const [message, setMessage] = useState('正在读取本地事项…')
   const [busy, setBusy] = useState(false)
 
@@ -115,6 +120,20 @@ export default function IndexPage() {
       setMessage(error instanceof Error ? error.message : '读取复盘失败')
     })
   }, [selectedId, reviewApplication, items])
+
+  useEffect(() => {
+    if (!selectedId) { setMethodApplicationContext(undefined); return }
+    methodApplication.getContextForItem(selectedId).then((context) => {
+      setMethodApplicationContext(context)
+      const item = items.find((entry) => entry.id === selectedId)
+      if (context && item?.status === 'waiting_review' && methodMode === 'none') {
+        setMethodMode('validate')
+        setSelectedMethodId(context.method.id)
+        setReviseMethod(false)
+        setMethodForm(emptyMethod)
+      }
+    }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '读取方法应用信息失败'))
+  }, [selectedId, methodApplication, items])
 
   const run = async (operation: () => Promise<void>) => {
     if (busy) return
@@ -232,6 +251,29 @@ export default function IndexPage() {
       steps: selectedMethod.steps,
     } : emptyMethod)
   }
+
+  const openMethodApplication = (method: Method) => {
+    if (applyingMethodId === method.id) {
+      setApplyingMethodId(undefined)
+      setMethodActionTitle('')
+      setMethodActionContent('')
+      return
+    }
+    setApplyingMethodId(method.id)
+    setMethodActionTitle(`使用“${method.title}”完成一次行动`)
+    setMethodActionContent('')
+  }
+
+  const createMethodAction = (method: Method) => run(async () => {
+    const item = await methodApplication.createItem(method.id, methodActionTitle, methodActionContent)
+    setApplyingMethodId(undefined)
+    setMethodActionTitle('')
+    setMethodActionContent('')
+    setFilter(undefined)
+    setShowTrash(false)
+    await refresh(item.id)
+    setMessage(`已基于“${method.title}”v${method.version} 创建行动事项`)
+  })
 
   const toggleMethodHistory = (methodId: string) => {
     if (expandedMethodId === methodId) {
@@ -380,6 +422,12 @@ export default function IndexPage() {
             <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '没有补充说明。'}</Text>
             <View className='detail-time'><Text>创建于 {formatTime(selectedItem.createdAt)}</Text><Text>更新于 {formatTime(selectedItem.updatedAt)}</Text></View>
 
+            {methodApplicationContext && <View className='method-application-context'>
+              <Text className='method-label'>本次行动使用的方法</Text>
+              <Text>{methodApplicationContext.version.title} v{methodApplicationContext.application.methodVersion}</Text>
+              {selectedItem.status === 'waiting_review' && <Text>已为本次复盘推荐验证该方法，你仍可切换其他处理方式。</Text>}
+            </View>}
+
             {!showTrash && selectedItem.status === 'waiting_review' && <View className='review-form'>
         <View className='review-heading'><Text className='section-kicker'>完成复盘</Text><Text>先还原事实，再提炼方法。</Text></View>
               {reviewField('actualAction', '实际做了什么', '只写实际发生的行动，不写计划')}
@@ -471,6 +519,14 @@ export default function IndexPage() {
             <Text className='method-label'>适用情况</Text><Text className='method-value'>{method.applicable}</Text>
             {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
             <Text className='method-label'>具体步骤</Text><Text className='method-value'>{method.steps}</Text>
+            <View className={`method-apply-button ${applyingMethodId === method.id ? 'active' : ''}`} onClick={() => openMethodApplication(method)}>
+              <Text>{applyingMethodId === method.id ? '取消创建行动' : '用此方法开始行动'}</Text>
+            </View>
+            {applyingMethodId === method.id && <View className='method-apply-form'>
+              <Input className='method-action-input' value={methodActionTitle} maxlength={120} placeholder='这次具体要完成什么' onInput={(event) => setMethodActionTitle(event.detail.value)} />
+              <Textarea className='method-action-textarea' value={methodActionContent} maxlength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.detail.value)} />
+              <View className={`method-action-submit ${methodActionTitle.trim() && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View>
+            </View>}
             <View className={`method-history-button ${expanded ? 'active' : ''}`} onClick={() => toggleMethodHistory(method.id)}>
               <Text>{expanded ? '收起版本历史' : `查看版本历史（${method.version}）`}</Text>
             </View>

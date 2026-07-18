@@ -173,6 +173,10 @@ button.filter-button {
 .detail-content { margin-top: 24px; color: #49443d; font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
 .detail-content.muted { color: #999084; }
 .detail-time { display: flex; flex-direction: column; gap: 4px; margin-top: 20px; color: #9a9287; font-size: 12px; }
+.method-application-context { display: flex; flex-direction: column; gap: 5px; margin-top: 18px; padding: 12px 14px; border: 1px solid #d9d0c2; border-radius: 11px; background: #f5f0e7; color: #554f46; font-size: 13px; line-height: 1.5; }
+.method-application-context .method-label { margin-top: 0; }
+.method-application-context text:nth-child(2) { color: #302c27; font-weight: 800; }
+.method-application-context text:last-child:not(:nth-child(2)) { color: #81796e; font-size: 12px; }
 .action-stack { display: flex; flex-direction: column; gap: 9px; margin-top: auto; padding-top: 28px; }
 .action-button { width: 100%; }
 .action-button.primary { border: 0; background: #282520; color: #fff; }
@@ -258,6 +262,16 @@ button.filter-button {
 .method-label, .method-value { display: block; }
 .method-label { margin-top: 12px; color: #857c70; font-size: 11px; font-weight: 750; letter-spacing: 0.08em; }
 .method-value { margin-top: 4px; color: #413c35; font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
+.method-apply-button, .method-action-submit { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; height: 42px; margin-top: 16px; padding: 0 14px; overflow: hidden; border-radius: 9px; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+.method-apply-button { border: 1px solid #282520; background: #282520; color: #fff; }
+.method-apply-button:hover, .method-apply-button.active { background: #454039; }
+.method-apply-button text, .method-action-submit text { display: block; overflow: hidden; font-size: 13px; font-weight: 750; line-height: 18px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.method-apply-form { margin-top: 10px; padding: 12px; border: 1px solid #ddd4c8; border-radius: 10px; background: #fffdf9; }
+.method-action-input { box-sizing: border-box; width: 100%; height: 40px; padding: 0 10px; border: 1px solid #d8d0c4; border-radius: 8px; background: #fff; font-size: 13px; line-height: 38px; }
+.method-action-textarea { box-sizing: border-box; width: 100%; min-height: 70px; margin-top: 8px; padding: 10px; border: 1px solid #d8d0c4; border-radius: 8px; background: #fff; font-size: 13px; }
+.method-action-submit { margin-top: 8px; border: 1px solid #6d806f; background: #6d806f; color: #fff; }
+.method-action-submit:hover { background: #526555; }
+.method-action-submit.disabled { cursor: not-allowed; opacity: 0.42; }
 .method-history-button { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; height: 42px; margin-top: 16px; padding: 0 14px; overflow: hidden; border: 1px solid #d4cabd; border-radius: 9px; background: #fffdf9; color: #625a50; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
 .method-history-button text { display: block; overflow: hidden; font-size: 13px; font-weight: 750; line-height: 18px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .method-history { margin-top: 14px; padding-top: 14px; border-top: 1px solid #ddd4c8; }

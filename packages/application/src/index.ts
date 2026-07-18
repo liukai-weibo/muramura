@@ -7,6 +7,8 @@ import type {
   ItemRepository,
   ItemStatus,
   Method,
+  MethodApplicationContext,
+  MethodApplicationRepository,
   MethodRepository,
   MethodVersion,
   Review,
@@ -112,13 +114,17 @@ export class BackupApplicationService {
         sourceReviewId: legacyEvidence.find((entry) => entry.methodId === method.id)?.reviewId,
         createdAt: method.createdAt,
       }))
-    const document: BackupDocument = { ...rawDocument, data: { ...rawDocument.data, methodVersions } }
+    const methodApplications = Array.isArray(value.data.methodApplications)
+      ? value.data.methodApplications as unknown as BackupDocument['data']['methodApplications']
+      : []
+    const document: BackupDocument = { ...rawDocument, data: { ...rawDocument.data, methodVersions, methodApplications } }
     const { items, reviews, methods, methodEvidence, itemLinks } = document.data
     requireUniqueIds(items, '事项')
     requireUniqueIds(reviews, '复盘')
     requireUniqueIds(methods, '方法')
     requireUniqueIds(methodEvidence, '方法证据')
     requireUniqueIds(methodVersions, '方法版本')
+    requireUniqueIds(methodApplications, '方法应用')
     requireUniqueIds(itemLinks, '想法来源关系')
 
     const itemIds = new Set(items.map((item) => item.id))
@@ -131,6 +137,15 @@ export class BackupApplicationService {
     }
     if (methodVersions.some((entry) => !methodIds.has(entry.methodId) || (entry.sourceReviewId && !reviewIds.has(entry.sourceReviewId)))) {
       throw new Error('方法版本引用了不存在的方法或复盘')
+    }
+    if (methodApplications.some((entry) => !methodIds.has(entry.methodId) || !itemIds.has(entry.itemId))) {
+      throw new Error('方法应用引用了不存在的方法或事项')
+    }
+    if (new Set(methodApplications.map((entry) => entry.itemId)).size !== methodApplications.length) {
+      throw new Error('同一事项不能关联多个方法应用')
+    }
+    if (methodApplications.some((entry) => !methodVersions.some((version) => version.methodId === entry.methodId && version.version === entry.methodVersion))) {
+      throw new Error('方法应用引用了不存在的方法版本')
     }
     if (itemLinks.some((link) => !reviewIds.has(link.sourceReviewId) || !itemIds.has(link.targetItemId) || link.type !== 'derived_from_review')) {
       throw new Error('想法来源关系存在无效引用')
@@ -172,6 +187,18 @@ export class ReviewApplicationService {
 
   listMethodVersions(methodId: string): Promise<MethodVersion[]> {
     return this.methodRepository.listVersions(methodId)
+  }
+}
+
+export class MethodApplicationService {
+  constructor(private readonly repository: MethodApplicationRepository) {}
+
+  createItem(methodId: string, title: string, content?: string): Promise<Item> {
+    return this.repository.createItem({ methodId, title, content })
+  }
+
+  getContextForItem(itemId: string): Promise<MethodApplicationContext | undefined> {
+    return this.repository.getContextByItemId(itemId)
   }
 }
 

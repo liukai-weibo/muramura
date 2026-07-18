@@ -5,6 +5,7 @@ import type {
   CompleteReviewInput,
   CompleteReviewResult,
   CreateItemInput,
+  CreateMethodApplicationInput,
   CreateMethodInput,
   CreateReviewInput,
   Item,
@@ -12,6 +13,9 @@ import type {
   ItemRepository,
   ItemStatus,
   Method,
+  MethodApplication,
+  MethodApplicationContext,
+  MethodApplicationRepository,
   MethodEvidence,
   MethodRepository,
   MethodVersion,
@@ -26,6 +30,7 @@ export class KnowledgeDatabase extends Dexie {
   items!: EntityTable<Item, 'id'>
   reviews!: EntityTable<Review, 'id'>
   methods!: EntityTable<Method, 'id'>
+  methodApplications!: EntityTable<MethodApplication, 'id'>
   methodEvidence!: EntityTable<MethodEvidence, 'id'>
   methodVersions!: EntityTable<MethodVersion, 'id'>
   itemLinks!: EntityTable<ItemLink, 'id'>
@@ -99,6 +104,15 @@ export class KnowledgeDatabase extends Dexie {
       }))
       await transaction.table<MethodVersion, string>('methodVersions').bulkAdd(versions)
     })
+    this.version(5).stores({
+      items: 'id, status, createdAt, updatedAt, deletedAt',
+      reviews: 'id, &itemId, createdAt, updatedAt',
+      methods: 'id, createdAt, updatedAt',
+      methodEvidence: 'id, methodId, reviewId, [methodId+reviewId]',
+      methodVersions: 'id, methodId, version, [methodId+version], sourceReviewId',
+      methodApplications: 'id, methodId, methodVersion, &itemId, [methodId+methodVersion]',
+      itemLinks: 'id, sourceReviewId, targetItemId, type',
+    })
   }
 }
 
@@ -171,6 +185,7 @@ export class IndexedDbItemRepository implements ItemRepository {
         this.database.items,
         this.database.reviews,
         this.database.methods,
+        this.database.methodApplications,
         this.database.methodEvidence,
         this.database.methodVersions,
         this.database.itemLinks,
@@ -183,18 +198,55 @@ export class IndexedDbItemRepository implements ItemRepository {
             await this.database.methodEvidence.bulkDelete(evidence.map((entry) => entry.id))
             await this.database.reviews.delete(review.id)
             for (const methodId of new Set(evidence.map((entry) => entry.methodId))) {
-              if (await this.database.methodEvidence.where('methodId').equals(methodId).count() === 0) {
+              const evidenceCount = await this.database.methodEvidence.where('methodId').equals(methodId).count()
+              const applicationCount = await this.database.methodApplications.where('methodId').equals(methodId).count()
+              if (evidenceCount === 0 && applicationCount === 0) {
                 await this.database.methodVersions.where('methodId').equals(methodId).delete()
                 await this.database.methods.delete(methodId)
               }
             }
             await this.database.itemLinks.where('sourceReviewId').equals(review.id).delete()
           }
+          await this.database.methodApplications.where('itemId').equals(item.id).delete()
           await this.database.itemLinks.where('targetItemId').equals(item.id).delete()
           await this.database.items.delete(item.id)
         }
       },
     )
+  }
+}
+
+export class IndexedDbMethodApplicationRepository implements MethodApplicationRepository {
+  constructor(
+    private readonly database: KnowledgeDatabase,
+    private readonly itemRepository: IndexedDbItemRepository,
+  ) {}
+
+  async createItem(input: CreateMethodApplicationInput): Promise<Item> {
+    const method = await this.database.methods.get(input.methodId)
+    if (!method) throw new Error('选择的方法不存在')
+
+    return this.database.transaction('rw', [this.database.items, this.database.methodApplications], async () => {
+      const item = await this.itemRepository.create({ title: input.title, content: input.content, status: 'idea_to_try' })
+      await this.database.methodApplications.add({
+        id: crypto.randomUUID(),
+        methodId: method.id,
+        methodVersion: method.version,
+        itemId: item.id,
+        createdAt: new Date().toISOString(),
+      })
+      return item
+    })
+  }
+
+  async getContextByItemId(itemId: string): Promise<MethodApplicationContext | undefined> {
+    const application = await this.database.methodApplications.where('itemId').equals(itemId).first()
+    if (!application) return undefined
+    const [method, version] = await Promise.all([
+      this.database.methods.get(application.methodId),
+      this.database.methodVersions.where('[methodId+version]').equals([application.methodId, application.methodVersion]).first(),
+    ])
+    return method && version ? { application, method, version } : undefined
   }
 }
 
@@ -343,15 +395,16 @@ export class IndexedDbBackupRepository implements BackupRepository {
   constructor(private readonly database: KnowledgeDatabase) {}
 
   async exportData(): Promise<BackupData> {
-    const [items, reviews, methods, methodEvidence, methodVersions, itemLinks] = await Promise.all([
+    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks] = await Promise.all([
       this.database.items.toArray(),
       this.database.reviews.toArray(),
       this.database.methods.toArray(),
       this.database.methodEvidence.toArray(),
       this.database.methodVersions.toArray(),
+      this.database.methodApplications.toArray(),
       this.database.itemLinks.toArray(),
     ])
-    return { items, reviews, methods, methodEvidence, methodVersions, itemLinks }
+    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks }
   }
 
   replaceData(data: BackupData): Promise<void> {
@@ -361,6 +414,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
         this.database.items,
         this.database.reviews,
         this.database.methods,
+        this.database.methodApplications,
         this.database.methodEvidence,
         this.database.methodVersions,
         this.database.itemLinks,
@@ -368,6 +422,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
       async () => {
         await Promise.all([
           this.database.itemLinks.clear(),
+          this.database.methodApplications.clear(),
           this.database.methodEvidence.clear(),
           this.database.methodVersions.clear(),
           this.database.reviews.clear(),
@@ -379,6 +434,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
         await this.database.methods.bulkAdd(data.methods)
         await this.database.methodEvidence.bulkAdd(data.methodEvidence)
         await this.database.methodVersions.bulkAdd(data.methodVersions)
+        await this.database.methodApplications.bulkAdd(data.methodApplications)
         await this.database.itemLinks.bulkAdd(data.itemLinks)
       },
     )
@@ -446,6 +502,7 @@ export function createIndexedDbRepository(name?: string): {
   repository: IndexedDbItemRepository
   reviewRepository: IndexedDbReviewRepository
   methodRepository: IndexedDbMethodRepository
+  methodApplicationRepository: IndexedDbMethodApplicationRepository
   backupRepository: IndexedDbBackupRepository
   reviewWorkflowRepository: IndexedDbReviewWorkflowRepository
 } {
@@ -453,12 +510,14 @@ export function createIndexedDbRepository(name?: string): {
   const repository = new IndexedDbItemRepository(database)
   const reviewRepository = new IndexedDbReviewRepository(database)
   const methodRepository = new IndexedDbMethodRepository(database)
+  const methodApplicationRepository = new IndexedDbMethodApplicationRepository(database, repository)
   const backupRepository = new IndexedDbBackupRepository(database)
   return {
     database,
     repository,
     reviewRepository,
     methodRepository,
+    methodApplicationRepository,
     backupRepository,
     reviewWorkflowRepository: new IndexedDbReviewWorkflowRepository(
       database,

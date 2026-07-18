@@ -88,6 +88,26 @@ export interface ValidateMethodInput {
   revision?: CreateMethodInput
 }
 
+export interface MethodApplication {
+  id: string
+  methodId: string
+  methodVersion: number
+  itemId: string
+  createdAt: string
+}
+
+export interface CreateMethodApplicationInput {
+  methodId: string
+  title: string
+  content?: string
+}
+
+export interface MethodApplicationContext {
+  application: MethodApplication
+  method: Method
+  version: MethodVersion
+}
+
 export interface MethodEvidence {
   id: string
   methodId: string
@@ -111,6 +131,7 @@ export interface BackupData {
   methods: Method[]
   methodEvidence: MethodEvidence[]
   methodVersions: MethodVersion[]
+  methodApplications: MethodApplication[]
   itemLinks: ItemLink[]
 }
 
@@ -125,6 +146,11 @@ export interface BackupDocument {
 export interface BackupRepository {
   exportData(): Promise<BackupData>
   replaceData(data: BackupData): Promise<void>
+}
+
+export interface MethodApplicationRepository {
+  createItem(input: CreateMethodApplicationInput): Promise<Item>
+  getContextByItemId(itemId: string): Promise<MethodApplicationContext | undefined>
 }
 
 export interface ItemRepository {
