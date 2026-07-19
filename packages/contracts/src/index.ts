@@ -235,6 +235,7 @@ export interface SearchResult {
   title: string
   excerpt: string
   itemId?: string
+  itemStatus?: ItemStatus
   methodId?: string
   methodVersion?: number
 }
@@ -253,6 +254,7 @@ export interface ItemRepository {
   getById(id: string): Promise<Item | undefined>
   list(): Promise<Item[]>
   listDeleted(): Promise<Item[]>
+  listStatusEvents(itemId: string): Promise<ItemStatusEvent[]>
   changeStatus(id: string, status: ItemStatus): Promise<Item>
   delete(id: string): Promise<void>
   restore(id: string): Promise<Item>

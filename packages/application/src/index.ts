@@ -175,6 +175,12 @@ export class BackupApplicationService {
   restoreBackup(document: BackupDocument): Promise<void> {
     return this.repository.replaceData(document.data)
   }
+
+  async restoreBackupSafely(document: BackupDocument, preserveCurrent: (backup: BackupDocument) => void | Promise<void>): Promise<void> {
+    const safetyBackup = await this.createBackup()
+    await preserveCurrent(safetyBackup)
+    await this.restoreBackup(document)
+  }
 }
 
 export class ReviewApplicationService {
@@ -345,6 +351,12 @@ export class ItemApplicationService {
     await this.repository.purgeDeletedBefore(trashCutoff())
     const items = await this.repository.listDeleted()
     return items.sort((left, right) => (right.deletedAt ?? '').localeCompare(left.deletedAt ?? ''))
+  }
+
+  async listStatusEvents(itemId: string): Promise<ItemStatusEvent[]> {
+    const item = await this.repository.getById(itemId)
+    if (!item) throw new Error('事项不存在')
+    return this.repository.listStatusEvents(itemId)
   }
 
   async getItem(id: string): Promise<Item> {

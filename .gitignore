@@ -35,7 +35,9 @@ backups/
 *.sqlite
 *.sqlite3
 
-# Exported personal data archives
+# Exported personal data archives and JSON backups
+knowledge-base-backup-*.json
+knowledge-base-before-restore-*.json
 *.zip
 *.tar
 *.tar.gz

@@ -53,7 +53,7 @@ describe('Sprint 7 全局搜索与快速定位', () => {
     const { item, result } = await createReviewedMethod(services)
 
     expect(await services.search.search('瘦金体')).toEqual([
-      expect.objectContaining({ type: 'item', itemId: item.id, title: '学习瘦金体' }),
+      expect.objectContaining({ type: 'item', itemId: item.id, itemStatus: 'reviewed', title: '学习瘦金体' }),
       expect.objectContaining({ type: 'review', itemId: item.id, title: '学习瘦金体' }),
     ])
     expect(await services.search.search('决策成本')).toEqual([

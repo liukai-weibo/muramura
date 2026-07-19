@@ -180,6 +180,10 @@ export class IndexedDbItemRepository implements ItemRepository {
     return this.database.items.filter((item) => Boolean(item.deletedAt)).sortBy('deletedAt')
   }
 
+  listStatusEvents(itemId: string): Promise<ItemStatusEvent[]> {
+    return this.database.itemStatusEvents.where('itemId').equals(itemId).sortBy('createdAt')
+  }
+
   async changeStatus(id: string, status: ItemStatus): Promise<Item> {
     const item = await this.getById(id)
     if (!item || item.deletedAt) throw new Error('事项不存在')
@@ -293,7 +297,8 @@ export class IndexedDbSearchRepository implements SearchRepository {
     ])
     const itemById = new Map(items.map((item) => [item.id, item]))
     const itemResults: SearchResult[] = items.filter((item) => contains(item.title, item.content)).map((item) => ({
-      id: `item:${item.id}`, type: 'item', title: item.title, excerpt: item.content || `状态：${item.status}`, itemId: item.id,
+      id: `item:${item.id}`, type: 'item', title: item.title, excerpt: item.content,
+      itemId: item.id, itemStatus: item.status,
     }))
     const reviewResults: SearchResult[] = reviews.filter((review) => itemById.has(review.itemId) && contains(
       review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas,

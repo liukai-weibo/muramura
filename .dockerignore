@@ -10,6 +10,8 @@ test-results
 data
 exports
 backups
+knowledge-base-backup-*.json
+knowledge-base-before-restore-*.json
 *.log
 *.zip
 *.tar

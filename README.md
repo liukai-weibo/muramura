@@ -14,18 +14,18 @@ KKK 个人系统可视化项目。
 
 ```text
 Taro + React + TypeScript
-├── 第一阶段：H5 / Web 本地运行
-├── 第二阶段：Docker 镜像部署 H5
-└── 后续阶段：微信小程序 + CloudBase
+├── 第一阶段：H5 / Web 本地优先应用 + Docker 部署
+├── 第二阶段：方向层与计划体系
+└── 后续阶段：微信小程序、CloudBase 与多设备
 ```
 
-第一阶段使用 IndexedDB 保存本地数据，并支持 Markdown + JSON + ZIP 导出恢复。
+第一阶段使用 IndexedDB 保存本地数据，以完整 JSON 作为正式备份与恢复格式；Markdown + ZIP 保留为后续可读导出能力。
 
 ## 当前阶段
 
-**Sprint 2 复盘与方法沉淀已完成。**
+**Sprint 11 第一阶段收口中。**
 
-当前已具备 Taro H5 客户端、共享领域与应用用例包、IndexedDB Repository、自动化测试、H5 正式构建和 Docker/Nginx 部署配置。用户可以捕获想法、推动执行、完成结构化复盘，并从现实证据中提炼“当前有效的方法”。下一阶段将实现方法产生新想法与完整流转时间线。
+当前已完成想法、执行、复盘、方法复用、全局搜索、状态流转历史、周期仪表盘下钻、回收站以及安全备份恢复闭环。当前工作聚焦工程标准核验、文档对齐和 `v0.1.0` 封板。
 
 ## 开发与验证
 
@@ -68,7 +68,7 @@ corepack pnpm build:h5
 
 ```bash
 docker build -t kkk-personal-system:local .
-docker run --rm -d --name kkk-personal-system-test -p 8080:80 kkk-personal-system:local
+docker run --rm -d --name kkk-personal-system-test -p 8080:8080 kkk-personal-system:local
 ```
 
 打开 `http://localhost:8080` 验证应用。停止测试容器：
@@ -86,25 +86,25 @@ docker compose down
 
 ## 文档入口
 
-1. [`docs/product/功能清单-v1.md`](<docs/product/功能清单-v1.md>)：经过补充和分层的功能清单
-2. [`docs/architecture/整体架构设计-v2.md`](<docs/architecture/整体架构设计-v2.md>)：当前有效技术架构
-3. [`docs/development/开发流程-v1.md`](<docs/development/开发流程-v1.md>)：整体开发顺序
-4. [`docs/development/Git与镜像约定.md`](<docs/development/Git与镜像约定.md>)：Git、隐私和 Docker 约定
-5. [`docs/archive/整体架构设计-v1-已废弃.md`](<docs/archive/整体架构设计-v1-已废弃.md>)：早期 Next.js + SQLite 草案，仅保留决策历史
+1. [`docs/product/功能清单-v2.md`](<docs/product/功能清单-v2.md>)：当前有效产品范围与第一阶段完成标准
+2. [`docs/product/功能清单-v1.md`](<docs/product/功能清单-v1.md>)：早期产品设计，仅保留决策历史
+3. [`docs/architecture/整体架构设计-v2.md`](<docs/architecture/整体架构设计-v2.md>)：当前有效技术架构
+4. [`docs/development/开发流程-v1.md`](<docs/development/开发流程-v1.md>)：整体开发顺序
+5. [`docs/development/Git与镜像约定.md`](<docs/development/Git与镜像约定.md>)：Git、隐私和 Docker 约定
+6. [`docs/archive/整体架构设计-v1-已废弃.md`](<docs/archive/整体架构设计-v1-已废弃.md>)：早期 Next.js + SQLite 草案，仅保留决策历史
 
 ## MVP 完整演示
 
 ```text
 新建想法
-→ 开始执行
-→ 执行结束
-→ 进入待复盘
-→ 完成复盘
-→ 形成做事方法
-→ 产生新想法
-→ 查看完整时间线
-→ 导出 Markdown + JSON
-→ 从备份完整恢复
+→ 开始、暂停或恢复执行
+→ 执行结束并完成复盘
+→ 产生新想法，或主动形成 / 验证 / 修订方法
+→ 用方法发起新行动
+→ 搜索、周期观察并下钻定位
+→ 查看单事项完整时间线
+→ 导出完整 JSON
+→ 自动保存恢复前备份并完整恢复
 ```
 
 ## 仓库边界

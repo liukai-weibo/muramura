@@ -16,8 +16,11 @@ RUN pnpm build:h5
 
 FROM nginx:1.29-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-RUN rm -rf /usr/share/nginx/html/*
-COPY --from=builder /app/apps/client/dist /usr/share/nginx/html
-EXPOSE 80
+RUN rm -rf /usr/share/nginx/html/* \
+  && touch /var/run/nginx.pid \
+  && chown -R nginx:nginx /var/cache/nginx /var/run/nginx.pid /usr/share/nginx/html
+COPY --from=builder --chown=nginx:nginx /app/apps/client/dist /usr/share/nginx/html
+USER nginx
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1

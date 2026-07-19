@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, SearchApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
+import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, ItemStatusEvent, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -101,7 +101,7 @@ export default function IndexPage() {
   const [expandedMethodId, setExpandedMethodId] = useState<string>()
   const [methodHistories, setMethodHistories] = useState<Record<string, MethodVersion[]>>({})
   const [historyReviews, setHistoryReviews] = useState<Record<string, Review>>({})
-  const [filter, setFilter] = useState<ItemStatus | undefined>()
+  const [filter, setFilter] = useState<ItemStatus | undefined>('idea_to_try')
   const [showTrash, setShowTrash] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -109,6 +109,8 @@ export default function IndexPage() {
   const [backupMessage, setBackupMessage] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
   const [selectedReview, setSelectedReview] = useState<Review>()
+  const [statusEvents, setStatusEvents] = useState<ItemStatusEvent[]>([])
+  const [timelineOpen, setTimelineOpen] = useState(false)
   const [reviewForm, setReviewForm] = useState(emptyReview)
   const [hasNewIdea, setHasNewIdea] = useState(false)
   const [methodForm, setMethodForm] = useState(emptyMethod)
@@ -177,17 +179,25 @@ export default function IndexPage() {
   }, [selectedId, reviewApplication, items])
 
   useEffect(() => {
+    if (!selectedId) { setStatusEvents([]); return }
+    application.listStatusEvents(selectedId).then(setStatusEvents).catch((error: unknown) => {
+      setMessage(error instanceof Error ? error.message : '读取流转历史失败')
+    })
+  }, [selectedId, application, items])
+
+  useEffect(() => {
+    setTimelineOpen(false)
+    setMethodMode('none')
+    setSelectedMethodId('')
+    setReviseMethod(false)
+    setMethodForm(emptyMethod)
+    setReviewError('')
+  }, [selectedId])
+
+  useEffect(() => {
     if (!selectedId) { setMethodApplicationContext(undefined); return }
-    methodApplication.getContextForItem(selectedId).then((context) => {
-      setMethodApplicationContext(context)
-      const item = items.find((entry) => entry.id === selectedId)
-      if (context && item?.status === 'waiting_review' && methodMode === 'none') {
-        setMethodMode('validate')
-        setSelectedMethodId(context.method.id)
-        setReviseMethod(false)
-        setMethodForm(emptyMethod)
-      }
-    }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '读取方法应用信息失败'))
+    methodApplication.getContextForItem(selectedId).then(setMethodApplicationContext)
+      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '读取方法应用信息失败'))
   }, [selectedId, methodApplication, items])
 
   const run = async (operation: () => Promise<void>) => {
@@ -285,15 +295,21 @@ export default function IndexPage() {
     setDeleteConfirm(false)
   }
 
-  const exportBackup = () => run(async () => {
-    const backup = await backupApplication.createBackup()
+  const downloadBackup = (backup: BackupDocument, filenamePrefix: string) => {
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `knowledge-base-backup-${backup.exportedAt.slice(0, 10)}.json`
+    anchor.download = `${filenamePrefix}-${backup.exportedAt.replaceAll(':', '-').slice(0, 19)}.json`
+    document.body.appendChild(anchor)
     anchor.click()
-    URL.revokeObjectURL(url)
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  const exportBackup = () => run(async () => {
+    const backup = await backupApplication.createBackup()
+    downloadBackup(backup, 'knowledge-base-backup')
     setBackupMessage(`已导出 ${backup.data.items.length} 条事项、${backup.data.reviews.length} 条复盘和 ${backup.data.methods.length} 条方法`)
   })
 
@@ -313,14 +329,18 @@ export default function IndexPage() {
 
   const restoreBackup = () => run(async () => {
     if (!pendingBackup) return
-    await backupApplication.restoreBackup(pendingBackup)
+    setBackupMessage('正在生成恢复前安全备份…')
+    await backupApplication.restoreBackupSafely(pendingBackup, (safetyBackup) => {
+      downloadBackup(safetyBackup, 'knowledge-base-before-restore')
+      setBackupMessage('安全备份已下载，正在恢复数据…')
+    })
     setPendingBackup(undefined)
     setSelectedId(undefined)
-    setFilter(undefined)
+    setFilter('idea_to_try')
     setShowTrash(false)
     setCurrentPage(1)
     await refresh(undefined)
-    setBackupMessage('备份恢复完成，全部数据已替换')
+    setBackupMessage('恢复完成；覆盖前的数据已自动下载为安全备份')
   })
 
   const chooseMethodMode = (mode: MethodMode) => {
@@ -523,7 +543,7 @@ export default function IndexPage() {
             return <View className='search-group' key={type}>
               <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : '方法'} · {grouped.length}</Text>
               {grouped.map((result) => <View className='search-result' key={result.id} onClick={() => locateSearchResult(result)}>
-                <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.excerpt}</Text></View>
+                <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
                 <Text className='search-result-action'>{result.methodVersion ? `定位 v${result.methodVersion}` : '定位'}</Text>
               </View>)}
             </View>
@@ -658,8 +678,20 @@ export default function IndexPage() {
           {selectedItem ? <>
             <View className='detail-header'>
               <Text className='section-kicker'>{showTrash ? '回收站事项' : '当前事项'}</Text>
-              <View className='detail-time'><Text>创建 {formatTime(selectedItem.createdAt)}</Text><Text>更新 {formatTime(selectedItem.updatedAt)}</Text></View>
+              <View className='detail-header-meta'>
+                <View className={`timeline-toggle ${timelineOpen ? 'active' : ''}`} onClick={() => setTimelineOpen((open) => !open)}><Text>流转历史</Text></View>
+                <View className='detail-time'><Text>创建 {formatTime(selectedItem.createdAt)}</Text><Text>更新 {formatTime(selectedItem.updatedAt)}</Text></View>
+              </View>
             </View>
+            {timelineOpen && <View className='status-timeline'>
+              {statusEvents.length ? statusEvents.map((event) => <View className='timeline-entry' key={event.id}>
+                <View className='timeline-marker' />
+                <View className='timeline-content'>
+                  <Text>{event.fromStatus ? `${statusLabels[event.fromStatus]} → ${statusLabels[event.toStatus]}` : `创建为${statusLabels[event.toStatus]}`}</Text>
+                  <Text>{formatTime(event.createdAt)}</Text>
+                </View>
+              </View>) : <Text className='timeline-empty'>暂无流转记录。</Text>}
+            </View>}
             <Text className='detail-title'>{selectedItem.title}</Text>
             {showTrash
               ? <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>
@@ -669,7 +701,7 @@ export default function IndexPage() {
             {methodApplicationContext && <View className='method-application-context'>
               <Text className='method-label'>本次行动使用的方法</Text>
               <Text>{methodApplicationContext.version.title} v{methodApplicationContext.application.methodVersion}</Text>
-              {selectedItem.status === 'waiting_review' && <Text>已为本次复盘推荐验证该方法，你仍可切换其他处理方式。</Text>}
+              {selectedItem.status === 'waiting_review' && <Text>你可以先完成事实复盘，再决定是否验证或修订该方法。</Text>}
             </View>}
 
             {!showTrash && selectedItem.status === 'waiting_review' && <View className='review-form'>
@@ -772,10 +804,10 @@ export default function IndexPage() {
         {pendingBackup && <View className='restore-confirm'>
           <Text>备份时间：{formatTime(pendingBackup.exportedAt)}</Text>
           <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法</Text>
-          <Text className='restore-warning'>恢复会完整覆盖当前浏览器中的全部数据，此操作不可撤销。建议先导出当前数据。</Text>
+          <Text className='restore-warning'>恢复会完整覆盖当前浏览器中的全部数据。确认后，系统会先自动下载当前数据的安全备份，再执行恢复。</Text>
           <View className='restore-actions'>
-            <Button className='secondary-button' disabled={busy} onClick={() => { setPendingBackup(undefined); setBackupMessage('已取消恢复') }}>取消</Button>
-            <Button className='action-button delete-confirm-button' disabled={busy} onClick={restoreBackup}>确认覆盖并恢复</Button>
+            <View className={`secondary-button restore-cancel-button ${busy ? 'disabled' : ''}`} onClick={() => { if (!busy) { setPendingBackup(undefined); setBackupMessage('已取消恢复') } }}><Text>取消</Text></View>
+            <Button className='action-button delete-confirm-button' disabled={busy} onClick={restoreBackup}>备份当前数据并恢复</Button>
           </View>
         </View>}
       </View>
