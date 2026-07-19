@@ -213,6 +213,10 @@ export class ReviewApplicationService {
   listMethodVersions(methodId: string): Promise<MethodVersion[]> {
     return this.methodRepository.listVersions(methodId)
   }
+
+  listMethodEvidenceDetails(methodId: string) {
+    return this.methodRepository.listEvidenceDetails(methodId)
+  }
 }
 
 export class DashboardApplicationService {

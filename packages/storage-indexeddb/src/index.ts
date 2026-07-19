@@ -20,6 +20,8 @@ import type {
   MethodApplicationContext,
   MethodApplicationRepository,
   MethodEvidence,
+  MethodEvidenceDetail,
+  MethodEvidenceRelation,
   MethodRepository,
   MethodVersion,
   Review,
@@ -460,6 +462,46 @@ export class IndexedDbMethodRepository implements MethodRepository {
 
   listVersions(methodId: string): Promise<MethodVersion[]> {
     return this.database.methodVersions.where('methodId').equals(methodId).sortBy('version')
+  }
+
+  async listEvidenceDetails(methodId: string): Promise<MethodEvidenceDetail[]> {
+    const [evidence, versions] = await Promise.all([
+      this.database.methodEvidence.where('methodId').equals(methodId).toArray(),
+      this.database.methodVersions.where('methodId').equals(methodId).toArray(),
+    ])
+    const reviewIds = [...new Set(evidence.map((entry) => entry.reviewId))]
+    const reviews = await this.database.reviews.bulkGet(reviewIds)
+    const reviewById = new Map(reviews.filter((review): review is Review => Boolean(review)).map((review) => [review.id, review]))
+    const itemIds = [...new Set(reviews.filter((review): review is Review => Boolean(review)).map((review) => review.itemId))]
+    const items = await this.database.items.bulkGet(itemIds)
+    const existingItems = items.filter((item): item is Item => Boolean(item))
+    const itemById = new Map(existingItems.filter((item) => !item.deletedAt).map((item) => [item.id, item]))
+
+    return evidence.map((entry) => {
+      const review = reviewById.get(entry.reviewId)
+      const item = review && itemById.get(review.itemId)
+      const matchedVersions = versions.filter((version) => version.sourceReviewId === entry.reviewId)
+      const matchedVersion = matchedVersions.length === 1 ? matchedVersions[0] : undefined
+      const hasReliableFormation = versions.some((version) => version.version === 1 && Boolean(version.sourceReviewId))
+      const relation: MethodEvidenceRelation = !review || !item || matchedVersions.length > 1 || !hasReliableFormation
+        ? 'unknown'
+        : matchedVersion?.version === 1
+          ? 'formation'
+          : matchedVersion
+            ? 'revision'
+            : 'validation'
+      return {
+        evidenceId: entry.id,
+        methodId: entry.methodId,
+        reviewId: entry.reviewId,
+        itemId: review?.itemId ?? '',
+        itemTitle: item?.title ?? '关联事项已不存在',
+        reviewCreatedAt: review?.createdAt ?? entry.createdAt,
+        reviewSummary: review ? [review.actualAction, review.result].filter(Boolean).join(' · ') || '复盘内容为空' : '关联复盘已不存在',
+        relation,
+        ...(matchedVersion ? { methodVersion: matchedVersion.version } : {}),
+      }
+    }).sort((left, right) => right.reviewCreatedAt.localeCompare(left.reviewCreatedAt))
   }
 
   async validateFromReview(methodId: string, reviewId: string, revision?: CreateMethodInput): Promise<Method> {

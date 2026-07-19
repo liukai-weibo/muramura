@@ -115,6 +115,20 @@ export interface MethodEvidence {
   createdAt: string
 }
 
+export type MethodEvidenceRelation = 'formation' | 'validation' | 'revision' | 'unknown'
+
+export interface MethodEvidenceDetail {
+  evidenceId: string
+  methodId: string
+  reviewId: string
+  itemId: string
+  itemTitle: string
+  reviewCreatedAt: string
+  reviewSummary: string
+  relation: MethodEvidenceRelation
+  methodVersion?: number
+}
+
 export interface ItemStatusEvent {
   id: string
   itemId: string
@@ -273,6 +287,7 @@ export interface MethodRepository {
   list(): Promise<Method[]>
   listByReviewId(reviewId: string): Promise<Method[]>
   listVersions(methodId: string): Promise<MethodVersion[]>
+  listEvidenceDetails(methodId: string): Promise<MethodEvidenceDetail[]>
   validateFromReview(methodId: string, reviewId: string, revision?: CreateMethodInput): Promise<Method>
 }
 
