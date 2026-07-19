@@ -10,6 +10,7 @@ import type {
   Item,
   ItemRepository,
   ItemStatus,
+  ItemStatusEvent,
   Method,
   MethodApplicationContext,
   MethodApplicationRepository,
@@ -123,7 +124,15 @@ export class BackupApplicationService {
     const methodApplications = Array.isArray(value.data.methodApplications)
       ? value.data.methodApplications as unknown as BackupDocument['data']['methodApplications']
       : []
-    const document: BackupDocument = { ...rawDocument, data: { ...rawDocument.data, methodVersions, methodApplications } }
+    const itemStatusEvents: ItemStatusEvent[] = Array.isArray(value.data.itemStatusEvents)
+      ? value.data.itemStatusEvents as unknown as ItemStatusEvent[]
+      : rawDocument.data.items.map((item) => ({
+        id: crypto.randomUUID(), itemId: item.id, toStatus: item.status, createdAt: item.createdAt,
+      }))
+    const document: BackupDocument = {
+      ...rawDocument,
+      data: { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents },
+    }
     const { items, reviews, methods, methodEvidence, itemLinks } = document.data
     requireUniqueIds(items, '事项')
     requireUniqueIds(reviews, '复盘')
@@ -131,6 +140,7 @@ export class BackupApplicationService {
     requireUniqueIds(methodEvidence, '方法证据')
     requireUniqueIds(methodVersions, '方法版本')
     requireUniqueIds(methodApplications, '方法应用')
+    requireUniqueIds(itemStatusEvents, '状态事件')
     requireUniqueIds(itemLinks, '想法来源关系')
 
     const itemIds = new Set(items.map((item) => item.id))
@@ -152,6 +162,9 @@ export class BackupApplicationService {
     }
     if (methodApplications.some((entry) => !methodVersions.some((version) => version.methodId === entry.methodId && version.version === entry.methodVersion))) {
       throw new Error('方法应用引用了不存在的方法版本')
+    }
+    if (itemStatusEvents.some((event) => !itemIds.has(event.itemId) || !itemStatuses.includes(event.toStatus) || (event.fromStatus && !itemStatuses.includes(event.fromStatus)))) {
+      throw new Error('状态事件引用了不存在的事项或非法状态')
     }
     if (itemLinks.some((link) => !reviewIds.has(link.sourceReviewId) || !itemIds.has(link.targetItemId) || link.type !== 'derived_from_review')) {
       throw new Error('想法来源关系存在无效引用')
@@ -213,8 +226,10 @@ function buildDashboardReport(snapshot: DashboardSnapshot, window: DashboardWind
   const periodEvidence = snapshot.methodEvidence.filter((entry) => inWindow(entry.createdAt))
   const periodApplications = snapshot.methodApplications.filter((entry) => inWindow(entry.createdAt))
   const periodRevisions = snapshot.methodVersions.filter((version) => version.version > 1 && inWindow(version.createdAt))
+  const periodStarts = snapshot.itemStatusEvents.filter((event) => event.fromStatus && event.toStatus === 'doing' && inWindow(event.createdAt))
   const metrics = {
     newItems: activeItems.filter((item) => inWindow(item.createdAt)).length,
+    startedExecutions: periodStarts.length,
     completedReviews: snapshot.reviews.filter((review) => inWindow(review.createdAt)).length,
     newMethods: snapshot.methods.filter((method) => inWindow(method.createdAt)).length,
     methodValidations: periodEvidence.filter((entry) => !versionEvidenceIds.has(entry.reviewId)).length,
@@ -247,7 +262,7 @@ function buildDashboardReport(snapshot: DashboardSnapshot, window: DashboardWind
   const unreviewedMethodActions = snapshot.methodApplications.filter((entry) => !reviewedItemIds.has(entry.itemId)).length
   const label = window === '7d' ? '过去 7 天' : window === '30d' ? '过去 30 天' : '全部时间'
   const facts = [
-    `${label}新增 ${metrics.newItems} 条事项，完成 ${metrics.completedReviews} 条复盘。`,
+    `${label}新增 ${metrics.newItems} 条事项，进入执行 ${metrics.startedExecutions} 次，完成 ${metrics.completedReviews} 条复盘。`,
     backlog.waitingReview ? `当前有 ${backlog.waitingReview} 条事项等待复盘。` : '当前没有等待复盘的事项。',
     mostValidated ? `“${mostValidated.title}”在该窗口内证据最多，共 ${mostValidated.count} 条。` : '该窗口内还没有方法验证证据。',
     unreviewedMethodActions ? `有 ${unreviewedMethodActions} 条方法行动尚未完成复盘。` : '所有方法行动都已完成复盘。',

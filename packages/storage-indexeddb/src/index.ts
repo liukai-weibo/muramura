@@ -14,6 +14,7 @@ import type {
   ItemLink,
   ItemRepository,
   ItemStatus,
+  ItemStatusEvent,
   Method,
   MethodApplication,
   MethodApplicationContext,
@@ -38,6 +39,7 @@ export class KnowledgeDatabase extends Dexie {
   methodEvidence!: EntityTable<MethodEvidence, 'id'>
   methodVersions!: EntityTable<MethodVersion, 'id'>
   itemLinks!: EntityTable<ItemLink, 'id'>
+  itemStatusEvents!: EntityTable<ItemStatusEvent, 'id'>
 
   constructor(name = 'knowledge-base') {
     super(name)
@@ -117,6 +119,25 @@ export class KnowledgeDatabase extends Dexie {
       methodApplications: 'id, methodId, methodVersion, &itemId, [methodId+methodVersion]',
       itemLinks: 'id, sourceReviewId, targetItemId, type',
     })
+    this.version(6).stores({
+      items: 'id, status, createdAt, updatedAt, deletedAt',
+      reviews: 'id, &itemId, createdAt, updatedAt',
+      methods: 'id, createdAt, updatedAt',
+      methodEvidence: 'id, methodId, reviewId, [methodId+reviewId]',
+      methodVersions: 'id, methodId, version, [methodId+version], sourceReviewId',
+      methodApplications: 'id, methodId, methodVersion, &itemId, [methodId+methodVersion]',
+      itemLinks: 'id, sourceReviewId, targetItemId, type',
+      itemStatusEvents: 'id, itemId, fromStatus, toStatus, createdAt, [itemId+createdAt]',
+    }).upgrade(async (transaction) => {
+      const items = await transaction.table<Item, string>('items').toArray()
+      const events: ItemStatusEvent[] = items.map((item) => ({
+        id: crypto.randomUUID(),
+        itemId: item.id,
+        toStatus: item.status,
+        createdAt: item.createdAt,
+      }))
+      await transaction.table<ItemStatusEvent, string>('itemStatusEvents').bulkAdd(events)
+    })
   }
 }
 
@@ -135,7 +156,15 @@ export class IndexedDbItemRepository implements ItemRepository {
     }
 
     if (!item.title) throw new Error('标题不能为空')
-    await this.database.items.add(item)
+    await this.database.transaction('rw', [this.database.items, this.database.itemStatusEvents], async () => {
+      await this.database.items.add(item)
+      await this.database.itemStatusEvents.add({
+        id: crypto.randomUUID(),
+        itemId: item.id,
+        toStatus: item.status,
+        createdAt: now,
+      })
+    })
     return item
   }
 
@@ -156,8 +185,18 @@ export class IndexedDbItemRepository implements ItemRepository {
     if (!item || item.deletedAt) throw new Error('事项不存在')
     assertTransition(item.status, status)
 
-    const updated = { ...item, status, updatedAt: new Date().toISOString() }
-    await this.database.items.put(updated)
+    const now = new Date().toISOString()
+    const updated = { ...item, status, updatedAt: now }
+    await this.database.transaction('rw', [this.database.items, this.database.itemStatusEvents], async () => {
+      await this.database.items.put(updated)
+      await this.database.itemStatusEvents.add({
+        id: crypto.randomUUID(),
+        itemId: item.id,
+        fromStatus: item.status,
+        toStatus: status,
+        createdAt: now,
+      })
+    })
     return updated
   }
 
@@ -193,6 +232,7 @@ export class IndexedDbItemRepository implements ItemRepository {
         this.database.methodEvidence,
         this.database.methodVersions,
         this.database.itemLinks,
+        this.database.itemStatusEvents,
       ],
       async () => {
         for (const item of expiredItems) {
@@ -213,6 +253,7 @@ export class IndexedDbItemRepository implements ItemRepository {
           }
           await this.database.methodApplications.where('itemId').equals(item.id).delete()
           await this.database.itemLinks.where('targetItemId').equals(item.id).delete()
+          await this.database.itemStatusEvents.where('itemId').equals(item.id).delete()
           await this.database.items.delete(item.id)
         }
       },
@@ -224,15 +265,16 @@ export class IndexedDbDashboardRepository implements DashboardRepository {
   constructor(private readonly database: KnowledgeDatabase) {}
 
   async getSnapshot(): Promise<DashboardSnapshot> {
-    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications] = await Promise.all([
+    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemStatusEvents] = await Promise.all([
       this.database.items.filter((item) => !item.deletedAt).toArray(),
       this.database.reviews.toArray(),
       this.database.methods.toArray(),
       this.database.methodEvidence.toArray(),
       this.database.methodVersions.toArray(),
       this.database.methodApplications.toArray(),
+      this.database.itemStatusEvents.toArray(),
     ])
-    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications }
+    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemStatusEvents }
   }
 }
 
@@ -284,7 +326,7 @@ export class IndexedDbMethodApplicationRepository implements MethodApplicationRe
     const method = await this.database.methods.get(input.methodId)
     if (!method) throw new Error('选择的方法不存在')
 
-    return this.database.transaction('rw', [this.database.items, this.database.methodApplications], async () => {
+    return this.database.transaction('rw', [this.database.items, this.database.methodApplications, this.database.itemStatusEvents], async () => {
       const item = await this.itemRepository.create({ title: input.title, content: input.content, status: 'idea_to_try' })
       await this.database.methodApplications.add({
         id: crypto.randomUUID(),
@@ -453,7 +495,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
   constructor(private readonly database: KnowledgeDatabase) {}
 
   async exportData(): Promise<BackupData> {
-    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks] = await Promise.all([
+    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks, itemStatusEvents] = await Promise.all([
       this.database.items.toArray(),
       this.database.reviews.toArray(),
       this.database.methods.toArray(),
@@ -461,8 +503,9 @@ export class IndexedDbBackupRepository implements BackupRepository {
       this.database.methodVersions.toArray(),
       this.database.methodApplications.toArray(),
       this.database.itemLinks.toArray(),
+      this.database.itemStatusEvents.toArray(),
     ])
-    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks }
+    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks, itemStatusEvents }
   }
 
   replaceData(data: BackupData): Promise<void> {
@@ -476,10 +519,12 @@ export class IndexedDbBackupRepository implements BackupRepository {
         this.database.methodEvidence,
         this.database.methodVersions,
         this.database.itemLinks,
+        this.database.itemStatusEvents,
       ],
       async () => {
         await Promise.all([
           this.database.itemLinks.clear(),
+          this.database.itemStatusEvents.clear(),
           this.database.methodApplications.clear(),
           this.database.methodEvidence.clear(),
           this.database.methodVersions.clear(),
@@ -494,6 +539,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
         await this.database.methodVersions.bulkAdd(data.methodVersions)
         await this.database.methodApplications.bulkAdd(data.methodApplications)
         await this.database.itemLinks.bulkAdd(data.itemLinks)
+        await this.database.itemStatusEvents.bulkAdd(data.itemStatusEvents)
       },
     )
   }
@@ -517,6 +563,7 @@ export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowReposito
         this.database.methodEvidence,
         this.database.methodVersions,
         this.database.itemLinks,
+        this.database.itemStatusEvents,
       ],
       async () => {
         const item = await this.itemRepository.getById(input.itemId)

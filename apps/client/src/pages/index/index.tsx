@@ -459,6 +459,7 @@ export default function IndexPage() {
             <View className='metric-grid'>
               {[
                 ['新增事项', dashboardReport.metrics.newItems],
+                ['进入执行次数', dashboardReport.metrics.startedExecutions],
                 ['完成复盘', dashboardReport.metrics.completedReviews],
                 ['形成方法', dashboardReport.metrics.newMethods],
                 ['仅验证方法', dashboardReport.metrics.methodValidations],

@@ -115,6 +115,14 @@ export interface MethodEvidence {
   createdAt: string
 }
 
+export interface ItemStatusEvent {
+  id: string
+  itemId: string
+  fromStatus?: ItemStatus
+  toStatus: ItemStatus
+  createdAt: string
+}
+
 export type ItemLinkType = 'derived_from_review'
 
 export interface ItemLink {
@@ -132,6 +140,7 @@ export interface BackupData {
   methodEvidence: MethodEvidence[]
   methodVersions: MethodVersion[]
   methodApplications: MethodApplication[]
+  itemStatusEvents: ItemStatusEvent[]
   itemLinks: ItemLink[]
 }
 
@@ -157,10 +166,12 @@ export interface DashboardSnapshot {
   methodEvidence: MethodEvidence[]
   methodVersions: MethodVersion[]
   methodApplications: MethodApplication[]
+  itemStatusEvents: ItemStatusEvent[]
 }
 
 export interface DashboardMetrics {
   newItems: number
+  startedExecutions: number
   completedReviews: number
   newMethods: number
   methodValidations: number

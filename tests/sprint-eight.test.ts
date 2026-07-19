@@ -86,6 +86,7 @@ function snapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSnapshot
     methodEvidence: [],
     methodVersions: [],
     methodApplications: [],
+    itemStatusEvents: [],
     ...overrides,
   }
 }
