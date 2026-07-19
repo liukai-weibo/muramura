@@ -169,6 +169,23 @@ export interface DashboardSnapshot {
   itemStatusEvents: ItemStatusEvent[]
 }
 
+export type DashboardMetricKey =
+  | 'newItems'
+  | 'startedExecutions'
+  | 'completedReviews'
+  | 'newMethods'
+  | 'methodValidations'
+  | 'methodRevisions'
+  | 'methodApplications'
+
+export interface DashboardDrilldownRecord {
+  id: string
+  title: string
+  detail: string
+  itemId?: string
+  methodId?: string
+}
+
 export interface DashboardMetrics {
   newItems: number
   startedExecutions: number
@@ -197,6 +214,7 @@ export interface DashboardMethodInsight {
 export interface DashboardReport {
   window: DashboardWindow
   metrics: DashboardMetrics
+  metricRecords: Record<DashboardMetricKey, DashboardDrilldownRecord[]>
   backlog: DashboardBacklog
   mostValidated?: DashboardMethodInsight
   mostApplied?: DashboardMethodInsight

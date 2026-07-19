@@ -28,7 +28,7 @@ import type {
   SearchRepository,
   SearchResult,
 } from '@knowledge-base/contracts'
-import { assertTransition } from '@knowledge-base/domain'
+import { assertTransition, createId } from '@knowledge-base/domain'
 
 export { default as Dexie } from 'dexie'
 export class KnowledgeDatabase extends Dexie {
@@ -65,7 +65,7 @@ export class KnowledgeDatabase extends Dexie {
         const title = newIdeas.split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
         if (!title) return []
 
-        const itemId = crypto.randomUUID()
+        const itemId = createId()
         const item: Item = {
           id: itemId,
           title,
@@ -75,7 +75,7 @@ export class KnowledgeDatabase extends Dexie {
           updatedAt: review.updatedAt,
         }
         const link: ItemLink = {
-          id: crypto.randomUUID(),
+          id: createId(),
           sourceReviewId: review.id,
           targetItemId: itemId,
           type: 'derived_from_review',
@@ -98,7 +98,7 @@ export class KnowledgeDatabase extends Dexie {
       const methods = await transaction.table<Method, string>('methods').toArray()
       const evidence = await transaction.table<MethodEvidence, string>('methodEvidence').toArray()
       const versions: MethodVersion[] = methods.map((method) => ({
-        id: crypto.randomUUID(),
+        id: createId(),
         methodId: method.id,
         version: method.version,
         title: method.title,
@@ -131,7 +131,7 @@ export class KnowledgeDatabase extends Dexie {
     }).upgrade(async (transaction) => {
       const items = await transaction.table<Item, string>('items').toArray()
       const events: ItemStatusEvent[] = items.map((item) => ({
-        id: crypto.randomUUID(),
+        id: createId(),
         itemId: item.id,
         toStatus: item.status,
         createdAt: item.createdAt,
@@ -147,7 +147,7 @@ export class IndexedDbItemRepository implements ItemRepository {
   async create(input: CreateItemInput): Promise<Item> {
     const now = new Date().toISOString()
     const item: Item = {
-      id: crypto.randomUUID(),
+      id: createId(),
       title: input.title.trim(),
       content: input.content?.trim() ?? '',
       status: input.status ?? 'idea_to_try',
@@ -159,7 +159,7 @@ export class IndexedDbItemRepository implements ItemRepository {
     await this.database.transaction('rw', [this.database.items, this.database.itemStatusEvents], async () => {
       await this.database.items.add(item)
       await this.database.itemStatusEvents.add({
-        id: crypto.randomUUID(),
+        id: createId(),
         itemId: item.id,
         toStatus: item.status,
         createdAt: now,
@@ -190,7 +190,7 @@ export class IndexedDbItemRepository implements ItemRepository {
     await this.database.transaction('rw', [this.database.items, this.database.itemStatusEvents], async () => {
       await this.database.items.put(updated)
       await this.database.itemStatusEvents.add({
-        id: crypto.randomUUID(),
+        id: createId(),
         itemId: item.id,
         fromStatus: item.status,
         toStatus: status,
@@ -329,7 +329,7 @@ export class IndexedDbMethodApplicationRepository implements MethodApplicationRe
     return this.database.transaction('rw', [this.database.items, this.database.methodApplications, this.database.itemStatusEvents], async () => {
       const item = await this.itemRepository.create({ title: input.title, content: input.content, status: 'idea_to_try' })
       await this.database.methodApplications.add({
-        id: crypto.randomUUID(),
+        id: createId(),
         methodId: method.id,
         methodVersion: method.version,
         itemId: item.id,
@@ -359,7 +359,7 @@ export class IndexedDbReviewRepository implements ReviewRepository {
 
     const now = new Date().toISOString()
     const review: Review = {
-      id: crypto.randomUUID(),
+      id: createId(),
       itemId: input.itemId,
       actualAction: input.actualAction.trim(),
       result: input.result.trim(),
@@ -405,7 +405,7 @@ export class IndexedDbMethodRepository implements MethodRepository {
 
     const now = new Date().toISOString()
     const method: Method = {
-      id: crypto.randomUUID(),
+      id: createId(),
       title,
       applicable,
       unsuitable: input.unsuitable?.trim() ?? '',
@@ -416,14 +416,14 @@ export class IndexedDbMethodRepository implements MethodRepository {
       updatedAt: now,
     }
     const evidence: MethodEvidence = {
-      id: crypto.randomUUID(),
+      id: createId(),
       methodId: method.id,
       reviewId,
       createdAt: now,
     }
 
     const version: MethodVersion = {
-      id: crypto.randomUUID(),
+      id: createId(),
       methodId: method.id,
       version: 1,
       title,
@@ -479,10 +479,10 @@ export class IndexedDbMethodRepository implements MethodRepository {
     if (!updated.title || !updated.applicable || !updated.steps) throw new Error('请完成方法标题、适用情况和具体步骤')
 
     await this.database.methods.put(updated)
-    await this.database.methodEvidence.add({ id: crypto.randomUUID(), methodId, reviewId, createdAt: now })
+    await this.database.methodEvidence.add({ id: createId(), methodId, reviewId, createdAt: now })
     if (revision) {
       await this.database.methodVersions.add({
-        id: crypto.randomUUID(), methodId, version: nextVersion,
+        id: createId(), methodId, version: nextVersion,
         title: updated.title, applicable: updated.applicable, unsuitable: updated.unsuitable, steps: updated.steps,
         sourceReviewId: reviewId, createdAt: now,
       })
@@ -588,7 +588,7 @@ export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowReposito
           : undefined
         if (createdIdea) {
           await this.database.itemLinks.add({
-            id: crypto.randomUUID(),
+            id: createId(),
             sourceReviewId: review.id,
             targetItemId: createdIdea.id,
             type: 'derived_from_review',

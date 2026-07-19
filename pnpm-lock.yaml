@@ -43,7 +43,7 @@ importers:
         version: 4.2.1
       '@tarojs/plugin-framework-react':
         specifier: 4.2.1
-        version: 4.2.1(@tarojs/helper@4.2.1)(@tarojs/runtime@4.2.1)(@tarojs/shared@4.2.1)(react@18.3.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(stylus@0.64.0)(terser@5.49.0))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))
+        version: 4.2.1(@pmmmwh/react-refresh-webpack-plugin@0.5.17(react-refresh@0.14.2)(type-fest@2.19.0)(webpack-dev-server@4.15.2(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)))(@tarojs/helper@4.2.1)(@tarojs/runtime@4.2.1)(@tarojs/shared@4.2.1)(react@18.3.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(stylus@0.64.0)(terser@5.49.0))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))
       '@tarojs/plugin-platform-h5':
         specifier: 4.2.1
         version: 4.2.1(f0a483495f9240ad3c9362119112ddd2)
@@ -75,6 +75,9 @@ importers:
       '@babel/preset-react':
         specifier: ^7.29.7
         version: 7.29.7(@babel/core@7.29.7)
+      '@pmmmwh/react-refresh-webpack-plugin':
+        specifier: 0.5.17
+        version: 0.5.17(react-refresh@0.14.2)(type-fest@2.19.0)(webpack-dev-server@4.15.2(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))
       '@tarojs/cli':
         specifier: 4.2.1
         version: 4.2.1(@types/node@22.20.1)
@@ -1258,6 +1261,32 @@ packages:
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
 
+  '@pmmmwh/react-refresh-webpack-plugin@0.5.17':
+    resolution: {integrity: sha512-tXDyE1/jzFsHXjhRZQ3hMl0IVhYe5qula43LDWIhVfjp9G/nT5OQY5AORVOrkEGAUltBJOfOWeETbmhm6kHhuQ==}
+    engines: {node: '>= 10.13'}
+    peerDependencies:
+      '@types/webpack': 4.x || 5.x
+      react-refresh: '>=0.10.0 <1.0.0'
+      sockjs-client: ^1.4.0
+      type-fest: '>=0.17.0 <5.0.0'
+      webpack: '>=4.43.0 <6.0.0'
+      webpack-dev-server: 3.x || 4.x || 5.x
+      webpack-hot-middleware: 2.x
+      webpack-plugin-serve: 0.x || 1.x
+    peerDependenciesMeta:
+      '@types/webpack':
+        optional: true
+      sockjs-client:
+        optional: true
+      type-fest:
+        optional: true
+      webpack-dev-server:
+        optional: true
+      webpack-hot-middleware:
+        optional: true
+      webpack-plugin-serve:
+        optional: true
+
   '@rnx-kit/babel-preset-metro-react-native@1.1.8':
     resolution: {integrity: sha512-8DotuBK1ZgV0H/tmCmtW/3ofA7JR/8aPqSu9lKnuqwBfq4bxz+w1sMyfFl89m4teWlkhgyczWBGD6NCLqTgi9A==}
     peerDependencies:
@@ -2087,6 +2116,11 @@ packages:
     engines: {'0': node >= 0.8.0}
     hasBin: true
 
+  ansi-html@0.0.9:
+    resolution: {integrity: sha512-ozbS3LuenHVxNRh/wdnN16QapUHzauqSomAl1jwwJRRsGwFwtj644lIhxfWu0Fy0acCij2+AEgHvjscq3dlVXg==}
+    engines: {'0': node >= 0.8.0}
+    hasBin: true
+
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
     engines: {node: '>=8'}
@@ -2883,6 +2917,9 @@ packages:
 
   error-ex@1.3.4:
     resolution: {integrity: sha512-sqQamAnR14VgCr1A618A3sGrygcpK+HEbenA/HiEAkkUwcZIIB/tgWqHFxWgOyDh4nB4JCRimh79dR5Ywc9MDQ==}
+
+  error-stack-parser@2.1.4:
+    resolution: {integrity: sha512-Sk5V6wVazPhq5MhpO+AUxJn5x7XSXGl1R93Vn7i+zS15KDVxQijejNCrz8340/2bgLBjR9GtEG8ZVKONDjcqGQ==}
 
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
@@ -5097,6 +5134,9 @@ packages:
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
 
+  stackframe@1.3.4:
+    resolution: {integrity: sha512-oeVtt7eWQS+Na6F//S4kJ2K2VbRlS9D43mAlMyVpVWovy9o+jfgH8O9agzANzaiLjclA0oYzUXEM4PurhSUChw==}
+
   statuses@1.5.0:
     resolution: {integrity: sha512-OpZ3zP+jT1PI7I8nemJX4AKmAX070ZkYPVWV/AaKTJl+tXCTGyVdC1a4SL8RUQYEwk/f34ZX8UTykN68FwrqAA==}
     engines: {node: '>= 0.6'}
@@ -6923,6 +6963,21 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
+  '@pmmmwh/react-refresh-webpack-plugin@0.5.17(react-refresh@0.14.2)(type-fest@2.19.0)(webpack-dev-server@4.15.2(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))':
+    dependencies:
+      ansi-html: 0.0.9
+      core-js-pure: 3.49.0
+      error-stack-parser: 2.1.4
+      html-entities: 2.6.0
+      loader-utils: 2.0.4
+      react-refresh: 0.14.2
+      schema-utils: 4.3.3
+      source-map: 0.7.6
+      webpack: 5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)
+    optionalDependencies:
+      type-fest: 2.19.0
+      webpack-dev-server: 4.15.2(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))
+
   '@rnx-kit/babel-preset-metro-react-native@1.1.8(@babel/core@7.29.7)(@babel/plugin-transform-typescript@7.29.7(@babel/core@7.29.7))(@babel/runtime@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
@@ -7245,7 +7300,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@tarojs/plugin-framework-react@4.2.1(@tarojs/helper@4.2.1)(@tarojs/runtime@4.2.1)(@tarojs/shared@4.2.1)(react@18.3.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(stylus@0.64.0)(terser@5.49.0))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))':
+  '@tarojs/plugin-framework-react@4.2.1(@pmmmwh/react-refresh-webpack-plugin@0.5.17(react-refresh@0.14.2)(type-fest@2.19.0)(webpack-dev-server@4.15.2(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)))(@tarojs/helper@4.2.1)(@tarojs/runtime@4.2.1)(@tarojs/shared@4.2.1)(react@18.3.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(stylus@0.64.0)(terser@5.49.0))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))':
     dependencies:
       '@tarojs/helper': 4.2.1
       '@tarojs/runtime': 4.2.1
@@ -7255,6 +7310,7 @@ snapshots:
       lodash: 4.18.1
       tslib: 2.8.1
     optionalDependencies:
+      '@pmmmwh/react-refresh-webpack-plugin': 0.5.17(react-refresh@0.14.2)(type-fest@2.19.0)(webpack-dev-server@4.15.2(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)))(webpack@5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19))
       react: 18.3.1
       vite: 8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(stylus@0.64.0)(terser@5.49.0)
       webpack: 5.91.0(@swc/core@1.3.96)(esbuild@0.28.1)(postcss@8.5.19)
@@ -7863,6 +7919,8 @@ snapshots:
       type-fest: 0.21.3
 
   ansi-html-community@0.0.8: {}
+
+  ansi-html@0.0.9: {}
 
   ansi-regex@5.0.1: {}
 
@@ -8764,6 +8822,10 @@ snapshots:
   error-ex@1.3.4:
     dependencies:
       is-arrayish: 0.2.1
+
+  error-stack-parser@2.1.4:
+    dependencies:
+      stackframe: 1.3.4
 
   es-define-property@1.0.1: {}
 
@@ -11082,6 +11144,8 @@ snapshots:
   split-on-first@3.0.0: {}
 
   stackback@0.0.2: {}
+
+  stackframe@1.3.4: {}
 
   statuses@1.5.0: {}
 

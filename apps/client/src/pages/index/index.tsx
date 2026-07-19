@@ -1,9 +1,29 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, SearchApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, DashboardReport, DashboardWindow, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
+import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
+
+
+
+interface ReviewTextareaProps {
+  value: string
+  placeholder: string
+  onValueChange: (value: string) => void
+  observation?: boolean
+}
+
+function ReviewTextarea({ value, placeholder, onValueChange, observation = false }: ReviewTextareaProps) {
+  return <textarea
+    className={`review-input${observation ? ' review-observation-input' : ''}`}
+    value={value}
+    maxLength={1200}
+    placeholder={placeholder}
+    rows={3}
+    onInput={(event) => onValueChange(event.currentTarget.value)}
+  />
+}
 
 const statusLabels: Record<ItemStatus, string> = {
   idea_to_try: '想试试', idea_later: '以后再说', doing: '进行中', paused: '已暂停',
@@ -38,8 +58,18 @@ type MethodMode = 'none' | 'create' | 'validate'
 
 const ITEMS_PER_PAGE = 5
 
+const defaultEffective = '暂未标记有效或舒服之处'
+const selectedEffective = '本次存在有效或舒服之处'
+const defaultIncompatible = '暂未标记阻力或不舒服'
+const selectedIncompatible = '本次存在阻力或不舒服'
 const emptyReview = {
-  actualAction: '', result: '', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '',
+  actualAction: '',
+  result: '已完成本次行动。',
+  effective: defaultEffective,
+  incompatible: defaultIncompatible,
+  reason: '',
+  adjustment: '',
+  newIdeas: '',
 }
 const emptyMethod = { title: '', applicable: '', unsuitable: '', steps: '' }
 
@@ -62,6 +92,7 @@ export default function IndexPage() {
   const [dashboardOpen, setDashboardOpen] = useState(false)
   const [dashboardWindow, setDashboardWindow] = useState<DashboardWindow>('7d')
   const [dashboardReport, setDashboardReport] = useState<DashboardReport>()
+  const [dashboardMetric, setDashboardMetric] = useState<DashboardMetricKey>()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [items, setItems] = useState<Item[]>([])
@@ -79,6 +110,7 @@ export default function IndexPage() {
   const [selectedId, setSelectedId] = useState<string>()
   const [selectedReview, setSelectedReview] = useState<Review>()
   const [reviewForm, setReviewForm] = useState(emptyReview)
+  const [hasNewIdea, setHasNewIdea] = useState(false)
   const [methodForm, setMethodForm] = useState(emptyMethod)
   const [methodMode, setMethodMode] = useState<MethodMode>('none')
   const [selectedMethodId, setSelectedMethodId] = useState('')
@@ -164,6 +196,26 @@ export default function IndexPage() {
     try { await operation() }
     catch (error: unknown) { setMessage(error instanceof Error ? error.message : '操作失败') }
     finally { setBusy(false) }
+  }
+
+  const locateDashboardItem = (itemId: string) => {
+    setShowTrash(false)
+    setFilter(undefined)
+    setCurrentPage(1)
+    setSelectedId(itemId)
+    document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const locateDashboardMethod = (methodId: string) => {
+    window.setTimeout(() => document.getElementById(`method-${methodId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0)
+  }
+
+  const filterDashboardBacklog = (status: ItemStatus) => {
+    setShowTrash(false)
+    setFilter(status)
+    setCurrentPage(1)
+    setSelectedId(undefined)
+    document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const locateSearchResult = (result: SearchResult) => {
@@ -343,11 +395,23 @@ export default function IndexPage() {
   const completeReview = () => run(async () => {
     if (!selectedItem) return
     const missingReviewFields = ([
-      ['实际行动', reviewForm.actualAction],
       ['结果', reviewForm.result],
     ] satisfies Array<[string, string]>).filter(([, value]) => !value.trim()).map(([label]) => label)
     if (missingReviewFields.length) {
       setReviewError(`请填写：${missingReviewFields.join('、')}`)
+      return
+    }
+
+    if (reviewForm.effective !== defaultEffective && (!reviewForm.effective.trim() || reviewForm.effective === selectedEffective)) {
+      setReviewError('已勾选“有效 / 舒服”，请填写对应内容')
+      return
+    }
+    if (reviewForm.incompatible !== defaultIncompatible && (!reviewForm.incompatible.trim() || reviewForm.incompatible === selectedIncompatible)) {
+      setReviewError('已勾选“阻力 / 不舒服”，请填写对应内容')
+      return
+    }
+    if (hasNewIdea && !reviewForm.newIdeas.trim()) {
+      setReviewError('已选择产生新想法，请填写新想法内容')
       return
     }
 
@@ -356,30 +420,37 @@ export default function IndexPage() {
       return
     }
 
-    const missingMethodFields = methodStarted
-      ? ([
-        ['方法名称', methodForm.title],
-        ['适用情况', methodForm.applicable],
-        ['具体步骤', methodForm.steps],
-      ] satisfies Array<[string, string]>).filter(([, value]) => !value.trim()).map(([label]) => label)
-      : []
+    const missingMethodFields = methodStarted && !methodForm.steps.trim() ? ['具体步骤'] : []
     if (missingMethodFields.length) {
       setReviewError(`已开始提炼方法，请填写：${missingMethodFields.join('、')}`)
       return
     }
 
+    const methodTitle = methodMode === 'validate'
+      ? selectedMethod?.title ?? methodForm.title
+      : methodForm.steps.trim().split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
+    const normalizedMethodForm = methodStarted ? {
+      title: methodTitle,
+      applicable: methodForm.applicable.trim() || '暂无补充说明',
+      unsuitable: methodMode === 'validate' ? methodForm.unsuitable : '',
+      steps: methodForm.steps,
+    } : undefined
+
     setReviewError('')
     const result = await reviewApplication.completeReview({
       itemId: selectedItem.id,
       ...reviewForm,
-      method: methodMode === 'create' ? methodForm : undefined,
+      actualAction: reviewForm.result,
+      newIdeas: hasNewIdea ? reviewForm.newIdeas : '',
+      method: methodMode === 'create' ? normalizedMethodForm : undefined,
       existingMethod: methodMode === 'validate' ? {
         methodId: selectedMethodId,
-        revision: reviseMethod ? methodForm : undefined,
+        revision: reviseMethod ? normalizedMethodForm : undefined,
       } : undefined,
     })
     setSelectedReview(result.review)
     setReviewForm(emptyReview)
+    setHasNewIdea(false)
     setMethodForm(emptyMethod)
     setMethodMode('none')
     setSelectedMethodId('')
@@ -393,18 +464,44 @@ export default function IndexPage() {
   const reviewField = (key: keyof typeof emptyReview, label: string, placeholder: string, optional = false) => (
     <View className='review-field'>
       <Text className='field-label'>{label}{optional ? '（可选）' : ''}</Text>
-      <Textarea
-        className='review-input'
+      <ReviewTextarea
         value={reviewForm[key]}
-        maxlength={1200}
         placeholder={placeholder}
-        onInput={(event) => {
+        onValueChange={(value) => {
           setReviewError('')
-          setReviewForm((current) => ({ ...current, [key]: event.detail.value }))
+          setReviewForm((current) => ({ ...current, [key]: value }))
         }}
       />
     </View>
   )
+
+  const reviewCheckbox = (
+    key: 'effective' | 'incompatible',
+    label: string,
+    emptyValue: string,
+    selectedValue: string,
+    placeholder: string,
+  ) => {
+    const checked = reviewForm[key] !== emptyValue
+    return <View className='review-observation'>
+      <View className='review-checkbox-option' onClick={() => {
+        setReviewError('')
+        setReviewForm((current) => ({ ...current, [key]: checked ? emptyValue : selectedValue }))
+      }}>
+        <View className={`review-checkbox ${checked ? 'active' : ''}`}><Text>{checked ? '✓' : ''}</Text></View>
+        <Text>{label}</Text>
+      </View>
+      {checked && <ReviewTextarea
+        observation
+        value={reviewForm[key] === selectedValue ? '' : reviewForm[key]}
+        placeholder={placeholder}
+        onValueChange={(value) => {
+          setReviewError('')
+          setReviewForm((current) => ({ ...current, [key]: value }))
+        }}
+      />}
+    </View>
+  }
 
   return (
     <View className='page'>
@@ -457,37 +554,45 @@ export default function IndexPage() {
           <View className='dashboard-section'>
             <Text className='dashboard-section-title'>窗口内发生</Text>
             <View className='metric-grid'>
-              {[
-                ['新增事项', dashboardReport.metrics.newItems],
-                ['进入执行次数', dashboardReport.metrics.startedExecutions],
-                ['完成复盘', dashboardReport.metrics.completedReviews],
-                ['形成方法', dashboardReport.metrics.newMethods],
-                ['仅验证方法', dashboardReport.metrics.methodValidations],
-                ['修订方法', dashboardReport.metrics.methodRevisions],
-                ['方法发起行动', dashboardReport.metrics.methodApplications],
-              ].map(([label, value]) => <View className='metric-card' key={label}>
+              {([
+                ['newItems', '新增事项', dashboardReport.metrics.newItems],
+                ['startedExecutions', '进入执行次数', dashboardReport.metrics.startedExecutions],
+                ['completedReviews', '完成复盘', dashboardReport.metrics.completedReviews],
+                ['newMethods', '形成方法', dashboardReport.metrics.newMethods],
+                ['methodValidations', '仅验证方法', dashboardReport.metrics.methodValidations],
+                ['methodRevisions', '修订方法', dashboardReport.metrics.methodRevisions],
+                ['methodApplications', '方法发起行动', dashboardReport.metrics.methodApplications],
+              ] as Array<[DashboardMetricKey, string, number]>).map(([key, label, value]) => <View className={`metric-card ${dashboardMetric === key ? 'active' : ''}`} key={key} onClick={() => setDashboardMetric((current) => current === key ? undefined : key)}>
                 <Text>{value}</Text><Text>{label}</Text>
               </View>)}
             </View>
+            {dashboardMetric && <View className='dashboard-drilldown'>
+              <View className='dashboard-drilldown-heading'><Text>对应记录 · {dashboardReport.metricRecords[dashboardMetric].length}</Text><Text onClick={() => setDashboardMetric(undefined)}>收起</Text></View>
+              {dashboardReport.metricRecords[dashboardMetric].length === 0
+                ? <Text className='dashboard-empty'>该窗口内没有对应记录。</Text>
+                : dashboardReport.metricRecords[dashboardMetric].map((record) => <View className='dashboard-drilldown-row' key={record.id} onClick={() => record.itemId ? locateDashboardItem(record.itemId) : record.methodId && locateDashboardMethod(record.methodId)}>
+                  <View><Text>{record.title}</Text><Text>{record.detail}</Text></View><Text>{record.itemId || record.methodId ? '定位' : '仅记录'}</Text>
+                </View>)}
+            </View>}
           </View>
 
           <View className='dashboard-columns'>
             <View className='dashboard-section'>
               <Text className='dashboard-section-title'>当前堵塞</Text>
-              {[
-                ['想试试', dashboardReport.backlog.ideaToTry],
-                ['进行中', dashboardReport.backlog.doing],
-                ['待复盘', dashboardReport.backlog.waitingReview],
-                ['暂停', dashboardReport.backlog.paused],
-                ['以后再说', dashboardReport.backlog.ideaLater],
-              ].map(([label, value]) => <View className='backlog-row' key={label}><Text>{label}</Text><Text>{value}</Text></View>)}
+              {([
+                ['想试试', dashboardReport.backlog.ideaToTry, 'idea_to_try'],
+                ['进行中', dashboardReport.backlog.doing, 'doing'],
+                ['待复盘', dashboardReport.backlog.waitingReview, 'waiting_review'],
+                ['暂停', dashboardReport.backlog.paused, 'paused'],
+                ['以后再说', dashboardReport.backlog.ideaLater, 'idea_later'],
+              ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => filterDashboardBacklog(status)}><Text>{label}</Text><Text>{value} · 定位</Text></View>)}
             </View>
 
             <View className='dashboard-section'>
               <Text className='dashboard-section-title'>方法复利</Text>
               {[dashboardReport.mostValidated, dashboardReport.mostApplied, dashboardReport.recentlyRevised]
                 .filter(Boolean)
-                .map((insight) => <View className='insight-row' key={`${insight!.methodId}-${insight!.detail}`}>
+                .map((insight) => <View className='insight-row' key={`${insight!.methodId}-${insight!.detail}`} onClick={() => locateDashboardMethod(insight!.methodId)}>
                   <Text>{insight!.title}</Text><Text>{insight!.detail}</Text>
                 </View>)}
               {!dashboardReport.mostValidated && !dashboardReport.mostApplied && !dashboardReport.recentlyRevised && (
@@ -511,25 +616,25 @@ export default function IndexPage() {
         <Textarea className='content-input' value={content} maxlength={1000} placeholder='为什么想做、希望得到什么、准备从哪一步开始' onInput={(event) => setContent(event.detail.value)} />
         <Text className='capture-hint'>只填补充说明也可以保存，第一行会自动成为标题。</Text>
         <View className='capture-actions'>
-          <Button className='secondary-button' disabled={busy || !hasCaptureContent} onClick={() => createIdea(true)}>加入以后再说</Button>
-          <Button className='primary-button' disabled={busy || !hasCaptureContent} onClick={() => createIdea(false)}>加入想试试</Button>
+          <View className={`secondary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
+          <View className={`primary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(false) }}><Text>加入想试试</Text></View>
         </View>
       </View>
 
-      <View className='workspace' id='workspace'>
+      <View className={`workspace ${!showTrash && (selectedItem?.status === 'waiting_review' || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace'>
         <View className='list-panel'>
           <View className='panel-heading'><View><Text className='section-kicker'>{showTrash ? '回收站' : '事项池'}</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
           <View className='filter-header'>
             <Text className='filter-guidance'>{showTrash ? '删除后保留 30 天，之后自动永久清理' : '按运行阶段查看'}</Text>
             <View className='auxiliary-actions'>
-              <Button className={`all-filter-button ${!showTrash && filter === undefined ? 'active' : ''}`} size='mini' onClick={() => { openActiveItems(); setFilter(undefined) }}>全部事项</Button>
-              <Button className={`all-filter-button ${showTrash ? 'active' : ''}`} size='mini' onClick={openTrash}>回收站{trashItems.length ? ` ${trashItems.length}` : ''}</Button>
+              <View className={`all-filter-button ${!showTrash && filter === undefined ? 'active' : ''}`} onClick={() => { openActiveItems(); setFilter(undefined) }}><Text>全部事项</Text></View>
+              <View className={`all-filter-button ${showTrash ? 'active' : ''}`} onClick={openTrash}><Text>回收站{trashItems.length ? ` ${trashItems.length}` : ''}</Text></View>
             </View>
           </View>
           {!showTrash && <View className='filter-groups'>
             {filterGroups.map((group) => <View className='filter-group' key={group.label}>
               <Text className='filter-group-label'>{group.label}</Text>
-              <View className='filters'>{group.entries.map((entry) => <Button key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} size='mini' onClick={() => { setFilter(entry.status); setCurrentPage(1); setSelectedId(undefined) }}>{entry.label}</Button>)}</View>
+              <View className='filters'>{group.entries.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => { setFilter(entry.status); setCurrentPage(1); setSelectedId(undefined) }}><Text>{entry.label}</Text></View>)}</View>
             </View>)}
           </View>}
           <View className='list'>
@@ -543,20 +648,23 @@ export default function IndexPage() {
             ))}
           </View>
           {visibleItems.length > ITEMS_PER_PAGE && <View className='pagination'>
-            <Button className='pagination-button' size='mini' disabled={currentPage === 1} onClick={() => { setCurrentPage((page) => page - 1); setSelectedId(undefined) }}>上一页</Button>
+            <View className={`pagination-button ${currentPage === 1 ? 'disabled' : ''}`} onClick={() => { if (currentPage > 1) { setCurrentPage((page) => page - 1); setSelectedId(undefined) } }}><Text>上一页</Text></View>
             <Text className='pagination-status'>第 {currentPage} / {totalPages} 页</Text>
-            <Button className='pagination-button' size='mini' disabled={currentPage === totalPages} onClick={() => { setCurrentPage((page) => page + 1); setSelectedId(undefined) }}>下一页</Button>
+            <View className={`pagination-button ${currentPage === totalPages ? 'disabled' : ''}`} onClick={() => { if (currentPage < totalPages) { setCurrentPage((page) => page + 1); setSelectedId(undefined) } }}><Text>下一页</Text></View>
           </View>}
         </View>
 
         <View className={`detail-panel ${!showTrash && (selectedItem?.status === 'waiting_review' || selectedItem?.status === 'reviewed') ? 'review-mode' : ''}`}>
           {selectedItem ? <>
-            <Text className='section-kicker'>{showTrash ? '回收站事项' : '当前事项'}</Text><Text className='detail-title'>{selectedItem.title}</Text>
+            <View className='detail-header'>
+              <Text className='section-kicker'>{showTrash ? '回收站事项' : '当前事项'}</Text>
+              <View className='detail-time'><Text>创建 {formatTime(selectedItem.createdAt)}</Text><Text>更新 {formatTime(selectedItem.updatedAt)}</Text></View>
+            </View>
+            <Text className='detail-title'>{selectedItem.title}</Text>
             {showTrash
               ? <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>
               : <Text className={`detail-status status-${selectedItem.status}`}>{statusLabels[selectedItem.status]}</Text>}
             <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '没有补充说明。'}</Text>
-            <View className='detail-time'><Text>创建于 {formatTime(selectedItem.createdAt)}</Text><Text>更新于 {formatTime(selectedItem.updatedAt)}</Text></View>
 
             {methodApplicationContext && <View className='method-application-context'>
               <Text className='method-label'>本次行动使用的方法</Text>
@@ -566,38 +674,58 @@ export default function IndexPage() {
 
             {!showTrash && selectedItem.status === 'waiting_review' && <View className='review-form'>
         <View className='review-heading'><Text className='section-kicker'>完成复盘</Text><Text>先还原事实，再提炼方法。</Text></View>
-              {reviewField('actualAction', '实际做了什么', '只写实际发生的行动，不写计划')}
               {reviewField('result', '结果怎样', '结果、产出或可观察变化')}
-              {reviewField('effective', '哪些地方有效或舒服', '保留哪些做法', true)}
-              {reviewField('incompatible', '哪些地方不兼容', '阻力、代价或不适配之处', true)}
-              {reviewField('reason', '原因判断', '为什么有效或无效', true)}
-              {reviewField('adjustment', '下次怎么调整', '下一轮具体改变什么', true)}
-              {reviewField('newIdeas', '产生了什么新想法', '先记录，后续再转成待验证想法', true)}
+              <View className='review-checkbox-group'>
+                {reviewCheckbox('effective', '有效 / 舒服', defaultEffective, selectedEffective, '哪些地方有效或舒服，值得保留')}
+                {reviewCheckbox('incompatible', '阻力 / 不舒服', defaultIncompatible, selectedIncompatible, '哪些地方有阻力、代价或不舒服')}
+                <View className='review-observation'>
+                  <View className='review-checkbox-option' onClick={() => {
+                    setReviewError('')
+                    setHasNewIdea((checked) => {
+                      if (checked) setReviewForm((current) => ({ ...current, newIdeas: '' }))
+                      return !checked
+                    })
+                  }}>
+                    <View className={`review-checkbox ${hasNewIdea ? 'active' : ''}`}><Text>{hasNewIdea ? '✓' : ''}</Text></View>
+                    <Text>产生新想法</Text>
+                  </View>
+                  {hasNewIdea && <ReviewTextarea
+                    observation
+                    value={reviewForm.newIdeas}
+                    placeholder='记录新想法，完成复盘后自动进入想试试'
+                    onValueChange={(value) => {
+                      setReviewError('')
+                      setReviewForm((current) => ({ ...current, newIdeas: value }))
+                    }}
+                  />}
+                </View>
+              </View>
 
               <View className='method-draft'>
                 <Text className='section-kicker'>本次复盘如何沉淀方法（可选）</Text>
                 <View className='method-mode-actions'>
-                  <Button className={`method-mode-button ${methodMode === 'none' ? 'active' : ''}`} size='mini' onClick={() => chooseMethodMode('none')}>不沉淀方法</Button>
-                  <Button className={`method-mode-button ${methodMode === 'create' ? 'active' : ''}`} size='mini' onClick={() => chooseMethodMode('create')}>形成新方法</Button>
-                  <Button className={`method-mode-button ${methodMode === 'validate' ? 'active' : ''}`} size='mini' disabled={methods.length === 0} onClick={() => chooseMethodMode('validate')}>验证已有方法</Button>
+                  <View className={`method-mode-button ${methodMode === 'none' ? 'active' : ''}`} onClick={() => chooseMethodMode('none')}><Text>不沉淀方法</Text></View>
+                  <View className={`method-mode-button ${methodMode === 'create' ? 'active' : ''}`} onClick={() => chooseMethodMode('create')}><Text>形成新方法</Text></View>
+                  <View className={`method-mode-button ${methodMode === 'validate' ? 'active' : ''} ${methods.length === 0 ? 'disabled' : ''}`} onClick={() => { if (methods.length > 0) chooseMethodMode('validate') }}><Text>验证已有方法</Text></View>
                 </View>
 
                 {methodMode === 'validate' && <View className='existing-methods'>
-                  {methods.map((method) => <Button key={method.id} className={`existing-method-button ${selectedMethodId === method.id ? 'active' : ''}`} size='mini' onClick={() => chooseExistingMethod(method.id)}>
-                    {method.title} · v{method.version} · 已验证 {method.validationCount} 次
-                  </Button>)}
+                  {methods.map((method) => <View key={method.id} className={`existing-method-button ${selectedMethodId === method.id ? 'active' : ''}`} onClick={() => chooseExistingMethod(method.id)}>
+                    <Text className='existing-method-title'>{method.title}</Text>
+                    <Text className='existing-method-meta'>v{method.version} · 已验证 {method.validationCount} 次</Text>
+                  </View>)}
                   {selectedMethod && <View className='selected-method-summary'>
                     <Text>当前步骤：{selectedMethod.steps}</Text>
-                    <Button className={`method-revision-button ${reviseMethod ? 'active' : ''}`} size='mini' onClick={toggleRevision}>{reviseMethod ? '取消修订，仅验证' : '根据本次复盘修订方法'}</Button>
+                    <View className={`method-revision-button ${reviseMethod ? 'active' : ''}`} onClick={toggleRevision}><Text>{reviseMethod ? '取消修订，仅验证' : '根据本次复盘修订方法'}</Text></View>
                   </View>}
                 </View>}
 
-                {(methodMode === 'create' || reviseMethod) && <>
-                  <Input className='method-input' value={methodForm.title} placeholder='方法名称' onInput={(event) => { setReviewError(''); setMethodForm((current) => ({ ...current, title: event.detail.value })) }} />
-                  <Textarea className='method-textarea' value={methodForm.applicable} placeholder='适用于什么情况' onInput={(event) => setMethodForm((current) => ({ ...current, applicable: event.detail.value }))} />
-                  <Textarea className='method-textarea' value={methodForm.unsuitable} placeholder='不适用于什么情况（可选）' onInput={(event) => setMethodForm((current) => ({ ...current, unsuitable: event.detail.value }))} />
-                  <Textarea className='method-textarea' value={methodForm.steps} placeholder='具体步骤' onInput={(event) => setMethodForm((current) => ({ ...current, steps: event.detail.value }))} />
-                </>}
+                {(methodMode === 'create' || reviseMethod) && <View className='method-fields'>
+                  <Text className='method-field-label'>具体步骤</Text>
+                  <ReviewTextarea value={methodForm.steps} placeholder='记录可以重复执行的具体步骤' onValueChange={(value) => { setReviewError(''); setMethodForm((current) => ({ ...current, steps: value })) }} />
+                  <Text className='method-field-label'>补充说明（可选）</Text>
+                  <ReviewTextarea value={methodForm.applicable === '暂无补充说明' ? '' : methodForm.applicable} placeholder='补充适用情境、注意事项或边界' onValueChange={(value) => setMethodForm((current) => ({ ...current, applicable: value }))} />
+                </View>}
               </View>
               {reviewError && <Text className='form-error'>{reviewError}</Text>}
               <Button className='action-button primary' disabled={busy} onClick={completeReview}>完成复盘{methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : ''}</Button>
@@ -605,7 +733,14 @@ export default function IndexPage() {
 
             {!showTrash && selectedItem.status === 'reviewed' && selectedReview && <View className='review-record'>
               <Text className='section-kicker'>复盘证据</Text>
-              {[['实际行动', selectedReview.actualAction], ['结果', selectedReview.result], ['有效之处', selectedReview.effective], ['不兼容之处', selectedReview.incompatible], ['原因判断', selectedReview.reason], ['下次调整', selectedReview.adjustment], ['新想法', selectedReview.newIdeas]].filter(([, value]) => value).map(([label, value]) => <View className='review-record-row' key={label}><Text>{label}</Text><Text>{value}</Text></View>)}
+              {([
+                ...(selectedReview.actualAction !== selectedReview.result ? [['实际行动', selectedReview.actualAction]] : []),
+                ['结果', selectedReview.result],
+                ['有效 / 舒服', selectedReview.effective],
+                ['阻力 / 不舒服', selectedReview.incompatible],
+                ['下次调整', selectedReview.adjustment],
+                ['新想法', selectedReview.newIdeas],
+              ] as Array<[string, string]>).filter(([, value]) => value).map(([label, value]) => <View className='review-record-row' key={label}><Text>{label}</Text><Text>{value}</Text></View>)}
             </View>}
 
             {showTrash ? <View className='action-stack'>
@@ -630,7 +765,7 @@ export default function IndexPage() {
           <Text className='backup-description'>数据仅保存在当前浏览器。建议每周及重大更新前导出一次 JSON 备份。</Text>
         </View>
         <View className='backup-actions'>
-          <Button className='secondary-button' disabled={busy} onClick={exportBackup}>导出完整备份</Button>
+          <View className={`secondary-button backup-export-button ${busy ? 'disabled' : ''}`} onClick={() => { if (!busy) exportBackup() }}><Text>导出完整备份</Text></View>
           <label className={`file-button ${busy ? 'disabled' : ''}`}>选择备份文件<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy} onChange={selectBackup} /></label>
         </View>
         {backupMessage && <Text className={`backup-message ${pendingBackup ? 'warning' : ''}`}>{backupMessage}</Text>}
