@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, SearchApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, ItemStatusEvent, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
+import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, ItemStatusEvent, Method, MethodApplicationContext, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -55,8 +55,31 @@ const filterGroups: Array<{ label: string; entries: Array<{ label: string; statu
 ]
 
 type MethodMode = 'none' | 'create' | 'validate'
+type PrimaryModule = 'actions' | 'methods' | 'insights' | 'settings'
+type GlobalTool = 'search' | 'capture'
+type NavigationTarget =
+  | { type: 'item'; itemId: string }
+  | { type: 'review'; itemId: string }
+  | { type: 'method'; methodId: string; methodVersion?: number }
+  | { type: 'backlog'; status: ItemStatus }
+
+const moduleLabels: Record<PrimaryModule, string> = {
+  actions: '行动',
+  methods: '方法',
+  insights: '观察',
+  settings: '数据与设置',
+}
+
+const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
+  formation: '形成方法',
+  validation: '验证方法',
+  revision: '修订方法',
+  unknown: '历史证据',
+}
 
 const ITEMS_PER_PAGE = 5
+
+
 
 const defaultEffective = '暂未标记有效或舒服之处'
 const selectedEffective = '本次存在有效或舒服之处'
@@ -77,6 +100,10 @@ function formatTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
+function formatEvidenceSummary(summary: string): string {
+  return summary.split(' · ').filter((part, index, parts) => index === 0 || part !== parts[index - 1]).join(' · ')
+}
+
 export default function IndexPage() {
   const storage = useMemo(() => createIndexedDbRepository(), [])
   const application = useMemo(() => new ItemApplicationService(storage.repository), [storage])
@@ -89,7 +116,8 @@ export default function IndexPage() {
   const dashboardApplication = useMemo(() => new DashboardApplicationService(storage.dashboardRepository), [storage])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [dashboardOpen, setDashboardOpen] = useState(false)
+  const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
+  const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
   const [dashboardWindow, setDashboardWindow] = useState<DashboardWindow>('7d')
   const [dashboardReport, setDashboardReport] = useState<DashboardReport>()
   const [dashboardMetric, setDashboardMetric] = useState<DashboardMetricKey>()
@@ -98,7 +126,14 @@ export default function IndexPage() {
   const [items, setItems] = useState<Item[]>([])
   const [trashItems, setTrashItems] = useState<Item[]>([])
   const [methods, setMethods] = useState<Method[]>([])
+  const [methodSearchQuery, setMethodSearchQuery] = useState('')
+  const [selectedWorkspaceMethodId, setSelectedWorkspaceMethodId] = useState('')
   const [expandedMethodId, setExpandedMethodId] = useState<string>()
+  const [expandedEvidenceMethodId, setExpandedEvidenceMethodId] = useState<string>()
+  const [methodEvidenceDetails, setMethodEvidenceDetails] = useState<MethodEvidenceDetail[]>([])
+  const [methodEvidenceLoading, setMethodEvidenceLoading] = useState(false)
+  const [methodEvidenceError, setMethodEvidenceError] = useState('')
+  const evidenceRequestId = useRef(0)
   const [methodHistories, setMethodHistories] = useState<Record<string, MethodVersion[]>>({})
   const [historyReviews, setHistoryReviews] = useState<Record<string, Review>>({})
   const [filter, setFilter] = useState<ItemStatus | undefined>('idea_to_try')
@@ -111,25 +146,41 @@ export default function IndexPage() {
   const [selectedReview, setSelectedReview] = useState<Review>()
   const [statusEvents, setStatusEvents] = useState<ItemStatusEvent[]>([])
   const [timelineOpen, setTimelineOpen] = useState(false)
+  const [pendingReviewLocation, setPendingReviewLocation] = useState(false)
+  const [pendingMethodLocation, setPendingMethodLocation] = useState<string>()
+  const [pendingMethodVersionLocation, setPendingMethodVersionLocation] = useState<number>()
   const [reviewForm, setReviewForm] = useState(emptyReview)
   const [hasNewIdea, setHasNewIdea] = useState(false)
   const [methodForm, setMethodForm] = useState(emptyMethod)
   const [methodMode, setMethodMode] = useState<MethodMode>('none')
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [reviseMethod, setReviseMethod] = useState(false)
+  const methodInitializationRef = useRef<Record<string, true>>({})
+  const methodTouchedRef = useRef<Record<string, true>>({})
+  const methodDraftsRef = useRef<Record<string, Partial<Record<'create' | 'validate', typeof emptyMethod>>>>({})
+  const reviewMethodSelectionsRef = useRef<Record<string, string>>({})
   const [methodApplicationContext, setMethodApplicationContext] = useState<MethodApplicationContext>()
   const [applyingMethodId, setApplyingMethodId] = useState<string>()
   const [methodActionTitle, setMethodActionTitle] = useState('')
   const [methodActionContent, setMethodActionContent] = useState('')
   const [message, setMessage] = useState('正在读取本地事项…')
   const [busy, setBusy] = useState(false)
+  const [restoring, setRestoring] = useState(false)
 
   const selectedItem = (showTrash ? trashItems : items).find((item) => item.id === selectedId)
   const visibleItems = showTrash ? trashItems : filter ? items.filter((item) => item.status === filter) : items
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE))
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const hasCaptureContent = Boolean(title.trim() || content.trim())
-  const selectedMethod = methods.find((method) => method.id === selectedMethodId)
+  const selectedReviewMethod = methods.find((method) => method.id === selectedMethodId)
+  const workspaceMethods = useMemo(() => {
+    const query = methodSearchQuery.trim().toLocaleLowerCase()
+    return [...methods].sort((left, right) => {
+      const updatedAtOrder = right.updatedAt.localeCompare(left.updatedAt)
+      return updatedAtOrder || left.title.localeCompare(right.title, 'zh-CN') || left.id.localeCompare(right.id)
+    }).filter((method) => !query || [method.title, method.steps, method.applicable, method.unsuitable].join('\n').toLocaleLowerCase().includes(query))
+  }, [methodSearchQuery, methods])
+  const selectedWorkspaceMethod = workspaceMethods.find((method) => method.id === selectedWorkspaceMethodId)
   const methodStarted = methodMode === 'create' || (methodMode === 'validate' && reviseMethod)
   const [reviewError, setReviewError] = useState('')
 
@@ -144,6 +195,7 @@ export default function IndexPage() {
     if (nextSelectedId && selectionPool.some((item) => item.id === nextSelectedId)) setSelectedId(nextSelectedId)
     else if (selectedId && !selectionPool.some((item) => item.id === selectedId)) setSelectedId(undefined)
     setMessage(`${nextItems.length} 条有效事项 · ${nextMethods.length} 条当前方法 · 回收站 ${nextTrashItems.length} 条`)
+    return { items: nextItems, trashItems: nextTrashItems, methods: nextMethods }
   }
 
   useEffect(() => {
@@ -152,12 +204,12 @@ export default function IndexPage() {
   }, [storage])
 
   useEffect(() => {
-    if (!dashboardOpen) return
+    if (activeModule !== 'insights') return
 
     dashboardApplication.getReport(dashboardWindow).then(setDashboardReport).catch((error: unknown) => {
       setMessage(error instanceof Error ? error.message : '读取仪表盘失败')
     })
-  }, [dashboardOpen, dashboardWindow, dashboardApplication, items, methods])
+  }, [activeModule, dashboardWindow, dashboardApplication, items, methods])
 
   useEffect(() => {
     let active = true
@@ -166,6 +218,18 @@ export default function IndexPage() {
     })
     return () => { active = false }
   }, [searchQuery, searchApplication, items, methods])
+
+  useEffect(() => {
+    if (activeModule !== 'methods') return
+    if (selectedWorkspaceMethodId && !workspaceMethods.some((method) => method.id === selectedWorkspaceMethodId)) {
+      setSelectedWorkspaceMethodId('')
+      return
+    }
+    if (!selectedWorkspaceMethodId && !methodSearchQuery.trim() && workspaceMethods[0]) {
+      setSelectedWorkspaceMethodId(workspaceMethods[0].id)
+    }
+  }, [activeModule, methodSearchQuery, selectedWorkspaceMethodId, workspaceMethods])
+
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages)
@@ -186,6 +250,29 @@ export default function IndexPage() {
   }, [selectedId, application, items])
 
   useEffect(() => {
+    if (!timelineOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setTimelineOpen(false) }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [timelineOpen])
+
+  useEffect(() => {
+    if (!pendingReviewLocation || activeModule !== 'actions' || !selectedReview) return
+    document.getElementById('review-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setPendingReviewLocation(false)
+  }, [activeModule, pendingReviewLocation, selectedReview])
+
+  useEffect(() => {
+    if (!pendingMethodLocation || activeModule !== 'methods') return
+    const targetId = pendingMethodVersionLocation === undefined
+      ? `method-${pendingMethodLocation}`
+      : `method-${pendingMethodLocation}-version-${pendingMethodVersionLocation}`
+    document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setPendingMethodLocation(undefined)
+    setPendingMethodVersionLocation(undefined)
+  }, [activeModule, expandedMethodId, pendingMethodLocation, pendingMethodVersionLocation])
+
+  useEffect(() => {
     setTimelineOpen(false)
     setMethodMode('none')
     setSelectedMethodId('')
@@ -196,9 +283,20 @@ export default function IndexPage() {
 
   useEffect(() => {
     if (!selectedId) { setMethodApplicationContext(undefined); return }
-    methodApplication.getContextForItem(selectedId).then(setMethodApplicationContext)
-      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '读取方法应用信息失败'))
-  }, [selectedId, methodApplication, items])
+    let active = true
+    methodApplication.getContextForItem(selectedId).then((context) => {
+      if (!active) return
+      setMethodApplicationContext(context)
+      if (!context || !selectedItem || selectedItem.status !== 'waiting_review' || methodInitializationRef.current[selectedId] || methodTouchedRef.current[selectedId]) return
+      methodInitializationRef.current[selectedId] = true
+      setMethodMode('validate')
+      setSelectedMethodId(context.application.methodId)
+      reviewMethodSelectionsRef.current[selectedId] = context.application.methodId
+      setReviseMethod(false)
+      setMethodForm(methodDraftsRef.current[selectedId]?.validate ?? emptyMethod)
+    }).catch((error: unknown) => active && setMessage(error instanceof Error ? error.message : '读取方法应用信息失败'))
+    return () => { active = false }
+  }, [selectedId, methodApplication, items, selectedItem])
 
   const run = async (operation: () => Promise<void>) => {
     if (busy) return
@@ -208,53 +306,123 @@ export default function IndexPage() {
     finally { setBusy(false) }
   }
 
-  const locateDashboardItem = (itemId: string) => {
+  const locateActiveItem = (itemId: string, sourceItems = items, review = false) => {
+    const itemIndex = sourceItems.findIndex((item) => item.id === itemId && !item.deletedAt)
+    setActiveModule('actions')
     setShowTrash(false)
     setFilter(undefined)
-    setCurrentPage(1)
+    setDeleteConfirm(false)
+    if (itemIndex < 0) {
+      setSelectedId(undefined)
+      setPendingReviewLocation(false)
+      setMessage('目标记录不存在或已删除')
+      return false
+    }
+    setCurrentPage(Math.floor(itemIndex / ITEMS_PER_PAGE) + 1)
+    if (review) setSelectedReview(undefined)
     setSelectedId(itemId)
-    document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setPendingReviewLocation(review)
+    return true
   }
 
-  const locateDashboardMethod = (methodId: string) => {
-    window.setTimeout(() => document.getElementById(`method-${methodId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0)
+  const selectWorkspaceMethod = (methodId: string) => {
+    evidenceRequestId.current += 1
+    setSelectedWorkspaceMethodId(methodId)
+    setExpandedEvidenceMethodId(undefined)
+    setMethodEvidenceDetails([])
+    setMethodEvidenceLoading(false)
+    setMethodEvidenceError('')
   }
 
-  const filterDashboardBacklog = (status: ItemStatus) => {
-    setShowTrash(false)
-    setFilter(status)
-    setCurrentPage(1)
-    setSelectedId(undefined)
-    document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const loadAndLocateMethod = async (methodId: string, methodVersion?: number) => {
+    const method = methods.find((entry) => entry.id === methodId)
+    setActiveModule('methods')
+    setMethodSearchQuery('')
+    if (!method) {
+      setExpandedMethodId(undefined)
+      setPendingMethodLocation(undefined)
+      setPendingMethodVersionLocation(undefined)
+      setMessage('目标方法不存在或已删除')
+      return
+    }
+    selectWorkspaceMethod(methodId)
+    if (methodVersion) {
+      const versions = methodHistories[methodId] ?? await reviewApplication.listMethodVersions(methodId)
+      const reviewIds = [...new Set(versions.flatMap((version) => version.sourceReviewId ? [version.sourceReviewId] : []))]
+      const loadedReviews = await Promise.all(reviewIds.filter((reviewId) => !historyReviews[reviewId]).map((reviewId) => reviewApplication.getReview(reviewId)))
+      setMethodHistories((current) => ({ ...current, [methodId]: versions }))
+      setHistoryReviews((current) => ({ ...current, ...Object.fromEntries(loadedReviews.filter((review): review is Review => Boolean(review)).map((review) => [review.id, review])) }))
+      setExpandedMethodId(methodId)
+    }
+    setPendingMethodVersionLocation(methodVersion)
+    setPendingMethodLocation(methodId)
+  }
+
+  const navigateTo = (target: NavigationTarget) => {
+    if (target.type === 'item') {
+      locateActiveItem(target.itemId)
+      return
+    }
+    if (target.type === 'review') {
+      locateActiveItem(target.itemId, items, true)
+      return
+    }
+    if (target.type === 'backlog') {
+      setActiveModule('actions')
+      setShowTrash(false)
+      setFilter(target.status)
+      setCurrentPage(1)
+      setSelectedId(undefined)
+      setDeleteConfirm(false)
+      setPendingReviewLocation(false)
+      return
+    }
+    run(() => loadAndLocateMethod(target.methodId, target.methodVersion))
   }
 
   const locateSearchResult = (result: SearchResult) => {
-    if (result.itemId) {
-      setShowTrash(false)
-      setFilter(undefined)
-      setCurrentPage(1)
-      setSelectedId(result.itemId)
-      document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (result.type === 'review' && result.itemId) {
+      navigateTo({ type: 'review', itemId: result.itemId })
       return
     }
-    if (!result.methodId) return
-    run(async () => {
-      if (result.methodVersion && expandedMethodId !== result.methodId) {
-        const versions = methodHistories[result.methodId!] ?? await reviewApplication.listMethodVersions(result.methodId!)
-        const reviewIds = [...new Set(versions.flatMap((version) => version.sourceReviewId ? [version.sourceReviewId] : []))]
-        const loadedReviews = await Promise.all(reviewIds.filter((reviewId) => !historyReviews[reviewId]).map((reviewId) => reviewApplication.getReview(reviewId)))
-        setMethodHistories((current) => ({ ...current, [result.methodId!]: versions }))
-        setHistoryReviews((current) => ({ ...current, ...Object.fromEntries(loadedReviews.filter((review): review is Review => Boolean(review)).map((review) => [review.id, review])) }))
-        setExpandedMethodId(result.methodId)
+    if (result.type === 'item' && result.itemId) {
+      navigateTo({ type: 'item', itemId: result.itemId })
+      return
+    }
+    if (result.methodId) navigateTo({ type: 'method', methodId: result.methodId, methodVersion: result.methodVersion })
+  }
+
+  const locateDashboardRecord = (metric: DashboardMetricKey, record: DashboardReport['metricRecords'][DashboardMetricKey][number]) => {
+    if (metric === 'newMethods' || metric === 'methodValidations' || metric === 'methodRevisions') {
+      if (!record.methodId) {
+        setActiveModule('methods')
+        setExpandedMethodId(undefined)
+        setPendingMethodLocation(undefined)
+        setMessage('目标方法不存在或已删除')
+        return
       }
-      window.setTimeout(() => document.getElementById(`method-${result.methodId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0)
-    })
+      navigateTo({ type: 'method', methodId: record.methodId })
+      return
+    }
+    if (!record.itemId) {
+      setActiveModule('actions')
+      setShowTrash(false)
+      setFilter(undefined)
+      setSelectedId(undefined)
+      setPendingReviewLocation(false)
+      setMessage('目标记录不存在或已删除')
+      return
+    }
+    navigateTo({ type: metric === 'completedReviews' ? 'review' : 'item', itemId: record.itemId })
   }
 
   const createIdea = (saveForLater: boolean) => run(async () => {
     const item = await application.createIdea({ title, content, saveForLater })
-    setTitle(''); setContent(''); setFilter(undefined)
-    await refresh(item.id)
+    const refreshed = await refresh(item.id)
+    setTitle('')
+    setContent('')
+    setActiveGlobalTool(undefined)
+    locateActiveItem(item.id, refreshed.items)
   })
 
   const changeStatus = (action: ItemAction) => run(async () => {
@@ -327,31 +495,64 @@ export default function IndexPage() {
     }
   }
 
-  const restoreBackup = () => run(async () => {
-    if (!pendingBackup) return
+  const restoreBackup = async () => {
+    if (!pendingBackup || busy || restoring) return
+    setBusy(true)
+    setRestoring(true)
     setBackupMessage('正在生成恢复前安全备份…')
-    await backupApplication.restoreBackupSafely(pendingBackup, (safetyBackup) => {
-      downloadBackup(safetyBackup, 'knowledge-base-before-restore')
-      setBackupMessage('安全备份已下载，正在恢复数据…')
-    })
-    setPendingBackup(undefined)
-    setSelectedId(undefined)
-    setFilter('idea_to_try')
-    setShowTrash(false)
-    setCurrentPage(1)
-    await refresh(undefined)
-    setBackupMessage('恢复完成；覆盖前的数据已自动下载为安全备份')
-  })
+    try {
+      await backupApplication.restoreBackupSafely(pendingBackup, (safetyBackup) => {
+        downloadBackup(safetyBackup, 'knowledge-base-before-restore')
+        setBackupMessage('安全备份已下载，正在恢复数据…')
+      })
+      setPendingBackup(undefined)
+      setSelectedId(undefined)
+      setFilter('idea_to_try')
+      setShowTrash(false)
+      setCurrentPage(1)
+      await refresh(undefined)
+      setBackupMessage('恢复完成；覆盖前的数据已自动下载为安全备份')
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '恢复失败，原数据已保留'
+      setBackupMessage(`恢复失败：${errorMessage}`)
+      setMessage(errorMessage)
+    } finally {
+      setRestoring(false)
+      setBusy(false)
+    }
+  }
+
+  const markMethodTouched = () => {
+    if (selectedId) methodTouchedRef.current[selectedId] = true
+  }
+
+  const storeCurrentMethodDraft = () => {
+    if (!selectedId || methodMode === 'none') return
+    methodDraftsRef.current[selectedId] = { ...methodDraftsRef.current[selectedId], [methodMode]: methodForm }
+  }
 
   const chooseMethodMode = (mode: MethodMode) => {
+    markMethodTouched()
+    if (methodMode === mode) {
+      if (mode !== 'none') storeCurrentMethodDraft()
+      setMethodMode('none')
+      setSelectedMethodId('')
+      setReviseMethod(false)
+      setMethodForm(emptyMethod)
+      setReviewError('')
+      return
+    }
+    if (methodMode !== 'none') storeCurrentMethodDraft()
     setMethodMode(mode)
-    setSelectedMethodId('')
+    setSelectedMethodId(mode === 'validate' && selectedId ? reviewMethodSelectionsRef.current[selectedId] ?? '' : '')
     setReviseMethod(false)
-    setMethodForm(emptyMethod)
+    setMethodForm(mode === 'none' || !selectedId ? emptyMethod : methodDraftsRef.current[selectedId]?.[mode] ?? emptyMethod)
     setReviewError('')
   }
 
   const chooseExistingMethod = (methodId: string) => {
+    markMethodTouched()
+    if (selectedId) reviewMethodSelectionsRef.current[selectedId] = methodId
     setSelectedMethodId(methodId)
     setReviseMethod(false)
     setMethodForm(emptyMethod)
@@ -359,14 +560,14 @@ export default function IndexPage() {
   }
 
   const toggleRevision = () => {
-    if (!selectedMethod) return
+    if (!selectedReviewMethod) return
     const next = !reviseMethod
     setReviseMethod(next)
     setMethodForm(next ? {
-      title: selectedMethod.title,
-      applicable: selectedMethod.applicable,
-      unsuitable: selectedMethod.unsuitable,
-      steps: selectedMethod.steps,
+      title: selectedReviewMethod.title,
+      applicable: selectedReviewMethod.applicable,
+      unsuitable: selectedReviewMethod.unsuitable,
+      steps: selectedReviewMethod.steps,
     } : emptyMethod)
   }
 
@@ -384,12 +585,11 @@ export default function IndexPage() {
 
   const createMethodAction = (method: Method) => run(async () => {
     const item = await methodApplication.createItem(method.id, methodActionTitle, methodActionContent)
+    const refreshed = await refresh(item.id)
     setApplyingMethodId(undefined)
     setMethodActionTitle('')
     setMethodActionContent('')
-    setFilter(undefined)
-    setShowTrash(false)
-    await refresh(item.id)
+    locateActiveItem(item.id, refreshed.items)
     setMessage(`已基于“${method.title}”v${method.version} 创建行动事项`)
   })
 
@@ -412,6 +612,34 @@ export default function IndexPage() {
     })
   }
 
+  const toggleMethodEvidence = (methodId: string) => {
+    if (expandedEvidenceMethodId === methodId) {
+      evidenceRequestId.current += 1
+      setExpandedEvidenceMethodId(undefined)
+      setMethodEvidenceDetails([])
+      setMethodEvidenceLoading(false)
+      setMethodEvidenceError('')
+      return
+    }
+
+    const requestId = evidenceRequestId.current + 1
+    evidenceRequestId.current = requestId
+    setExpandedEvidenceMethodId(methodId)
+    setMethodEvidenceDetails([])
+    setMethodEvidenceLoading(true)
+    setMethodEvidenceError('')
+
+    reviewApplication.listMethodEvidenceDetails(methodId).then((details) => {
+      if (evidenceRequestId.current !== requestId) return
+      setMethodEvidenceDetails(details)
+      setMethodEvidenceLoading(false)
+    }).catch(() => {
+      if (evidenceRequestId.current !== requestId) return
+      setMethodEvidenceDetails([])
+      setMethodEvidenceError('读取来源与验证证据失败，请稍后重试。')
+      setMethodEvidenceLoading(false)
+    })
+  }
   const completeReview = () => run(async () => {
     if (!selectedItem) return
     const missingReviewFields = ([
@@ -447,7 +675,7 @@ export default function IndexPage() {
     }
 
     const methodTitle = methodMode === 'validate'
-      ? selectedMethod?.title ?? methodForm.title
+      ? selectedReviewMethod?.title ?? methodForm.title
       : methodForm.steps.trim().split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
     const normalizedMethodForm = methodStarted ? {
       title: methodTitle,
@@ -524,13 +752,36 @@ export default function IndexPage() {
   }
 
   return (
-    <View className='page'>
-      <View className='hero'>
-        <View><Text className='eyebrow'>SPRINT 2 · 复盘与方法</Text><Text className='title'>让经历沉淀成方法</Text><Text className='subtitle'>捕获想法，推动执行，用现实证据更新自己的做法。</Text></View>
-        <View className='local-status'><View className='status-dot' /><Text>{message}</Text></View>
+    <View className='app-shell'>
+      <View className='primary-navigation'>
+        <View className='navigation-brand'><Text>个人系统</Text><Text>行动与方法</Text></View>
+        <View className='navigation-group'>
+          {(['actions', 'methods', 'insights'] as PrimaryModule[]).map((module) => <View
+            key={module}
+            className={`navigation-item ${activeModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
+            onClick={() => { if (!restoring) setActiveModule(module) }}
+          ><Text>{moduleLabels[module]}</Text></View>)}
+        </View>
+        <View className='navigation-group navigation-settings'>
+          <View
+            className={`navigation-item ${activeModule === 'settings' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
+            onClick={() => { if (!restoring) setActiveModule('settings') }}
+          ><Text>数据与设置</Text></View>
+        </View>
+        <View className='navigation-status'><View className='status-dot' /><View><Text>本地数据正常</Text><Text>{items.length} 条事项 · {methods.length} 条方法</Text></View></View>
       </View>
 
-      <View className='search-panel'>
+      <View className='app-main'>
+        <View className='global-header'>
+          <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{restoring ? '正在安全恢复数据，请勿离开' : message}</Text></View>
+          <View className='global-actions'>
+            <View className={`global-tool-button ${activeGlobalTool === 'search' ? 'active' : ''}`} onClick={() => setActiveGlobalTool((current) => current === 'search' ? undefined : 'search')}><Text>全局搜索</Text></View>
+            <View className={`global-tool-button primary ${activeGlobalTool === 'capture' ? 'active' : ''}`} onClick={() => setActiveGlobalTool((current) => current === 'capture' ? undefined : 'capture')}><Text>＋ 快速捕获</Text></View>
+          </View>
+        </View>
+
+        <View className='page'>
+      {activeGlobalTool === 'search' && <View className='search-panel global-tool-panel'>
         <View className='search-heading'><Text className='section-kicker'>全局搜索</Text><Text>查找事项、复盘、当前方法与历史版本</Text></View>
         <View className='search-input-row'>
           <Input className='search-input' value={searchQuery} maxlength={120} placeholder='输入关键词，例如：练字、启动、低能量' onInput={(event) => setSearchQuery(event.detail.value)} />
@@ -549,20 +800,31 @@ export default function IndexPage() {
             </View>
           })}
         </View>}
-      </View>
+      </View>}
 
-      <View className='dashboard-panel'>
+      {activeGlobalTool === 'capture' && <View className='capture-card global-tool-panel'>
+        <Text className='section-kicker'>快速捕获</Text>
+        <Text className='field-label'>一句话标题</Text>
+        <Input className='title-input' value={title} maxlength={120} placeholder='例如：我想学写字' onInput={(event) => setTitle(event.detail.value)} />
+        <Text className='field-label content-label'>补充说明（可选）</Text>
+        <Textarea className='content-input' value={content} maxlength={1000} placeholder='为什么想做、希望得到什么、准备从哪一步开始' onInput={(event) => setContent(event.detail.value)} />
+        <Text className='capture-hint'>只填补充说明也可以保存，第一行会自动成为标题。</Text>
+        <View className='capture-actions'>
+          <View className={`secondary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
+          <View className={`primary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(false) }}><Text>加入想试试</Text></View>
+        </View>
+      </View>}
+
+      {activeModule === 'insights' && <View className='dashboard-panel module-panel'>
         <View className='dashboard-header'>
           <View>
             <Text className='section-kicker'>周期复盘</Text>
             <Text className='dashboard-title'>系统运行仪表盘</Text>
           </View>
-          <View className={`dashboard-toggle ${dashboardOpen ? 'active' : ''}`} onClick={() => setDashboardOpen((open) => !open)}>
-            <Text>{dashboardOpen ? '收起仪表盘' : '查看系统状态'}</Text>
-          </View>
+          <Text className='module-description'>用事实观察行动闭环，并下钻到具体记录。</Text>
         </View>
 
-        {dashboardOpen && dashboardReport && <>
+        {!dashboardReport ? <View className='module-loading'><Text>正在读取周期数据…</Text></View> : <>
           <View className='dashboard-windows'>
             {([['7d', '最近 7 天'], ['30d', '最近 30 天'], ['all', '全部']] as Array<[DashboardWindow, string]>).map(([value, label]) => (
               <View key={value} className={`dashboard-window ${dashboardWindow === value ? 'active' : ''}`} onClick={() => setDashboardWindow(value)}>
@@ -590,7 +852,7 @@ export default function IndexPage() {
               <View className='dashboard-drilldown-heading'><Text>对应记录 · {dashboardReport.metricRecords[dashboardMetric].length}</Text><Text onClick={() => setDashboardMetric(undefined)}>收起</Text></View>
               {dashboardReport.metricRecords[dashboardMetric].length === 0
                 ? <Text className='dashboard-empty'>该窗口内没有对应记录。</Text>
-                : dashboardReport.metricRecords[dashboardMetric].map((record) => <View className='dashboard-drilldown-row' key={record.id} onClick={() => record.itemId ? locateDashboardItem(record.itemId) : record.methodId && locateDashboardMethod(record.methodId)}>
+                : dashboardReport.metricRecords[dashboardMetric].map((record) => <View className='dashboard-drilldown-row' key={record.id} onClick={() => locateDashboardRecord(dashboardMetric, record)}>
                   <View><Text>{record.title}</Text><Text>{record.detail}</Text></View><Text>{record.itemId || record.methodId ? '定位' : '仅记录'}</Text>
                 </View>)}
             </View>}
@@ -605,14 +867,14 @@ export default function IndexPage() {
                 ['待复盘', dashboardReport.backlog.waitingReview, 'waiting_review'],
                 ['暂停', dashboardReport.backlog.paused, 'paused'],
                 ['以后再说', dashboardReport.backlog.ideaLater, 'idea_later'],
-              ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => filterDashboardBacklog(status)}><Text>{label}</Text><Text>{value} · 定位</Text></View>)}
+              ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => navigateTo({ type: 'backlog', status })}><Text>{label}</Text><Text>{value} · 定位</Text></View>)}
             </View>
 
             <View className='dashboard-section'>
               <Text className='dashboard-section-title'>方法复利</Text>
               {[dashboardReport.mostValidated, dashboardReport.mostApplied, dashboardReport.recentlyRevised]
                 .filter(Boolean)
-                .map((insight) => <View className='insight-row' key={`${insight!.methodId}-${insight!.detail}`} onClick={() => locateDashboardMethod(insight!.methodId)}>
+                .map((insight) => <View className='insight-row' key={`${insight!.methodId}-${insight!.detail}`} onClick={() => navigateTo({ type: 'method', methodId: insight!.methodId })}>
                   <Text>{insight!.title}</Text><Text>{insight!.detail}</Text>
                 </View>)}
               {!dashboardReport.mostValidated && !dashboardReport.mostApplied && !dashboardReport.recentlyRevised && (
@@ -626,22 +888,9 @@ export default function IndexPage() {
             {dashboardReport.facts.map((fact) => <Text key={fact}>· {fact}</Text>)}
           </View>
         </>}
-      </View>
+      </View>}
 
-      <View className='capture-card'>
-        <Text className='section-kicker'>快速捕获</Text>
-        <Text className='field-label'>一句话标题</Text>
-        <Input className='title-input' value={title} maxlength={120} placeholder='例如：我想学写字' onInput={(event) => setTitle(event.detail.value)} />
-        <Text className='field-label content-label'>补充说明（可选）</Text>
-        <Textarea className='content-input' value={content} maxlength={1000} placeholder='为什么想做、希望得到什么、准备从哪一步开始' onInput={(event) => setContent(event.detail.value)} />
-        <Text className='capture-hint'>只填补充说明也可以保存，第一行会自动成为标题。</Text>
-        <View className='capture-actions'>
-          <View className={`secondary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
-          <View className={`primary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(false) }}><Text>加入想试试</Text></View>
-        </View>
-      </View>
-
-      <View className={`workspace ${!showTrash && (selectedItem?.status === 'waiting_review' || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace'>
+      {activeModule === 'actions' && <View className={`workspace module-panel ${!showTrash && (selectedItem?.status === 'waiting_review' || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace'>
         <View className='list-panel'>
           <View className='panel-heading'><View><Text className='section-kicker'>{showTrash ? '回收站' : '事项池'}</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
           <View className='filter-header'>
@@ -683,7 +932,9 @@ export default function IndexPage() {
                 <View className='detail-time'><Text>创建 {formatTime(selectedItem.createdAt)}</Text><Text>更新 {formatTime(selectedItem.updatedAt)}</Text></View>
               </View>
             </View>
-            {timelineOpen && <View className='status-timeline'>
+            {timelineOpen && <View className='status-timeline-drawer' role='dialog' aria-label='流转历史'>
+              <View className='timeline-drawer-heading'><Text>流转历史</Text><View className='timeline-drawer-close' onClick={() => setTimelineOpen(false)}><Text>关闭</Text></View></View>
+              <View className='status-timeline'>
               {statusEvents.length ? statusEvents.map((event) => <View className='timeline-entry' key={event.id}>
                 <View className='timeline-marker' />
                 <View className='timeline-content'>
@@ -691,6 +942,7 @@ export default function IndexPage() {
                   <Text>{formatTime(event.createdAt)}</Text>
                 </View>
               </View>) : <Text className='timeline-empty'>暂无流转记录。</Text>}
+              </View>
             </View>}
             <Text className='detail-title'>{selectedItem.title}</Text>
             {showTrash
@@ -704,7 +956,7 @@ export default function IndexPage() {
               {selectedItem.status === 'waiting_review' && <Text>你可以先完成事实复盘，再决定是否验证或修订该方法。</Text>}
             </View>}
 
-            {!showTrash && selectedItem.status === 'waiting_review' && <View className='review-form'>
+            {!showTrash && selectedItem.status === 'waiting_review' && <View className='review-form' id='review-section'>
         <View className='review-heading'><Text className='section-kicker'>完成复盘</Text><Text>先还原事实，再提炼方法。</Text></View>
               {reviewField('result', '结果怎样', '结果、产出或可观察变化')}
               <View className='review-checkbox-group'>
@@ -736,7 +988,6 @@ export default function IndexPage() {
               <View className='method-draft'>
                 <Text className='section-kicker'>本次复盘如何沉淀方法（可选）</Text>
                 <View className='method-mode-actions'>
-                  <View className={`method-mode-button ${methodMode === 'none' ? 'active' : ''}`} onClick={() => chooseMethodMode('none')}><Text>不沉淀方法</Text></View>
                   <View className={`method-mode-button ${methodMode === 'create' ? 'active' : ''}`} onClick={() => chooseMethodMode('create')}><Text>形成新方法</Text></View>
                   <View className={`method-mode-button ${methodMode === 'validate' ? 'active' : ''} ${methods.length === 0 ? 'disabled' : ''}`} onClick={() => { if (methods.length > 0) chooseMethodMode('validate') }}><Text>验证已有方法</Text></View>
                 </View>
@@ -746,8 +997,13 @@ export default function IndexPage() {
                     <Text className='existing-method-title'>{method.title}</Text>
                     <Text className='existing-method-meta'>v{method.version} · 已验证 {method.validationCount} 次</Text>
                   </View>)}
-                  {selectedMethod && <View className='selected-method-summary'>
-                    <Text>当前步骤：{selectedMethod.steps}</Text>
+                  {selectedReviewMethod && <View className='selected-method-summary'>
+                    {methodApplicationContext && <View className='method-relation-summary'>
+                      <Text>本事项由「{methodApplicationContext.method.title}」v{methodApplicationContext.application.methodVersion} 发起</Text>
+                      <Text>{methodApplicationContext.application.methodId === selectedReviewMethod.id ? `本次复盘将验证来源方法「${selectedReviewMethod.title}」` : `本次复盘将验证「${selectedReviewMethod.title}」`}</Text>
+                      {methodApplicationContext.application.methodId !== selectedReviewMethod.id && <Text>原方法应用关系不会改变</Text>}
+                    </View>}
+                    <Text>当前步骤：{selectedReviewMethod.steps}</Text>
                     <View className={`method-revision-button ${reviseMethod ? 'active' : ''}`} onClick={toggleRevision}><Text>{reviseMethod ? '取消修订，仅验证' : '根据本次复盘修订方法'}</Text></View>
                   </View>}
                 </View>}
@@ -763,7 +1019,7 @@ export default function IndexPage() {
               <Button className='action-button primary' disabled={busy} onClick={completeReview}>完成复盘{methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : ''}</Button>
             </View>}
 
-            {!showTrash && selectedItem.status === 'reviewed' && selectedReview && <View className='review-record'>
+            {!showTrash && selectedItem.status === 'reviewed' && selectedReview && <View className='review-record' id='review-section'>
               <Text className='section-kicker'>复盘证据</Text>
               {([
                 ...(selectedReview.actualAction !== selectedReview.result ? [['实际行动', selectedReview.actualAction]] : []),
@@ -789,9 +1045,18 @@ export default function IndexPage() {
             </View>}
           </> : <View className='detail-empty'><Text className='detail-empty-title'>选择一件事</Text><Text>查看详情，并推动它进入下一个真实状态。</Text></View>}
         </View>
-      </View>
+      </View>}
 
-      <View className='backup-panel'>
+      {activeModule === 'settings' && <View className='settings-module module-panel'>
+        <View className='data-status-panel'>
+          <View><Text className='section-kicker'>本地数据状态</Text><Text className='panel-title'>数据仅保存在当前浏览器</Text></View>
+          <View className='data-status-grid'>
+            <View><Text>{items.length}</Text><Text>有效事项</Text></View>
+            <View><Text>{methods.length}</Text><Text>当前方法</Text></View>
+            <View><Text>{trashItems.length}</Text><Text>回收站</Text></View>
+          </View>
+        </View>
+        <View className='backup-panel'>
         <View className='backup-heading'>
           <View><Text className='section-kicker'>数据备份</Text><Text className='panel-title'>导出与恢复</Text></View>
           <Text className='backup-description'>数据仅保存在当前浏览器。建议每周及重大更新前导出一次 JSON 备份。</Text>
@@ -810,50 +1075,39 @@ export default function IndexPage() {
             <Button className='action-button delete-confirm-button' disabled={busy} onClick={restoreBackup}>备份当前数据并恢复</Button>
           </View>
         </View>}
+        {restoring && <View className='restore-progress'><View className='status-dot' /><Text>恢复正在进行，一级导航已暂时锁定。</Text></View>}
       </View>
+      </View>}
 
-      <View className='methods-panel'>
-        <View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View>
-        {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <View className='method-grid'>{methods.map((method) => {
-          const history = methodHistories[method.id] ?? []
-          const expanded = expandedMethodId === method.id
-          return <View id={`method-${method.id}`} className={`method-card ${expanded ? 'history-open' : ''}`} key={method.id}>
-            <View className='method-card-heading'><Text>{method.title}</Text><Text>v{method.version} · 验证 {method.validationCount} 次</Text></View>
-            <Text className='method-label'>适用情况</Text><Text className='method-value'>{method.applicable}</Text>
-            {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
-            <Text className='method-label'>具体步骤</Text><Text className='method-value'>{method.steps}</Text>
-            <View className={`method-apply-button ${applyingMethodId === method.id ? 'active' : ''}`} onClick={() => openMethodApplication(method)}>
-              <Text>{applyingMethodId === method.id ? '取消创建行动' : '用此方法开始行动'}</Text>
-            </View>
-            {applyingMethodId === method.id && <View className='method-apply-form'>
-              <Input className='method-action-input' value={methodActionTitle} maxlength={120} placeholder='这次具体要完成什么' onInput={(event) => setMethodActionTitle(event.detail.value)} />
-              <Textarea className='method-action-textarea' value={methodActionContent} maxlength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.detail.value)} />
-              <View className={`method-action-submit ${methodActionTitle.trim() && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View>
-            </View>}
-            <View className={`method-history-button ${expanded ? 'active' : ''}`} onClick={() => toggleMethodHistory(method.id)}>
-              <Text>{expanded ? '收起版本历史' : `查看版本历史（${method.version}）`}</Text>
-            </View>
-            {expanded && <View className='method-history'>
-              <Text className='method-history-title'>演化轨迹与复盘证据</Text>
-              {[...history].reverse().map((version) => {
-                const sourceReview = version.sourceReviewId ? historyReviews[version.sourceReviewId] : undefined
-                return <View className='method-version' key={version.id}>
-                  <View className='method-version-heading'><Text>v{version.version}</Text><Text>{formatTime(version.createdAt)}</Text></View>
-                  <Text className='method-label'>方法名称</Text><Text className='method-value'>{version.title}</Text>
-                  <Text className='method-label'>适用情况</Text><Text className='method-value'>{version.applicable}</Text>
-                  {version.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{version.unsuitable}</Text></>}
-                  <Text className='method-label'>具体步骤</Text><Text className='method-value'>{version.steps}</Text>
-                  <View className='method-version-evidence'>
-                    <Text className='method-label'>来源复盘</Text>
-                    {sourceReview
-                      ? <><Text>实际行动：{sourceReview.actualAction}</Text><Text>结果：{sourceReview.result}</Text></>
-                      : <Text className='muted'>{version.sourceReviewId ? '来源复盘当前不可用' : '历史迁移快照，无来源复盘记录'}</Text>}
-                  </View>
-                </View>
-              })}
-            </View>}
+      {activeModule === 'methods' && <View className='methods-panel module-panel'>
+        <View className='methods-workbench-heading'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View><Text>按最近更新排序</Text></View>
+        {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <View className='methods-workbench'>
+          <View className='method-list-pane'>
+            <Input className='method-search-input' value={methodSearchQuery} maxlength={120} placeholder='搜索方法名称、步骤或说明' onInput={(event) => setMethodSearchQuery(event.detail.value)} />
+            {workspaceMethods.length === 0 ? <Text className='method-list-empty'>没有匹配的方法</Text> : <View className='method-list'>{workspaceMethods.map((method) => <View key={method.id} className={`method-list-row ${selectedWorkspaceMethodId === method.id ? 'active' : ''}`} onClick={() => selectWorkspaceMethod(method.id)}><Text className='method-list-title'>{method.title}</Text><Text className='method-list-meta'>v{method.version} · 验证 {method.validationCount} 次 · {formatTime(method.updatedAt)}</Text><Text className='method-list-summary'>{method.steps.split(/\r?\n/, 1)[0]}</Text></View>)}</View>}
           </View>
-        })}</View>}
+          <View className='method-detail-pane'>
+            {!selectedWorkspaceMethod ? <View className='method-detail-empty'><Text>未选择方法</Text><Text>{methodSearchQuery.trim() ? '当前搜索结果不包含已选方法，请从左侧选择。' : '从左侧列表选择一条方法查看详情。'}</Text></View> : (() => {
+              const method = selectedWorkspaceMethod
+              const history = methodHistories[method.id] ?? []
+              const expanded = expandedMethodId === method.id
+              return <View id={`method-${method.id}`} className='method-detail'>
+                <View className='method-card-heading'><Text>{method.title}</Text><Text>v{method.version} · 验证 {method.validationCount} 次</Text></View>
+                <Text className='method-label'>具体步骤</Text><Text className='method-value'>{method.steps}</Text>
+                <Text className='method-label'>补充说明</Text><Text className='method-value'>{method.applicable || '暂无补充说明'}</Text>
+                {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
+                <View className={`method-apply-button ${applyingMethodId === method.id ? 'active' : ''}`} onClick={() => openMethodApplication(method)}><Text>{applyingMethodId === method.id ? '取消创建行动' : '用此方法开始行动'}</Text></View>
+                {applyingMethodId === method.id && <View className='method-apply-form'><Input className='method-action-input' value={methodActionTitle} maxlength={120} placeholder='这次具体要完成什么' onInput={(event) => setMethodActionTitle(event.detail.value)} /><Textarea className='method-action-textarea' value={methodActionContent} maxlength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.detail.value)} /><View className={`method-action-submit ${methodActionTitle.trim() && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View></View>}
+                <View className={`method-evidence-button ${expandedEvidenceMethodId === method.id ? 'active' : ''}`} onClick={() => toggleMethodEvidence(method.id)}><Text>{expandedEvidenceMethodId === method.id ? '收起来源与验证证据' : '查看来源与验证证据'}</Text></View>
+                {expandedEvidenceMethodId === method.id && <View className='method-evidence-panel'><Text className='method-evidence-title'>来源与验证证据</Text>{methodEvidenceLoading ? <Text className='method-evidence-state'>正在读取证据…</Text> : methodEvidenceError ? <Text className='method-evidence-state error'>{methodEvidenceError}</Text> : methodEvidenceDetails.length === 0 ? <Text className='method-evidence-state'>暂无来源与验证证据</Text> : <View className='method-evidence-list'>{methodEvidenceDetails.map((evidence) => <View className='method-evidence-entry' key={evidence.evidenceId}><View className='method-evidence-entry-heading'><Text className={`method-evidence-relation ${evidence.relation}`}>{evidenceRelationLabels[evidence.relation]}</Text><Text className='method-evidence-time'>{formatTime(evidence.reviewCreatedAt)}</Text></View><Text className='method-evidence-item'>{evidence.itemTitle}</Text><Text className='method-evidence-summary'>{formatEvidenceSummary(evidence.reviewSummary)}</Text>{evidence.methodVersion !== undefined && <Text className='method-evidence-version'>对应方法版本 v{evidence.methodVersion}</Text>}{evidence.relation === 'unknown' && <Text className='method-evidence-unknown'>关系类型无法从旧数据中确定</Text>}</View>)}</View>}</View>}
+                <View className={`method-history-button ${expanded ? 'active' : ''}`} onClick={() => toggleMethodHistory(method.id)}><Text>{expanded ? '收起版本历史' : `查看版本历史（${method.version}）`}</Text></View>
+                {expanded && <View className='method-history'><Text className='method-history-title'>演化轨迹与复盘证据</Text>{[...history].reverse().map((version) => { const sourceReview = version.sourceReviewId ? historyReviews[version.sourceReviewId] : undefined; return <View id={'method-' + method.id + '-version-' + version.version} className='method-version' key={version.id}><View className='method-version-heading'><Text>v{version.version}</Text><Text>{formatTime(version.createdAt)}</Text></View><Text className='method-label'>方法名称</Text><Text className='method-value'>{version.title}</Text><Text className='method-label'>适用情况</Text><Text className='method-value'>{version.applicable}</Text>{version.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{version.unsuitable}</Text></>}<Text className='method-label'>具体步骤</Text><Text className='method-value'>{version.steps}</Text><View className='method-version-evidence'><Text className='method-label'>来源复盘</Text>{sourceReview ? <><Text>实际行动：{sourceReview.actualAction}</Text><Text>结果：{sourceReview.result}</Text></> : <Text className='muted'>{version.sourceReviewId ? '来源复盘当前不可用' : '历史迁移快照，无来源复盘记录'}</Text>}</View></View> })}</View>}
+              </View>
+            })()}
+          </View>
+        </View>}
+      </View>}
+        </View>
       </View>
     </View>
   )
