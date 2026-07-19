@@ -8,6 +8,8 @@ import type {
   CreateMethodApplicationInput,
   CreateMethodInput,
   CreateReviewInput,
+  DashboardRepository,
+  DashboardSnapshot,
   Item,
   ItemLink,
   ItemRepository,
@@ -215,6 +217,22 @@ export class IndexedDbItemRepository implements ItemRepository {
         }
       },
     )
+  }
+}
+
+export class IndexedDbDashboardRepository implements DashboardRepository {
+  constructor(private readonly database: KnowledgeDatabase) {}
+
+  async getSnapshot(): Promise<DashboardSnapshot> {
+    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications] = await Promise.all([
+      this.database.items.filter((item) => !item.deletedAt).toArray(),
+      this.database.reviews.toArray(),
+      this.database.methods.toArray(),
+      this.database.methodEvidence.toArray(),
+      this.database.methodVersions.toArray(),
+      this.database.methodApplications.toArray(),
+    ])
+    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications }
   }
 }
 
@@ -542,6 +560,7 @@ export function createIndexedDbRepository(name?: string): {
   repository: IndexedDbItemRepository
   reviewRepository: IndexedDbReviewRepository
   methodRepository: IndexedDbMethodRepository
+  dashboardRepository: IndexedDbDashboardRepository
   searchRepository: IndexedDbSearchRepository
   methodApplicationRepository: IndexedDbMethodApplicationRepository
   backupRepository: IndexedDbBackupRepository
@@ -551,6 +570,7 @@ export function createIndexedDbRepository(name?: string): {
   const repository = new IndexedDbItemRepository(database)
   const reviewRepository = new IndexedDbReviewRepository(database)
   const methodRepository = new IndexedDbMethodRepository(database)
+  const dashboardRepository = new IndexedDbDashboardRepository(database)
   const searchRepository = new IndexedDbSearchRepository(database)
   const methodApplicationRepository = new IndexedDbMethodApplicationRepository(database, repository)
   const backupRepository = new IndexedDbBackupRepository(database)
@@ -559,6 +579,7 @@ export function createIndexedDbRepository(name?: string): {
     repository,
     reviewRepository,
     methodRepository,
+    dashboardRepository,
     searchRepository,
     methodApplicationRepository,
     backupRepository,

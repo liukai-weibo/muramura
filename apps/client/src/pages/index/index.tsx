@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import { BackupApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, SearchApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
+import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, SearchApplicationService, type ItemAction } from '@knowledge-base/application'
+import type { BackupDocument, DashboardReport, DashboardWindow, Item, ItemStatus, Method, MethodApplicationContext, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -56,8 +56,12 @@ export default function IndexPage() {
   const searchApplication = useMemo(() => new SearchApplicationService(storage.searchRepository), [storage])
   const methodApplication = useMemo(() => new MethodApplicationService(storage.methodApplicationRepository), [storage])
   const backupApplication = useMemo(() => new BackupApplicationService(storage.backupRepository), [storage])
+  const dashboardApplication = useMemo(() => new DashboardApplicationService(storage.dashboardRepository), [storage])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [dashboardOpen, setDashboardOpen] = useState(false)
+  const [dashboardWindow, setDashboardWindow] = useState<DashboardWindow>('7d')
+  const [dashboardReport, setDashboardReport] = useState<DashboardReport>()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [items, setItems] = useState<Item[]>([])
@@ -112,6 +116,14 @@ export default function IndexPage() {
     refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '本地数据库初始化失败'))
     return () => storage.database.close()
   }, [storage])
+
+  useEffect(() => {
+    if (!dashboardOpen) return
+
+    dashboardApplication.getReport(dashboardWindow).then(setDashboardReport).catch((error: unknown) => {
+      setMessage(error instanceof Error ? error.message : '读取仪表盘失败')
+    })
+  }, [dashboardOpen, dashboardWindow, dashboardApplication, items, methods])
 
   useEffect(() => {
     let active = true
@@ -420,6 +432,74 @@ export default function IndexPage() {
             </View>
           })}
         </View>}
+      </View>
+
+      <View className='dashboard-panel'>
+        <View className='dashboard-header'>
+          <View>
+            <Text className='section-kicker'>周期复盘</Text>
+            <Text className='dashboard-title'>系统运行仪表盘</Text>
+          </View>
+          <View className={`dashboard-toggle ${dashboardOpen ? 'active' : ''}`} onClick={() => setDashboardOpen((open) => !open)}>
+            <Text>{dashboardOpen ? '收起仪表盘' : '查看系统状态'}</Text>
+          </View>
+        </View>
+
+        {dashboardOpen && dashboardReport && <>
+          <View className='dashboard-windows'>
+            {([['7d', '最近 7 天'], ['30d', '最近 30 天'], ['all', '全部']] as Array<[DashboardWindow, string]>).map(([value, label]) => (
+              <View key={value} className={`dashboard-window ${dashboardWindow === value ? 'active' : ''}`} onClick={() => setDashboardWindow(value)}>
+                <Text>{label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View className='dashboard-section'>
+            <Text className='dashboard-section-title'>窗口内发生</Text>
+            <View className='metric-grid'>
+              {[
+                ['新增事项', dashboardReport.metrics.newItems],
+                ['完成复盘', dashboardReport.metrics.completedReviews],
+                ['形成方法', dashboardReport.metrics.newMethods],
+                ['仅验证方法', dashboardReport.metrics.methodValidations],
+                ['修订方法', dashboardReport.metrics.methodRevisions],
+                ['方法发起行动', dashboardReport.metrics.methodApplications],
+              ].map(([label, value]) => <View className='metric-card' key={label}>
+                <Text>{value}</Text><Text>{label}</Text>
+              </View>)}
+            </View>
+          </View>
+
+          <View className='dashboard-columns'>
+            <View className='dashboard-section'>
+              <Text className='dashboard-section-title'>当前堵塞</Text>
+              {[
+                ['想试试', dashboardReport.backlog.ideaToTry],
+                ['进行中', dashboardReport.backlog.doing],
+                ['待复盘', dashboardReport.backlog.waitingReview],
+                ['暂停', dashboardReport.backlog.paused],
+                ['以后再说', dashboardReport.backlog.ideaLater],
+              ].map(([label, value]) => <View className='backlog-row' key={label}><Text>{label}</Text><Text>{value}</Text></View>)}
+            </View>
+
+            <View className='dashboard-section'>
+              <Text className='dashboard-section-title'>方法复利</Text>
+              {[dashboardReport.mostValidated, dashboardReport.mostApplied, dashboardReport.recentlyRevised]
+                .filter(Boolean)
+                .map((insight) => <View className='insight-row' key={`${insight!.methodId}-${insight!.detail}`}>
+                  <Text>{insight!.title}</Text><Text>{insight!.detail}</Text>
+                </View>)}
+              {!dashboardReport.mostValidated && !dashboardReport.mostApplied && !dashboardReport.recentlyRevised && (
+                <Text className='dashboard-empty'>该窗口内还没有方法活动。</Text>
+              )}
+            </View>
+          </View>
+
+          <View className='dashboard-section dashboard-facts'>
+            <Text className='dashboard-section-title'>事实提示</Text>
+            {dashboardReport.facts.map((fact) => <Text key={fact}>· {fact}</Text>)}
+          </View>
+        </>}
       </View>
 
       <View className='capture-card'>

@@ -148,6 +148,56 @@ export interface BackupRepository {
   replaceData(data: BackupData): Promise<void>
 }
 
+export type DashboardWindow = '7d' | '30d' | 'all'
+
+export interface DashboardSnapshot {
+  items: Item[]
+  reviews: Review[]
+  methods: Method[]
+  methodEvidence: MethodEvidence[]
+  methodVersions: MethodVersion[]
+  methodApplications: MethodApplication[]
+}
+
+export interface DashboardMetrics {
+  newItems: number
+  completedReviews: number
+  newMethods: number
+  methodValidations: number
+  methodRevisions: number
+  methodApplications: number
+}
+
+export interface DashboardBacklog {
+  ideaToTry: number
+  doing: number
+  waitingReview: number
+  paused: number
+  ideaLater: number
+}
+
+export interface DashboardMethodInsight {
+  methodId: string
+  title: string
+  count: number
+  detail: string
+}
+
+export interface DashboardReport {
+  window: DashboardWindow
+  metrics: DashboardMetrics
+  backlog: DashboardBacklog
+  mostValidated?: DashboardMethodInsight
+  mostApplied?: DashboardMethodInsight
+  recentlyRevised?: DashboardMethodInsight
+  unreviewedMethodActions: number
+  facts: string[]
+}
+
+export interface DashboardRepository {
+  getSnapshot(): Promise<DashboardSnapshot>
+}
+
 export type SearchResultType = 'item' | 'review' | 'method'
 
 export interface SearchResult {
