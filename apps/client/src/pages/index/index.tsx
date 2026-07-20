@@ -118,9 +118,13 @@ export default function IndexPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
   const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
+  const captureOriginModuleRef = useRef<PrimaryModule>('actions')
+  const [captureDiscardConfirm, setCaptureDiscardConfirm] = useState(false)
+  const [captureCreatedItemId, setCaptureCreatedItemId] = useState<string>()
   const [dashboardWindow, setDashboardWindow] = useState<DashboardWindow>('7d')
   const [dashboardReport, setDashboardReport] = useState<DashboardReport>()
   const [dashboardMetric, setDashboardMetric] = useState<DashboardMetricKey>()
+  const [rhythmNow, setRhythmNow] = useState(() => new Date())
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [items, setItems] = useState<Item[]>([])
@@ -172,6 +176,7 @@ export default function IndexPage() {
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE))
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const hasCaptureContent = Boolean(title.trim() || content.trim())
+  const captureLocked = restoring || Boolean(pendingBackup)
   const selectedReviewMethod = methods.find((method) => method.id === selectedMethodId)
   const workspaceMethods = useMemo(() => {
     const query = methodSearchQuery.trim().toLocaleLowerCase()
@@ -182,6 +187,18 @@ export default function IndexPage() {
   }, [methodSearchQuery, methods])
   const selectedWorkspaceMethod = workspaceMethods.find((method) => method.id === selectedWorkspaceMethodId)
   const methodStarted = methodMode === 'create' || (methodMode === 'validate' && reviseMethod)
+  const captureWeekDays = useMemo(() => {
+    const today = new Date(rhythmNow)
+    const mondayOffset = (today.getDay() + 6) % 7
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - mondayOffset)
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(monday)
+      date.setDate(monday.getDate() + index)
+      return { date, isToday: date.toDateString() === today.toDateString() }
+    })
+  }, [rhythmNow])
+  const formattedRhythmDate = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(rhythmNow)
   const [reviewError, setReviewError] = useState('')
 
   const refresh = async (nextSelectedId = selectedId) => {
@@ -204,8 +221,14 @@ export default function IndexPage() {
   }, [storage])
 
   useEffect(() => {
+    const refreshRhythm = () => setRhythmNow(new Date())
+    const interval = window.setInterval(refreshRhythm, 60_000)
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshRhythm() }
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', refreshWhenVisible) }
+  }, [])
+  useEffect(() => {
     if (activeModule !== 'insights') return
-
     dashboardApplication.getReport(dashboardWindow).then(setDashboardReport).catch((error: unknown) => {
       setMessage(error instanceof Error ? error.message : '读取仪表盘失败')
     })
@@ -416,13 +439,46 @@ export default function IndexPage() {
     navigateTo({ type: metric === 'completedReviews' ? 'review' : 'item', itemId: record.itemId })
   }
 
+  const openCapture = () => {
+    if (captureLocked) {
+      setMessage(restoring ? '正在恢复数据，暂不可使用快速捕获' : '请先完成或取消当前恢复确认')
+      return
+    }
+    captureOriginModuleRef.current = activeModule
+    setActiveGlobalTool('capture')
+    setCaptureDiscardConfirm(false)
+  }
+
+  const closeCapture = () => {
+    if (busy || restoring) return
+    if (hasCaptureContent) { setCaptureDiscardConfirm(true); return }
+    setActiveGlobalTool(undefined)
+  }
+
+  const discardCapture = () => {
+    setTitle('')
+    setContent('')
+    setCaptureDiscardConfirm(false)
+    setActiveGlobalTool(undefined)
+  }
+
   const createIdea = (saveForLater: boolean) => run(async () => {
+    if (captureLocked) {
+      setMessage(restoring ? '正在恢复数据，暂不可使用快速捕获' : '请先完成或取消当前恢复确认')
+      return
+    }
     const item = await application.createIdea({ title, content, saveForLater })
     const refreshed = await refresh(item.id)
     setTitle('')
     setContent('')
+    setCaptureDiscardConfirm(false)
     setActiveGlobalTool(undefined)
-    locateActiveItem(item.id, refreshed.items)
+    if (captureOriginModuleRef.current === 'actions' && activeModule === 'actions') {
+      locateActiveItem(item.id, refreshed.items)
+      return
+    }
+    setCaptureCreatedItemId(item.id)
+    setMessage(`已创建“${item.title}”`)
   })
 
   const changeStatus = (action: ItemAction) => run(async () => {
@@ -499,6 +555,10 @@ export default function IndexPage() {
     if (!pendingBackup || busy || restoring) return
     setBusy(true)
     setRestoring(true)
+    setActiveGlobalTool(undefined)
+    setCaptureDiscardConfirm(false)
+    setTitle('')
+    setContent('')
     setBackupMessage('正在生成恢复前安全备份…')
     try {
       await backupApplication.restoreBackupSafely(pendingBackup, (safetyBackup) => {
@@ -775,8 +835,8 @@ export default function IndexPage() {
         <View className='global-header'>
           <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{restoring ? '正在安全恢复数据，请勿离开' : message}</Text></View>
           <View className='global-actions'>
-            <View className={`global-tool-button ${activeGlobalTool === 'search' ? 'active' : ''}`} onClick={() => setActiveGlobalTool((current) => current === 'search' ? undefined : 'search')}><Text>全局搜索</Text></View>
-            <View className={`global-tool-button primary ${activeGlobalTool === 'capture' ? 'active' : ''}`} onClick={() => setActiveGlobalTool((current) => current === 'capture' ? undefined : 'capture')}><Text>＋ 快速捕获</Text></View>
+            <View className={`global-tool-button ${activeGlobalTool === 'search' ? 'active' : ''}`} onClick={() => { if (!restoring) setActiveGlobalTool((current) => current === 'search' ? undefined : 'search') }}><Text>全局搜索</Text></View>
+            <View className={`global-tool-button primary ${captureLocked ? 'disabled' : ''}`} onClick={openCapture}><Text>＋ 快速捕获</Text></View>
           </View>
         </View>
 
@@ -802,18 +862,18 @@ export default function IndexPage() {
         </View>}
       </View>}
 
-      {activeGlobalTool === 'capture' && <View className='capture-card global-tool-panel'>
-        <Text className='section-kicker'>快速捕获</Text>
-        <Text className='field-label'>一句话标题</Text>
-        <Input className='title-input' value={title} maxlength={120} placeholder='例如：我想学写字' onInput={(event) => setTitle(event.detail.value)} />
-        <Text className='field-label content-label'>补充说明（可选）</Text>
-        <Textarea className='content-input' value={content} maxlength={1000} placeholder='为什么想做、希望得到什么、准备从哪一步开始' onInput={(event) => setContent(event.detail.value)} />
-        <Text className='capture-hint'>只填补充说明也可以保存，第一行会自动成为标题。</Text>
-        <View className='capture-actions'>
-          <View className={`secondary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
-          <View className={`primary-button ${busy || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && hasCaptureContent) createIdea(false) }}><Text>加入想试试</Text></View>
+      {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
+        <View className='capture-modal' role='dialog' aria-label='快速捕获'>
+          <View className='capture-modal-heading'><View><Text className='section-kicker'>快速捕获</Text><Text>记录一个现在不想丢失的行动念头</Text></View><View className='capture-modal-close' onClick={closeCapture}><Text>关闭</Text></View></View>
+          <Input className='capture-modal-input' value={title} maxlength={120} placeholder='一句话记录你想做什么' onInput={(event) => setTitle(event.detail.value)} />
+          <View className='capture-actions'>
+            <View className={`secondary-button ${busy || captureLocked || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
+            <View className={`primary-button ${busy || captureLocked || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && hasCaptureContent) createIdea(false) }}><Text>{busy ? '正在创建…' : '加入想试试'}</Text></View>
+          </View>
+          {captureDiscardConfirm && <View className='capture-discard-confirm'><Text>放弃本次未保存的捕获内容？</Text><View><View onClick={() => setCaptureDiscardConfirm(false)}><Text>继续编辑</Text></View><View onClick={discardCapture}><Text>放弃</Text></View></View></View>}
         </View>
       </View>}
+      {captureCreatedItemId && <View className='capture-toast'><Text>事项已创建</Text><View onClick={() => { const itemId = captureCreatedItemId; setCaptureCreatedItemId(undefined); navigateTo({ type: 'item', itemId }) }}><Text>查看事项</Text></View><View onClick={() => setCaptureCreatedItemId(undefined)}><Text>关闭</Text></View></View>}
 
       {activeModule === 'insights' && <View className='dashboard-panel module-panel'>
         <View className='dashboard-header'>
@@ -890,7 +950,13 @@ export default function IndexPage() {
         </>}
       </View>}
 
-      {activeModule === 'actions' && <View className={`workspace module-panel ${!showTrash && (selectedItem?.status === 'waiting_review' || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace'>
+      {activeModule === 'actions' && <>
+        <View className='action-rhythm-bar'>
+          <View><Text className='action-rhythm-date'>{formattedRhythmDate}</Text><Text className='action-rhythm-note'>这一周，推进一件真实的事</Text></View>
+          <View className='action-rhythm-days'>{captureWeekDays.map(({ date, isToday }) => <View key={date.toISOString()} className={`action-rhythm-day ${isToday ? 'today' : ''}`}><Text>{['一', '二', '三', '四', '五', '六', '日'][(date.getDay() + 6) % 7]}</Text><Text>{date.getDate()}</Text></View>)}</View>
+          <View className={`action-capture-button ${captureLocked ? 'disabled' : ''}`} onClick={openCapture}><Text>＋ 捕获</Text></View>
+        </View>
+        <View className={`workspace module-panel ${!showTrash && (selectedItem?.status === 'waiting_review' || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace'>
         <View className='list-panel'>
           <View className='panel-heading'><View><Text className='section-kicker'>{showTrash ? '回收站' : '事项池'}</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
           <View className='filter-header'>
@@ -1045,7 +1111,7 @@ export default function IndexPage() {
             </View>}
           </> : <View className='detail-empty'><Text className='detail-empty-title'>选择一件事</Text><Text>查看详情，并推动它进入下一个真实状态。</Text></View>}
         </View>
-      </View>}
+      </View></>}
 
       {activeModule === 'settings' && <View className='settings-module module-panel'>
         <View className='data-status-panel'>
