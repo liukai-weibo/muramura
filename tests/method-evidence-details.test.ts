@@ -57,7 +57,7 @@ describe('方法证据详情查询', () => {
     ]))
   })
 
-  it('旧数据缺少可靠 v1 来源时降级为 unknown', async () => {
+  it('证据关系以固化字段为准，不因来源版本引用变化而改写', async () => {
     const services = createServices()
     const entry = await completeItem(services, '旧验证事项', 1)
     const method = await services.storage.methodRepository.createFromReview({ title: '旧数据方法', applicable: '测试', steps: '执行' }, entry.review.id)
@@ -65,10 +65,10 @@ describe('方法证据详情查询', () => {
     await services.storage.database.methodVersions.put({ ...version!, sourceReviewId: undefined })
 
     const details = await services.reviews.listMethodEvidenceDetails(method.id)
-    expect(details).toEqual([expect.objectContaining({ relation: 'unknown', itemTitle: '旧验证事项' })])
+    expect(details).toEqual([expect.objectContaining({ relation: 'formation', methodVersion: 1, itemTitle: '旧验证事项' })])
   })
 
-  it('复盘或事项缺失时稳定降级为 unknown', async () => {
+  it('复盘或事项缺失时稳定降级关联对象，不改写固化关系', async () => {
     const services = createServices()
     const entry = await completeItem(services, '待删除关联事项', 1)
     const method = await services.storage.methodRepository.createFromReview({ title: '缺失关联方法', applicable: '测试', steps: '执行' }, entry.review.id)
@@ -79,7 +79,7 @@ describe('方法证据详情查询', () => {
       reviewId: entry.review.id,
       itemId: entry.item.id,
       itemTitle: '关联事项已不存在',
-      relation: 'unknown',
+      relation: 'formation',
     })])
 
     await services.storage.database.reviews.delete(entry.review.id)
@@ -89,7 +89,7 @@ describe('方法证据详情查询', () => {
       itemId: '',
       itemTitle: '关联事项已不存在',
       reviewSummary: '关联复盘已不存在',
-      relation: 'unknown',
+      relation: 'formation',
     })])
   })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService, SearchApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, ItemStatusEvent, Method, MethodApplicationContext, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult } from '@knowledge-base/contracts'
+import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, MethodLifecycleApplicationService, ReviewApplicationService, SearchApplicationService, TrashApplicationService, type ItemAction } from '@knowledge-base/application'
+import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import './index.scss'
 
@@ -104,6 +104,10 @@ function formatEvidenceSummary(summary: string): string {
   return summary.split(' · ').filter((part, index, parts) => index === 0 || part !== parts[index - 1]).join(' · ')
 }
 
+function remainingTrashDays(deletedAt: string): number {
+  return Math.max(1, 30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000))
+}
+
 export default function IndexPage() {
   const storage = useMemo(() => createIndexedDbRepository(), [])
   const application = useMemo(() => new ItemApplicationService(storage.repository), [storage])
@@ -112,6 +116,8 @@ export default function IndexPage() {
   ), [storage])
   const searchApplication = useMemo(() => new SearchApplicationService(storage.searchRepository), [storage])
   const methodApplication = useMemo(() => new MethodApplicationService(storage.methodApplicationRepository), [storage])
+  const methodLifecycleApplication = useMemo(() => new MethodLifecycleApplicationService(storage.methodRepository), [storage])
+  const trashApplication = useMemo(() => new TrashApplicationService(storage.repository, storage.methodRepository), [storage])
   const backupApplication = useMemo(() => new BackupApplicationService(storage.backupRepository), [storage])
   const dashboardApplication = useMemo(() => new DashboardApplicationService(storage.dashboardRepository), [storage])
   const [searchQuery, setSearchQuery] = useState('')
@@ -119,6 +125,7 @@ export default function IndexPage() {
   const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
   const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
   const captureOriginModuleRef = useRef<PrimaryModule>('actions')
+  const captureInputRef = useRef<HTMLInputElement>(null)
   const [captureDiscardConfirm, setCaptureDiscardConfirm] = useState(false)
   const [captureCreatedItemId, setCaptureCreatedItemId] = useState<string>()
   const [dashboardWindow, setDashboardWindow] = useState<DashboardWindow>('7d')
@@ -140,6 +147,15 @@ export default function IndexPage() {
   const evidenceRequestId = useRef(0)
   const [methodHistories, setMethodHistories] = useState<Record<string, MethodVersion[]>>({})
   const [historyReviews, setHistoryReviews] = useState<Record<string, Review>>({})
+  const [trashFilter, setTrashFilter] = useState<TrashFilter>('all')
+  const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([])
+  const [trashLoading, setTrashLoading] = useState(false)
+  const [methodTrashConfirmId, setMethodTrashConfirmId] = useState<string>()
+  const [methodMoreMenuId, setMethodMoreMenuId] = useState<string>()
+  const [moreStatusMenuOpen, setMoreStatusMenuOpen] = useState(false)
+  const moreStatusMenuRef = useRef<HTMLDivElement>()
+  const methodMoreMenuRef = useRef<HTMLDivElement>()
+  const methodMoreTriggerRef = useRef<HTMLButtonElement>(null)
   const [filter, setFilter] = useState<ItemStatus | undefined>('idea_to_try')
   const [showTrash, setShowTrash] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -159,11 +175,11 @@ export default function IndexPage() {
   const [methodMode, setMethodMode] = useState<MethodMode>('none')
   const [selectedMethodId, setSelectedMethodId] = useState('')
   const [reviseMethod, setReviseMethod] = useState(false)
-  const methodInitializationRef = useRef<Record<string, true>>({})
   const methodTouchedRef = useRef<Record<string, true>>({})
   const methodDraftsRef = useRef<Record<string, Partial<Record<'create' | 'validate', typeof emptyMethod>>>>({})
   const reviewMethodSelectionsRef = useRef<Record<string, string>>({})
-  const [methodApplicationContext, setMethodApplicationContext] = useState<MethodApplicationContext>()
+  const [methodApplicationContextResult, setMethodApplicationContextResult] = useState<MethodApplicationContextResult>()
+  const [methodApplicationContextError, setMethodApplicationContextError] = useState('')
   const [applyingMethodId, setApplyingMethodId] = useState<string>()
   const [methodActionTitle, setMethodActionTitle] = useState('')
   const [methodActionContent, setMethodActionContent] = useState('')
@@ -177,7 +193,24 @@ export default function IndexPage() {
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const hasCaptureContent = Boolean(title.trim() || content.trim())
   const captureLocked = restoring || Boolean(pendingBackup)
+  const methodContextAvailable = methodApplicationContextResult?.status === 'available'
+  const methodContextUnavailable = methodApplicationContextResult?.status === 'unavailable'
+  const methodContextLifecycleUnavailable = methodApplicationContextResult?.status === 'method-in-trash' || methodApplicationContextResult?.status === 'method-purged'
+  const methodActionsAllowed = methodApplicationContextResult?.status === 'no-association' || methodContextAvailable
+  const lifecycleMethodContextMessage = methodApplicationContextResult?.status === 'method-in-trash'
+    ? `关联方法：${methodApplicationContextResult.method.title}（已移入回收站）`
+    : methodApplicationContextResult?.status === 'method-purged'
+      ? `关联方法：${methodApplicationContextResult.tombstone.title}（已永久清理）`
+      : ''
+  const unavailableMethodContextMessage = methodApplicationContextResult?.status === 'unavailable'
+    ? `${methodApplicationContextResult.reason === 'method-missing'
+      ? '关联方法已不可用。'
+      : methodApplicationContextResult.reason === 'version-missing'
+        ? '关联方法的历史版本已不可用。'
+        : '关联方法及其历史版本均已不可用。'} 历史关联的方法暂不可用，但不影响完成事实复盘。`
+    : ''
   const selectedReviewMethod = methods.find((method) => method.id === selectedMethodId)
+  const abandonedItemCount = items.filter((item) => item.status === 'abandoned' && !item.deletedAt).length
   const workspaceMethods = useMemo(() => {
     const query = methodSearchQuery.trim().toLocaleLowerCase()
     return [...methods].sort((left, right) => {
@@ -200,6 +233,23 @@ export default function IndexPage() {
   }, [rhythmNow])
   const formattedRhythmDate = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(rhythmNow)
   const [reviewError, setReviewError] = useState('')
+  const [methodDisclosureOpen, setMethodDisclosureOpen] = useState(false)
+  const [methodDiscardConfirm, setMethodDiscardConfirm] = useState(false)
+  const [methodModeSwitchConfirm, setMethodModeSwitchConfirm] = useState(false)
+  const [reviewLeaveConfirm, setReviewLeaveConfirm] = useState(false)
+  const [pendingSignalClear, setPendingSignalClear] = useState<'effective' | 'incompatible' | 'newIdeas'>()
+  const [openingSignal, setOpeningSignal] = useState<'effective' | 'incompatible' | 'newIdeas'>()
+  const [closingSignal, setClosingSignal] = useState<'effective' | 'incompatible' | 'newIdeas'>()
+  const signalOpenFrameRef = useRef<number>()
+  const signalCloseTimerRef = useRef<number>()
+  const pendingReviewLeaveActionRef = useRef<(() => void) | undefined>()
+  const reviewDraftDirty = selectedItem?.status === 'waiting_review' && (
+    JSON.stringify(reviewForm) !== JSON.stringify(emptyReview)
+    || hasNewIdea
+    || methodMode !== 'none'
+    || reviseMethod
+    || JSON.stringify(methodForm) !== JSON.stringify(emptyMethod)
+  )
 
   const refresh = async (nextSelectedId = selectedId) => {
     const [nextItems, nextTrashItems, nextMethods] = await Promise.all([
@@ -219,6 +269,12 @@ export default function IndexPage() {
     refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '本地数据库初始化失败'))
     return () => storage.database.close()
   }, [storage])
+
+  useEffect(() => {
+    if (activeGlobalTool !== 'capture' || captureLocked) return
+    const frame = window.requestAnimationFrame(() => captureInputRef.current?.focus())
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeGlobalTool, captureLocked])
 
   useEffect(() => {
     const refreshRhythm = () => setRhythmNow(new Date())
@@ -257,6 +313,20 @@ export default function IndexPage() {
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages)
   }, [currentPage, totalPages])
+
+  useEffect(() => {
+    if (activeModule !== 'settings') return
+    let active = true
+    setTrashLoading(true)
+    trashApplication.listTrashEntries(trashFilter).then((entries) => {
+      if (active) setTrashEntries(entries)
+    }).catch((error: unknown) => {
+      if (active) setMessage(error instanceof Error ? error.message : '读取回收站失败')
+    }).finally(() => {
+      if (active) setTrashLoading(false)
+    })
+    return () => { active = false }
+  }, [activeModule, trashApplication, trashFilter])
 
   useEffect(() => {
     if (!selectedId) { setSelectedReview(undefined); return }
@@ -305,21 +375,87 @@ export default function IndexPage() {
   }, [selectedId])
 
   useEffect(() => {
-    if (!selectedId) { setMethodApplicationContext(undefined); return }
+    if (reviewLeaveConfirm) document.getElementById('review-leave-continue')?.focus()
+  }, [reviewLeaveConfirm])
+
+  useEffect(() => {
+    if (methodDiscardConfirm) document.getElementById('method-discard-continue')?.focus()
+  }, [methodDiscardConfirm])
+
+  useEffect(() => {
+    if (methodModeSwitchConfirm) document.getElementById('method-switch-continue')?.focus()
+  }, [methodModeSwitchConfirm])
+
+  useEffect(() => {
+    if (methodDisclosureOpen && methodMode === 'create') window.setTimeout(() => document.querySelector<HTMLInputElement>('.method-title-input input')?.focus(), 0)
+  }, [methodDisclosureOpen, methodMode])
+
+  useEffect(() => {
+    if (!moreStatusMenuOpen) return
+    const closeMenu = (event: MouseEvent) => {
+      if (!moreStatusMenuRef.current?.contains(event.target as Node)) setMoreStatusMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMoreStatusMenuOpen(false) }
+    document.addEventListener('mousedown', closeMenu)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => { document.removeEventListener('mousedown', closeMenu); window.removeEventListener('keydown', closeOnEscape) }
+  }, [moreStatusMenuOpen])
+
+  useEffect(() => {
+    if (!methodMoreMenuId) return
+    const closeMenu = (event: MouseEvent) => {
+      if (!methodMoreMenuRef.current?.contains(event.target as Node)) setMethodMoreMenuId(undefined)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setMethodMoreMenuId(undefined)
+      window.setTimeout(() => methodMoreTriggerRef.current?.focus(), 0)
+    }
+    document.addEventListener('mousedown', closeMenu)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => { document.removeEventListener('mousedown', closeMenu); window.removeEventListener('keydown', closeOnEscape) }
+  }, [methodMoreMenuId])
+
+  useEffect(() => {
+    if (methodTrashConfirmId) window.setTimeout(() => document.getElementById('method-trash-cancel')?.focus(), 0)
+  }, [methodTrashConfirmId])
+
+
+  useEffect(() => () => {
+    if (signalOpenFrameRef.current) window.cancelAnimationFrame(signalOpenFrameRef.current)
+    if (signalCloseTimerRef.current) window.clearTimeout(signalCloseTimerRef.current)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedId) { setMethodApplicationContextResult(undefined); setMethodApplicationContextError(''); return }
     let active = true
-    methodApplication.getContextForItem(selectedId).then((context) => {
+    setMethodApplicationContextResult(undefined)
+    setMethodApplicationContextError('')
+    methodApplication.getContextResultForItem(selectedId).then((result) => {
       if (!active) return
-      setMethodApplicationContext(context)
-      if (!context || !selectedItem || selectedItem.status !== 'waiting_review' || methodInitializationRef.current[selectedId] || methodTouchedRef.current[selectedId]) return
-      methodInitializationRef.current[selectedId] = true
-      setMethodMode('validate')
-      setSelectedMethodId(context.application.methodId)
-      reviewMethodSelectionsRef.current[selectedId] = context.application.methodId
-      setReviseMethod(false)
-      setMethodForm(methodDraftsRef.current[selectedId]?.validate ?? emptyMethod)
-    }).catch((error: unknown) => active && setMessage(error instanceof Error ? error.message : '读取方法应用信息失败'))
+      setMethodApplicationContextResult(result)
+      if (result.status !== 'available' && result.status !== 'no-association') {
+        setMethodMode('none')
+        setSelectedMethodId('')
+        setReviseMethod(false)
+      }
+    }).catch(() => {
+      if (active) setMethodApplicationContextError('关联方法信息暂不可用；不影响完成事实复盘。')
+    })
     return () => { active = false }
-  }, [selectedId, methodApplication, items, selectedItem])
+  }, [selectedId, methodApplication])
+
+  useEffect(() => {
+    if (!selectedId) return
+    setReviewForm(emptyReview)
+    setHasNewIdea(false)
+    setMethodDisclosureOpen(false)
+    setMethodForm(emptyMethod)
+    setMethodMode('none')
+    setSelectedMethodId('')
+    setReviseMethod(false)
+    setReviewError('')
+  }, [selectedId])
 
   const run = async (operation: () => Promise<void>) => {
     if (busy) return
@@ -329,21 +465,88 @@ export default function IndexPage() {
     finally { setBusy(false) }
   }
 
+  const hasMethodDraft = methodMode !== 'none'
+    || Boolean(selectedMethodId)
+    || reviseMethod
+    || JSON.stringify(methodForm) !== JSON.stringify(emptyMethod)
+    || Boolean(selectedId && (methodDraftsRef.current[selectedId] || reviewMethodSelectionsRef.current[selectedId]))
+
+  const clearMethodDraft = () => {
+    setMethodMode('none')
+    setMethodForm(emptyMethod)
+    setSelectedMethodId('')
+    setReviseMethod(false)
+    setReviewError('')
+    if (selectedId) {
+      delete methodTouchedRef.current[selectedId]
+      delete methodDraftsRef.current[selectedId]
+      delete reviewMethodSelectionsRef.current[selectedId]
+    }
+  }
+
+  const toggleMethodDisclosure = () => {
+    if (!methodDisclosureOpen) { setMethodDisclosureOpen(true); return }
+    if (!hasMethodDraft) { setMethodDisclosureOpen(false); return }
+    setMethodDiscardConfirm(true)
+  }
+
+  const discardMethodDraftAndClose = () => {
+    clearMethodDraft()
+    setMethodDiscardConfirm(false)
+    setMethodDisclosureOpen(false)
+  }
+
+  const cancelMethodDiscard = () => setMethodDiscardConfirm(false)
+
+  const discardReviewDraft = () => {
+    setReviewForm(emptyReview)
+    setHasNewIdea(false)
+    setMethodDisclosureOpen(false)
+    clearMethodDraft()
+    setReviewError('')
+    if (selectedId) {
+      delete methodTouchedRef.current[selectedId]
+      delete methodDraftsRef.current[selectedId]
+      delete reviewMethodSelectionsRef.current[selectedId]
+    }
+  }
+
+  const requestLeaveReview = (action: () => void) => {
+    if (!reviewDraftDirty) { action(); return }
+    pendingReviewLeaveActionRef.current = action
+    setReviewLeaveConfirm(true)
+  }
+
+  const confirmLeaveReview = () => {
+    discardReviewDraft()
+    setReviewLeaveConfirm(false)
+    const action = pendingReviewLeaveActionRef.current
+    pendingReviewLeaveActionRef.current = undefined
+    action?.()
+  }
+
+  const cancelLeaveReview = () => {
+    pendingReviewLeaveActionRef.current = undefined
+    setReviewLeaveConfirm(false)
+  }
+
   const locateActiveItem = (itemId: string, sourceItems = items, review = false) => {
-    const itemIndex = sourceItems.findIndex((item) => item.id === itemId && !item.deletedAt)
+    const item = sourceItems.find((entry) => entry.id === itemId && !entry.deletedAt)
     setActiveModule('actions')
     setShowTrash(false)
-    setFilter(undefined)
     setDeleteConfirm(false)
-    if (itemIndex < 0) {
+    if (!item) {
       setSelectedId(undefined)
       setPendingReviewLocation(false)
       setMessage('目标记录不存在或已删除')
       return false
     }
+    const statusItems = sourceItems.filter((entry) => !entry.deletedAt && entry.status === item.status)
+    const itemIndex = statusItems.findIndex((entry) => entry.id === item.id)
+    setFilter(item.status)
     setCurrentPage(Math.floor(itemIndex / ITEMS_PER_PAGE) + 1)
     if (review) setSelectedReview(undefined)
-    setSelectedId(itemId)
+    setSelectedId(item.id)
     setPendingReviewLocation(review)
     return true
   }
@@ -505,6 +708,31 @@ export default function IndexPage() {
     setMessage(`“${restored.title}”已恢复`)
   })
 
+  const restoreTrashEntry = (entry: TrashEntry) => run(async () => {
+    if (entry.type === 'item') await application.restoreItem(entry.id)
+    else await methodLifecycleApplication.restore(entry.id)
+    const entries = await trashApplication.listTrashEntries(trashFilter)
+    setTrashEntries(entries)
+    await refresh()
+    setMessage(`“${entry.title}”已恢复`)
+  })
+
+  const moveMethodToTrash = () => run(async () => {
+    if (!methodTrashConfirmId) return
+    const method = methods.find((entry) => entry.id === methodTrashConfirmId)
+    await methodLifecycleApplication.moveToTrash(methodTrashConfirmId)
+    setMethodTrashConfirmId(undefined)
+    setMethodMoreMenuId(undefined)
+    setApplyingMethodId(undefined)
+    setMethodActionTitle('')
+    setMethodActionContent('')
+    setSelectedWorkspaceMethodId('')
+    setExpandedMethodId(undefined)
+    setExpandedEvidenceMethodId(undefined)
+    await refresh()
+    setMessage(`“${method?.title ?? '该方法'}”已移入回收站，30 天内可以恢复`)
+  })
+
   const openActiveItems = () => {
     setShowTrash(false)
     setCurrentPage(1)
@@ -631,6 +859,27 @@ export default function IndexPage() {
     } : emptyMethod)
   }
 
+  const switchToValidation = () => {
+    const hasCreateDraft = methodMode === 'create' && Boolean(methodForm.title.trim() || methodForm.steps.trim() || methodForm.applicable.trim())
+    if (hasCreateDraft) { setMethodModeSwitchConfirm(true); return }
+    chooseMethodMode('validate')
+  }
+
+  const confirmSwitchToValidation = () => {
+    if (selectedId) {
+      delete methodDraftsRef.current[selectedId]?.create
+      delete methodTouchedRef.current[selectedId]
+    }
+    setMethodForm(selectedId ? methodDraftsRef.current[selectedId]?.validate ?? emptyMethod : emptyMethod)
+    setMethodMode('validate')
+    setSelectedMethodId(selectedId ? reviewMethodSelectionsRef.current[selectedId] ?? '' : '')
+    setReviseMethod(false)
+    setReviewError('')
+    setMethodModeSwitchConfirm(false)
+  }
+
+  const cancelMethodModeSwitch = () => setMethodModeSwitchConfirm(false)
+
   const openMethodApplication = (method: Method) => {
     if (applyingMethodId === method.id) {
       setApplyingMethodId(undefined)
@@ -723,21 +972,26 @@ export default function IndexPage() {
       return
     }
 
-    if (methodMode === 'validate' && !selectedMethodId) {
+    if (methodActionsAllowed && methodMode === 'validate' && !selectedMethodId) {
       setReviewError('请选择本次复盘验证的方法')
       return
     }
 
-    const missingMethodFields = methodStarted && !methodForm.steps.trim() ? ['具体步骤'] : []
+    const missingMethodFields = methodActionsAllowed && methodStarted
+      ? ([
+          ...(methodMode === 'create' && !methodForm.title.trim() ? ['方法名'] : []),
+          ...(!methodForm.steps.trim() ? ['具体步骤'] : []),
+        ])
+      : []
     if (missingMethodFields.length) {
-      setReviewError(`已开始提炼方法，请填写：${missingMethodFields.join('、')}`)
+      setReviewError('请完成方法处理中的必填项')
       return
     }
 
-    const methodTitle = methodMode === 'validate'
+    const methodTitle = methodActionsAllowed && methodMode === 'validate'
       ? selectedReviewMethod?.title ?? methodForm.title
-      : methodForm.steps.trim().split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
-    const normalizedMethodForm = methodStarted ? {
+      : methodForm.title.trim()
+    const normalizedMethodForm = methodActionsAllowed && methodStarted ? {
       title: methodTitle,
       applicable: methodForm.applicable.trim() || '暂无补充说明',
       unsuitable: methodMode === 'validate' ? methodForm.unsuitable : '',
@@ -750,8 +1004,8 @@ export default function IndexPage() {
       ...reviewForm,
       actualAction: reviewForm.result,
       newIdeas: hasNewIdea ? reviewForm.newIdeas : '',
-      method: methodMode === 'create' ? normalizedMethodForm : undefined,
-      existingMethod: methodMode === 'validate' ? {
+      method: methodActionsAllowed && methodMode === 'create' ? normalizedMethodForm : undefined,
+      existingMethod: methodActionsAllowed && methodMode === 'validate' && selectedMethodId ? {
         methodId: selectedMethodId,
         revision: reviseMethod ? normalizedMethodForm : undefined,
       } : undefined,
@@ -783,6 +1037,50 @@ export default function IndexPage() {
     </View>
   )
 
+  const openSignalAfterMount = (key: 'effective' | 'incompatible' | 'newIdeas', select: () => void) => {
+    if (signalCloseTimerRef.current) window.clearTimeout(signalCloseTimerRef.current)
+    if (signalOpenFrameRef.current) window.cancelAnimationFrame(signalOpenFrameRef.current)
+    setClosingSignal((current) => current === key ? undefined : current)
+    setOpeningSignal(key)
+    select()
+    signalOpenFrameRef.current = window.requestAnimationFrame(() => {
+      setOpeningSignal((current) => current === key ? undefined : current)
+      signalOpenFrameRef.current = undefined
+    })
+  }
+
+  const closeSignalAfterTransition = (key: 'effective' | 'incompatible' | 'newIdeas', clear: () => void) => {
+    if (signalCloseTimerRef.current) window.clearTimeout(signalCloseTimerRef.current)
+    const activeElement = document.activeElement
+    if (activeElement instanceof HTMLElement) activeElement.blur()
+    setClosingSignal(key)
+    clear()
+    signalCloseTimerRef.current = window.setTimeout(() => {
+      setClosingSignal((current) => current === key ? undefined : current)
+      signalCloseTimerRef.current = undefined
+    }, 180)
+  }
+
+  const requestSignalClear = (key: 'effective' | 'incompatible' | 'newIdeas', hasContent: boolean, clear: () => void) => {
+    if (!hasContent) { clear(); return }
+    setPendingSignalClear(key)
+  }
+
+  const confirmSignalClear = () => {
+    if (pendingSignalClear === 'newIdeas') {
+      closeSignalAfterTransition('newIdeas', () => {
+        setHasNewIdea(false)
+        setReviewForm((current) => ({ ...current, newIdeas: '' }))
+      })
+    } else if (pendingSignalClear) {
+      const key = pendingSignalClear
+      closeSignalAfterTransition(key, () => setReviewForm((current) => ({ ...current, [key]: key === 'effective' ? defaultEffective : defaultIncompatible })))
+    }
+    setPendingSignalClear(undefined)
+  }
+
+  const cancelSignalClear = () => setPendingSignalClear(undefined)
+
   const reviewCheckbox = (
     key: 'effective' | 'incompatible',
     label: string,
@@ -794,20 +1092,27 @@ export default function IndexPage() {
     return <View className='review-observation'>
       <View className='review-checkbox-option' onClick={() => {
         setReviewError('')
-        setReviewForm((current) => ({ ...current, [key]: checked ? emptyValue : selectedValue }))
+        if (checked) {
+          const hasContent = reviewForm[key] !== selectedValue && Boolean(reviewForm[key].trim())
+          requestSignalClear(key, hasContent, () => closeSignalAfterTransition(key, () => setReviewForm((current) => ({ ...current, [key]: emptyValue }))))
+          return
+        }
+        openSignalAfterMount(key, () => setReviewForm((current) => ({ ...current, [key]: selectedValue })))
       }}>
         <View className={`review-checkbox ${checked ? 'active' : ''}`}><Text>{checked ? '✓' : ''}</Text></View>
         <Text>{label}</Text>
       </View>
-      {checked && <ReviewTextarea
-        observation
-        value={reviewForm[key] === selectedValue ? '' : reviewForm[key]}
-        placeholder={placeholder}
-        onValueChange={(value) => {
-          setReviewError('')
-          setReviewForm((current) => ({ ...current, [key]: value }))
-        }}
-      />}
+      {(checked || openingSignal === key || closingSignal === key) && <View className={`review-signal-content ${checked && openingSignal !== key ? 'open' : ''}`}>
+        <ReviewTextarea
+          observation
+          value={reviewForm[key] === selectedValue ? '' : reviewForm[key]}
+          placeholder={placeholder}
+          onValueChange={(value) => {
+            setReviewError('')
+            setReviewForm((current) => ({ ...current, [key]: value }))
+          }}
+        />
+      </View>}
     </View>
   }
 
@@ -819,13 +1124,13 @@ export default function IndexPage() {
           {(['actions', 'methods', 'insights'] as PrimaryModule[]).map((module) => <View
             key={module}
             className={`navigation-item ${activeModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) setActiveModule(module) }}
+            onClick={() => { if (!restoring) requestLeaveReview(() => setActiveModule(module)) }}
           ><Text>{moduleLabels[module]}</Text></View>)}
         </View>
         <View className='navigation-group navigation-settings'>
           <View
             className={`navigation-item ${activeModule === 'settings' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) setActiveModule('settings') }}
+            onClick={() => { if (!restoring) requestLeaveReview(() => setActiveModule('settings')) }}
           ><Text>数据与设置</Text></View>
         </View>
         <View className='navigation-status'><View className='status-dot' /><View><Text>本地数据正常</Text><Text>{items.length} 条事项 · {methods.length} 条方法</Text></View></View>
@@ -865,7 +1170,7 @@ export default function IndexPage() {
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
         <View className='capture-modal' role='dialog' aria-label='快速捕获'>
           <View className='capture-modal-heading'><View><Text className='section-kicker'>快速捕获</Text><Text>记录一个现在不想丢失的行动念头</Text></View><View className='capture-modal-close' onClick={closeCapture}><Text>关闭</Text></View></View>
-          <Input className='capture-modal-input' value={title} maxlength={120} placeholder='一句话记录你想做什么' onInput={(event) => setTitle(event.detail.value)} />
+          <Input ref={captureInputRef} className='capture-modal-input' value={title} maxlength={120} placeholder='一句话记录你想做什么' onInput={(event) => setTitle(event.detail.value)} />
           <View className='capture-actions'>
             <View className={`secondary-button ${busy || captureLocked || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
             <View className={`primary-button ${busy || captureLocked || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && hasCaptureContent) createIdea(false) }}><Text>{busy ? '正在创建…' : '加入想试试'}</Text></View>
@@ -874,6 +1179,46 @@ export default function IndexPage() {
         </View>
       </View>}
       {captureCreatedItemId && <View className='capture-toast'><Text>事项已创建</Text><View onClick={() => { const itemId = captureCreatedItemId; setCaptureCreatedItemId(undefined); navigateTo({ type: 'item', itemId }) }}><Text>查看事项</Text></View><View onClick={() => setCaptureCreatedItemId(undefined)}><Text>关闭</Text></View></View>}
+      {methodModeSwitchConfirm && <View className='review-leave-backdrop' role='dialog' aria-label='放弃本次新方法内容'>
+        <View className='review-leave-confirm'>
+          <Text className='section-kicker'>放弃本次新方法内容？</Text>
+          <Text>切换后，本次填写的方法名、具体步骤和补充说明不会保存。</Text>
+          <View className='review-leave-actions'>
+            <Button id='method-switch-continue' className='action-button primary' onClick={cancelMethodModeSwitch}>继续形成新方法</Button>
+            <Button className='action-button secondary' onClick={confirmSwitchToValidation}>切换并放弃</Button>
+          </View>
+        </View>
+      </View>}
+      {methodDiscardConfirm && <View className='review-leave-backdrop' role='dialog' aria-label='放弃本次方法处理'>
+        <View className='review-leave-confirm'>
+          <Text className='section-kicker'>放弃本次方法处理？</Text>
+          <Text>收起后，本次填写的方法处理内容不会保存；你仍可完成事实复盘。</Text>
+          <View className='review-leave-actions'>
+            <Button id='method-discard-continue' className='action-button primary' onClick={cancelMethodDiscard}>继续处理方法</Button>
+            <Button className='action-button secondary' onClick={discardMethodDraftAndClose}>收起并放弃</Button>
+          </View>
+        </View>
+      </View>}
+      {pendingSignalClear && <View className='review-signal-confirm-backdrop' role='dialog' aria-label='放弃信号补充内容'>
+        <View className='review-signal-confirm'>
+          <Text className='section-kicker'>放弃补充内容</Text>
+          <Text>取消勾选会清除这项尚未保存的补充内容。</Text>
+          <View className='review-leave-actions'>
+            <Button className='action-button primary' onClick={cancelSignalClear}>继续编辑</Button>
+            <Button className='action-button secondary' onClick={confirmSignalClear}>确认取消</Button>
+          </View>
+        </View>
+      </View>}
+      {reviewLeaveConfirm && <View className='review-leave-backdrop' role='dialog' aria-label='放弃未保存复盘'>
+        <View className='review-leave-confirm'>
+          <Text className='section-kicker'>未保存的复盘</Text>
+          <Text>离开后，本次填写的事实与方法处理选择都会丢失。</Text>
+          <View className='review-leave-actions'>
+            <Button id='review-leave-continue' className='action-button primary' onClick={cancelLeaveReview}>继续复盘</Button>
+            <Button className='action-button secondary' onClick={confirmLeaveReview}>离开并放弃</Button>
+          </View>
+        </View>
+      </View>}
 
       {activeModule === 'insights' && <View className='dashboard-panel module-panel'>
         <View className='dashboard-header'>
@@ -960,21 +1305,17 @@ export default function IndexPage() {
         <View className='list-panel'>
           <View className='panel-heading'><View><Text className='section-kicker'>{showTrash ? '回收站' : '事项池'}</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
           <View className='filter-header'>
-            <Text className='filter-guidance'>{showTrash ? '删除后保留 30 天，之后自动永久清理' : '按运行阶段查看'}</Text>
-            <View className='auxiliary-actions'>
-              <View className={`all-filter-button ${!showTrash && filter === undefined ? 'active' : ''}`} onClick={() => { openActiveItems(); setFilter(undefined) }}><Text>全部事项</Text></View>
-              <View className={`all-filter-button ${showTrash ? 'active' : ''}`} onClick={openTrash}><Text>回收站{trashItems.length ? ` ${trashItems.length}` : ''}</Text></View>
-            </View>
+            {showTrash ? <Text className='filter-guidance'>删除后保留 30 天，之后自动永久清理</Text> : filter === 'abandoned' ? <><Text className='filter-guidance'>已放弃 · {abandonedItemCount} 件</Text><View className='more-status-actions'><View className='more-status-return' onClick={() => requestLeaveReview(() => { setFilter('idea_to_try'); setCurrentPage(1); setSelectedId(undefined) })}><Text>返回运行阶段</Text></View></View></> : <><Text className='filter-guidance'>按运行阶段查看</Text>{abandonedItemCount > 0 && <View className='more-status-actions' ref={moreStatusMenuRef}><View className={`more-status-trigger ${moreStatusMenuOpen ? 'active' : ''}`} onClick={() => setMoreStatusMenuOpen((open) => !open)}><Text>更多状态 ▾</Text></View>{moreStatusMenuOpen && <View className='more-status-menu'><View onClick={() => requestLeaveReview(() => { setMoreStatusMenuOpen(false); setFilter('abandoned'); setCurrentPage(1); setSelectedId(undefined) })}><Text>已放弃（{abandonedItemCount}）</Text></View></View>}</View>}</>}
           </View>
-          {!showTrash && <View className='filter-groups'>
+        {!showTrash && filter !== 'abandoned' && <View className='filter-groups'>
             {filterGroups.map((group) => <View className='filter-group' key={group.label}>
               <Text className='filter-group-label'>{group.label}</Text>
-              <View className='filters'>{group.entries.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => { setFilter(entry.status); setCurrentPage(1); setSelectedId(undefined) }}><Text>{entry.label}</Text></View>)}</View>
+              <View className='filters'>{group.entries.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => requestLeaveReview(() => { setFilter(entry.status); setCurrentPage(1); setSelectedId(undefined) })}><Text>{entry.label}</Text></View>)}</View>
             </View>)}
           </View>}
           <View className='list'>
             {visibleItems.length === 0 ? <View className='empty'><Text>{showTrash ? '回收站是空的。' : '这个状态下还没有事项。'}</Text><Text>{showTrash ? '删除的事项会在这里保留 30 天。' : '先捕获一个真实想法，让系统开始运转。'}</Text></View> : pagedItems.map((item) => (
-              <View className={`item ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => setSelectedId(item.id)}>
+              <View className={`item ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => requestLeaveReview(() => setSelectedId(item.id))}>
                 <View className='item-main'><Text className='item-title'>{item.title}</Text>{item.content && <Text className='item-content'>{item.content}</Text>}</View>
                 <View className='item-meta'>{showTrash
                   ? <><Text className='trash-badge'>待清理</Text><Text className='time'>{Math.max(1, 30 - Math.floor((Date.now() - new Date(item.deletedAt ?? '').getTime()) / 86400000))} 天后清理</Text></>
@@ -983,9 +1324,9 @@ export default function IndexPage() {
             ))}
           </View>
           {visibleItems.length > ITEMS_PER_PAGE && <View className='pagination'>
-            <View className={`pagination-button ${currentPage === 1 ? 'disabled' : ''}`} onClick={() => { if (currentPage > 1) { setCurrentPage((page) => page - 1); setSelectedId(undefined) } }}><Text>上一页</Text></View>
+            <View className={`pagination-button ${currentPage === 1 ? 'disabled' : ''}`} onClick={() => { if (currentPage > 1) requestLeaveReview(() => { setCurrentPage((page) => page - 1); setSelectedId(undefined) }) }}><Text>上一页</Text></View>
             <Text className='pagination-status'>第 {currentPage} / {totalPages} 页</Text>
-            <View className={`pagination-button ${currentPage === totalPages ? 'disabled' : ''}`} onClick={() => { if (currentPage < totalPages) { setCurrentPage((page) => page + 1); setSelectedId(undefined) } }}><Text>下一页</Text></View>
+            <View className={`pagination-button ${currentPage === totalPages ? 'disabled' : ''}`} onClick={() => { if (currentPage < totalPages) requestLeaveReview(() => { setCurrentPage((page) => page + 1); setSelectedId(undefined) }) }}><Text>下一页</Text></View>
           </View>}
         </View>
 
@@ -1016,73 +1357,81 @@ export default function IndexPage() {
               : <Text className={`detail-status status-${selectedItem.status}`}>{statusLabels[selectedItem.status]}</Text>}
             <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '没有补充说明。'}</Text>
 
-            {methodApplicationContext && <View className='method-application-context'>
+            {methodApplicationContextResult?.status === 'no-association' && <View className='method-application-context unavailable'><Text>本次事项未关联方法。</Text></View>}
+            {methodContextAvailable && <View className='method-application-context'>
               <Text className='method-label'>本次行动使用的方法</Text>
-              <Text>{methodApplicationContext.version.title} v{methodApplicationContext.application.methodVersion}</Text>
+              <Text>{methodApplicationContextResult.version.title} v{methodApplicationContextResult.application.methodVersion}</Text>
               {selectedItem.status === 'waiting_review' && <Text>你可以先完成事实复盘，再决定是否验证或修订该方法。</Text>}
             </View>}
+            {methodContextUnavailable && <View className='method-application-context unavailable'><Text>{unavailableMethodContextMessage}</Text></View>}
+            {methodContextLifecycleUnavailable && <View className='method-application-context unavailable'><Text>{lifecycleMethodContextMessage}</Text></View>}
 
             {!showTrash && selectedItem.status === 'waiting_review' && <View className='review-form' id='review-section'>
-        <View className='review-heading'><Text className='section-kicker'>完成复盘</Text><Text>先还原事实，再提炼方法。</Text></View>
-              {reviewField('result', '结果怎样', '结果、产出或可观察变化')}
-              <View className='review-checkbox-group'>
-                {reviewCheckbox('effective', '有效 / 舒服', defaultEffective, selectedEffective, '哪些地方有效或舒服，值得保留')}
-                {reviewCheckbox('incompatible', '阻力 / 不舒服', defaultIncompatible, selectedIncompatible, '哪些地方有阻力、代价或不舒服')}
-                <View className='review-observation'>
-                  <View className='review-checkbox-option' onClick={() => {
-                    setReviewError('')
-                    setHasNewIdea((checked) => {
-                      if (checked) setReviewForm((current) => ({ ...current, newIdeas: '' }))
-                      return !checked
-                    })
-                  }}>
-                    <View className={`review-checkbox ${hasNewIdea ? 'active' : ''}`}><Text>{hasNewIdea ? '✓' : ''}</Text></View>
-                    <Text>产生新想法</Text>
-                  </View>
-                  {hasNewIdea && <ReviewTextarea
-                    observation
-                    value={reviewForm.newIdeas}
-                    placeholder='记录新想法，完成复盘后自动进入想试试'
-                    onValueChange={(value) => {
+              <View className='review-heading'><View><Text className='section-kicker'>完成复盘</Text><Text className='review-title'>先写事实，再决定是否处理方法</Text></View><Text>方法处理可选</Text></View>
+              <View className='review-facts-card'>
+                {reviewField('result', '结果怎样', '结果、产出或可观察变化')}
+                <Text className='review-signals-label'>这次过程有什么感受或后续线索？可选，可多选。</Text>
+                <View className='review-checkbox-group review-signals'>
+                  {reviewCheckbox('effective', '有效 / 舒服', defaultEffective, selectedEffective, '哪些地方有效或舒服，值得保留')}
+                  {reviewCheckbox('incompatible', '阻力 / 不舒服', defaultIncompatible, selectedIncompatible, '哪些地方有阻力、代价或不舒服')}
+                  <View className='review-observation'>
+                    <View className='review-checkbox-option' onClick={() => {
                       setReviewError('')
-                      setReviewForm((current) => ({ ...current, newIdeas: value }))
-                    }}
-                  />}
+                      if (hasNewIdea) {
+                        requestSignalClear('newIdeas', Boolean(reviewForm.newIdeas.trim()), () => closeSignalAfterTransition('newIdeas', () => {
+                          setHasNewIdea(false)
+                          setReviewForm((current) => ({ ...current, newIdeas: '' }))
+                        }))
+                        return
+                      }
+                      openSignalAfterMount('newIdeas', () => setHasNewIdea(true))
+                    }}>
+                      <View className={`review-checkbox ${hasNewIdea ? 'active' : ''}`}><Text>{hasNewIdea ? '✓' : ''}</Text></View>
+                      <Text>产生新想法</Text>
+                    </View>
+                    {(hasNewIdea || openingSignal === 'newIdeas' || closingSignal === 'newIdeas') && <View className={`review-signal-content ${hasNewIdea && openingSignal !== 'newIdeas' ? 'open' : ''}`}><ReviewTextarea observation value={reviewForm.newIdeas} placeholder='记录新想法，完成复盘后自动进入想试试' onValueChange={(value) => { setReviewError(''); setReviewForm((current) => ({ ...current, newIdeas: value })) }} /></View>}
+                  </View>
                 </View>
               </View>
 
-              <View className='method-draft'>
-                <Text className='section-kicker'>本次复盘如何沉淀方法（可选）</Text>
-                <View className='method-mode-actions'>
-                  <View className={`method-mode-button ${methodMode === 'create' ? 'active' : ''}`} onClick={() => chooseMethodMode('create')}><Text>形成新方法</Text></View>
-                  <View className={`method-mode-button ${methodMode === 'validate' ? 'active' : ''} ${methods.length === 0 ? 'disabled' : ''}`} onClick={() => { if (methods.length > 0) chooseMethodMode('validate') }}><Text>验证已有方法</Text></View>
+              <View className={`method-draft ${methodDisclosureOpen ? 'expanded' : ''}`}>
+                <View className='method-disclosure-toggle' onClick={toggleMethodDisclosure}>
+                  <View><Text className='section-kicker'>方法处理（可选）</Text><Text>{methodDisclosureOpen ? '收起方法处理，继续完成事实复盘' : '完成事实复盘后，如有需要再沉淀方法'}</Text></View>
+                  <Text>{methodDisclosureOpen ? '收起' : '展开'}</Text>
                 </View>
-
-                {methodMode === 'validate' && <View className='existing-methods'>
-                  {methods.map((method) => <View key={method.id} className={`existing-method-button ${selectedMethodId === method.id ? 'active' : ''}`} onClick={() => chooseExistingMethod(method.id)}>
-                    <Text className='existing-method-title'>{method.title}</Text>
-                    <Text className='existing-method-meta'>v{method.version} · 已验证 {method.validationCount} 次</Text>
-                  </View>)}
-                  {selectedReviewMethod && <View className='selected-method-summary'>
-                    {methodApplicationContext && <View className='method-relation-summary'>
-                      <Text>本事项由「{methodApplicationContext.method.title}」v{methodApplicationContext.application.methodVersion} 发起</Text>
-                      <Text>{methodApplicationContext.application.methodId === selectedReviewMethod.id ? `本次复盘将验证来源方法「${selectedReviewMethod.title}」` : `本次复盘将验证「${selectedReviewMethod.title}」`}</Text>
-                      {methodApplicationContext.application.methodId !== selectedReviewMethod.id && <Text>原方法应用关系不会改变</Text>}
+                {methodDisclosureOpen && <>
+                  {methodContextAvailable && <View className='method-relation-summary'><Text>本事项由「{methodApplicationContextResult.version.title}」v{methodApplicationContextResult.application.methodVersion} 发起</Text><Text>这只是来源上下文；是否验证或修订由你决定。</Text></View>}
+                  {methodContextUnavailable && <Text className='method-unavailable'>{unavailableMethodContextMessage}</Text>}
+                  {methodContextLifecycleUnavailable && <Text className='method-unavailable'>{lifecycleMethodContextMessage}</Text>}
+                  {methodApplicationContextError && <Text className='method-unavailable'>{methodApplicationContextError}</Text>}
+                  {methodActionsAllowed && <>
+                    <View className='method-mode-actions'>
+                      <View className={`method-mode-button ${methodMode === 'create' ? 'active' : ''}`} onClick={() => chooseMethodMode('create')}><Text>形成新方法</Text></View>
+                      <View className={`method-mode-button ${methodMode === 'validate' ? 'active' : ''} ${methods.length === 0 ? 'disabled' : ''}`} onClick={() => { if (methods.length > 0) switchToValidation() }}><Text>验证已有方法</Text></View>
+                    </View>
+                    {methods.length === 0 && <Text className='method-unavailable'>当前没有可验证的方法；不影响完成事实复盘。</Text>}
+                    {methodMode === 'validate' && <View className='existing-methods'>
+                      {methods.map((method) => <View key={method.id} className={`existing-method-button ${selectedMethodId === method.id ? 'active' : ''}`} onClick={() => chooseExistingMethod(method.id)}><Text className='existing-method-title'>{method.title}</Text><Text className='existing-method-meta'>v{method.version} · 已验证 {method.validationCount} 次</Text></View>)}
+                      {selectedReviewMethod && <View className='selected-method-summary'><Text>当前步骤：{selectedReviewMethod.steps}</Text><View className={`method-revision-button ${reviseMethod ? 'active' : ''}`} onClick={toggleRevision}><Text>{reviseMethod ? '取消修订，仅验证' : '根据本次复盘修订方法'}</Text></View></View>}
                     </View>}
-                    <Text>当前步骤：{selectedReviewMethod.steps}</Text>
-                    <View className={`method-revision-button ${reviseMethod ? 'active' : ''}`} onClick={toggleRevision}><Text>{reviseMethod ? '取消修订，仅验证' : '根据本次复盘修订方法'}</Text></View>
-                  </View>}
-                </View>}
-
-                {(methodMode === 'create' || reviseMethod) && <View className='method-fields'>
-                  <Text className='method-field-label'>具体步骤</Text>
-                  <ReviewTextarea value={methodForm.steps} placeholder='记录可以重复执行的具体步骤' onValueChange={(value) => { setReviewError(''); setMethodForm((current) => ({ ...current, steps: value })) }} />
-                  <Text className='method-field-label'>补充说明（可选）</Text>
-                  <ReviewTextarea value={methodForm.applicable === '暂无补充说明' ? '' : methodForm.applicable} placeholder='补充适用情境、注意事项或边界' onValueChange={(value) => setMethodForm((current) => ({ ...current, applicable: value }))} />
-                </View>}
+                    {(methodMode === 'create' || reviseMethod) && <View className='method-fields'>
+                      {methodMode === 'create' && <>
+                        <Text className='method-field-label'>方法名 *</Text>
+                        <Input className='method-input method-title-input' value={methodForm.title} maxlength={120} placeholder='例如：行动结束后 10 分钟事实复盘' onInput={(event) => { setReviewError(''); setMethodForm((current) => ({ ...current, title: event.detail.value })) }} />
+                        <Text className='method-field-hint'>用一句短语命名这套下次还能复用的做法。</Text>
+                        {reviewError && !methodForm.title.trim() && <Text className='method-field-error'>给这套做法起一个方便以后找到的名称。</Text>}
+                      </>}
+                      <Text className='method-field-label'>具体步骤 *</Text>
+                      <ReviewTextarea value={methodForm.steps} placeholder='记录下次可重复执行的具体步骤。' onValueChange={(value) => { setReviewError(''); setMethodForm((current) => ({ ...current, steps: value })) }} />
+                      {reviewError && !methodForm.steps.trim() && <Text className='method-field-error'>请记录这套方法下次如何执行。</Text>}
+                      <Text className='method-field-label'>补充说明（可选）</Text>
+                      <ReviewTextarea value={methodForm.applicable === '暂无补充说明' ? '' : methodForm.applicable} placeholder='补充适用情境、注意事项或边界' onValueChange={(value) => setMethodForm((current) => ({ ...current, applicable: value }))} />
+                    </View>}
+                  </>}
+                </>}
               </View>
               {reviewError && <Text className='form-error'>{reviewError}</Text>}
-              <Button className='action-button primary' disabled={busy} onClick={completeReview}>完成复盘{methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : ''}</Button>
+              <Button className='action-button primary review-submit-button' disabled={busy} onClick={completeReview}>完成复盘{methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : ''}</Button>
             </View>}
 
             {!showTrash && selectedItem.status === 'reviewed' && selectedReview && <View className='review-record' id='review-section'>
@@ -1114,6 +1463,11 @@ export default function IndexPage() {
       </View></>}
 
       {activeModule === 'settings' && <View className='settings-module module-panel'>
+        <View className='trash-panel'>
+          <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项和方法</Text></View><Text className='backup-description'>删除后保留 30 天，之后自动永久清理。</Text></View>
+          <View className='trash-filter-actions'>{(['all', 'item', 'method'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法' }[entry]}</Text></View>)}</View>
+          {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => <View className='trash-entry' key={`${entry.type}-${entry.id}`}><View><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type === 'item' ? '事项' : '方法'} · 删除于 {formatTime(entry.deletedAt)} · 剩余 {remainingTrashDays(entry.deletedAt)} 天</Text></View><Button className='action-button secondary' disabled={busy} onClick={() => restoreTrashEntry(entry)}>恢复</Button></View>)}</View>}
+        </View>
         <View className='data-status-panel'>
           <View><Text className='section-kicker'>本地数据状态</Text><Text className='panel-title'>数据仅保存在当前浏览器</Text></View>
           <View className='data-status-grid'>
@@ -1158,7 +1512,27 @@ export default function IndexPage() {
               const history = methodHistories[method.id] ?? []
               const expanded = expandedMethodId === method.id
               return <View id={`method-${method.id}`} className='method-detail'>
-                <View className='method-card-heading'><Text>{method.title}</Text><Text>v{method.version} · 验证 {method.validationCount} 次</Text></View>
+                <View className='method-card-heading'>
+                  <Text>{method.title}</Text>
+                  <View className='method-card-actions'>
+                    <Text>v{method.version} · 验证 {method.validationCount} 次</Text>
+                    <View className='method-more-actions' ref={methodMoreMenuRef}>
+                      <button
+                        ref={methodMoreTriggerRef}
+                        type='button'
+                        className={`method-more-trigger ${methodMoreMenuId === method.id ? 'active' : ''}`}
+                        aria-label='更多操作'
+                        aria-haspopup='menu'
+                        aria-expanded={methodMoreMenuId === method.id}
+                        onClick={() => setMethodMoreMenuId((current) => current === method.id ? undefined : method.id)}
+                      >
+                        <svg aria-hidden='true' viewBox='0 0 24 24' width='18' height='18' fill='none' stroke='currentColor' strokeWidth='2.4' strokeLinecap='round'><circle cx='5' cy='12' r='1' fill='currentColor' stroke='none' /><circle cx='12' cy='12' r='1' fill='currentColor' stroke='none' /><circle cx='19' cy='12' r='1' fill='currentColor' stroke='none' /></svg><span className='method-more-label'>更多</span>
+                      </button>
+                      {methodMoreMenuId === method.id && <View className='method-more-menu' role='menu'><View className='method-more-menu-danger' role='menuitem' onClick={() => { setMethodMoreMenuId(undefined); setMethodTrashConfirmId(method.id) }}><Text>移入回收站</Text></View></View>}
+                    </View>
+                  </View>
+                </View>
+                {methodTrashConfirmId === method.id && <View className='method-trash-confirm'><Text>将“{method.title}”移入回收站？30 天内可以恢复；历史关联会保留说明。</Text><View><Button id='method-trash-cancel' className='action-button secondary' disabled={busy} onClick={() => setMethodTrashConfirmId(undefined)}>取消</Button><Button className='action-button delete-confirm-button' disabled={busy} onClick={moveMethodToTrash}>移入回收站</Button></View></View>}
                 <Text className='method-label'>具体步骤</Text><Text className='method-value'>{method.steps}</Text>
                 <Text className='method-label'>补充说明</Text><Text className='method-value'>{method.applicable || '暂无补充说明'}</Text>
                 {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}

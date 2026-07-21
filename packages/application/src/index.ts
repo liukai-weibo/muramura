@@ -13,8 +13,12 @@ import type {
   ItemStatusEvent,
   Method,
   MethodApplicationContext,
+  MethodApplicationContextResult,
   MethodApplicationRepository,
   MethodRepository,
+  MethodTombstone,
+  TrashEntry,
+  TrashFilter,
   MethodVersion,
   Review,
   ReviewRepository,
@@ -88,7 +92,7 @@ export class BackupApplicationService {
   async createBackup(): Promise<BackupDocument> {
     return {
       format: 'knowledge-base-backup',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       appVersion: '0.1.0',
       data: await this.repository.exportData(),
@@ -100,7 +104,7 @@ export class BackupApplicationService {
     try { value = JSON.parse(input) }
     catch { throw new Error('备份文件不是有效的 JSON') }
     if (!isRecord(value) || value.format !== 'knowledge-base-backup') throw new Error('这不是本系统的备份文件')
-    if (value.version !== 1) throw new Error(`不支持的备份版本：${String(value.version)}`)
+    if (value.version !== 1 && value.version !== 2) throw new Error(`不支持的备份版本：${String(value.version)}`)
     if (!isRecord(value.data)) throw new Error('备份缺少 data 数据区')
 
     const requiredCollectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
@@ -113,7 +117,7 @@ export class BackupApplicationService {
 
     const rawDocument = value as unknown as BackupDocument
     const legacyEvidence = rawDocument.data.methodEvidence
-    const methodVersions = Array.isArray(value.data.methodVersions)
+    const rawMethodVersions = Array.isArray(value.data.methodVersions)
       ? value.data.methodVersions as unknown as MethodVersion[]
       : rawDocument.data.methods.map((method) => ({
         id: createId(), methodId: method.id, version: method.version,
@@ -121,6 +125,12 @@ export class BackupApplicationService {
         sourceReviewId: legacyEvidence.find((entry) => entry.methodId === method.id)?.reviewId,
         createdAt: method.createdAt,
       }))
+    const reviewIdsForNormalization = new Set(rawDocument.data.reviews.map((review) => review.id))
+    const methodVersions: MethodVersion[] = rawMethodVersions.map((version): MethodVersion => {
+      if (!version.sourceReviewId || reviewIdsForNormalization.has(version.sourceReviewId)) return version
+      const { sourceReviewId: _sourceReviewId, ...normalizedVersion } = version
+      return normalizedVersion
+    })
     const methodApplications = Array.isArray(value.data.methodApplications)
       ? value.data.methodApplications as unknown as BackupDocument['data']['methodApplications']
       : []
@@ -129,11 +139,15 @@ export class BackupApplicationService {
       : rawDocument.data.items.map((item) => ({
         id: createId(), itemId: item.id, toStatus: item.status, createdAt: item.createdAt,
       }))
+    const parsedMethodTombstones = Array.isArray(value.data.methodTombstones)
+      ? value.data.methodTombstones as MethodTombstone[]
+      : []
     const document: BackupDocument = {
       ...rawDocument,
-      data: { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents },
+      version: 2,
+      data: { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents, methodTombstones: parsedMethodTombstones },
     }
-    const { items, reviews, methods, methodEvidence, itemLinks } = document.data
+    const { items, reviews, methods, methodEvidence, itemLinks, methodTombstones } = document.data
     requireUniqueIds(items, '事项')
     requireUniqueIds(reviews, '复盘')
     requireUniqueIds(methods, '方法')
@@ -142,25 +156,34 @@ export class BackupApplicationService {
     requireUniqueIds(methodApplications, '方法应用')
     requireUniqueIds(itemStatusEvents, '状态事件')
     requireUniqueIds(itemLinks, '想法来源关系')
+    const tombstoneIds = new Set(methodTombstones.map((entry) => entry.methodId))
+    if (methodTombstones.some((entry) => !entry.methodId || !entry.title || !entry.permanentlyDeletedAt || !Array.isArray(entry.versions) || entry.versions.some(({ version }) => !Number.isInteger(version)))) {
+      throw new Error('方法墓碑存在无效记录')
+    }
 
     const itemIds = new Set(items.map((item) => item.id))
     const reviewIds = new Set(reviews.map((review) => review.id))
     const methodIds = new Set(methods.map((method) => method.id))
+    if ([...methodIds].some((methodId) => tombstoneIds.has(methodId))) throw new Error('方法与墓碑不能同时存在')
     if (items.some((item) => !item.title || !itemStatuses.includes(item.status))) throw new Error('事项中存在空标题或非法状态')
     if (reviews.some((review) => !itemIds.has(review.itemId))) throw new Error('复盘引用了不存在的事项')
-    if (methodEvidence.some((entry) => !methodIds.has(entry.methodId) || !reviewIds.has(entry.reviewId))) {
+    if (methodEvidence.some((entry) => !(methodIds.has(entry.methodId) || tombstoneIds.has(entry.methodId)) || !reviewIds.has(entry.reviewId))) {
       throw new Error('方法证据引用了不存在的方法或复盘')
     }
     if (methodVersions.some((entry) => !methodIds.has(entry.methodId) || (entry.sourceReviewId && !reviewIds.has(entry.sourceReviewId)))) {
       throw new Error('方法版本引用了不存在的方法或复盘')
     }
-    if (methodApplications.some((entry) => !methodIds.has(entry.methodId) || !itemIds.has(entry.itemId))) {
+    if (methodApplications.some((entry) => !(methodIds.has(entry.methodId) || tombstoneIds.has(entry.methodId)) || !itemIds.has(entry.itemId))) {
       throw new Error('方法应用引用了不存在的方法或事项')
     }
     if (new Set(methodApplications.map((entry) => entry.itemId)).size !== methodApplications.length) {
       throw new Error('同一事项不能关联多个方法应用')
     }
-    if (methodApplications.some((entry) => !methodVersions.some((version) => version.methodId === entry.methodId && version.version === entry.methodVersion))) {
+    if (methodApplications.some((entry) => !(
+      methodIds.has(entry.methodId)
+        ? methodVersions.some((version) => version.methodId === entry.methodId && version.version === entry.methodVersion)
+        : methodTombstones.find((tombstone) => tombstone.methodId === entry.methodId)?.versions.some((version) => version.version === entry.methodVersion)
+    ))) {
       throw new Error('方法应用引用了不存在的方法版本')
     }
     if (itemStatusEvents.some((event) => !itemIds.has(event.itemId) || !itemStatuses.includes(event.toStatus) || (event.fromStatus && !itemStatuses.includes(event.fromStatus)))) {
@@ -173,7 +196,8 @@ export class BackupApplicationService {
   }
 
   restoreBackup(document: BackupDocument): Promise<void> {
-    return this.repository.replaceData(document.data)
+    const data = { ...document.data, methodTombstones: document.data.methodTombstones ?? [] }
+    return this.repository.replaceData(data)
   }
 
   async restoreBackupSafely(document: BackupDocument, preserveCurrent: (backup: BackupDocument) => void | Promise<void>): Promise<void> {
@@ -327,6 +351,45 @@ export class MethodApplicationService {
 
   getContextForItem(itemId: string): Promise<MethodApplicationContext | undefined> {
     return this.repository.getContextByItemId(itemId)
+  }
+
+  getContextResultForItem(itemId: string): Promise<MethodApplicationContextResult> {
+    return this.repository.getContextResultByItemId(itemId)
+  }
+}
+
+export class MethodLifecycleApplicationService {
+  constructor(private readonly repository: MethodRepository) {}
+
+  moveToTrash(methodId: string): Promise<void> {
+    return this.repository.moveToTrash(methodId)
+  }
+
+  restore(methodId: string): Promise<Method> {
+    return this.repository.restore(methodId)
+  }
+
+  async listTrash(): Promise<Method[]> {
+    await this.repository.purgeDeletedBefore(trashCutoff())
+    return this.repository.listDeleted()
+  }
+}
+
+export class TrashApplicationService {
+  constructor(private readonly itemRepository: ItemRepository, private readonly methodRepository: MethodRepository) {}
+
+  async listTrashEntries(filter: TrashFilter): Promise<TrashEntry[]> {
+    await Promise.all([
+      this.itemRepository.purgeDeletedBefore(trashCutoff()),
+      this.methodRepository.purgeDeletedBefore(trashCutoff()),
+    ])
+    if (filter === 'item') return (await this.itemRepository.listDeleted()).map((item) => ({ type: 'item', id: item.id, title: item.title, deletedAt: item.deletedAt! }))
+    if (filter === 'method') return (await this.methodRepository.listDeleted()).map((method) => ({ type: 'method', id: method.id, title: method.title, deletedAt: method.deletedAt! }))
+    const [items, methods] = await Promise.all([this.itemRepository.listDeleted(), this.methodRepository.listDeleted()])
+    return [
+      ...items.map((item) => ({ type: 'item' as const, id: item.id, title: item.title, deletedAt: item.deletedAt! })),
+      ...methods.map((method) => ({ type: 'method' as const, id: method.id, title: method.title, deletedAt: method.deletedAt! })),
+    ].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt))
   }
 }
 

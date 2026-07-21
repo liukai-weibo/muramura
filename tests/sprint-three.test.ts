@@ -50,7 +50,7 @@ describe('Sprint 3 JSON 备份与恢复', () => {
     await source.items.deleteItem(deleted.id)
 
     const document = await source.backup.createBackup()
-    expect(document).toMatchObject({ format: 'knowledge-base-backup', version: 1, appVersion: '0.1.0' })
+    expect(document).toMatchObject({ format: 'knowledge-base-backup', version: 2, appVersion: '0.1.0' })
 
     const target = createServices()
     await target.items.createIdea({ title: '将被覆盖的数据' })
@@ -66,7 +66,7 @@ describe('Sprint 3 JSON 备份与恢复', () => {
 
     expect(() => backup.parseAndValidate('{')).toThrow('不是有效的 JSON')
     expect(() => backup.parseAndValidate(JSON.stringify({ format: 'other', version: 1 }))).toThrow('不是本系统的备份文件')
-    expect(() => backup.parseAndValidate(JSON.stringify({ format: 'knowledge-base-backup', version: 2, data: {} }))).toThrow('不支持的备份版本')
+    expect(() => backup.parseAndValidate(JSON.stringify({ format: 'knowledge-base-backup', version: 3, data: {} }))).toThrow('不支持的备份版本')
 
     const broken = {
       format: 'knowledge-base-backup',

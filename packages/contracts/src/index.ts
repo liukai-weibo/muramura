@@ -62,6 +62,7 @@ export interface Method {
   version: number
   createdAt: string
   updatedAt: string
+  deletedAt?: string
 }
 
 export interface CreateMethodInput {
@@ -108,11 +109,43 @@ export interface MethodApplicationContext {
   version: MethodVersion
 }
 
+export type MethodApplicationUnavailableReason =
+  | 'method-missing'
+  | 'version-missing'
+  | 'method-and-version-missing'
+
+export type MethodApplicationContextResult =
+  | { status: 'no-association' }
+  | {
+      status: 'available'
+      application: MethodApplication
+      method: Method
+      version: MethodVersion
+    }
+  | {
+      status: 'method-in-trash'
+      application: MethodApplication
+      method: Method
+      version: MethodVersion
+    }
+  | {
+      status: 'method-purged'
+      application: MethodApplication
+      tombstone: MethodTombstone
+    }
+  | {
+      status: 'unavailable'
+      application: MethodApplication
+      reason: MethodApplicationUnavailableReason
+    }
+
 export interface MethodEvidence {
   id: string
   methodId: string
   reviewId: string
   createdAt: string
+  relation?: MethodEvidenceRelation
+  methodVersion?: number
 }
 
 export type MethodEvidenceRelation = 'formation' | 'validation' | 'revision' | 'unknown'
@@ -147,6 +180,17 @@ export interface ItemLink {
   createdAt: string
 }
 
+export interface MethodTombstoneVersion {
+  version: number
+}
+
+export interface MethodTombstone {
+  methodId: string
+  title: string
+  permanentlyDeletedAt: string
+  versions: MethodTombstoneVersion[]
+}
+
 export interface BackupData {
   items: Item[]
   reviews: Review[]
@@ -156,15 +200,26 @@ export interface BackupData {
   methodApplications: MethodApplication[]
   itemStatusEvents: ItemStatusEvent[]
   itemLinks: ItemLink[]
+  methodTombstones: MethodTombstone[]
 }
 
-export interface BackupDocument {
+export interface BackupDocumentV1 {
   format: 'knowledge-base-backup'
   version: 1
   exportedAt: string
   appVersion: string
+  data: Omit<BackupData, 'methodTombstones'> & { methodTombstones?: MethodTombstone[] }
+}
+
+export interface BackupDocumentV2 {
+  format: 'knowledge-base-backup'
+  version: 2
+  exportedAt: string
+  appVersion: string
   data: BackupData
 }
+
+export type BackupDocument = BackupDocumentV1 | BackupDocumentV2
 
 export interface BackupRepository {
   exportData(): Promise<BackupData>
@@ -258,9 +313,16 @@ export interface SearchRepository {
   search(query: string): Promise<SearchResult[]>
 }
 
+export type TrashEntry =
+  | { type: 'item'; id: string; title: string; deletedAt: string }
+  | { type: 'method'; id: string; title: string; deletedAt: string }
+
+export type TrashFilter = 'all' | 'item' | 'method'
+
 export interface MethodApplicationRepository {
   createItem(input: CreateMethodApplicationInput): Promise<Item>
   getContextByItemId(itemId: string): Promise<MethodApplicationContext | undefined>
+  getContextResultByItemId(itemId: string): Promise<MethodApplicationContextResult>
 }
 
 export interface ItemRepository {
@@ -288,6 +350,10 @@ export interface MethodRepository {
   listByReviewId(reviewId: string): Promise<Method[]>
   listVersions(methodId: string): Promise<MethodVersion[]>
   listEvidenceDetails(methodId: string): Promise<MethodEvidenceDetail[]>
+  moveToTrash(methodId: string): Promise<void>
+  restore(methodId: string): Promise<Method>
+  listDeleted(): Promise<Method[]>
+  purgeDeletedBefore(cutoff: string): Promise<void>
   validateFromReview(methodId: string, reviewId: string, revision?: CreateMethodInput): Promise<Method>
 }
 

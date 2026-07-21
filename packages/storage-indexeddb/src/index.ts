@@ -18,11 +18,13 @@ import type {
   Method,
   MethodApplication,
   MethodApplicationContext,
+  MethodApplicationContextResult,
   MethodApplicationRepository,
   MethodEvidence,
   MethodEvidenceDetail,
   MethodEvidenceRelation,
   MethodRepository,
+  MethodTombstone,
   MethodVersion,
   Review,
   ReviewRepository,
@@ -40,6 +42,7 @@ export class KnowledgeDatabase extends Dexie {
   methodApplications!: EntityTable<MethodApplication, 'id'>
   methodEvidence!: EntityTable<MethodEvidence, 'id'>
   methodVersions!: EntityTable<MethodVersion, 'id'>
+  methodTombstones!: EntityTable<MethodTombstone, 'methodId'>
   itemLinks!: EntityTable<ItemLink, 'id'>
   itemStatusEvents!: EntityTable<ItemStatusEvent, 'id'>
 
@@ -133,12 +136,33 @@ export class KnowledgeDatabase extends Dexie {
     }).upgrade(async (transaction) => {
       const items = await transaction.table<Item, string>('items').toArray()
       const events: ItemStatusEvent[] = items.map((item) => ({
-        id: createId(),
-        itemId: item.id,
-        toStatus: item.status,
-        createdAt: item.createdAt,
+        id: createId(), itemId: item.id, toStatus: item.status, createdAt: item.createdAt,
       }))
       await transaction.table<ItemStatusEvent, string>('itemStatusEvents').bulkAdd(events)
+    })
+    this.version(7).stores({
+      items: 'id, status, createdAt, updatedAt, deletedAt',
+      reviews: 'id, &itemId, createdAt, updatedAt',
+      methods: 'id, createdAt, updatedAt, deletedAt',
+      methodEvidence: 'id, methodId, reviewId, [methodId+reviewId]',
+      methodVersions: 'id, methodId, version, [methodId+version], sourceReviewId',
+      methodApplications: 'id, methodId, methodVersion, &itemId, [methodId+methodVersion]',
+      methodTombstones: 'methodId, permanentlyDeletedAt',
+      itemLinks: 'id, sourceReviewId, targetItemId, type',
+      itemStatusEvents: 'id, itemId, fromStatus, toStatus, createdAt, [itemId+createdAt]',
+    }).upgrade(async (transaction) => {
+      const evidenceTable = transaction.table<MethodEvidence, string>('methodEvidence')
+      const [evidence, versions] = await Promise.all([
+        evidenceTable.toArray(),
+        transaction.table<MethodVersion, string>('methodVersions').toArray(),
+      ])
+      for (const entry of evidence) {
+        const sources = versions.filter((version) => version.methodId === entry.methodId && version.sourceReviewId === entry.reviewId)
+        const source = sources.length === 1 ? sources[0] : undefined
+        await evidenceTable.put(source
+          ? { ...entry, relation: source.version === 1 ? 'formation' : 'revision', methodVersion: source.version }
+          : { ...entry, relation: 'unknown' })
+      }
     })
   }
 }
@@ -237,31 +261,67 @@ export class IndexedDbItemRepository implements ItemRepository {
         this.database.methodApplications,
         this.database.methodEvidence,
         this.database.methodVersions,
+        this.database.methodTombstones,
         this.database.itemLinks,
         this.database.itemStatusEvents,
       ],
       async () => {
-        for (const item of expiredItems) {
-          const review = await this.database.reviews.where('itemId').equals(item.id).first()
-          if (review) {
-            const evidence = await this.database.methodEvidence.where('reviewId').equals(review.id).toArray()
-            await this.database.methodEvidence.bulkDelete(evidence.map((entry) => entry.id))
-            await this.database.reviews.delete(review.id)
-            for (const methodId of new Set(evidence.map((entry) => entry.methodId))) {
-              const evidenceCount = await this.database.methodEvidence.where('methodId').equals(methodId).count()
-              const applicationCount = await this.database.methodApplications.where('methodId').equals(methodId).count()
-              if (evidenceCount === 0 && applicationCount === 0) {
-                await this.database.methodVersions.where('methodId').equals(methodId).delete()
-                await this.database.methods.delete(methodId)
-              }
-            }
-            await this.database.itemLinks.where('sourceReviewId').equals(review.id).delete()
-          }
-          await this.database.methodApplications.where('itemId').equals(item.id).delete()
-          await this.database.itemLinks.where('targetItemId').equals(item.id).delete()
-          await this.database.itemStatusEvents.where('itemId').equals(item.id).delete()
-          await this.database.items.delete(item.id)
+        const expiredItemIds = expiredItems.map((item) => item.id)
+        const reviews = (await Promise.all(
+          expiredItemIds.map((itemId) => this.database.reviews.where('itemId').equals(itemId).first()),
+        )).filter((review): review is Review => Boolean(review))
+        const deletedReviewIds = reviews.map((review) => review.id)
+        const applications = (await Promise.all(
+          expiredItemIds.map((itemId) => this.database.methodApplications.where('itemId').equals(itemId).toArray()),
+        )).flat()
+        const evidence = (await Promise.all(
+          deletedReviewIds.map((reviewId) => this.database.methodEvidence.where('reviewId').equals(reviewId).toArray()),
+        )).flat()
+        const versionsWithDeletedSource = (await Promise.all(
+          deletedReviewIds.map((reviewId) => this.database.methodVersions.where('sourceReviewId').equals(reviewId).toArray()),
+        )).flat()
+        const affectedMethodIds = new Set([
+          ...evidence.map((entry) => entry.methodId),
+          ...applications.map((application) => application.methodId),
+          ...versionsWithDeletedSource.map((version) => version.methodId),
+        ])
+
+        await this.database.methodEvidence.bulkDelete(evidence.map((entry) => entry.id))
+        for (const reviewId of deletedReviewIds) {
+          await this.database.itemLinks.where('sourceReviewId').equals(reviewId).delete()
         }
+        for (const itemId of expiredItemIds) {
+          await this.database.methodApplications.where('itemId').equals(itemId).delete()
+          await this.database.itemLinks.where('targetItemId').equals(itemId).delete()
+          await this.database.itemStatusEvents.where('itemId').equals(itemId).delete()
+        }
+
+        for (const methodId of affectedMethodIds) {
+          const evidenceCount = await this.database.methodEvidence.where('methodId').equals(methodId).count()
+          const applicationCount = await this.database.methodApplications.where('methodId').equals(methodId).count()
+          if (evidenceCount === 0 && applicationCount === 0) {
+            await this.database.methodVersions.where('methodId').equals(methodId).delete()
+            await this.database.methods.delete(methodId)
+          } else {
+            for (const reviewId of deletedReviewIds) {
+              await this.database.methodVersions
+                .where('sourceReviewId')
+                .equals(reviewId)
+                .modify({ sourceReviewId: undefined })
+            }
+          }
+        }
+
+        for (const tombstone of await this.database.methodTombstones.toArray()) {
+          const [evidenceCount, applicationCount] = await Promise.all([
+            this.database.methodEvidence.where('methodId').equals(tombstone.methodId).count(),
+            this.database.methodApplications.where('methodId').equals(tombstone.methodId).count(),
+          ])
+          if (evidenceCount === 0 && applicationCount === 0) await this.database.methodTombstones.delete(tombstone.methodId)
+        }
+
+        await this.database.reviews.bulkDelete(deletedReviewIds)
+        await this.database.items.bulkDelete(expiredItemIds)
       },
     )
   }
@@ -274,7 +334,7 @@ export class IndexedDbDashboardRepository implements DashboardRepository {
     const [items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemStatusEvents] = await Promise.all([
       this.database.items.filter((item) => !item.deletedAt).toArray(),
       this.database.reviews.toArray(),
-      this.database.methods.toArray(),
+      this.database.methods.filter((method) => !method.deletedAt).toArray(),
       this.database.methodEvidence.toArray(),
       this.database.methodVersions.toArray(),
       this.database.methodApplications.toArray(),
@@ -294,7 +354,7 @@ export class IndexedDbSearchRepository implements SearchRepository {
     const [items, reviews, methods, versions] = await Promise.all([
       this.database.items.filter((item) => !item.deletedAt).toArray(),
       this.database.reviews.toArray(),
-      this.database.methods.toArray(),
+      this.database.methods.filter((method) => !method.deletedAt).toArray(),
       this.database.methodVersions.toArray(),
     ])
     const itemById = new Map(items.map((item) => [item.id, item]))
@@ -331,7 +391,7 @@ export class IndexedDbMethodApplicationRepository implements MethodApplicationRe
 
   async createItem(input: CreateMethodApplicationInput): Promise<Item> {
     const method = await this.database.methods.get(input.methodId)
-    if (!method) throw new Error('选择的方法不存在')
+    if (!method || method.deletedAt) throw new Error('选择的方法不存在')
 
     return this.database.transaction('rw', [this.database.items, this.database.methodApplications, this.database.itemStatusEvents], async () => {
       const item = await this.itemRepository.create({ title: input.title, content: input.content, status: 'idea_to_try' })
@@ -347,13 +407,31 @@ export class IndexedDbMethodApplicationRepository implements MethodApplicationRe
   }
 
   async getContextByItemId(itemId: string): Promise<MethodApplicationContext | undefined> {
+    const result = await this.getContextResultByItemId(itemId)
+    return result.status === 'available'
+      ? { application: result.application, method: result.method, version: result.version }
+      : undefined
+  }
+
+  async getContextResultByItemId(itemId: string): Promise<MethodApplicationContextResult> {
     const application = await this.database.methodApplications.where('itemId').equals(itemId).first()
-    if (!application) return undefined
-    const [method, version] = await Promise.all([
+    if (!application) return { status: 'no-association' }
+
+    const [method, version, tombstone] = await Promise.all([
       this.database.methods.get(application.methodId),
       this.database.methodVersions.where('[methodId+version]').equals([application.methodId, application.methodVersion]).first(),
+      this.database.methodTombstones.get(application.methodId),
     ])
-    return method && version ? { application, method, version } : undefined
+    if (method && version) {
+      return method.deletedAt
+        ? { status: 'method-in-trash', application, method, version }
+        : { status: 'available', application, method, version }
+    }
+    if (!method && tombstone && tombstone.versions.some(({ version: tombstoneVersion }) => tombstoneVersion === application.methodVersion)) {
+      return { status: 'method-purged', application, tombstone }
+    }
+    if (!method && !version) return { status: 'unavailable', application, reason: 'method-and-version-missing' }
+    return { status: 'unavailable', application, reason: method ? 'version-missing' : 'method-missing' }
   }
 }
 
@@ -427,6 +505,8 @@ export class IndexedDbMethodRepository implements MethodRepository {
       methodId: method.id,
       reviewId,
       createdAt: now,
+      relation: 'formation',
+      methodVersion: 1,
     }
 
     const version: MethodVersion = {
@@ -450,13 +530,59 @@ export class IndexedDbMethodRepository implements MethodRepository {
   }
 
   list(): Promise<Method[]> {
-    return this.database.methods.orderBy('updatedAt').reverse().toArray()
+    return this.database.methods.filter((method) => !method.deletedAt).sortBy('updatedAt')
+  }
+
+  listDeleted(): Promise<Method[]> {
+    return this.database.methods.filter((method) => Boolean(method.deletedAt)).sortBy('deletedAt')
+  }
+
+  async moveToTrash(methodId: string): Promise<void> {
+    const method = await this.database.methods.get(methodId)
+    if (!method) throw new Error('方法不存在')
+    if (method.deletedAt) throw new Error('方法已在回收站')
+    const now = new Date().toISOString()
+    await this.database.methods.put({ ...method, deletedAt: now, updatedAt: now })
+  }
+
+  async restore(methodId: string): Promise<Method> {
+    const method = await this.database.methods.get(methodId)
+    if (!method?.deletedAt) throw new Error('回收站中不存在该方法')
+    const { deletedAt: _deletedAt, ...restored } = method
+    const updated = { ...restored, updatedAt: new Date().toISOString() }
+    await this.database.methods.put(updated)
+    return updated
+  }
+
+  async purgeDeletedBefore(cutoff: string): Promise<void> {
+    const expired = await this.database.methods.filter((method) => Boolean(method.deletedAt && method.deletedAt <= cutoff)).toArray()
+    if (!expired.length) return
+    await this.database.transaction('rw', [this.database.methods, this.database.methodVersions, this.database.methodEvidence, this.database.methodApplications, this.database.methodTombstones], async () => {
+      for (const method of expired) {
+        const [versions, applications] = await Promise.all([
+          this.database.methodVersions.where('methodId').equals(method.id).toArray(),
+          this.database.methodApplications.where('methodId').equals(method.id).toArray(),
+        ])
+        const versionNumbers = versions.map(({ version }) => ({ version }))
+        if (applications.some((application) => !versionNumbers.some(({ version }) => version === application.methodVersion))) {
+          throw new Error('方法应用引用了无法证明的历史版本')
+        }
+        await this.database.methodTombstones.put({
+          methodId: method.id,
+          title: method.title,
+          permanentlyDeletedAt: new Date().toISOString(),
+          versions: versionNumbers,
+        })
+        await this.database.methodVersions.where('methodId').equals(method.id).delete()
+        await this.database.methods.delete(method.id)
+      }
+    })
   }
 
   async listByReviewId(reviewId: string): Promise<Method[]> {
     const evidence = await this.database.methodEvidence.where('reviewId').equals(reviewId).toArray()
     return this.database.methods.bulkGet(evidence.map((entry) => entry.methodId)).then((methods) =>
-      methods.filter((method): method is Method => Boolean(method)),
+      methods.filter((method): method is Method => Boolean(method && !method.deletedAt)),
     )
   }
 
@@ -465,10 +591,7 @@ export class IndexedDbMethodRepository implements MethodRepository {
   }
 
   async listEvidenceDetails(methodId: string): Promise<MethodEvidenceDetail[]> {
-    const [evidence, versions] = await Promise.all([
-      this.database.methodEvidence.where('methodId').equals(methodId).toArray(),
-      this.database.methodVersions.where('methodId').equals(methodId).toArray(),
-    ])
+    const evidence = await this.database.methodEvidence.where('methodId').equals(methodId).toArray()
     const reviewIds = [...new Set(evidence.map((entry) => entry.reviewId))]
     const reviews = await this.database.reviews.bulkGet(reviewIds)
     const reviewById = new Map(reviews.filter((review): review is Review => Boolean(review)).map((review) => [review.id, review]))
@@ -480,16 +603,7 @@ export class IndexedDbMethodRepository implements MethodRepository {
     return evidence.map((entry) => {
       const review = reviewById.get(entry.reviewId)
       const item = review && itemById.get(review.itemId)
-      const matchedVersions = versions.filter((version) => version.sourceReviewId === entry.reviewId)
-      const matchedVersion = matchedVersions.length === 1 ? matchedVersions[0] : undefined
-      const hasReliableFormation = versions.some((version) => version.version === 1 && Boolean(version.sourceReviewId))
-      const relation: MethodEvidenceRelation = !review || !item || matchedVersions.length > 1 || !hasReliableFormation
-        ? 'unknown'
-        : matchedVersion?.version === 1
-          ? 'formation'
-          : matchedVersion
-            ? 'revision'
-            : 'validation'
+      const relation: MethodEvidenceRelation = entry.relation ?? 'unknown'
       return {
         evidenceId: entry.id,
         methodId: entry.methodId,
@@ -499,14 +613,14 @@ export class IndexedDbMethodRepository implements MethodRepository {
         reviewCreatedAt: review?.createdAt ?? entry.createdAt,
         reviewSummary: review ? [review.actualAction, review.result].filter(Boolean).join(' · ') || '复盘内容为空' : '关联复盘已不存在',
         relation,
-        ...(matchedVersion ? { methodVersion: matchedVersion.version } : {}),
+        ...(entry.methodVersion !== undefined ? { methodVersion: entry.methodVersion } : {}),
       }
     }).sort((left, right) => right.reviewCreatedAt.localeCompare(left.reviewCreatedAt))
   }
 
   async validateFromReview(methodId: string, reviewId: string, revision?: CreateMethodInput): Promise<Method> {
     const method = await this.database.methods.get(methodId)
-    if (!method) throw new Error('选择的方法不存在')
+    if (!method || method.deletedAt) throw new Error('选择的方法不存在')
     if (await this.database.methodEvidence.where('[methodId+reviewId]').equals([methodId, reviewId]).count()) {
       throw new Error('该复盘已经验证过这个方法')
     }
@@ -526,7 +640,10 @@ export class IndexedDbMethodRepository implements MethodRepository {
     if (!updated.title || !updated.applicable || !updated.steps) throw new Error('请完成方法标题、适用情况和具体步骤')
 
     await this.database.methods.put(updated)
-    await this.database.methodEvidence.add({ id: createId(), methodId, reviewId, createdAt: now })
+    await this.database.methodEvidence.add({
+      id: createId(), methodId, reviewId, createdAt: now,
+      relation: revision ? 'revision' : 'validation', methodVersion: nextVersion,
+    })
     if (revision) {
       await this.database.methodVersions.add({
         id: createId(), methodId, version: nextVersion,
@@ -542,7 +659,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
   constructor(private readonly database: KnowledgeDatabase) {}
 
   async exportData(): Promise<BackupData> {
-    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks, itemStatusEvents] = await Promise.all([
+    const [items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks, itemStatusEvents, methodTombstones] = await Promise.all([
       this.database.items.toArray(),
       this.database.reviews.toArray(),
       this.database.methods.toArray(),
@@ -551,8 +668,9 @@ export class IndexedDbBackupRepository implements BackupRepository {
       this.database.methodApplications.toArray(),
       this.database.itemLinks.toArray(),
       this.database.itemStatusEvents.toArray(),
+      this.database.methodTombstones.toArray(),
     ])
-    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks, itemStatusEvents }
+    return { items, reviews, methods, methodEvidence, methodVersions, methodApplications, itemLinks, itemStatusEvents, methodTombstones }
   }
 
   replaceData(data: BackupData): Promise<void> {
@@ -565,6 +683,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
         this.database.methodApplications,
         this.database.methodEvidence,
         this.database.methodVersions,
+        this.database.methodTombstones,
         this.database.itemLinks,
         this.database.itemStatusEvents,
       ],
@@ -575,6 +694,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
           this.database.methodApplications.clear(),
           this.database.methodEvidence.clear(),
           this.database.methodVersions.clear(),
+          this.database.methodTombstones.clear(),
           this.database.reviews.clear(),
           this.database.methods.clear(),
           this.database.items.clear(),
@@ -585,6 +705,7 @@ export class IndexedDbBackupRepository implements BackupRepository {
         await this.database.methodEvidence.bulkAdd(data.methodEvidence)
         await this.database.methodVersions.bulkAdd(data.methodVersions)
         await this.database.methodApplications.bulkAdd(data.methodApplications)
+        await this.database.methodTombstones.bulkAdd(data.methodTombstones)
         await this.database.itemLinks.bulkAdd(data.itemLinks)
         await this.database.itemStatusEvents.bulkAdd(data.itemStatusEvents)
       },
