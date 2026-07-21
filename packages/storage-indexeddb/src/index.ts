@@ -15,6 +15,7 @@ import type {
   ItemRepository,
   ItemStatus,
   ItemStatusEvent,
+  UpdateItemContentInput,
   Method,
   MethodApplication,
   MethodApplicationContext,
@@ -167,8 +168,15 @@ export class KnowledgeDatabase extends Dexie {
   }
 }
 
+export interface IndexedDbItemRepositoryTestHooks {
+  beforePurgeTransaction?: () => Promise<void> | void
+}
+
 export class IndexedDbItemRepository implements ItemRepository {
-  constructor(private readonly database: KnowledgeDatabase) {}
+  constructor(
+    private readonly database: KnowledgeDatabase,
+    private readonly testHooks?: IndexedDbItemRepositoryTestHooks,
+  ) {}
 
   async create(input: CreateItemInput): Promise<Item> {
     const now = new Date().toISOString()
@@ -211,13 +219,13 @@ export class IndexedDbItemRepository implements ItemRepository {
   }
 
   async changeStatus(id: string, status: ItemStatus): Promise<Item> {
-    const item = await this.getById(id)
-    if (!item || item.deletedAt) throw new Error('事项不存在')
-    assertTransition(item.status, status)
+    return this.database.transaction('rw', [this.database.items, this.database.itemStatusEvents], async () => {
+      const item = await this.database.items.get(id)
+      if (!item || item.deletedAt) throw new Error('事项不存在')
+      assertTransition(item.status, status)
 
-    const now = new Date().toISOString()
-    const updated = { ...item, status, updatedAt: now }
-    await this.database.transaction('rw', [this.database.items, this.database.itemStatusEvents], async () => {
+      const now = new Date().toISOString()
+      const updated = { ...item, status, updatedAt: now }
       await this.database.items.put(updated)
       await this.database.itemStatusEvents.add({
         id: createId(),
@@ -226,31 +234,43 @@ export class IndexedDbItemRepository implements ItemRepository {
         toStatus: status,
         createdAt: now,
       })
+      return updated
     })
-    return updated
+  }
+
+  async updateContent(id: string, input: UpdateItemContentInput): Promise<Item> {
+    return this.database.transaction('rw', this.database.items, async () => {
+      const item = await this.database.items.get(id)
+      if (!item || item.deletedAt) throw new Error('事项不存在')
+
+      const updated = { ...item, content: input.content.trim(), updatedAt: new Date().toISOString() }
+      await this.database.items.put(updated)
+      return updated
+    })
   }
 
   async delete(id: string): Promise<void> {
-    const item = await this.getById(id)
-    if (!item || item.deletedAt) return
-    const now = new Date().toISOString()
-    await this.database.items.put({ ...item, deletedAt: now, updatedAt: now })
+    await this.database.transaction('rw', this.database.items, async () => {
+      const item = await this.database.items.get(id)
+      if (!item || item.deletedAt) return
+      const now = new Date().toISOString()
+      await this.database.items.put({ ...item, deletedAt: now, updatedAt: now })
+    })
   }
 
   async restore(id: string): Promise<Item> {
-    const item = await this.getById(id)
-    if (!item?.deletedAt) throw new Error('回收站中不存在该事项')
-    const { deletedAt: _deletedAt, ...restoredItem } = item
-    const restored = { ...restoredItem, updatedAt: new Date().toISOString() }
-    await this.database.items.put(restored)
-    return restored
+    return this.database.transaction('rw', this.database.items, async () => {
+      const item = await this.database.items.get(id)
+      if (!item?.deletedAt) throw new Error('回收站中不存在该事项')
+      const { deletedAt: _deletedAt, ...restoredItem } = item
+      const restored = { ...restoredItem, updatedAt: new Date().toISOString() }
+      await this.database.items.put(restored)
+      return restored
+    })
   }
 
   async purgeDeletedBefore(cutoff: string): Promise<void> {
-    const expiredItems = await this.database.items
-      .filter((item) => Boolean(item.deletedAt && item.deletedAt <= cutoff))
-      .toArray()
-    if (!expiredItems.length) return
+    await this.testHooks?.beforePurgeTransaction?.()
 
     await this.database.transaction(
       'rw',
@@ -266,6 +286,10 @@ export class IndexedDbItemRepository implements ItemRepository {
         this.database.itemStatusEvents,
       ],
       async () => {
+        const expiredItems = await this.database.items
+          .filter((item) => Boolean(item.deletedAt && item.deletedAt <= cutoff))
+          .toArray()
+        if (!expiredItems.length) return
         const expiredItemIds = expiredItems.map((item) => item.id)
         const reviews = (await Promise.all(
           expiredItemIds.map((itemId) => this.database.reviews.where('itemId').equals(itemId).first()),

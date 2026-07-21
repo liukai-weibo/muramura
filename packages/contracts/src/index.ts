@@ -27,6 +27,10 @@ export interface CreateItemInput {
   status?: ItemStatus
 }
 
+export interface UpdateItemContentInput {
+  content: string
+}
+
 export interface Review {
   id: string
   itemId: string
@@ -332,6 +336,7 @@ export interface ItemRepository {
   listDeleted(): Promise<Item[]>
   listStatusEvents(itemId: string): Promise<ItemStatusEvent[]>
   changeStatus(id: string, status: ItemStatus): Promise<Item>
+  updateContent(id: string, input: UpdateItemContentInput): Promise<Item>
   delete(id: string): Promise<void>
   restore(id: string): Promise<Item>
   purgeDeletedBefore(cutoff: string): Promise<void>

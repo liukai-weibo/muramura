@@ -3,6 +3,7 @@ import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, MethodLifecycleApplicationService, ReviewApplicationService, SearchApplicationService, TrashApplicationService, type ItemAction } from '@knowledge-base/application'
 import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
+import { mergeUpdatedItemContentIntoList } from './item-content-state'
 import './index.scss'
 
 
@@ -163,6 +164,11 @@ export default function IndexPage() {
   const [pendingBackup, setPendingBackup] = useState<BackupDocument>()
   const [backupMessage, setBackupMessage] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
+  const selectedIdRef = useRef<string>()
+  const contentDraftsRef = useRef<Record<string, string>>({})
+  const [contentEditingItemId, setContentEditingItemId] = useState<string>()
+  const [contentDraft, setContentDraft] = useState('')
+  const [contentSavingItemId, setContentSavingItemId] = useState<string>()
   const [selectedReview, setSelectedReview] = useState<Review>()
   const [statusEvents, setStatusEvents] = useState<ItemStatusEvent[]>([])
   const [timelineOpen, setTimelineOpen] = useState(false)
@@ -193,6 +199,10 @@ export default function IndexPage() {
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const hasCaptureContent = Boolean(title.trim() || content.trim())
   const captureLocked = restoring || Boolean(pendingBackup)
+  const contentBelowFacts = selectedItem?.status === 'waiting_review'
+    || selectedItem?.status === 'reviewed'
+    || selectedItem?.status === 'archived_no_review'
+    || selectedItem?.status === 'abandoned'
   const methodContextAvailable = methodApplicationContextResult?.status === 'available'
   const methodContextUnavailable = methodApplicationContextResult?.status === 'unavailable'
   const methodContextLifecycleUnavailable = methodApplicationContextResult?.status === 'method-in-trash' || methodApplicationContextResult?.status === 'method-purged'
@@ -366,7 +376,13 @@ export default function IndexPage() {
   }, [activeModule, expandedMethodId, pendingMethodLocation, pendingMethodVersionLocation])
 
   useEffect(() => {
+    selectedIdRef.current = selectedId
+  }, [selectedId])
+
+  useEffect(() => {
     setTimelineOpen(false)
+    setContentEditingItemId(undefined)
+    setContentDraft(selectedId ? contentDraftsRef.current[selectedId] ?? '' : '')
     setMethodMode('none')
     setSelectedMethodId('')
     setReviseMethod(false)
@@ -528,6 +544,53 @@ export default function IndexPage() {
   const cancelLeaveReview = () => {
     pendingReviewLeaveActionRef.current = undefined
     setReviewLeaveConfirm(false)
+  }
+
+  const openContentEditor = () => {
+    if (!selectedItem || selectedItem.deletedAt) return
+    const draft = contentDraftsRef.current[selectedItem.id] ?? selectedItem.content
+    contentDraftsRef.current[selectedItem.id] = draft
+    setContentDraft(draft)
+    setContentEditingItemId(selectedItem.id)
+  }
+
+  const updateContentDraft = (itemId: string, value: string) => {
+    contentDraftsRef.current[itemId] = value
+    if (selectedIdRef.current === itemId) setContentDraft(value)
+  }
+
+  const cancelContentEditor = (itemId: string) => {
+    delete contentDraftsRef.current[itemId]
+    if (contentEditingItemId === itemId) {
+      setContentEditingItemId(undefined)
+      setContentDraft('')
+    }
+  }
+
+  const saveItemContent = async (itemId: string) => {
+    if (contentSavingItemId === itemId) return
+    const submittedDraft = contentDraftsRef.current[itemId] ?? ''
+    setContentSavingItemId(itemId)
+    try {
+      const updatedItem = await application.updateItemContent(itemId, submittedDraft)
+      setItems((current) => mergeUpdatedItemContentIntoList(current, updatedItem))
+      if (contentDraftsRef.current[itemId] === submittedDraft) {
+        delete contentDraftsRef.current[itemId]
+        if (selectedIdRef.current === itemId) {
+          setContentEditingItemId(undefined)
+          setContentDraft('')
+        }
+      }
+      setMessage('补充说明已保存')
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : '存储写入失败'
+      const explanation = reason === '事项不存在'
+        ? '事项不存在或已移入回收站'
+        : reason
+      setMessage(`保存失败：${explanation}，未保存说明已保留`)
+    } finally {
+      setContentSavingItemId((current) => current === itemId ? undefined : current)
+    }
   }
 
   const locateActiveItem = (itemId: string, sourceItems = items, review = false) => {
@@ -1335,7 +1398,7 @@ export default function IndexPage() {
             <View className='detail-header'>
               <Text className='section-kicker'>{showTrash ? '回收站事项' : '当前事项'}</Text>
               <View className='detail-header-meta'>
-                <View className={`timeline-toggle ${timelineOpen ? 'active' : ''}`} onClick={() => setTimelineOpen((open) => !open)}><Text>流转历史</Text></View>
+                <Button className={`timeline-toggle ${timelineOpen ? 'active' : ''}`} onClick={() => setTimelineOpen((open) => !open)}><Text>流转历史</Text></Button>
                 <View className='detail-time'><Text>创建 {formatTime(selectedItem.createdAt)}</Text><Text>更新 {formatTime(selectedItem.updatedAt)}</Text></View>
               </View>
             </View>
@@ -1354,10 +1417,21 @@ export default function IndexPage() {
             <Text className='detail-title'>{selectedItem.title}</Text>
             {showTrash
               ? <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>
-              : <Text className={`detail-status status-${selectedItem.status}`}>{statusLabels[selectedItem.status]}</Text>}
-            <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '没有补充说明。'}</Text>
+              : selectedItem.status !== 'idea_to_try' && <Text className={`detail-status status-${selectedItem.status}`}>{statusLabels[selectedItem.status]}</Text>}
+            {!contentBelowFacts && <View className={`detail-content-section ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
+              <View className='detail-content-heading'>
+                <Text>补充说明</Text>
+                {!showTrash && contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
+              </View>
+              {contentEditingItemId === selectedItem.id ? <View className='detail-content-editor'>
+                <textarea className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => updateContentDraft(selectedItem.id, event.currentTarget.value)} />
+                <View className='detail-content-editor-actions'>
+                  <Button className='action-button secondary' disabled={contentSavingItemId === selectedItem.id} onClick={() => cancelContentEditor(selectedItem.id)}>取消</Button>
+                  <Button className='action-button primary' disabled={contentSavingItemId === selectedItem.id} onClick={() => saveItemContent(selectedItem.id)}>{contentSavingItemId === selectedItem.id ? '正在保存…' : '保存说明'}</Button>
+                </View>
+              </View> : <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
+            </View>}
 
-            {methodApplicationContextResult?.status === 'no-association' && <View className='method-application-context unavailable'><Text>本次事项未关联方法。</Text></View>}
             {methodContextAvailable && <View className='method-application-context'>
               <Text className='method-label'>本次行动使用的方法</Text>
               <Text>{methodApplicationContextResult.version.title} v{methodApplicationContextResult.application.methodVersion}</Text>
@@ -1444,6 +1518,20 @@ export default function IndexPage() {
                 ['下次调整', selectedReview.adjustment],
                 ['新想法', selectedReview.newIdeas],
               ] as Array<[string, string]>).filter(([, value]) => value).map(([label, value]) => <View className='review-record-row' key={label}><Text>{label}</Text><Text>{value}</Text></View>)}
+            </View>}
+
+            {!showTrash && contentBelowFacts && <View className={`detail-content-section detail-content-after-facts ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
+              <View className='detail-content-heading'>
+                <Text>补充说明</Text>
+                {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
+              </View>
+              {contentEditingItemId === selectedItem.id ? <View className='detail-content-editor'>
+                <textarea className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => updateContentDraft(selectedItem.id, event.currentTarget.value)} />
+                <View className='detail-content-editor-actions'>
+                  <Button className='action-button secondary' disabled={contentSavingItemId === selectedItem.id} onClick={() => cancelContentEditor(selectedItem.id)}>取消</Button>
+                  <Button className='action-button primary' disabled={contentSavingItemId === selectedItem.id} onClick={() => saveItemContent(selectedItem.id)}>{contentSavingItemId === selectedItem.id ? '正在保存…' : '保存说明'}</Button>
+                </View>
+              </View> : <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
             </View>}
 
             {showTrash ? <View className='action-stack'>
@@ -1537,7 +1625,7 @@ export default function IndexPage() {
                 <Text className='method-label'>补充说明</Text><Text className='method-value'>{method.applicable || '暂无补充说明'}</Text>
                 {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
                 <View className={`method-apply-button ${applyingMethodId === method.id ? 'active' : ''}`} onClick={() => openMethodApplication(method)}><Text>{applyingMethodId === method.id ? '取消创建行动' : '用此方法开始行动'}</Text></View>
-                {applyingMethodId === method.id && <View className='method-apply-form'><Input className='method-action-input' value={methodActionTitle} maxlength={120} placeholder='这次具体要完成什么' onInput={(event) => setMethodActionTitle(event.detail.value)} /><Textarea className='method-action-textarea' value={methodActionContent} maxlength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.detail.value)} /><View className={`method-action-submit ${methodActionTitle.trim() && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View></View>}
+                {applyingMethodId === method.id && <View className='method-apply-form'><input className='method-action-input' value={methodActionTitle} maxLength={120} placeholder='这次具体要完成什么' onInput={(event) => setMethodActionTitle(event.currentTarget.value)} /><textarea className='method-action-textarea' value={methodActionContent} maxLength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.currentTarget.value)} /><View className={`method-action-submit ${methodActionTitle.trim() && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View></View>}
                 <View className={`method-evidence-button ${expandedEvidenceMethodId === method.id ? 'active' : ''}`} onClick={() => toggleMethodEvidence(method.id)}><Text>{expandedEvidenceMethodId === method.id ? '收起来源与验证证据' : '查看来源与验证证据'}</Text></View>
                 {expandedEvidenceMethodId === method.id && <View className='method-evidence-panel'><Text className='method-evidence-title'>来源与验证证据</Text>{methodEvidenceLoading ? <Text className='method-evidence-state'>正在读取证据…</Text> : methodEvidenceError ? <Text className='method-evidence-state error'>{methodEvidenceError}</Text> : methodEvidenceDetails.length === 0 ? <Text className='method-evidence-state'>暂无来源与验证证据</Text> : <View className='method-evidence-list'>{methodEvidenceDetails.map((evidence) => <View className='method-evidence-entry' key={evidence.evidenceId}><View className='method-evidence-entry-heading'><Text className={`method-evidence-relation ${evidence.relation}`}>{evidenceRelationLabels[evidence.relation]}</Text><Text className='method-evidence-time'>{formatTime(evidence.reviewCreatedAt)}</Text></View><Text className='method-evidence-item'>{evidence.itemTitle}</Text><Text className='method-evidence-summary'>{formatEvidenceSummary(evidence.reviewSummary)}</Text>{evidence.methodVersion !== undefined && <Text className='method-evidence-version'>对应方法版本 v{evidence.methodVersion}</Text>}{evidence.relation === 'unknown' && <Text className='method-evidence-unknown'>关系类型无法从旧数据中确定</Text>}</View>)}</View>}</View>}
                 <View className={`method-history-button ${expanded ? 'active' : ''}`} onClick={() => toggleMethodHistory(method.id)}><Text>{expanded ? '收起版本历史' : `查看版本历史（${method.version}）`}</Text></View>

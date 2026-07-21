@@ -432,6 +432,10 @@ export class ItemApplicationService {
     return item
   }
 
+  updateItemContent(id: string, content: string): Promise<Item> {
+    return this.repository.updateContent(id, { content })
+  }
+
   changeStatus(id: string, status: ItemStatus): Promise<Item> {
     return this.repository.changeStatus(id, status)
   }
