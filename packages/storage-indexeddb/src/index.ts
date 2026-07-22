@@ -12,9 +12,11 @@ import type {
   DashboardSnapshot,
   Item,
   ItemLink,
+  ItemMethodSourceDisplay,
   ItemRepository,
   ItemStatus,
   ItemStatusEvent,
+  StartItemExecutionInput,
   UpdateItemContentInput,
   Method,
   MethodApplication,
@@ -238,6 +240,33 @@ export class IndexedDbItemRepository implements ItemRepository {
     })
   }
 
+  async startExecution(id: string, input?: StartItemExecutionInput): Promise<Item> {
+    return this.database.transaction('rw', [this.database.items, this.database.itemStatusEvents], async () => {
+      const item = await this.database.items.get(id)
+      if (!item || item.deletedAt) throw new Error('事项不存在')
+      assertTransition(item.status, 'doing')
+      if (item.startAction !== undefined) throw new Error('启动动作已存在，不能重写')
+
+      const startAction = input?.startAction?.trim() || undefined
+      const now = new Date().toISOString()
+      const updated: Item = {
+        ...item,
+        status: 'doing',
+        ...(startAction ? { startAction } : {}),
+        updatedAt: now,
+      }
+      await this.database.items.put(updated)
+      await this.database.itemStatusEvents.add({
+        id: createId(),
+        itemId: item.id,
+        fromStatus: item.status,
+        toStatus: 'doing',
+        createdAt: now,
+      })
+      return updated
+    })
+  }
+
   async updateContent(id: string, input: UpdateItemContentInput): Promise<Item> {
     return this.database.transaction('rw', this.database.items, async () => {
       const item = await this.database.items.get(id)
@@ -435,6 +464,50 @@ export class IndexedDbMethodApplicationRepository implements MethodApplicationRe
     return result.status === 'available'
       ? { application: result.application, method: result.method, version: result.version }
       : undefined
+  }
+
+  async listSourceDisplaysForItems(itemIds: string[]): Promise<ItemMethodSourceDisplay[]> {
+    const uniqueItemIds = [...new Set(itemIds.filter(Boolean))]
+    if (!uniqueItemIds.length) return []
+
+    return this.database.transaction('r', [this.database.methodApplications, this.database.methods, this.database.methodVersions, this.database.methodTombstones], async () => {
+      const applications = (await Promise.all(
+        uniqueItemIds.map((itemId) => this.database.methodApplications.where('itemId').equals(itemId).first()),
+      )).filter((application): application is MethodApplication => Boolean(application))
+      const methodIds = [...new Set(applications.map((application) => application.methodId))]
+      const [methods, tombstones, versions] = await Promise.all([
+        this.database.methods.bulkGet(methodIds),
+        this.database.methodTombstones.bulkGet(methodIds),
+        Promise.all(applications.map((application) => this.database.methodVersions
+          .where('[methodId+version]')
+          .equals([application.methodId, application.methodVersion])
+          .first())),
+      ])
+      const methodById = new Map(methods.filter((method): method is Method => Boolean(method)).map((method) => [method.id, method]))
+      const tombstoneById = new Map(tombstones.filter((tombstone): tombstone is MethodTombstone => Boolean(tombstone)).map((tombstone) => [tombstone.methodId, tombstone]))
+      const versionByApplicationItemId = new Map<string, MethodVersion>()
+      applications.forEach((application, index) => {
+        const version = versions[index]
+        if (version) versionByApplicationItemId.set(application.itemId, version)
+      })
+      const applicationByItemId = new Map(applications.map((application) => [application.itemId, application]))
+
+      return uniqueItemIds.map((itemId): ItemMethodSourceDisplay => {
+        const application = applicationByItemId.get(itemId)
+        if (!application) return { status: 'no-association', itemId }
+        const method = methodById.get(application.methodId)
+        const version = versionByApplicationItemId.get(itemId)
+        const tombstone = tombstoneById.get(application.methodId)
+        if (method && version) return method.deletedAt
+          ? { status: 'method-in-trash', itemId, title: method.title }
+          : { status: 'available', itemId, title: method.title }
+        if (!method && tombstone && tombstone.versions.some(({ version: value }) => value === application.methodVersion)) {
+          return { status: 'method-purged', itemId, title: tombstone.title }
+        }
+        const title = method?.title ?? version?.title
+        return title ? { status: 'unavailable', itemId, title } : { status: 'unavailable', itemId }
+      })
+    })
   }
 
   async getContextResultByItemId(itemId: string): Promise<MethodApplicationContextResult> {

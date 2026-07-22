@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import { BackupApplicationService, DashboardApplicationService, ItemApplicationService, MethodApplicationService, MethodLifecycleApplicationService, ReviewApplicationService, SearchApplicationService, TrashApplicationService, type ItemAction } from '@knowledge-base/application'
-import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter } from '@knowledge-base/contracts'
+import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, Item, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter } from '@knowledge-base/contracts'
 import { createIndexedDbRepository } from '@knowledge-base/storage-indexeddb'
 import { mergeUpdatedItemContentIntoList } from './item-content-state'
+import { canOpenStartConfirm, shouldDisplayStartAction, shouldInterceptStartAction, startFeedbackVisible } from './start-confirm-state'
+import { searchCollapseState, searchExitState, searchResultSelectionState, shouldOpenSearchResults } from './search-session-state'
 import './index.scss'
 
 
@@ -105,6 +107,23 @@ function formatEvidenceSummary(summary: string): string {
   return summary.split(' · ').filter((part, index, parts) => index === 0 || part !== parts[index - 1]).join(' · ')
 }
 
+function compactStartAction(value: string): string {
+  return value.length > 10 ? `${value.slice(0, 10)}…` : value
+}
+
+function compactMethodSourceTitle(value: string): string {
+  const characters = Array.from(value)
+  return characters.length > 10 ? `${characters.slice(0, 10).join('')}…` : value
+}
+
+function sourceDisplayText(display: ItemMethodSourceDisplay | undefined): string | undefined {
+  if (!display || display.status === 'no-association') return undefined
+  if (display.status === 'available') return `方法：${compactMethodSourceTitle(display.title)}`
+  if (display.status === 'method-in-trash') return `方法：${compactMethodSourceTitle(display.title)}（已移入回收站）`
+  if (display.status === 'method-purged') return `方法：${compactMethodSourceTitle(display.title)}（已永久清理）`
+  return display.title ? `方法：${compactMethodSourceTitle(display.title)}（已不可用）` : '关联方法已不可用'
+}
+
 function remainingTrashDays(deletedAt: string): number {
   return Math.max(1, 30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000))
 }
@@ -122,7 +141,13 @@ export default function IndexPage() {
   const backupApplication = useMemo(() => new BackupApplicationService(storage.backupRepository), [storage])
   const dashboardApplication = useMemo(() => new DashboardApplicationService(storage.dashboardRepository), [storage])
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searchExpanded, setSearchExpanded] = useState(false)
+  const [searchResultsOpen, setSearchResultsOpen] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchTriggerRef = useRef<HTMLElement>()
+  const searchControlRef = useRef<HTMLDivElement>(null)
+  const [searchResults, setSearchResults] = useState<SearchResult[]>()
   const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
   const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
   const captureOriginModuleRef = useRef<PrimaryModule>('actions')
@@ -169,9 +194,24 @@ export default function IndexPage() {
   const [contentEditingItemId, setContentEditingItemId] = useState<string>()
   const [contentDraft, setContentDraft] = useState('')
   const [contentSavingItemId, setContentSavingItemId] = useState<string>()
+  const contentSavingItemIdRef = useRef<string>()
+  const [contentSaveError, setContentSaveError] = useState('')
+  const [contentSaveNotice, setContentSaveNotice] = useState('')
+  const contentEditorRef = useRef<HTMLDivElement>(null)
+  const contentInputRef = useRef<HTMLTextAreaElement>(null)
   const [selectedReview, setSelectedReview] = useState<Review>()
   const [statusEvents, setStatusEvents] = useState<ItemStatusEvent[]>([])
   const [timelineOpen, setTimelineOpen] = useState(false)
+  const [startConfirmItemId, setStartConfirmItemId] = useState<string>()
+  const [startPrompt, setStartPrompt] = useState('')
+  const [startSubmitting, setStartSubmitting] = useState(false)
+  const [startConfirmError, setStartConfirmError] = useState('')
+  const [startSaveFailed, setStartSaveFailed] = useState(false)
+  const [startActionPreview, setStartActionPreview] = useState<string>()
+  const startPromptRef = useRef<HTMLTextAreaElement>(null)
+  const [startedFeedbackItemId, setStartedFeedbackItemId] = useState<string>()
+  const startConfirmRef = useRef<HTMLDivElement>(null)
+  const startTriggerRef = useRef<HTMLElement>()
   const [pendingReviewLocation, setPendingReviewLocation] = useState(false)
   const [pendingMethodLocation, setPendingMethodLocation] = useState<string>()
   const [pendingMethodVersionLocation, setPendingMethodVersionLocation] = useState<number>()
@@ -185,6 +225,8 @@ export default function IndexPage() {
   const methodDraftsRef = useRef<Record<string, Partial<Record<'create' | 'validate', typeof emptyMethod>>>>({})
   const reviewMethodSelectionsRef = useRef<Record<string, string>>({})
   const [methodApplicationContextResult, setMethodApplicationContextResult] = useState<MethodApplicationContextResult>()
+  const [methodSourceDisplays, setMethodSourceDisplays] = useState<Record<string, ItemMethodSourceDisplay>>({})
+  const methodSourceDisplayRequestId = useRef(0)
   const [methodApplicationContextError, setMethodApplicationContextError] = useState('')
   const [applyingMethodId, setApplyingMethodId] = useState<string>()
   const [methodActionTitle, setMethodActionTitle] = useState('')
@@ -194,9 +236,12 @@ export default function IndexPage() {
   const [restoring, setRestoring] = useState(false)
 
   const selectedItem = (showTrash ? trashItems : items).find((item) => item.id === selectedId)
+  const startConfirmItem = items.find((item) => item.id === startConfirmItemId)
   const visibleItems = showTrash ? trashItems : filter ? items.filter((item) => item.status === filter) : items
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE))
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  const visibleMethodSourceItemIds = useMemo(() => pagedItems.map((item) => item.id), [pagedItems])
+  const visibleMethodSourceItemIdsKey = visibleMethodSourceItemIds.join('\u0000')
   const hasCaptureContent = Boolean(title.trim() || content.trim())
   const captureLocked = restoring || Boolean(pendingBackup)
   const contentBelowFacts = selectedItem?.status === 'waiting_review'
@@ -281,6 +326,28 @@ export default function IndexPage() {
   }, [storage])
 
   useEffect(() => {
+    if (!searchExpanded) return
+    const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus())
+    return () => window.cancelAnimationFrame(frame)
+  }, [searchExpanded])
+
+  useEffect(() => {
+    if (!searchExpanded) return
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!searchControlRef.current?.contains(event.target as Node)) collapseSearch()
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') collapseSearch()
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    window.addEventListener('keydown', closeOnEscape, true)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      window.removeEventListener('keydown', closeOnEscape, true)
+    }
+  }, [searchExpanded])
+
+  useEffect(() => {
     if (activeGlobalTool !== 'capture' || captureLocked) return
     const frame = window.requestAnimationFrame(() => captureInputRef.current?.focus())
     return () => window.cancelAnimationFrame(frame)
@@ -302,8 +369,19 @@ export default function IndexPage() {
 
   useEffect(() => {
     let active = true
+    if (!searchQuery.trim()) {
+      setSearchResults([])
+      setSearchError('')
+      return () => { active = false }
+    }
+    setSearchResults(undefined)
+    setSearchError('')
     searchApplication.search(searchQuery).then((results) => active && setSearchResults(results)).catch((error: unknown) => {
-      if (active) setMessage(error instanceof Error ? error.message : '搜索失败')
+      if (active) {
+        setSearchResults([])
+        setSearchError('搜索暂不可用，请重试。')
+        setMessage(error instanceof Error ? error.message : '搜索失败')
+      }
     })
     return () => { active = false }
   }, [searchQuery, searchApplication, items, methods])
@@ -339,6 +417,51 @@ export default function IndexPage() {
   }, [activeModule, trashApplication, trashFilter])
 
   useEffect(() => {
+    if (!startActionPreview) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setStartActionPreview(undefined)
+      }
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [startActionPreview])
+
+  useEffect(() => {
+    if (!contentEditingItemId) return
+    const frame = window.requestAnimationFrame(() => {
+      const input = contentInputRef.current
+      if (!input) return
+      input.focus()
+      input.setSelectionRange(input.value.length, input.value.length)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [contentEditingItemId])
+
+  useEffect(() => {
+    if (!contentEditingItemId) return
+    const requestContentLeave = () => requestLeaveContentEditor(contentEditingItemId)
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      requestContentLeave()
+    }
+    const cancelOnOutsideClick = (event: MouseEvent) => {
+      if (contentEditorRef.current?.contains(event.target as Node)) return
+      requestContentLeave()
+    }
+    window.addEventListener('keydown', cancelOnEscape)
+    document.addEventListener('click', cancelOnOutsideClick)
+    return () => {
+      window.removeEventListener('keydown', cancelOnEscape)
+      document.removeEventListener('click', cancelOnOutsideClick)
+    }
+  }, [contentEditingItemId])
+
+
+
+  useEffect(() => {
     if (!selectedId) { setSelectedReview(undefined); return }
     reviewApplication.getReviewForItem(selectedId).then(setSelectedReview).catch((error: unknown) => {
       setMessage(error instanceof Error ? error.message : '读取复盘失败')
@@ -351,6 +474,55 @@ export default function IndexPage() {
       setMessage(error instanceof Error ? error.message : '读取流转历史失败')
     })
   }, [selectedId, application, items])
+
+  useEffect(() => {
+    if (!startConfirmItemId) return
+    if (!canOpenStartConfirm(startConfirmItem)) {
+      setStartConfirmItemId(undefined)
+      setStartPrompt('')
+      setStartConfirmError('')
+    }
+  }, [startConfirmItem, startConfirmItemId])
+
+  useEffect(() => {
+    if (!startConfirmItemId) return
+    const frame = window.requestAnimationFrame(() => startPromptRef.current?.focus())
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !startSubmitting) {
+        event.preventDefault()
+        closeStartConfirm()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = startConfirmRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), textarea:not(:disabled)')
+      if (!focusable?.length) return
+      const first = focusable[0]!
+      const last = focusable[focusable.length - 1]!
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [startConfirmItemId, startSubmitting])
+
+  useEffect(() => {
+    if (!startedFeedbackItemId) return
+    const timer = window.setTimeout(() => setStartedFeedbackItemId(undefined), 3000)
+    return () => window.clearTimeout(timer)
+  }, [startedFeedbackItemId])
+
+  useEffect(() => {
+    if (!selectedId || selectedId === startConfirmItemId) return
+    if (!startSubmitting) closeStartConfirm()
+  }, [selectedId])
 
   useEffect(() => {
     if (!timelineOpen) return
@@ -380,8 +552,10 @@ export default function IndexPage() {
   }, [selectedId])
 
   useEffect(() => {
+    setSearchResultsOpen(false)
     setTimelineOpen(false)
     setContentEditingItemId(undefined)
+    setStartActionPreview(undefined)
     setContentDraft(selectedId ? contentDraftsRef.current[selectedId] ?? '' : '')
     setMethodMode('none')
     setSelectedMethodId('')
@@ -389,6 +563,13 @@ export default function IndexPage() {
     setMethodForm(emptyMethod)
     setReviewError('')
   }, [selectedId])
+
+  useEffect(() => {
+    if (!contentSaveNotice) return
+    const timer = window.setTimeout(() => setContentSaveNotice(''), 1800)
+    return () => window.clearTimeout(timer)
+  }, [contentSaveNotice])
+
 
   useEffect(() => {
     if (reviewLeaveConfirm) document.getElementById('review-leave-continue')?.focus()
@@ -443,7 +624,26 @@ export default function IndexPage() {
   }, [])
 
   useEffect(() => {
-    if (!selectedId) { setMethodApplicationContextResult(undefined); setMethodApplicationContextError(''); return }
+    const requestId = methodSourceDisplayRequestId.current + 1
+    methodSourceDisplayRequestId.current = requestId
+    if (!visibleMethodSourceItemIds.length) {
+      setMethodSourceDisplays({})
+      return
+    }
+    setMethodSourceDisplays({})
+    methodApplication.listSourceDisplaysForItems(visibleMethodSourceItemIds).then((displays) => {
+      if (methodSourceDisplayRequestId.current !== requestId) return
+      setMethodSourceDisplays(Object.fromEntries(displays.map((display) => [display.itemId, display])))
+    }).catch(() => {
+      if (methodSourceDisplayRequestId.current === requestId) setMessage('方法来源信息暂不可用')
+    })
+  }, [methodApplication, visibleMethodSourceItemIdsKey])
+  useEffect(() => {
+    if (!selectedId || (selectedItem?.status !== 'waiting_review' && selectedItem?.status !== 'reviewed')) {
+      setMethodApplicationContextResult(undefined)
+      setMethodApplicationContextError('')
+      return
+    }
     let active = true
     setMethodApplicationContextResult(undefined)
     setMethodApplicationContextError('')
@@ -459,7 +659,7 @@ export default function IndexPage() {
       if (active) setMethodApplicationContextError('关联方法信息暂不可用；不影响完成事实复盘。')
     })
     return () => { active = false }
-  }, [selectedId, methodApplication])
+  }, [selectedId, selectedItem?.status, methodApplication])
 
   useEffect(() => {
     if (!selectedId) return
@@ -550,6 +750,8 @@ export default function IndexPage() {
     if (!selectedItem || selectedItem.deletedAt) return
     const draft = contentDraftsRef.current[selectedItem.id] ?? selectedItem.content
     contentDraftsRef.current[selectedItem.id] = draft
+    setContentSaveError('')
+    setContentSaveNotice('')
     setContentDraft(draft)
     setContentEditingItemId(selectedItem.id)
   }
@@ -559,17 +761,43 @@ export default function IndexPage() {
     if (selectedIdRef.current === itemId) setContentDraft(value)
   }
 
-  const cancelContentEditor = (itemId: string) => {
+  const requestLeaveContentEditor = async (itemId: string, action?: () => void) => {
+    const draft = contentDraftsRef.current[itemId] ?? ''
+    const savedContent = items.find((item) => item.id === itemId)?.content ?? ''
+    if (draft === savedContent) {
+      closeContentEditor(itemId)
+      action?.()
+      return true
+    }
+    const saved = await saveItemContent(itemId)
+    if (saved) action?.()
+    return saved
+  }
+
+  const requestLeaveAllDrafts = (action: () => void) => {
+    requestLeaveReview(() => {
+      if (!contentEditingItemId) { action(); return }
+      void requestLeaveContentEditor(contentEditingItemId, action)
+    })
+  }
+
+  const closeContentEditor = (itemId: string) => {
     delete contentDraftsRef.current[itemId]
     if (contentEditingItemId === itemId) {
       setContentEditingItemId(undefined)
       setContentDraft('')
+      setContentSaveError('')
     }
   }
 
-  const saveItemContent = async (itemId: string) => {
-    if (contentSavingItemId === itemId) return
+  const retrySaveItemContent = () => {
+    if (contentEditingItemId) void saveItemContent(contentEditingItemId)
+  }
+
+  const saveItemContent = async (itemId: string): Promise<boolean> => {
+    if (contentSavingItemIdRef.current === itemId) return false
     const submittedDraft = contentDraftsRef.current[itemId] ?? ''
+    contentSavingItemIdRef.current = itemId
     setContentSavingItemId(itemId)
     try {
       const updatedItem = await application.updateItemContent(itemId, submittedDraft)
@@ -581,19 +809,21 @@ export default function IndexPage() {
           setContentDraft('')
         }
       }
+      setContentSaveError('')
+      setContentSaveNotice('已保存')
       setMessage('补充说明已保存')
-    } catch (error: unknown) {
-      const reason = error instanceof Error ? error.message : '存储写入失败'
-      const explanation = reason === '事项不存在'
-        ? '事项不存在或已移入回收站'
-        : reason
-      setMessage(`保存失败：${explanation}，未保存说明已保留`)
+      return true
+    } catch {
+      setContentSaveError('未能保存，请重试。')
+      setMessage('未能保存，请重试。')
+      return false
     } finally {
+      if (contentSavingItemIdRef.current === itemId) contentSavingItemIdRef.current = undefined
       setContentSavingItemId((current) => current === itemId ? undefined : current)
     }
   }
 
-  const locateActiveItem = (itemId: string, sourceItems = items, review = false) => {
+  const locateActiveItemNow = (itemId: string, sourceItems = items, review = false) => {
     const item = sourceItems.find((entry) => entry.id === itemId && !entry.deletedAt)
     setActiveModule('actions')
     setShowTrash(false)
@@ -614,6 +844,10 @@ export default function IndexPage() {
     return true
   }
 
+  const locateActiveItem = (itemId: string, sourceItems = items, review = false) => {
+    requestLeaveAllDrafts(() => locateActiveItemNow(itemId, sourceItems, review))
+  }
+
   const selectWorkspaceMethod = (methodId: string) => {
     evidenceRequestId.current += 1
     setSelectedWorkspaceMethodId(methodId)
@@ -623,7 +857,7 @@ export default function IndexPage() {
     setMethodEvidenceError('')
   }
 
-  const loadAndLocateMethod = async (methodId: string, methodVersion?: number) => {
+  const loadAndLocateMethodNow = async (methodId: string, methodVersion?: number) => {
     const method = methods.find((entry) => entry.id === methodId)
     setActiveModule('methods')
     setMethodSearchQuery('')
@@ -647,13 +881,17 @@ export default function IndexPage() {
     setPendingMethodLocation(methodId)
   }
 
-  const navigateTo = (target: NavigationTarget) => {
+  const loadAndLocateMethod = (methodId: string, methodVersion?: number) => {
+    requestLeaveAllDrafts(() => { void run(() => loadAndLocateMethodNow(methodId, methodVersion)) })
+  }
+
+  const navigateToNow = (target: NavigationTarget) => {
     if (target.type === 'item') {
-      locateActiveItem(target.itemId)
+      locateActiveItemNow(target.itemId)
       return
     }
     if (target.type === 'review') {
-      locateActiveItem(target.itemId, items, true)
+      locateActiveItemNow(target.itemId, items, true)
       return
     }
     if (target.type === 'backlog') {
@@ -666,10 +904,48 @@ export default function IndexPage() {
       setPendingReviewLocation(false)
       return
     }
-    run(() => loadAndLocateMethod(target.methodId, target.methodVersion))
+    run(() => loadAndLocateMethodNow(target.methodId, target.methodVersion))
+  }
+
+  const navigateTo = (target: NavigationTarget) => {
+    requestLeaveAllDrafts(() => navigateToNow(target))
+  }
+
+  const openSearch = () => {
+    requestLeaveAllDrafts(() => openSearchNow())
+  }
+
+  const openSearchNow = () => {
+    if (restoring) return
+    searchTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    setSearchExpanded(true)
+    setSearchResultsOpen(shouldOpenSearchResults(searchQuery))
+  }
+
+  const collapseSearch = () => {
+    const next = searchCollapseState()
+    setSearchResultsOpen(next.resultsOpen)
+    setSearchExpanded(next.expanded)
+  }
+
+  const exitSearch = () => {
+    const next = searchExitState()
+    setSearchQuery(next.query)
+    setSearchResultsOpen(next.resultsOpen)
+    setSearchExpanded(next.expanded)
+    window.requestAnimationFrame(() => searchTriggerRef.current?.focus())
+  }
+
+  const updateSearchQuery = (value: string) => {
+    setSearchQuery(value)
+    setSearchError('')
+    setSearchResultsOpen(shouldOpenSearchResults(value))
   }
 
   const locateSearchResult = (result: SearchResult) => {
+    const next = searchResultSelectionState()
+    setSearchResultsOpen(next.resultsOpen)
+    setSearchExpanded(next.expanded)
     if (result.type === 'review' && result.itemId) {
       navigateTo({ type: 'review', itemId: result.itemId })
       return
@@ -684,28 +960,37 @@ export default function IndexPage() {
   const locateDashboardRecord = (metric: DashboardMetricKey, record: DashboardReport['metricRecords'][DashboardMetricKey][number]) => {
     if (metric === 'newMethods' || metric === 'methodValidations' || metric === 'methodRevisions') {
       if (!record.methodId) {
-        setActiveModule('methods')
-        setExpandedMethodId(undefined)
-        setPendingMethodLocation(undefined)
-        setMessage('目标方法不存在或已删除')
+        requestLeaveAllDrafts(() => {
+          setActiveModule('methods')
+          setExpandedMethodId(undefined)
+          setPendingMethodLocation(undefined)
+          setMessage('目标方法不存在或已删除')
+        })
         return
       }
       navigateTo({ type: 'method', methodId: record.methodId })
       return
     }
     if (!record.itemId) {
-      setActiveModule('actions')
-      setShowTrash(false)
-      setFilter(undefined)
-      setSelectedId(undefined)
-      setPendingReviewLocation(false)
-      setMessage('目标记录不存在或已删除')
+      requestLeaveAllDrafts(() => {
+        setActiveModule('actions')
+        setShowTrash(false)
+        setFilter(undefined)
+        setSelectedId(undefined)
+        setPendingReviewLocation(false)
+        setMessage('目标记录不存在或已删除')
+      })
       return
     }
     navigateTo({ type: metric === 'completedReviews' ? 'review' : 'item', itemId: record.itemId })
   }
 
   const openCapture = () => {
+    requestLeaveAllDrafts(() => openCaptureNow())
+  }
+
+  const openCaptureNow = () => {
+    setSearchResultsOpen(false)
     if (captureLocked) {
       setMessage(restoring ? '正在恢复数据，暂不可使用快速捕获' : '请先完成或取消当前恢复确认')
       return
@@ -747,38 +1032,94 @@ export default function IndexPage() {
     setMessage(`已创建“${item.title}”`)
   })
 
-  const changeStatus = (action: ItemAction) => run(async () => {
-    if (!selectedItem) return
-    await application.changeStatus(selectedItem.id, action.status)
-    await refresh(selectedItem.id)
-  })
+  const closeStartConfirm = () => {
+    if (startSubmitting) return
+    setStartConfirmItemId(undefined)
+    setStartPrompt('')
+    setStartConfirmError('')
+    setStartSaveFailed(false)
+    window.requestAnimationFrame(() => startTriggerRef.current?.focus())
+  }
 
-  const removeSelected = () => run(async () => {
-    if (!selectedItem) return
-    await application.deleteItem(selectedItem.id)
-    setDeleteConfirm(false)
-    setSelectedId(undefined)
-    await refresh(undefined)
-    setMessage('事项已移入回收站，30 天内可以恢复')
-  })
+  const openStartConfirm = () => {
+    if (!canOpenStartConfirm(selectedItem)) return
+    startTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    setStartConfirmItemId(selectedItem.id)
+    setStartPrompt('')
+    setStartConfirmError('')
+    setStartSaveFailed(false)
+  }
 
-  const restoreSelected = () => run(async () => {
-    if (!selectedItem) return
-    const restored = await application.restoreItem(selectedItem.id)
-    setShowTrash(false)
-    setFilter(undefined)
-    await refresh(restored.id)
-    setMessage(`“${restored.title}”已恢复`)
-  })
+  const confirmStart = async (withoutSaving = false) => {
+    const item = startConfirmItem
+    if (!canOpenStartConfirm(item) || startSubmitting) return
+    const submittedPrompt = startPrompt
+    const hasStartAction = Boolean(submittedPrompt.trim())
+    setStartSubmitting(true)
+    setStartConfirmError('')
+    try {
+      if (withoutSaving) await application.changeStatus(item.id, 'doing')
+      else if (hasStartAction) await application.startExecution(item.id, submittedPrompt)
+      else await application.startExecution(item.id)
+      setFilter('doing')
+      setCurrentPage(1)
+      await refresh(item.id)
+      setStartConfirmItemId(undefined)
+      setStartPrompt('')
+      setStartSaveFailed(false)
+      setStartedFeedbackItemId(item.id)
+    } catch (error: unknown) {
+      setStartConfirmError(withoutSaving ? '未能直接开始，请重试。' : error instanceof Error ? error.message : '未能开始推进，请重试。')
+      setStartSaveFailed(!withoutSaving && hasStartAction)
+    } finally {
+      setStartSubmitting(false)
+    }
+  }
 
-  const restoreTrashEntry = (entry: TrashEntry) => run(async () => {
-    if (entry.type === 'item') await application.restoreItem(entry.id)
-    else await methodLifecycleApplication.restore(entry.id)
-    const entries = await trashApplication.listTrashEntries(trashFilter)
-    setTrashEntries(entries)
-    await refresh()
-    setMessage(`“${entry.title}”已恢复`)
-  })
+  const changeStatus = (action: ItemAction) => {
+    requestLeaveAllDrafts(() => run(async () => {
+      if (!selectedItem) return
+      await application.changeStatus(selectedItem.id, action.status)
+      if (selectedItem.status === 'doing' && action.status === 'waiting_review') {
+        setFilter('waiting_review')
+        setCurrentPage(1)
+      }
+      await refresh(selectedItem.id)
+    }))
+  }
+
+  const removeSelected = () => {
+    requestLeaveAllDrafts(() => run(async () => {
+      if (!selectedItem) return
+      await application.deleteItem(selectedItem.id)
+      setDeleteConfirm(false)
+      setSelectedId(undefined)
+      await refresh(undefined)
+      setMessage('事项已移入回收站，30 天内可以恢复')
+    }))
+  }
+
+  const restoreSelected = () => {
+    requestLeaveAllDrafts(() => run(async () => {
+      if (!selectedItem) return
+      const restored = await application.restoreItem(selectedItem.id)
+      setShowTrash(false)
+      setFilter(undefined)
+      await refresh(restored.id)
+      setMessage(`“${restored.title}”已恢复`)
+    }))
+  }
+
+  const restoreTrashEntry = (entry: TrashEntry) => {
+    requestLeaveAllDrafts(() => run(async () => {
+      if (entry.type === 'item') await application.restoreItem(entry.id)
+      else await methodLifecycleApplication.restore(entry.id)
+      const entries = await trashApplication.listTrashEntries(trashFilter)
+      setTrashEntries(entries)
+      await refresh()
+      setMessage(`“${entry.title}”已恢复`)
+    }))
+  }
 
   const moveMethodToTrash = () => run(async () => {
     if (!methodTrashConfirmId) return
@@ -1187,13 +1528,13 @@ export default function IndexPage() {
           {(['actions', 'methods', 'insights'] as PrimaryModule[]).map((module) => <View
             key={module}
             className={`navigation-item ${activeModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) requestLeaveReview(() => setActiveModule(module)) }}
+            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule(module)) }}
           ><Text>{moduleLabels[module]}</Text></View>)}
         </View>
         <View className='navigation-group navigation-settings'>
           <View
             className={`navigation-item ${activeModule === 'settings' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) requestLeaveReview(() => setActiveModule('settings')) }}
+            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('settings')) }}
           ><Text>数据与设置</Text></View>
         </View>
         <View className='navigation-status'><View className='status-dot' /><View><Text>本地数据正常</Text><Text>{items.length} 条事项 · {methods.length} 条方法</Text></View></View>
@@ -1203,32 +1544,30 @@ export default function IndexPage() {
         <View className='global-header'>
           <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{restoring ? '正在安全恢复数据，请勿离开' : message}</Text></View>
           <View className='global-actions'>
-            <View className={`global-tool-button ${activeGlobalTool === 'search' ? 'active' : ''}`} onClick={() => { if (!restoring) setActiveGlobalTool((current) => current === 'search' ? undefined : 'search') }}><Text>全局搜索</Text></View>
+            <View className='global-search-control' ref={searchControlRef}>
+              {searchExpanded ? <View className='global-search-expanded'>
+                <input ref={searchInputRef} className='global-search-input' value={searchQuery} maxLength={120} placeholder='搜索事项、复盘或方法' onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
+                <button type='button' className='global-search-exit' aria-label='退出全局搜索' onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); exitSearch() }}>×</button>
+              </View> : <View className={`global-tool-button ${searchQuery.trim() ? 'has-draft' : ''}`} onClick={openSearch}><Text>全局搜索</Text></View>}
+              {searchExpanded && searchResultsOpen && searchQuery.trim() && <View className='search-results-popover' role='dialog' aria-label='搜索结果'>
+                {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method'] as const).map((type) => {
+                  const grouped = searchResults.filter((result) => result.type === type)
+                  if (!grouped.length) return null
+                  return <View className='search-group' key={type}>
+                    <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : '方法'} · {grouped.length}</Text>
+                    {grouped.map((result) => <View className='search-result' key={result.id} onClick={() => locateSearchResult(result)}>
+                      <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
+                      <Text className='search-result-action'>{result.methodVersion ? `定位 v${result.methodVersion}` : '定位'}</Text>
+                    </View>)}
+                  </View>
+                })}
+              </View>}
+            </View>
             <View className={`global-tool-button primary ${captureLocked ? 'disabled' : ''}`} onClick={openCapture}><Text>＋ 快速捕获</Text></View>
           </View>
         </View>
 
         <View className='page'>
-      {activeGlobalTool === 'search' && <View className='search-panel global-tool-panel'>
-        <View className='search-heading'><Text className='section-kicker'>全局搜索</Text><Text>查找事项、复盘、当前方法与历史版本</Text></View>
-        <View className='search-input-row'>
-          <Input className='search-input' value={searchQuery} maxlength={120} placeholder='输入关键词，例如：练字、启动、低能量' onInput={(event) => setSearchQuery(event.detail.value)} />
-          {searchQuery && <View className='search-clear' onClick={() => setSearchQuery('')}><Text>清空</Text></View>}
-        </View>
-        {searchQuery.trim() && <View className='search-results'>
-          {searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method'] as const).map((type) => {
-            const grouped = searchResults.filter((result) => result.type === type)
-            if (!grouped.length) return null
-            return <View className='search-group' key={type}>
-              <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : '方法'} · {grouped.length}</Text>
-              {grouped.map((result) => <View className='search-result' key={result.id} onClick={() => locateSearchResult(result)}>
-                <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
-                <Text className='search-result-action'>{result.methodVersion ? `定位 v${result.methodVersion}` : '定位'}</Text>
-              </View>)}
-            </View>
-          })}
-        </View>}
-      </View>}
 
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
         <View className='capture-modal' role='dialog' aria-label='快速捕获'>
@@ -1335,7 +1674,7 @@ export default function IndexPage() {
                 ['待复盘', dashboardReport.backlog.waitingReview, 'waiting_review'],
                 ['暂停', dashboardReport.backlog.paused, 'paused'],
                 ['以后再说', dashboardReport.backlog.ideaLater, 'idea_later'],
-              ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => navigateTo({ type: 'backlog', status })}><Text>{label}</Text><Text>{value} · 定位</Text></View>)}
+              ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => navigateTo({ type: 'backlog', status })}><Text>{label}</Text><Text>{value}</Text></View>)}
             </View>
 
             <View className='dashboard-section'>
@@ -1368,18 +1707,18 @@ export default function IndexPage() {
         <View className='list-panel'>
           <View className='panel-heading'><View><Text className='section-kicker'>{showTrash ? '回收站' : '事项池'}</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
           <View className='filter-header'>
-            {showTrash ? <Text className='filter-guidance'>删除后保留 30 天，之后自动永久清理</Text> : filter === 'abandoned' ? <><Text className='filter-guidance'>已放弃 · {abandonedItemCount} 件</Text><View className='more-status-actions'><View className='more-status-return' onClick={() => requestLeaveReview(() => { setFilter('idea_to_try'); setCurrentPage(1); setSelectedId(undefined) })}><Text>返回运行阶段</Text></View></View></> : <><Text className='filter-guidance'>按运行阶段查看</Text>{abandonedItemCount > 0 && <View className='more-status-actions' ref={moreStatusMenuRef}><View className={`more-status-trigger ${moreStatusMenuOpen ? 'active' : ''}`} onClick={() => setMoreStatusMenuOpen((open) => !open)}><Text>更多状态 ▾</Text></View>{moreStatusMenuOpen && <View className='more-status-menu'><View onClick={() => requestLeaveReview(() => { setMoreStatusMenuOpen(false); setFilter('abandoned'); setCurrentPage(1); setSelectedId(undefined) })}><Text>已放弃（{abandonedItemCount}）</Text></View></View>}</View>}</>}
+            {showTrash ? <Text className='filter-guidance'>删除后保留 30 天，之后自动永久清理</Text> : filter === 'abandoned' ? <><Text className='filter-guidance'>已放弃 · {abandonedItemCount} 件</Text><View className='more-status-actions'><View className='more-status-return' onClick={() => requestLeaveAllDrafts(() => { setFilter('idea_to_try'); setCurrentPage(1); setSelectedId(undefined) })}><Text>返回运行阶段</Text></View></View></> : <><Text className='filter-guidance'>按运行阶段查看</Text>{abandonedItemCount > 0 && <View className='more-status-actions' ref={moreStatusMenuRef}><View className={`more-status-trigger ${moreStatusMenuOpen ? 'active' : ''}`} onClick={() => setMoreStatusMenuOpen((open) => !open)}><Text>更多状态 ▾</Text></View>{moreStatusMenuOpen && <View className='more-status-menu'><View onClick={() => requestLeaveAllDrafts(() => { setMoreStatusMenuOpen(false); setFilter('abandoned'); setCurrentPage(1); setSelectedId(undefined) })}><Text>已放弃（{abandonedItemCount}）</Text></View></View>}</View>}</>}
           </View>
         {!showTrash && filter !== 'abandoned' && <View className='filter-groups'>
             {filterGroups.map((group) => <View className='filter-group' key={group.label}>
               <Text className='filter-group-label'>{group.label}</Text>
-              <View className='filters'>{group.entries.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => requestLeaveReview(() => { setFilter(entry.status); setCurrentPage(1); setSelectedId(undefined) })}><Text>{entry.label}</Text></View>)}</View>
+              <View className='filters'>{group.entries.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => requestLeaveAllDrafts(() => { setFilter(entry.status); setCurrentPage(1); setSelectedId(undefined) })}><Text>{entry.label}</Text></View>)}</View>
             </View>)}
           </View>}
           <View className='list'>
             {visibleItems.length === 0 ? <View className='empty'><Text>{showTrash ? '回收站是空的。' : '这个状态下还没有事项。'}</Text><Text>{showTrash ? '删除的事项会在这里保留 30 天。' : '先捕获一个真实想法，让系统开始运转。'}</Text></View> : pagedItems.map((item) => (
-              <View className={`item ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => requestLeaveReview(() => setSelectedId(item.id))}>
-                <View className='item-main'><Text className='item-title'>{item.title}</Text>{item.content && <Text className='item-content'>{item.content}</Text>}</View>
+              <View className={`item ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => requestLeaveAllDrafts(() => setSelectedId(item.id))}>
+                <View className='item-main'><Text className='item-title'>{item.title}</Text>{sourceDisplayText(methodSourceDisplays[item.id]) && <Text className='item-method-source'>{sourceDisplayText(methodSourceDisplays[item.id])}</Text>}</View>
                 <View className='item-meta'>{showTrash
                   ? <><Text className='trash-badge'>待清理</Text><Text className='time'>{Math.max(1, 30 - Math.floor((Date.now() - new Date(item.deletedAt ?? '').getTime()) / 86400000))} 天后清理</Text></>
                   : <><Text className={`status-badge status-${item.status}`}>{statusLabels[item.status]}</Text><Text className='time'>{formatTime(item.updatedAt)}</Text></>}</View>
@@ -1387,9 +1726,9 @@ export default function IndexPage() {
             ))}
           </View>
           {visibleItems.length > ITEMS_PER_PAGE && <View className='pagination'>
-            <View className={`pagination-button ${currentPage === 1 ? 'disabled' : ''}`} onClick={() => { if (currentPage > 1) requestLeaveReview(() => { setCurrentPage((page) => page - 1); setSelectedId(undefined) }) }}><Text>上一页</Text></View>
+            <View className={`pagination-button ${currentPage === 1 ? 'disabled' : ''}`} onClick={() => { if (currentPage > 1) requestLeaveAllDrafts(() => { setCurrentPage((page) => page - 1); setSelectedId(undefined) }) }}><Text>上一页</Text></View>
             <Text className='pagination-status'>第 {currentPage} / {totalPages} 页</Text>
-            <View className={`pagination-button ${currentPage === totalPages ? 'disabled' : ''}`} onClick={() => { if (currentPage < totalPages) requestLeaveReview(() => { setCurrentPage((page) => page + 1); setSelectedId(undefined) }) }}><Text>下一页</Text></View>
+            <View className={`pagination-button ${currentPage === totalPages ? 'disabled' : ''}`} onClick={() => { if (currentPage < totalPages) requestLeaveAllDrafts(() => { setCurrentPage((page) => page + 1); setSelectedId(undefined) }) }}><Text>下一页</Text></View>
           </View>}
         </View>
 
@@ -1402,7 +1741,9 @@ export default function IndexPage() {
                 <View className='detail-time'><Text>创建 {formatTime(selectedItem.createdAt)}</Text><Text>更新 {formatTime(selectedItem.updatedAt)}</Text></View>
               </View>
             </View>
-            {timelineOpen && <View className='status-timeline-drawer' role='dialog' aria-label='流转历史'>
+            {timelineOpen && <>
+              <View className='status-timeline-backdrop' onClick={() => setTimelineOpen(false)} />
+              <View className='status-timeline-drawer' role='dialog' aria-label='流转历史'>
               <View className='timeline-drawer-heading'><Text>流转历史</Text><View className='timeline-drawer-close' onClick={() => setTimelineOpen(false)}><Text>关闭</Text></View></View>
               <View className='status-timeline'>
               {statusEvents.length ? statusEvents.map((event) => <View className='timeline-entry' key={event.id}>
@@ -1413,32 +1754,39 @@ export default function IndexPage() {
                 </View>
               </View>) : <Text className='timeline-empty'>暂无流转记录。</Text>}
               </View>
+            </View>
+            </>}
+            <View className='detail-title-row'>
+              <Text className='detail-title'>{selectedItem.title}</Text>
+              {!showTrash && selectedItem.startAction?.trim() && <button className='detail-start-action-chip' type='button' onClick={() => setStartActionPreview(selectedItem.startAction)}><Text>{compactStartAction(selectedItem.startAction)}</Text></button>}
+            </View>
+            {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
+            {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>
+              <Text>✓ 已开始推进</Text>
+              <Text>现在先从一个小动作开始。</Text>
             </View>}
-            <Text className='detail-title'>{selectedItem.title}</Text>
-            {showTrash
-              ? <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>
-              : selectedItem.status !== 'idea_to_try' && <Text className={`detail-status status-${selectedItem.status}`}>{statusLabels[selectedItem.status]}</Text>}
-            {!contentBelowFacts && <View className={`detail-content-section ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
-              <View className='detail-content-heading'>
-                <Text>补充说明</Text>
-                {!showTrash && contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
-              </View>
-              {contentEditingItemId === selectedItem.id ? <View className='detail-content-editor'>
-                <textarea className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => updateContentDraft(selectedItem.id, event.currentTarget.value)} />
-                <View className='detail-content-editor-actions'>
-                  <Button className='action-button secondary' disabled={contentSavingItemId === selectedItem.id} onClick={() => cancelContentEditor(selectedItem.id)}>取消</Button>
-                  <Button className='action-button primary' disabled={contentSavingItemId === selectedItem.id} onClick={() => saveItemContent(selectedItem.id)}>{contentSavingItemId === selectedItem.id ? '正在保存…' : '保存说明'}</Button>
+            {!showTrash && !contentBelowFacts && <View className={`action-context-summary ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
+              <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => { if (contentEditingItemId !== selectedItem.id) { event.preventDefault(); openContentEditor() } }} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
+                <View className='detail-content-heading'>
+                  <Text className='detail-content-label'>补充：</Text>
+                  {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
+                  {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
                 </View>
-              </View> : <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
+                {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
+                  <textarea ref={contentInputRef} className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => updateContentDraft(selectedItem.id, event.currentTarget.value)} />
+                  {contentSaveError && <View className='detail-content-save-feedback error'><Text>{contentSaveError}</Text><Button className='detail-content-retry' disabled={contentSavingItemId === selectedItem.id} onClick={retrySaveItemContent}>重试</Button></View>}
+                </View>}
+              </div>
             </View>}
+            {!contentBelowFacts && contentSaveNotice && <Text className='detail-content-save-notice'>{contentSaveNotice}</Text>}
 
-            {methodContextAvailable && <View className='method-application-context'>
+            {(selectedItem.status === 'waiting_review' || selectedItem.status === 'reviewed') && methodContextAvailable && <View className='method-application-context'>
               <Text className='method-label'>本次行动使用的方法</Text>
               <Text>{methodApplicationContextResult.version.title} v{methodApplicationContextResult.application.methodVersion}</Text>
               {selectedItem.status === 'waiting_review' && <Text>你可以先完成事实复盘，再决定是否验证或修订该方法。</Text>}
             </View>}
-            {methodContextUnavailable && <View className='method-application-context unavailable'><Text>{unavailableMethodContextMessage}</Text></View>}
-            {methodContextLifecycleUnavailable && <View className='method-application-context unavailable'><Text>{lifecycleMethodContextMessage}</Text></View>}
+            {(selectedItem.status === 'waiting_review' || selectedItem.status === 'reviewed') && methodContextUnavailable && <View className='method-application-context unavailable'><Text>{unavailableMethodContextMessage}</Text></View>}
+            {(selectedItem.status === 'waiting_review' || selectedItem.status === 'reviewed') && methodContextLifecycleUnavailable && <View className='method-application-context unavailable'><Text>{lifecycleMethodContextMessage}</Text></View>}
 
             {!showTrash && selectedItem.status === 'waiting_review' && <View className='review-form' id='review-section'>
               <View className='review-heading'><View><Text className='section-kicker'>完成复盘</Text><Text className='review-title'>先写事实，再决定是否处理方法</Text></View><Text>方法处理可选</Text></View>
@@ -1498,7 +1846,7 @@ export default function IndexPage() {
                       <Text className='method-field-label'>具体步骤 *</Text>
                       <ReviewTextarea value={methodForm.steps} placeholder='记录下次可重复执行的具体步骤。' onValueChange={(value) => { setReviewError(''); setMethodForm((current) => ({ ...current, steps: value })) }} />
                       {reviewError && !methodForm.steps.trim() && <Text className='method-field-error'>请记录这套方法下次如何执行。</Text>}
-                      <Text className='method-field-label'>补充说明（可选）</Text>
+                      <Text className='method-field-label'>补充：（可选）</Text>
                       <ReviewTextarea value={methodForm.applicable === '暂无补充说明' ? '' : methodForm.applicable} placeholder='补充适用情境、注意事项或边界' onValueChange={(value) => setMethodForm((current) => ({ ...current, applicable: value }))} />
                     </View>}
                   </>}
@@ -1520,35 +1868,70 @@ export default function IndexPage() {
               ] as Array<[string, string]>).filter(([, value]) => value).map(([label, value]) => <View className='review-record-row' key={label}><Text>{label}</Text><Text>{value}</Text></View>)}
             </View>}
 
-            {!showTrash && contentBelowFacts && <View className={`detail-content-section detail-content-after-facts ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
-              <View className='detail-content-heading'>
-                <Text>补充说明</Text>
-                {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
-              </View>
-              {contentEditingItemId === selectedItem.id ? <View className='detail-content-editor'>
-                <textarea className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => updateContentDraft(selectedItem.id, event.currentTarget.value)} />
-                <View className='detail-content-editor-actions'>
-                  <Button className='action-button secondary' disabled={contentSavingItemId === selectedItem.id} onClick={() => cancelContentEditor(selectedItem.id)}>取消</Button>
-                  <Button className='action-button primary' disabled={contentSavingItemId === selectedItem.id} onClick={() => saveItemContent(selectedItem.id)}>{contentSavingItemId === selectedItem.id ? '正在保存…' : '保存说明'}</Button>
+            {!showTrash && contentBelowFacts && <View className={`action-context-summary detail-content-after-facts ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
+              <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => { if (contentEditingItemId !== selectedItem.id) { event.preventDefault(); openContentEditor() } }} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
+                <View className='detail-content-heading'>
+                  <Text className='detail-content-label'>补充：</Text>
+                  {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
+                  {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
                 </View>
-              </View> : <Text className={`detail-content ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
+                {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
+                  <textarea ref={contentInputRef} className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => updateContentDraft(selectedItem.id, event.currentTarget.value)} />
+                  {contentSaveError && <View className='detail-content-save-feedback error'><Text>{contentSaveError}</Text><Button className='detail-content-retry' disabled={contentSavingItemId === selectedItem.id} onClick={retrySaveItemContent}>重试</Button></View>}
+                </View>}
+              </div>
+            </View>}
+            {contentBelowFacts && contentSaveNotice && <Text className='detail-content-save-notice'>{contentSaveNotice}</Text>}
+
+            {shouldDisplayStartAction(selectedItem) && showTrash && <View className={`start-action-record ${contentBelowFacts ? 'start-action-after-facts' : ''}`}>
+              <Text className='start-action-label'>启动动作</Text>
+              <Text className='start-action-value'>{selectedItem.startAction}</Text>
             </View>}
 
             {showTrash ? <View className='action-stack'>
               <Button className='action-button primary' disabled={busy} onClick={restoreSelected}>恢复事项</Button>
             </View> : selectedItem.status !== 'waiting_review' && <View className='action-stack'>
-              {application.actionsFor(selectedItem).map((action) => <Button key={action.status} className={`action-button ${action.tone}`} disabled={busy} onClick={() => changeStatus(action)}>{action.label}</Button>)}
+              {application.actionsFor(selectedItem).filter((action) => !(action.status === 'abandoned' && (selectedItem.status === 'idea_to_try' || selectedItem.status === 'doing'))).map((action) => <Button key={action.status} className={`action-button ${action.tone}`} disabled={busy} onClick={() => shouldInterceptStartAction(selectedItem, action) ? requestLeaveAllDrafts(openStartConfirm) : changeStatus(action)}>{action.label}</Button>)}
               {deleteConfirm ? <View className='delete-confirm'>
                 <Text>确定删除“{selectedItem.title}”？删除后可在回收站保留 30 天。</Text>
                 <View className='delete-confirm-actions'>
                   <Button className='action-button secondary' disabled={busy} onClick={() => setDeleteConfirm(false)}>取消</Button>
                   <Button className='action-button delete-confirm-button' disabled={busy} onClick={removeSelected}>确认删除</Button>
                 </View>
-              </View> : <Button className='action-button delete' disabled={busy} onClick={() => setDeleteConfirm(true)}>删除事项</Button>}
+              </View> : <Button className='action-button delete' disabled={busy} onClick={() => requestLeaveAllDrafts(() => setDeleteConfirm(true))}>删除事项</Button>}
             </View>}
           </> : <View className='detail-empty'><Text className='detail-empty-title'>选择一件事</Text><Text>查看详情，并推动它进入下一个真实状态。</Text></View>}
         </View>
       </View></>}
+
+      {startConfirmItemId && canOpenStartConfirm(startConfirmItem) && <View className='start-confirm-backdrop' onClick={(event) => { if (!startSubmitting && event.target === event.currentTarget) closeStartConfirm() }}>
+        <View className='start-confirm-modal' ref={startConfirmRef} role='dialog' aria-modal='true' aria-labelledby='start-confirm-title'>
+          <View className='start-confirm-heading'>
+            <Text id='start-confirm-title'>开始推进「{startConfirmItem.title}」</Text>
+            <Button className='start-confirm-close' aria-label='关闭启动确认层' disabled={startSubmitting} onClick={closeStartConfirm}>×</Button>
+          </View>
+          <Text className='start-confirm-description'>它现在进入执行阶段。先从一个小动作开始就够了。</Text>
+          <Text className='start-confirm-label'>此刻准备先做什么？（可选）</Text>
+          <textarea ref={startPromptRef} className='start-confirm-input' value={startPrompt} disabled={startSubmitting} placeholder='例如：先找一份入门资料，花 10 分钟看一遍。' onInput={(event) => { setStartPrompt(event.currentTarget.value); setStartSaveFailed(false); setStartConfirmError('') }} />
+          <Text className='start-confirm-hint'>开始后会作为不可编辑的启动动作保留在事项中。</Text>
+          {startConfirmError && <Text className='start-confirm-error'>{startConfirmError}</Text>}
+          <View className='start-confirm-actions'>
+            {startSaveFailed ? <>
+              <Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={() => confirmStart(true)}>不保存，直接开始</Button>
+              <Button className='action-button primary' disabled={startSubmitting} onClick={() => confirmStart()}>{startSubmitting ? '正在开始…' : '重试保存'}</Button>
+            </> : <>
+              <Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={closeStartConfirm}>取消</Button>
+              <Button className='action-button primary' disabled={startSubmitting} onClick={() => confirmStart()}>{startSubmitting ? '正在开始…' : '开始！'}</Button>
+            </>}
+          </View>
+        </View>
+      </View>}
+
+      {startActionPreview && <View className='start-action-preview-backdrop' onClick={() => setStartActionPreview(undefined)}>
+        <View className='start-action-preview-modal' role='dialog' aria-modal='true' aria-label='启动动作全文'>
+          <div className='start-action-preview-value'>{startActionPreview}</div>
+        </View>
+      </View>}
 
       {activeModule === 'settings' && <View className='settings-module module-panel'>
         <View className='trash-panel'>
@@ -1622,7 +2005,7 @@ export default function IndexPage() {
                 </View>
                 {methodTrashConfirmId === method.id && <View className='method-trash-confirm'><Text>将“{method.title}”移入回收站？30 天内可以恢复；历史关联会保留说明。</Text><View><Button id='method-trash-cancel' className='action-button secondary' disabled={busy} onClick={() => setMethodTrashConfirmId(undefined)}>取消</Button><Button className='action-button delete-confirm-button' disabled={busy} onClick={moveMethodToTrash}>移入回收站</Button></View></View>}
                 <Text className='method-label'>具体步骤</Text><Text className='method-value'>{method.steps}</Text>
-                <Text className='method-label'>补充说明</Text><Text className='method-value'>{method.applicable || '暂无补充说明'}</Text>
+                <Text className='method-label'>补充：</Text><Text className='method-value'>{method.applicable || '暂无补充说明'}</Text>
                 {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
                 <View className={`method-apply-button ${applyingMethodId === method.id ? 'active' : ''}`} onClick={() => openMethodApplication(method)}><Text>{applyingMethodId === method.id ? '取消创建行动' : '用此方法开始行动'}</Text></View>
                 {applyingMethodId === method.id && <View className='method-apply-form'><input className='method-action-input' value={methodActionTitle} maxLength={120} placeholder='这次具体要完成什么' onInput={(event) => setMethodActionTitle(event.currentTarget.value)} /><textarea className='method-action-textarea' value={methodActionContent} maxLength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.currentTarget.value)} /><View className={`method-action-submit ${methodActionTitle.trim() && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View></View>}

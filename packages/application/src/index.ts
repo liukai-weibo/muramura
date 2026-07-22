@@ -8,6 +8,7 @@ import type {
   DashboardSnapshot,
   DashboardWindow,
   Item,
+  ItemMethodSourceDisplay,
   ItemRepository,
   ItemStatus,
   ItemStatusEvent,
@@ -165,7 +166,9 @@ export class BackupApplicationService {
     const reviewIds = new Set(reviews.map((review) => review.id))
     const methodIds = new Set(methods.map((method) => method.id))
     if ([...methodIds].some((methodId) => tombstoneIds.has(methodId))) throw new Error('方法与墓碑不能同时存在')
-    if (items.some((item) => !item.title || !itemStatuses.includes(item.status))) throw new Error('事项中存在空标题或非法状态')
+    if (items.some((item) => !item.title || !itemStatuses.includes(item.status) || (item.startAction !== undefined && typeof item.startAction !== 'string'))) {
+      throw new Error('事项中存在空标题、非法状态或无效启动动作')
+    }
     if (reviews.some((review) => !itemIds.has(review.itemId))) throw new Error('复盘引用了不存在的事项')
     if (methodEvidence.some((entry) => !(methodIds.has(entry.methodId) || tombstoneIds.has(entry.methodId)) || !reviewIds.has(entry.reviewId))) {
       throw new Error('方法证据引用了不存在的方法或复盘')
@@ -356,6 +359,10 @@ export class MethodApplicationService {
   getContextResultForItem(itemId: string): Promise<MethodApplicationContextResult> {
     return this.repository.getContextResultByItemId(itemId)
   }
+
+  listSourceDisplaysForItems(itemIds: string[]): Promise<ItemMethodSourceDisplay[]> {
+    return this.repository.listSourceDisplaysForItems(itemIds)
+  }
 }
 
 export class MethodLifecycleApplicationService {
@@ -430,6 +437,10 @@ export class ItemApplicationService {
     const item = await this.repository.getById(id)
     if (!item || item.deletedAt) throw new Error('事项不存在')
     return item
+  }
+
+  startExecution(id: string, startAction?: string): Promise<Item> {
+    return this.repository.startExecution(id, startAction?.trim() ? { startAction } : undefined)
   }
 
   updateItemContent(id: string, content: string): Promise<Item> {

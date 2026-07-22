@@ -19,6 +19,7 @@ export interface Item {
   createdAt: string
   updatedAt: string
   deletedAt?: string
+  startAction?: string
 }
 
 export interface CreateItemInput {
@@ -29,6 +30,10 @@ export interface CreateItemInput {
 
 export interface UpdateItemContentInput {
   content: string
+}
+
+export interface StartItemExecutionInput {
+  startAction?: string
 }
 
 export interface Review {
@@ -142,6 +147,13 @@ export type MethodApplicationContextResult =
       application: MethodApplication
       reason: MethodApplicationUnavailableReason
     }
+
+export type ItemMethodSourceDisplay =
+  | { status: 'no-association'; itemId: string }
+  | { status: 'available'; itemId: string; title: string }
+  | { status: 'method-in-trash'; itemId: string; title: string }
+  | { status: 'method-purged'; itemId: string; title: string }
+  | { status: 'unavailable'; itemId: string; title?: string }
 
 export interface MethodEvidence {
   id: string
@@ -327,6 +339,7 @@ export interface MethodApplicationRepository {
   createItem(input: CreateMethodApplicationInput): Promise<Item>
   getContextByItemId(itemId: string): Promise<MethodApplicationContext | undefined>
   getContextResultByItemId(itemId: string): Promise<MethodApplicationContextResult>
+  listSourceDisplaysForItems(itemIds: string[]): Promise<ItemMethodSourceDisplay[]>
 }
 
 export interface ItemRepository {
@@ -336,6 +349,7 @@ export interface ItemRepository {
   listDeleted(): Promise<Item[]>
   listStatusEvents(itemId: string): Promise<ItemStatusEvent[]>
   changeStatus(id: string, status: ItemStatus): Promise<Item>
+  startExecution(id: string, input?: StartItemExecutionInput): Promise<Item>
   updateContent(id: string, input: UpdateItemContentInput): Promise<Item>
   delete(id: string): Promise<void>
   restore(id: string): Promise<Item>
