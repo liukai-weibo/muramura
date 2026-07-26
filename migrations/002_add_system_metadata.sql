@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS system_metadata (
+  `key` VARCHAR(128) PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at DATETIME(3) NOT NULL
+) ENGINE=InnoDB;

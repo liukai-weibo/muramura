@@ -5,7 +5,6 @@ const sharedPackageSources = [
   path.resolve(__dirname, '../../../packages/application/src'),
   path.resolve(__dirname, '../../../packages/contracts/src'),
   path.resolve(__dirname, '../../../packages/domain/src'),
-  path.resolve(__dirname, '../../../packages/storage-indexeddb/src'),
 ]
 
 const config: UserConfigExport = {
@@ -27,7 +26,6 @@ const config: UserConfigExport = {
     '@knowledge-base/application': path.resolve(__dirname, '../../../packages/application/src'),
     '@knowledge-base/contracts': path.resolve(__dirname, '../../../packages/contracts/src'),
     '@knowledge-base/domain': path.resolve(__dirname, '../../../packages/domain/src'),
-    '@knowledge-base/storage-indexeddb': path.resolve(__dirname, '../../../packages/storage-indexeddb/src'),
   },
   mini: {
     compile: { include: sharedPackageSources },
@@ -36,7 +34,11 @@ const config: UserConfigExport = {
     publicPath: '/',
     staticDirectory: 'static',
     router: { mode: 'browser' },
-    devServer: { port: 10086 },
+    devServer: {
+      host: '127.0.0.1',
+      port: 10086,
+      proxy: [{ context: ['/api', '/health'], target: 'http://127.0.0.1:32146', changeOrigin: true }],
+    },
     compile: { include: sharedPackageSources },
   },
 }

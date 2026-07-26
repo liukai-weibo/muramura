@@ -1,0 +1,14 @@
+{
+  "name": "@knowledge-base/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "@knowledge-base/application": "workspace:*",
+    "@knowledge-base/storage-mysql": "workspace:*",
+    "tsx": "^4.21.0"
+  }
+}

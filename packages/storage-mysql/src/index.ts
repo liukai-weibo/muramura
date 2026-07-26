@@ -1,0 +1,164 @@
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import mysql, { type Pool, type PoolConnection, type PoolOptions, type RowDataPacket } from 'mysql2/promise'
+
+export const MYSQL_REQUIRED_SCHEMA_VERSION = 1
+
+export interface MySqlConnectionConfig {
+  host: string
+  port: number
+  database: string
+  user: string
+  password: string
+  connectionLimit: number
+}
+
+export function readMySqlConfig(environment: NodeJS.ProcessEnv, identity: 'app' | 'migrator'): MySqlConnectionConfig {
+  const required = (name: string) => {
+    const value = environment[name]
+    if (!value) throw new Error(`缺少 MySQL 环境变量：${name}`)
+    return value
+  }
+  const port = Number(required('MYSQL_PORT'))
+  const connectionLimit = Number(environment.MYSQL_POOL_CONNECTION_LIMIT ?? '10')
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('MYSQL_PORT 无效')
+  if (!Number.isInteger(connectionLimit) || connectionLimit < 1) throw new Error('MYSQL_POOL_CONNECTION_LIMIT 无效')
+  return {
+    host: required('MYSQL_HOST'), port, database: required('MYSQL_DATABASE'),
+    user: identity === 'app' ? required('MYSQL_APP_USER') : required('MYSQL_MIGRATOR_USER'),
+    password: identity === 'app' ? required('MYSQL_APP_PASSWORD') : required('MYSQL_MIGRATOR_PASSWORD'),
+    connectionLimit,
+  }
+}
+
+export function createMySqlPool(config: MySqlConnectionConfig): Pool {
+  const options: PoolOptions = { ...config, waitForConnections: true, queueLimit: 0, connectTimeout: 5000, timezone: 'Z' }
+  return mysql.createPool(options)
+}
+
+export async function runInMySqlTransaction<T>(pool: Pool, work: (connection: PoolConnection) => Promise<T>): Promise<T> {
+  const connection = await pool.getConnection()
+  try { await connection.beginTransaction(); const result = await work(connection); await connection.commit(); return result }
+  catch (error) { await connection.rollback(); throw error }
+  finally { connection.release() }
+}
+
+interface Migration { version: number; name: string; checksum: string; sql: string }
+function splitStatements(sql: string): string[] {
+  return sql.split(/;\s*(?:\r?\n|$)/).map(statement => statement.trim()).filter(Boolean)
+}
+function loadMigrations(directory: string): Migration[] {
+  return fs.readdirSync(directory).filter(file => /^\d{3}_[a-z0-9_]+\.sql$/.test(file)).sort().map(file => {
+    const sql = fs.readFileSync(path.join(directory, file), 'utf8')
+    const version = Number(file.slice(0, 3))
+    return { version, name: file, checksum: crypto.createHash('sha256').update(sql).digest('hex'), sql }
+  })
+}
+
+async function preflightMigration004(connection: PoolConnection): Promise<void> {
+  const [conflicts] = await connection.query<Array<RowDataPacket & { kind: string; name: string }>>(`
+    SELECT '表' AS kind, table_name AS name
+    FROM information_schema.tables
+    WHERE table_schema = DATABASE() AND table_name = 'exploration_tracks'
+    UNION ALL
+    SELECT '列' AS kind, column_name AS name
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'items' AND column_name = 'exploration_track_id'
+    UNION ALL
+    SELECT '索引' AS kind, index_name AS name
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE() AND index_name IN (
+      'exploration_tracks_normalized_name_unique',
+      'exploration_tracks_active_updated_idx',
+      'items_exploration_track_created_idx'
+    )
+    UNION ALL
+    SELECT '外键' AS kind, constraint_name AS name
+    FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE()
+      AND table_name = 'items'
+      AND constraint_type = 'FOREIGN KEY'
+      AND constraint_name = 'items_exploration_track_fk'
+  `)
+  if (conflicts.length > 0) {
+    throw new Error(`004 migration 预检失败：已存在${conflicts.map(conflict => `${conflict.kind} ${conflict.name}`).join('、')}`)
+  }
+}
+
+export async function runMySqlMigrations(pool: Pool, directory: string): Promise<void> {
+  const connection = await pool.getConnection()
+  try {
+    const [locks] = await connection.query<Array<RowDataPacket & { acquired: number }>>("SELECT GET_LOCK('knowledge_base_schema_migration', 30) AS acquired")
+    if (locks[0]?.acquired !== 1) throw new Error('无法获得 MySQL Schema Migration 锁')
+    await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (version INT PRIMARY KEY, name VARCHAR(255) NOT NULL, checksum CHAR(64) NOT NULL, applied_at DATETIME(3) NOT NULL) ENGINE=InnoDB')
+    const [applied] = await connection.query<Array<RowDataPacket & { version: number; name: string; checksum: string }>>('SELECT version, name, checksum FROM schema_migrations')
+    const records = new Map(applied.map(record => [record.version, record]))
+    for (const migration of loadMigrations(directory)) {
+      const existing = records.get(migration.version)
+      if (existing) {
+        if (existing.name !== migration.name || existing.checksum !== migration.checksum) throw new Error(`已执行的 migration 内容不一致：${migration.name}`)
+        continue
+      }
+      if (migration.version === 3) {
+        const checks: Array<[string, string]> = [
+          ['存在重复方法证据', 'SELECT 1 FROM method_evidence GROUP BY method_id,review_id HAVING COUNT(*)>1 LIMIT 1'],
+          ['存在重复方法应用事项', 'SELECT 1 FROM method_applications GROUP BY item_id HAVING COUNT(*)>1 LIMIT 1'],
+          ['存在断裂方法证据复盘引用', 'SELECT 1 FROM method_evidence e LEFT JOIN reviews r ON r.id=e.review_id WHERE r.id IS NULL LIMIT 1'],
+          ['存在断裂方法版本复盘引用', 'SELECT 1 FROM method_versions v LEFT JOIN reviews r ON r.id=v.source_review_id WHERE v.source_review_id IS NOT NULL AND r.id IS NULL LIMIT 1'],
+        ]
+        for (const [message, sql] of checks) {
+          const [rows] = await connection.query<RowDataPacket[]>(sql)
+          if (rows[0]) throw new Error(`003 migration 预检失败：${message}`)
+        }
+      }
+      if (migration.version === 4) await preflightMigration004(connection)
+      for (const statement of splitStatements(migration.sql)) await connection.query(statement)
+      await connection.query('INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))', [migration.version, migration.name, migration.checksum])
+    }
+  } finally {
+    try { await connection.query("SELECT RELEASE_LOCK('knowledge_base_schema_migration')") } catch { /* Connection failures need no release retry. */ }
+    connection.release()
+  }
+}
+
+export async function getMySqlHealth(pool: Pool, expectedDatabase: string): Promise<{ database: string; schemaVersion: number }> {
+  const connection = await pool.getConnection()
+  try {
+    await connection.query('SELECT 1')
+    const [databases] = await connection.query<Array<RowDataPacket & { current_database: string | null }>>('SELECT DATABASE() AS current_database')
+    if (databases[0]?.current_database !== expectedDatabase) throw new Error('连接到了错误的数据库')
+    let versions: Array<RowDataPacket & { version: number | null }>
+    try {
+      ;[versions] = await connection.query<Array<RowDataPacket & { version: number | null }>>('SELECT MAX(version) AS version FROM schema_migrations')
+    } catch (error) {
+      if (isMissingSchemaMigrationsTable(error)) throw new MySqlSchemaNotReadyError()
+      throw error
+    }
+    const schemaVersion = versions[0]?.version ?? 0
+    if (schemaVersion < MYSQL_REQUIRED_SCHEMA_VERSION) throw new MySqlSchemaNotReadyError()
+    return { database: expectedDatabase, schemaVersion }
+  } finally { connection.release() }
+}
+
+function isMissingSchemaMigrationsTable(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ER_NO_SUCH_TABLE'
+}
+
+export class MySqlSchemaNotReadyError extends Error { constructor() { super('MySQL Schema 未达到最低版本'); this.name = 'MySqlSchemaNotReadyError' } }
+
+export { MySqlItemRepository, type MySqlItemRepositoryTestHooks } from './item-repository'
+export { MySqlReviewRepository } from './review-repository'
+export { MySqlReviewWorkflowRepository, type MySqlReviewWorkflowRepositoryTestHooks } from './review-workflow-repository'
+export { MySqlMethodRepository, type MySqlMethodRepositoryTestHooks } from './method-repository'
+export { MySqlMethodApplicationRepository, type MySqlMethodApplicationRepositoryTestHooks } from './method-application-repository'
+export { MySqlBackupRepository, type MySqlBackupRepositoryTestHooks } from './backup-repository'
+export { MySqlDashboardRepository, MySqlSearchRepository, type MySqlSearchRepositoryTestHooks } from './read-model-repositories'
+export {
+  MySqlExplorationTrackRepository,
+  ExplorationTrackError,
+  type MySqlExplorationTrackRepositoryTestHooks,
+} from './exploration-track-repository'

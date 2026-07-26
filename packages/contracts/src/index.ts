@@ -20,12 +20,109 @@ export interface Item {
   updatedAt: string
   deletedAt?: string
   startAction?: string
+  explorationTrackId?: string
+}
+
+export interface ExplorationTrack {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+  deletedAt?: string
+}
+
+export type ExplorationTrackSelection =
+  | { type: 'existing'; trackId: string }
+  | { type: 'new'; name: string }
+
+export type CurrentAssociatedStatus =
+  | 'doing'
+  | 'idea_to_try'
+  | 'idea_later'
+  | 'paused'
+
+export interface ItemLocator {
+  itemId: string
+  status: ItemStatus
+}
+
+export interface ExplorationTrackItem {
+  item: Pick<Item, 'id' | 'title' | 'status' | 'createdAt' | 'startAction'>
+  locator: ItemLocator
+  reviewSummary?: Pick<Review, 'actualAction' | 'result'>
+  reviewSummaryStatus: 'available' | 'not-reviewed' | 'unavailable'
+}
+
+export interface CurrentAssociatedGroup {
+  status: CurrentAssociatedStatus
+  items: ExplorationTrackItem[]
+  hasMore: boolean
+  moreLocator?: {
+    status: CurrentAssociatedStatus
+    explorationTrackId: string
+  }
+}
+
+export interface ExplorationTrackHistory {
+  track: ExplorationTrack
+  lifecycle: 'active' | 'deleted'
+  currentAssociatedItems: CurrentAssociatedGroup[]
+  history: ExplorationTrackItem[]
+  abandonedHistory: ExplorationTrackItem[]
+}
+
+export interface ExplorationTrackListEntry {
+  track: ExplorationTrack
+  latestAssociatedItem?: Pick<Item, 'id' | 'title' | 'status' | 'createdAt'>
+}
+
+export interface DeletedExplorationTrackListEntry {
+  track: Required<Pick<ExplorationTrack, 'id' | 'name' | 'createdAt' | 'updatedAt' | 'deletedAt'>>
+}
+
+export type AvailableExplorationTrack = Omit<ExplorationTrack, 'deletedAt'> & {
+  deletedAt?: undefined
+}
+
+export type DeletedExplorationTrack = Omit<ExplorationTrack, 'deletedAt'> & {
+  deletedAt: string
+}
+
+export type ItemExplorationTrackContext =
+  | { status: 'no-association'; itemId: string }
+  | { status: 'available'; itemId: string; track: AvailableExplorationTrack }
+  | { status: 'track-deleted'; itemId: string; track: DeletedExplorationTrack }
+  | { status: 'unavailable'; itemId: string; trackId: string }
+
+export interface ExplorationTrackRepository {
+  create(input: { id: string; name: string; normalizedName: string; createdAt: string }): Promise<ExplorationTrack>
+  getById(id: string): Promise<ExplorationTrack | undefined>
+  rename(id: string, input: { name: string; normalizedName: string; updatedAt: string }): Promise<ExplorationTrack>
+  softDelete(id: string, deletedAt: string): Promise<void>
+  restore(id: string, updatedAt: string): Promise<ExplorationTrack>
+  listActive(): Promise<ExplorationTrackListEntry[]>
+  listSelectable(): Promise<ExplorationTrack[]>
+  listDeleted(): Promise<DeletedExplorationTrackListEntry[]>
+  getHistory(id: string): Promise<ExplorationTrackHistory | undefined>
+  getItemContext(itemId: string): Promise<ItemExplorationTrackContext | undefined>
+  listItemsByTrackAndStatus(trackId: string, status: CurrentAssociatedStatus): Promise<Item[]>
+}
+
+export type PreparedExplorationTrackSelection =
+  | { type: 'existing'; trackId: string }
+  | { type: 'new'; name: string; normalizedName: string }
+
+export interface ExplorationTrackWorkflowRepository {
+  createItemWithExplorationTrack(input: CreateItemInput & { id: string; createdAt: string }, selection: PreparedExplorationTrackSelection): Promise<Item>
+  assignItemToExplorationTrack(itemId: string, trackId: string): Promise<ItemExplorationTrackContext>
+  removeItemFromExplorationTrack(itemId: string): Promise<void>
 }
 
 export interface CreateItemInput {
   title: string
   content?: string
   status?: ItemStatus
+  explorationTrack?: ExplorationTrackSelection
 }
 
 export interface UpdateItemContentInput {
@@ -219,6 +316,16 @@ export interface BackupData {
   methodTombstones: MethodTombstone[]
 }
 
+/** The persisted form includes the normalized database key so V3 restores do
+ * not need to infer it from display text. */
+export interface BackupExplorationTrack extends ExplorationTrack {
+  normalizedName: string
+}
+
+export interface BackupDataV3 extends BackupData {
+  explorationTracks: BackupExplorationTrack[]
+}
+
 export interface BackupDocumentV1 {
   format: 'knowledge-base-backup'
   version: 1
@@ -235,11 +342,19 @@ export interface BackupDocumentV2 {
   data: BackupData
 }
 
-export type BackupDocument = BackupDocumentV1 | BackupDocumentV2
+export interface BackupDocumentV3 {
+  format: 'knowledge-base-backup'
+  version: 3
+  exportedAt: string
+  appVersion: string
+  data: BackupDataV3
+}
+
+export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3
 
 export interface BackupRepository {
-  exportData(): Promise<BackupData>
-  replaceData(data: BackupData): Promise<void>
+  exportData(): Promise<BackupData | BackupDataV3>
+  replaceData(data: BackupData | BackupDataV3): Promise<void>
 }
 
 export type DashboardWindow = '7d' | '30d' | 'all'

@@ -1,5 +1,7 @@
 import type {
   BackupDocument,
+  BackupData,
+  BackupDataV3,
   BackupRepository,
   CompleteReviewInput,
   CompleteReviewResult,
@@ -7,6 +9,13 @@ import type {
   DashboardRepository,
   DashboardSnapshot,
   DashboardWindow,
+  ExplorationTrack,
+  ExplorationTrackRepository,
+  ExplorationTrackSelection,
+  PreparedExplorationTrackSelection,
+  ExplorationTrackWorkflowRepository,
+  CurrentAssociatedStatus,
+  CreateItemInput,
   Item,
   ItemMethodSourceDisplay,
   ItemRepository,
@@ -40,6 +49,7 @@ export interface CaptureIdeaInput {
   title?: string
   content?: string
   saveForLater?: boolean
+  explorationTrack?: ExplorationTrackSelection
 }
 
 export interface ItemAction {
@@ -59,7 +69,6 @@ const statusActions: Partial<Record<ItemStatus, readonly ItemAction[]>> = {
     { label: '放弃', status: 'abandoned', tone: 'danger' },
   ],
   doing: [
-    { label: '执行完成', status: 'waiting_review', tone: 'primary' },
     { label: '暂停', status: 'paused', tone: 'secondary' },
     { label: '放弃', status: 'abandoned', tone: 'danger' },
   ],
@@ -87,17 +96,70 @@ function requireUniqueIds(entries: Array<{ id: string }>, label: string): void {
   }
 }
 
+function isTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && !Number.isNaN(Date.parse(value))
+}
+
+function requireV3Timestamp(value: unknown, label: string): void {
+  if (!isTimestamp(value)) throw new Error(`V3 ${label}存在无效时间`)
+}
+
+/** V3 is validated completely before the repository can begin its transaction. */
+function validateV3Data(data: BackupDataV3): void {
+  const collections: Array<[string, unknown[]]> = [
+    ['items', data.items], ['reviews', data.reviews], ['methods', data.methods],
+    ['methodEvidence', data.methodEvidence], ['methodVersions', data.methodVersions],
+    ['methodApplications', data.methodApplications], ['itemStatusEvents', data.itemStatusEvents],
+    ['itemLinks', data.itemLinks], ['methodTombstones', data.methodTombstones], ['explorationTracks', data.explorationTracks],
+  ]
+  for (const [name, entries] of collections) {
+    if (!Array.isArray(entries)) throw new Error(`V3 备份缺少 ${name} 数据表`)
+    for (const entry of entries) {
+      if (!isRecord(entry)) throw new Error(`V3 ${name}中存在无效记录`)
+      if (name !== 'methodTombstones' && (typeof entry.id !== 'string' || !entry.id.trim())) throw new Error(`V3 ${name}中存在无效 ID`)
+    }
+  }
+  for (const item of data.items) {
+    requireV3Timestamp(item.createdAt, '事项'); requireV3Timestamp(item.updatedAt, '事项')
+    if (item.deletedAt !== undefined) requireV3Timestamp(item.deletedAt, '事项')
+    if (item.explorationTrackId !== undefined && (typeof item.explorationTrackId !== 'string' || !item.explorationTrackId.trim())) throw new Error('V3 事项存在无效主线引用')
+  }
+  for (const review of data.reviews) { requireV3Timestamp(review.createdAt, '复盘'); requireV3Timestamp(review.updatedAt, '复盘') }
+  for (const method of data.methods) { requireV3Timestamp(method.createdAt, '方法'); requireV3Timestamp(method.updatedAt, '方法'); if (method.deletedAt !== undefined) requireV3Timestamp(method.deletedAt, '方法') }
+  for (const entry of data.methodEvidence) requireV3Timestamp(entry.createdAt, '方法证据')
+  for (const entry of data.methodVersions) requireV3Timestamp(entry.createdAt, '方法版本')
+  for (const entry of data.methodApplications) requireV3Timestamp(entry.createdAt, '方法应用')
+  for (const entry of data.itemStatusEvents) requireV3Timestamp(entry.createdAt, '状态事件')
+  for (const entry of data.itemLinks) requireV3Timestamp(entry.createdAt, '想法来源关系')
+  for (const entry of data.methodTombstones) requireV3Timestamp(entry.permanentlyDeletedAt, '方法墓碑')
+
+  const trackIds = new Set<string>()
+  const normalizedNames = new Set<string>()
+  for (const track of data.explorationTracks) {
+    if (!track.id.trim() || trackIds.has(track.id)) throw new Error('V3 主线存在空 ID 或重复 ID')
+    trackIds.add(track.id)
+    if (typeof track.name !== 'string' || typeof track.normalizedName !== 'string') throw new Error('V3 主线存在无效名称')
+    const name = track.name.normalize('NFKC').trim()
+    if (!name || [...name].length > 80 || name !== track.name || name.toLowerCase() !== track.normalizedName || normalizedNames.has(track.normalizedName)) throw new Error('V3 主线名称或规范名无效')
+    normalizedNames.add(track.normalizedName)
+    requireV3Timestamp(track.createdAt, '主线'); requireV3Timestamp(track.updatedAt, '主线')
+    if (track.deletedAt !== undefined) requireV3Timestamp(track.deletedAt, '主线')
+  }
+  if (data.items.some(item => item.explorationTrackId !== undefined && !trackIds.has(item.explorationTrackId))) throw new Error('V3 事项引用了不存在的主线')
+}
+
 export class BackupApplicationService {
   constructor(private readonly repository: BackupRepository) {}
 
   async createBackup(): Promise<BackupDocument> {
+    const data = await this.repository.exportData()
     return {
       format: 'knowledge-base-backup',
-      version: 2,
+      version: 'explorationTracks' in data ? 3 : 2,
       exportedAt: new Date().toISOString(),
       appVersion: '0.1.0',
-      data: await this.repository.exportData(),
-    }
+      data,
+    } as BackupDocument
   }
 
   parseAndValidate(input: string): BackupDocument {
@@ -105,7 +167,7 @@ export class BackupApplicationService {
     try { value = JSON.parse(input) }
     catch { throw new Error('备份文件不是有效的 JSON') }
     if (!isRecord(value) || value.format !== 'knowledge-base-backup') throw new Error('这不是本系统的备份文件')
-    if (value.version !== 1 && value.version !== 2) throw new Error(`不支持的备份版本：${String(value.version)}`)
+    if (value.version !== 1 && value.version !== 2 && value.version !== 3) throw new Error(`不支持的备份版本：${String(value.version)}`)
     if (!isRecord(value.data)) throw new Error('备份缺少 data 数据区')
 
     const requiredCollectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
@@ -143,10 +205,13 @@ export class BackupApplicationService {
     const parsedMethodTombstones = Array.isArray(value.data.methodTombstones)
       ? value.data.methodTombstones as MethodTombstone[]
       : []
-    const document: BackupDocument = {
+    const normalizedData: BackupData = { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents, methodTombstones: parsedMethodTombstones }
+    const document: BackupDocument = value.version === 3
+      ? { ...rawDocument, version: 3, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'] } }
+      : {
       ...rawDocument,
       version: 2,
-      data: { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents, methodTombstones: parsedMethodTombstones },
+      data: { ...normalizedData, items: normalizedData.items.map(({ explorationTrackId: _trackId, ...item }) => item) },
     }
     const { items, reviews, methods, methodEvidence, itemLinks, methodTombstones } = document.data
     requireUniqueIds(items, '事项')
@@ -195,6 +260,7 @@ export class BackupApplicationService {
     if (itemLinks.some((link) => !reviewIds.has(link.sourceReviewId) || !itemIds.has(link.targetItemId) || link.type !== 'derived_from_review')) {
       throw new Error('想法来源关系存在无效引用')
     }
+    if (document.version === 3) validateV3Data(document.data)
     return document
   }
 
@@ -400,19 +466,77 @@ export class TrashApplicationService {
   }
 }
 
+export class ExplorationTrackApplicationService {
+  constructor(
+    private readonly repository: ExplorationTrackRepository,
+    private readonly workflow: ExplorationTrackWorkflowRepository,
+  ) {}
+
+  private normalizeName(value: string): { name: string; normalizedName: string } {
+    const name = value.normalize('NFKC').trim()
+    const length = [...name].length
+    if (length === 0) throw new Error('主线名称不能为空')
+    if (length > 80) throw new Error('主线名称最多 80 个字符')
+    return { name, normalizedName: name.toLowerCase() }
+  }
+
+  private prepareSelection(selection: ExplorationTrackSelection): PreparedExplorationTrackSelection {
+    return selection.type === 'new'
+      ? { type: 'new', ...this.normalizeName(selection.name) }
+      : selection
+  }
+
+  createExplorationTrack(name: string): Promise<ExplorationTrack> {
+    const createdAt = new Date().toISOString()
+    return this.repository.create({ id: createId(), ...this.normalizeName(name), createdAt })
+  }
+
+  renameExplorationTrack(id: string, name: string): Promise<ExplorationTrack> {
+    return this.repository.rename(id, { ...this.normalizeName(name), updatedAt: new Date().toISOString() })
+  }
+
+  deleteExplorationTrack(id: string): Promise<void> { return this.repository.softDelete(id, new Date().toISOString()) }
+  restoreExplorationTrack(id: string): Promise<ExplorationTrack> { return this.repository.restore(id, new Date().toISOString()) }
+  listActiveExplorationTracks() { return this.repository.listActive() }
+  listSelectableExplorationTracks() { return this.repository.listSelectable() }
+  listDeletedExplorationTracks() { return this.repository.listDeleted() }
+  getExplorationTrackHistory(id: string) { return this.repository.getHistory(id) }
+  getItemExplorationTrackContext(itemId: string) { return this.repository.getItemContext(itemId) }
+  assignItemToExplorationTrack(itemId: string, trackId: string) { return this.workflow.assignItemToExplorationTrack(itemId, trackId) }
+  removeItemFromExplorationTrack(itemId: string) { return this.workflow.removeItemFromExplorationTrack(itemId) }
+  listItemsByExplorationTrackAndStatus(trackId: string, status: CurrentAssociatedStatus) { return this.repository.listItemsByTrackAndStatus(trackId, status) }
+
+  createItemWithExplorationTrack(input: CreateItemInput, selection: ExplorationTrackSelection): Promise<Item> {
+    const title = input.title.trim()
+    if (!title) throw new Error('标题不能为空')
+    const prepared = this.prepareSelection(selection)
+    return this.workflow.createItemWithExplorationTrack({ ...input, title, id: createId(), createdAt: new Date().toISOString() }, prepared)
+  }
+}
+
 export class ItemApplicationService {
-  constructor(private readonly repository: ItemRepository) {}
+  constructor(
+    private readonly repository: ItemRepository,
+    private readonly explorationWorkflow?: ExplorationTrackWorkflowRepository,
+  ) {}
+
+  private prepareExplorationTrackSelection(selection: ExplorationTrackSelection): PreparedExplorationTrackSelection {
+    if (selection.type === 'existing') return selection
+    const name = selection.name.normalize('NFKC').trim()
+    const length = [...name].length
+    if (length === 0) throw new Error('主线名称不能为空')
+    if (length > 80) throw new Error('主线名称最多 80 个字符')
+    return { type: 'new', name, normalizedName: name.toLowerCase() }
+  }
 
   createIdea(input: CaptureIdeaInput): Promise<Item> {
     const enteredTitle = input.title?.trim() ?? ''
     const enteredContent = input.content?.trim() ?? ''
     const title = enteredTitle || enteredContent.split(/\r?\n/, 1)[0]?.slice(0, 120) || ''
-
-    return this.repository.create({
-      title,
-      content: enteredTitle ? enteredContent : '',
-      status: input.saveForLater ? 'idea_later' : 'idea_to_try',
-    })
+    const capture = { title, content: enteredTitle ? enteredContent : '', status: input.saveForLater ? 'idea_later' as const : 'idea_to_try' as const }
+    if (!input.explorationTrack) return this.repository.create(capture)
+    if (!this.explorationWorkflow) throw new Error('探索主线工作流不可用')
+    return this.explorationWorkflow.createItemWithExplorationTrack({ ...capture, id: createId(), createdAt: new Date().toISOString() }, this.prepareExplorationTrackSelection(input.explorationTrack))
   }
 
   async listItems(): Promise<Item[]> {
