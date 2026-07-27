@@ -139,6 +139,10 @@ export default function IndexPage() {
   const searchControlRef = useRef<HTMLDivElement>(null)
   const [searchResults, setSearchResults] = useState<SearchResult[]>()
   const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
+  const [explorationMounted, setExplorationMounted] = useState(false)
+  useEffect(() => {
+    if (activeModule === 'explorations') setExplorationMounted(true)
+  }, [activeModule])
   const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
   const captureOriginModuleRef = useRef<PrimaryModule>('actions')
   const captureInputRef = useRef<HTMLInputElement>(null)
@@ -247,6 +251,7 @@ export default function IndexPage() {
   const [itemExplorationLoading, setItemExplorationLoading] = useState(false)
   const [itemExplorationError, setItemExplorationError] = useState('')
   const [explorationSelectorOpen, setExplorationSelectorOpen] = useState(false)
+  const itemExplorationContextRef = useRef<HTMLDivElement>(null)
   const [selectableExplorationTracks, setSelectableExplorationTracks] = useState<ExplorationTrack[]>([])
   const [itemExplorationSaving, setItemExplorationSaving] = useState(false)
   const [itemExplorationUnknownOutcome, setItemExplorationUnknownOutcome] = useState(false)
@@ -260,6 +265,7 @@ export default function IndexPage() {
   const selectedItem = (showTrash ? trashItems : items).find((item) => item.id === selectedId)
   const startConfirmItem = items.find((item) => item.id === startConfirmItemId)
   const visibleItems = showTrash ? trashItems : filter ? items.filter((item) => item.status === filter) : items
+  const itemUpdatedAtById = useMemo(() => new Map(items.map((item) => [item.id, item.updatedAt])), [items])
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE))
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const visibleMethodSourceItemIds = useMemo(() => pagedItems.map((item) => item.id), [pagedItems])
@@ -366,6 +372,15 @@ export default function IndexPage() {
     const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus())
     return () => window.cancelAnimationFrame(frame)
   }, [searchExpanded])
+
+  useEffect(() => {
+    if (!explorationSelectorOpen) return
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!itemExplorationContextRef.current?.contains(event.target as Node)) setExplorationSelectorOpen(false)
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick)
+  }, [explorationSelectorOpen])
 
   useEffect(() => {
     if (!searchExpanded) return
@@ -1797,7 +1812,9 @@ export default function IndexPage() {
         </View>
       </View>}
 
-      {activeModule === 'explorations' && <ExplorationPrototype
+      {(activeModule === 'explorations' || explorationMounted) && <View className={activeModule === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
+        itemUpdatedAtById={itemUpdatedAtById}
+        onItemsChanged={() => refresh().then(() => undefined)}
         onOpenItem={(locator) => {
           setActiveModule('actions')
           setFilter(locator.status)
@@ -1810,7 +1827,7 @@ export default function IndexPage() {
           setItems(locatedItems)
           setSelectedId(undefined)
         }}
-      />}
+      /></View>}
 
       {activeModule === 'insights' && <View className='dashboard-panel module-panel'>
         <View className='dashboard-header'>
@@ -1948,15 +1965,15 @@ export default function IndexPage() {
               <Text className='detail-title'>{selectedItem.title}</Text>
               {!showTrash && selectedItem.startAction?.trim() && <button className='detail-start-action-chip' type='button' onClick={() => setStartActionPreview(selectedItem.startAction)}><Text>{compactStartAction(selectedItem.startAction)}</Text></button>}
             </View>
-            {!showTrash && <View className='item-exploration-context'>
+            {!showTrash && <View className='item-exploration-context' ref={itemExplorationContextRef}>
               <Text className='detail-content-label'>探索主线</Text>
               {itemExplorationLoading ? <Text className='item-exploration-copy'>正在载入探索主线关联…</Text>
                 : itemExplorationError ? <View className='item-exploration-error'><Text>{itemExplorationError}</Text><Button className='exploration-inline-button' onClick={() => { if (selectedId) { explorationContextAbortRef.current?.abort(); const controller = new AbortController(); explorationContextAbortRef.current = controller; setItemExplorationLoading(true); setItemExplorationError(''); application.getItemExplorationTrack(selectedId, controller.signal).then((context) => { if (!controller.signal.aborted) { setItemExplorationContext(context); setItemExplorationUnknownOutcome(false) } }).catch((error: unknown) => { if (!isApiClientAbort(error) && !controller.signal.aborted) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入探索主线关联。') }).finally(() => { if (!controller.signal.aborted) setItemExplorationLoading(false) }) } }}>{itemExplorationUnknownOutcome ? '重新读取真实数据' : '重试读取'}</Button></View>
-                  : itemExplorationContext?.status === 'available' ? <View className='item-exploration-row'><Text className='item-exploration-copy'>{itemExplorationContext.track.name}</Text><View><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>调整</Button><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void removeSelectedItemFromExplorationTrack()}>移除</Button></View></View>
+                : itemExplorationContext?.status === 'available' ? <View className='item-exploration-row'><Text className='item-exploration-copy'>{itemExplorationContext.track.name}</Text><View className='item-exploration-actions'><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>调整</Button><Button className='exploration-inline-button danger' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void removeSelectedItemFromExplorationTrack()}>移除</Button></View></View>
                     : itemExplorationContext?.status === 'track-deleted' ? <Text className='item-exploration-copy'>原探索主线已删除：{itemExplorationContext.track.name}</Text>
                       : itemExplorationContext?.status === 'unavailable' ? <View><Text className='item-exploration-copy'>关联探索主线暂不可用</Text><Text className='item-exploration-copy'>请保留当前事项并等待数据修复。</Text></View>
                         : <View className='item-exploration-row'><Text className='item-exploration-copy'>未归入探索主线</Text><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>归入</Button></View>}
-              {explorationSelectorOpen && canModifyItemExplorationContext(itemExplorationContext) && <View className='item-exploration-selector'><Text>归入探索主线</Text>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选探索主线。</Text>}<Button className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
+              {explorationSelectorOpen && canModifyItemExplorationContext(itemExplorationContext) && <View className='item-exploration-selector'><Text className='item-exploration-selector-heading'>归入探索主线</Text><View className='item-exploration-selector-options'>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选探索主线。</Text>}</View><Button className='exploration-inline-button item-exploration-selector-cancel' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
             </View>}
             {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
             {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>

@@ -94,7 +94,10 @@ describe('探索主线 H5 API Adapter 与会话保护', () => {
   })
 
   it('主线初始 503 显示读取错误，已有真实列表在后续 503 时不被覆盖为空态', () => {
+    expect(explorationListReadState({ loading: true, hasSucceeded: false, hasEntries: false })).toBe('loading')
     expect(explorationListReadState({ loading: false, hasSucceeded: false, hasEntries: false })).toBe('error')
+    expect(explorationListReadState({ loading: true, hasSucceeded: true, hasEntries: true })).toBe('content')
+    expect(explorationListReadState({ loading: true, hasSucceeded: true, hasEntries: false })).toBe('empty')
     expect(explorationListReadState({ loading: false, hasSucceeded: true, hasEntries: true })).toBe('content')
     expect(explorationListReadState({ loading: false, hasSucceeded: true, hasEntries: false })).toBe('empty')
   })
