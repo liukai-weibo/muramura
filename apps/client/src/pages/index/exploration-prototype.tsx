@@ -1,42 +1,17 @@
 import { Button, Input, Text, View } from '@tarojs/components'
 import type { CurrentAssociatedStatus, ExplorationTrackHistory, ExplorationTrackItem, ExplorationTrackListEntry, ItemLocator } from '@knowledge-base/contracts'
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, memo, startTransition, useContext, useEffect, useRef, useState } from 'react'
 import { apiClient, isApiClientAbort, isApiClientUnknownOutcome } from './api-client'
-import { captureDraftAfterWrite, explorationListReadState, isCurrentExplorationRequest, mayUnlockUnknownOutcome, truncateDisplayName } from './exploration-session-state'
+import { captureDraftAfterWrite, explorationListReadState, isCurrentExplorationRequest, mayUnlockUnknownOutcome } from './exploration-session-state'
 
 const statusLabels: Record<string, string> = {
   doing: '已开始', idea_to_try: '想试试', idea_later: '以后再说', paused: '已暂停', reviewed: '已复盘', abandoned: '已放弃',
 }
 const currentStatuses: CurrentAssociatedStatus[] = ['doing', 'idea_to_try', 'idea_later', 'paused']
 const messageOf = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
-const formatItemTime = (value: string) => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+const itemTimeFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const formatItemTime = (value: string) => itemTimeFormatter.format(new Date(value))
 const ItemUpdatedAtContext = createContext<ReadonlyMap<string, string>>(new Map())
-
-function TruncatedDisplayName({ className, value, maxWidthRatio = 1 }: { className: string; value: string; maxWidthRatio?: number }) {
-  const elementRef = useRef<HTMLDivElement>(null)
-  const [displayValue, setDisplayValue] = useState(value)
-
-  useEffect(() => {
-    const update = () => {
-      const element = elementRef.current
-      if (!element || typeof window === 'undefined') return
-      const style = window.getComputedStyle(element)
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      if (!context) return
-      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
-      const parentWidth = element.parentElement?.getBoundingClientRect().width ?? element.getBoundingClientRect().width
-      const next = truncateDisplayName(value, parentWidth * maxWidthRatio, (text) => context.measureText(text).width)
-      setDisplayValue((current) => current === next ? current : next)
-    }
-    update()
-    const observer = new ResizeObserver(update)
-    if (elementRef.current) observer.observe(elementRef.current.parentElement ?? elementRef.current)
-    return () => observer.disconnect()
-  }, [maxWidthRatio, value])
-
-  return <View ref={elementRef} className={className}>{displayValue}</View>
-}
 
 function Summary({ item }: { item: ExplorationTrackItem }) {
   if (item.reviewSummaryStatus !== 'available' || !item.reviewSummary) return <Text className='exploration-review-summary'>复盘详情请在事项中查看。</Text>
@@ -44,19 +19,19 @@ function Summary({ item }: { item: ExplorationTrackItem }) {
   return value ? <Text className='exploration-review-summary'>{value}</Text> : <Text className='exploration-review-summary'>复盘详情请在事项中查看。</Text>
 }
 
-function TrackItem({ item, onOpen }: { item: ExplorationTrackItem; onOpen: (locator: ItemLocator) => void }) {
+const TrackItem = memo(function TrackItem({ item, onOpen }: { item: ExplorationTrackItem; onOpen: (locator: ItemLocator) => void }) {
   const itemUpdatedAtById = useContext(ItemUpdatedAtContext)
   const updatedAt = itemUpdatedAtById.get(item.item.id)
   return <View className='exploration-track-item'>
     <View className='exploration-track-item-heading'>
-      <View className='exploration-track-item-copy'><View className='exploration-track-item-title-row'><TruncatedDisplayName className='exploration-track-item-title' value={item.item.title} maxWidthRatio={0.25} /><Text className={`exploration-status exploration-status-${item.item.status}`}>{statusLabels[item.item.status] ?? item.item.status}</Text><Text className='exploration-track-item-time'>创建 {formatItemTime(item.item.createdAt)}{updatedAt ? ` · 更新 ${formatItemTime(updatedAt)}` : ''}</Text><Button className='exploration-inline-button exploration-track-item-open' onClick={() => onOpen(item.locator)}>查看</Button></View>{item.item.startAction && <Text className='exploration-track-item-meta'>开始时准备：{item.item.startAction}</Text>}</View>
+      <View className='exploration-track-item-copy'><View className='exploration-track-item-title-row'><Text className='exploration-track-item-title'>{item.item.title}</Text><Text className={`exploration-status exploration-status-${item.item.status}`}>{statusLabels[item.item.status] ?? item.item.status}</Text><Text className='exploration-track-item-time'>创建 {formatItemTime(item.item.createdAt)}{updatedAt ? ` · 更新 ${formatItemTime(updatedAt)}` : ''}</Text><Button className='exploration-inline-button exploration-track-item-open' onClick={() => onOpen(item.locator)}>查看</Button></View>{item.item.startAction && <Text className='exploration-track-item-meta'>开始时准备：{item.item.startAction}</Text>}</View>
     </View>
     {item.item.status === 'paused' && <Text className='exploration-track-item-meta exploration-paused-meta'>当前暂时停止投入</Text>}
     {(item.item.status === 'reviewed' || item.item.status === 'abandoned') && <Summary item={item} />}
   </View>
-}
+})
 
-export function ExplorationPrototype({ onItemsChanged, onOpenItem, onOpenItems, itemUpdatedAtById }: { onItemsChanged: () => Promise<void>; onOpenItem: (locator: ItemLocator) => void; onOpenItems: (status: CurrentAssociatedStatus, items: import('@knowledge-base/contracts').Item[]) => void; itemUpdatedAtById: ReadonlyMap<string, string> }) {
+export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, onOpenItem, onOpenItems, itemUpdatedAtById }: { explorationFactsVersion: number; onItemsChanged: () => Promise<void>; onOpenItem: (locator: ItemLocator) => void; onOpenItems: (status: CurrentAssociatedStatus, items: import('@knowledge-base/contracts').Item[]) => void; itemUpdatedAtById: ReadonlyMap<string, string> }) {
   const [tracks, setTracks] = useState<ExplorationTrackListEntry[]>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [history, setHistory] = useState<ExplorationTrackHistory>()
@@ -108,7 +83,7 @@ export function ExplorationPrototype({ onItemsChanged, onOpenItem, onOpenItems, 
     setDetailLoading(true); setError('')
     try {
       const next = await apiClient.getExplorationTrackHistory(id, controller.signal)
-      if (isCurrentExplorationRequest(requestId, detailRequest.current)) { setHistory(next); return true }
+      if (isCurrentExplorationRequest(requestId, detailRequest.current)) { startTransition(() => setHistory(next)); return true }
       return false
     } catch (cause) {
       if (!isApiClientAbort(cause) && isCurrentExplorationRequest(requestId, detailRequest.current)) setError(messageOf(cause, '暂时无法载入探索历史。'))
@@ -118,6 +93,7 @@ export function ExplorationPrototype({ onItemsChanged, onOpenItem, onOpenItems, 
 
   useEffect(() => { void loadList(false); return () => { listAbort.current?.abort(); detailAbort.current?.abort() } }, [])
   useEffect(() => { if (selectedId) void loadHistory(selectedId) }, [selectedId])
+  useEffect(() => { if (explorationFactsVersion > 0 && selectedId) void loadHistory(selectedId) }, [explorationFactsVersion])
 
   const selectMode = (deleted: boolean) => { setShowDeleted(deleted); setTracks([]); setListReadSucceeded(false); setHistory(undefined); setAbandonedOpen(false); void loadList(deleted) }
   const confirmRealFacts = async () => {
@@ -177,7 +153,7 @@ export function ExplorationPrototype({ onItemsChanged, onOpenItem, onOpenItems, 
     <View className='exploration-workspace'>
       <View className='exploration-list-panel'>
         <View className='exploration-list-heading'><View><Text className='section-kicker'>{showDeleted ? '已删除主线' : '探索主线'}</Text><Text>{showDeleted ? '只读回看' : '定位一段长期行动历程'}</Text></View>{listLoading && listReadSucceeded && <Text className='exploration-refreshing'>正在更新…</Text>}</View>
-        {listState === 'loading' ? <Text className='exploration-state'>正在载入探索主线…</Text> : listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入探索主线。</Text></View> : listState === 'empty' ? <View className='exploration-empty'><Text>{showDeleted ? '还没有已删除主线。' : '还没有探索主线。'}</Text>{!showDeleted && <Text>探索主线用于串联独立行动与复盘事实，形成一段长期行动历程。</Text>}</View> : <View className='exploration-track-list'>{tracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><TruncatedDisplayName className='exploration-row-name' value={entry.track.name} />{!showDeleted && <Text className='exploration-row-recent'>{entry.latestAssociatedItem ? `最近：${entry.latestAssociatedItem.title} · ${statusLabels[entry.latestAssociatedItem.status] ?? entry.latestAssociatedItem.status}` : '暂无关联行动'}</Text>}</View>)}</View>}
+        {listState === 'loading' ? <Text className='exploration-state'>正在载入探索主线…</Text> : listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入探索主线。</Text></View> : listState === 'empty' ? <View className='exploration-empty'><Text>{showDeleted ? '还没有已删除主线。' : '还没有探索主线。'}</Text>{!showDeleted && <Text>探索主线用于串联独立行动与复盘事实，形成一段长期行动历程。</Text>}</View> : <View className='exploration-track-list'>{tracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><Text className='exploration-row-name'>{entry.track.name}</Text>{!showDeleted && <Text className='exploration-row-recent'>{entry.latestAssociatedItem ? `最近：${entry.latestAssociatedItem.title} · ${statusLabels[entry.latestAssociatedItem.status] ?? entry.latestAssociatedItem.status}` : '暂无关联行动'}</Text>}</View>)}</View>}
         <View className='exploration-deleted-entry' onClick={() => selectMode(!showDeleted)}><Text>{showDeleted ? '← 返回活跃主线' : '已删除主线'}</Text></View>
       </View>
       <View className='exploration-detail-panel'>

@@ -140,6 +140,7 @@ export default function IndexPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>()
   const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
   const [explorationMounted, setExplorationMounted] = useState(false)
+  const [explorationFactsVersion, setExplorationFactsVersion] = useState(0)
   useEffect(() => {
     if (activeModule === 'explorations') setExplorationMounted(true)
   }, [activeModule])
@@ -1219,6 +1220,7 @@ export default function IndexPage() {
       setFilter('doing')
       setCurrentPage(1)
       await refresh(item.id)
+      setExplorationFactsVersion((version) => version + 1)
       setStartConfirmItemId(undefined)
       setStartPrompt('')
       setStartSaveFailed(false)
@@ -1813,6 +1815,7 @@ export default function IndexPage() {
       </View>}
 
       {(activeModule === 'explorations' || explorationMounted) && <View className={activeModule === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
+        explorationFactsVersion={explorationFactsVersion}
         itemUpdatedAtById={itemUpdatedAtById}
         onItemsChanged={() => refresh().then(() => undefined)}
         onOpenItem={(locator) => {

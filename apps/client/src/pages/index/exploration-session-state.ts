@@ -7,15 +7,6 @@ export function captureDraftAfterWrite(draft: string, completed: boolean): strin
   return completed ? '' : draft
 }
 
-/** Keeps a literal three-dot suffix while respecting the rendered width of the actual font. */
-export function truncateDisplayName(value: string, maxWidth: number, measure: (text: string) => number): string {
-  if (measure(value) <= maxWidth) return value
-  const suffix = '...'
-  const characters = Array.from(value)
-  while (characters.length > 0 && measure(`${characters.join('')}${suffix}`) > maxWidth) characters.pop()
-  return `${characters.join('')}${suffix}`
-}
-
 /** An unknown write stays locked until every required fact read has succeeded. */
 export function mayUnlockUnknownOutcome(reads: boolean[]): boolean {
   return reads.length > 0 && reads.every(Boolean)
