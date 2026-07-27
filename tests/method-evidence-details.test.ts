@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { ItemApplicationService, ReviewApplicationService } from '@knowledge-base/application'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
-const reviewFields = {
+  const databases: KnowledgeDatabase[] = []
+  const reviewFields = {
   actualAction: '完成真实行动', result: '得到结果', effective: '有效', incompatible: '', reason: '', adjustment: '', newIdeas: '',
 }
 
@@ -21,7 +21,6 @@ function createServices() {
 async function completeItem(services: ReturnType<typeof createServices>, title: string, offset: number) {
   const item = await services.items.createIdea({ title })
   await services.items.changeStatus(item.id, 'doing')
-  await services.items.changeStatus(item.id, 'waiting_review')
   const review = await services.reviews.completeReview({
     itemId: item.id,
     ...reviewFields,

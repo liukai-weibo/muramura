@@ -23,6 +23,26 @@ describe('H5 API client transport outcomes', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('sends the overwrite confirmation only when the caller explicitly provides it', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ id: 'item-1' }), { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient.startExecution('item-1', { startAction: '新动作', overwriteExistingStartAction: true })
+    await apiClient.startExecution('item-1', { startAction: '同值动作' })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/items/item-1/start', expect.objectContaining({ method: 'POST', body: JSON.stringify({ startAction: '新动作', overwriteExistingStartAction: true }) }))
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/items/item-1/start', expect.objectContaining({ method: 'POST', body: JSON.stringify({ startAction: '同值动作' }) }))
+  })
+
+  it('requests the frozen exploration-track trash filter through the existing trash route', async () => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient.listTrashEntries('exploration-track', controller.signal)
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/trash?filter=exploration-track', expect.objectContaining({ signal: controller.signal }))
+  })
+
   it.each([400, 409, 500, 503])('keeps a confirmed HTTP %i write failure distinct from an unknown outcome', async (status) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: `HTTP ${status}` } }), { status })))
 

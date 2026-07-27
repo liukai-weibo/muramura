@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { ItemApplicationService, ReviewApplicationService, SearchApplicationService } from '@knowledge-base/application'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
+  const databases: KnowledgeDatabase[] = []
 
 function createServices() {
   const storage = createIndexedDbRepository(`sprint-seven-${crypto.randomUUID()}`)
@@ -15,7 +15,7 @@ function createServices() {
   }
 }
 
-const reviewFields = {
+  const reviewFields = {
   actualAction: '晚饭后完成二十五分钟临摹',
   result: '完成一页瘦金体练习',
   effective: '固定在晚饭后容易启动',
@@ -28,7 +28,6 @@ const reviewFields = {
 async function createReviewedMethod(services: ReturnType<typeof createServices>) {
   const item = await services.items.createIdea({ title: '学习瘦金体', content: '建立稳定练字习惯' })
   await services.items.changeStatus(item.id, 'doing')
-  await services.items.changeStatus(item.id, 'waiting_review')
   const result = await services.reviews.completeReview({
     itemId: item.id,
     ...reviewFields,
@@ -69,7 +68,6 @@ describe('Sprint 7 全局搜索与快速定位', () => {
     const { result } = await createReviewedMethod(services)
     const revisionItem = await services.items.createIdea({ title: '修订练字方法' })
     await services.items.changeStatus(revisionItem.id, 'doing')
-    await services.items.changeStatus(revisionItem.id, 'waiting_review')
     await services.reviews.completeReview({
       itemId: revisionItem.id,
       ...reviewFields,

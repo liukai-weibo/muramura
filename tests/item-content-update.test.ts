@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { BackupApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService } from '@knowledge-base/application'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
+  const databases: KnowledgeDatabase[] = []
 
 function services() {
   const storage = createIndexedDbRepository(`item-content-${crypto.randomUUID()}`)
@@ -73,15 +73,13 @@ describe('事项补充说明', () => {
     const s = services()
     const source = await s.items.createIdea({ title: '形成方法' })
     await s.items.changeStatus(source.id, 'doing')
-    await s.items.changeStatus(source.id, 'waiting_review')
-    const formed = await s.reviews.completeReview({
+  const formed = await s.reviews.completeReview({
       itemId: source.id,
       actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '',
       method: { title: '方法', applicable: '场景', steps: '步骤' },
     })
     const applied = await s.applications.createItem(formed.method!.id, '历史应用')
     await s.items.changeStatus(applied.id, 'doing')
-    await s.items.changeStatus(applied.id, 'waiting_review')
     await s.reviews.completeReview({ itemId: applied.id, actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '', existingMethod: { methodId: formed.method!.id } })
 
     const [review, evidence, application, events] = await Promise.all([

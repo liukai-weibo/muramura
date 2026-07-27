@@ -1,0 +1,33 @@
+{
+  "format": "knowledge-base-backup",
+  "version": 2,
+  "exportedAt": "2026-07-24T01:42:21.219Z",
+  "appVersion": "0.1.0",
+  "data": {
+    "items": [
+      {
+        "id": "b1e5b9d4-c865-46e8-96e5-0de7f82697e4",
+        "title": "UAT-P1-持久化-20260724-0932",
+        "content": "",
+        "status": "idea_to_try",
+        "createdAt": "2026-07-24T01:41:52.852Z",
+        "updatedAt": "2026-07-24T01:41:52.852Z"
+      }
+    ],
+    "reviews": [],
+    "methods": [],
+    "methodEvidence": [],
+    "methodVersions": [],
+    "methodApplications": [],
+    "itemLinks": [],
+    "itemStatusEvents": [
+      {
+        "id": "411cb061-69bb-47a0-b5ff-787c3ac872fe",
+        "itemId": "b1e5b9d4-c865-46e8-96e5-0de7f82697e4",
+        "toStatus": "idea_to_try",
+        "createdAt": "2026-07-24T01:41:52.852Z"
+      }
+    ],
+    "methodTombstones": []
+  }
+}

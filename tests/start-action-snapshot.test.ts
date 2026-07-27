@@ -4,8 +4,8 @@ import { BackupApplicationService, ItemApplicationService, MethodApplicationServ
 import type { BackupDocument } from '@knowledge-base/contracts'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
-const fields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
+  const databases: KnowledgeDatabase[] = []
+  const fields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
 
 function services() {
   const storage = createIndexedDbRepository(`start-action-${crypto.randomUUID()}`)
@@ -89,7 +89,6 @@ describe('启动动作快照', () => {
     expect((await s.storage.database.items.get(item.id))?.startAction).toBe('先写一行')
     const restored = await s.items.restoreItem(item.id)
     expect(restored.startAction).toBe('先写一行')
-    await s.items.changeStatus(item.id, 'waiting_review')
     await s.reviews.completeReview({ itemId: item.id, ...fields, method: { title: '方法', applicable: '场景', steps: '步骤' } })
     expect((await s.storage.database.items.get(item.id))).toMatchObject({ status: 'reviewed', startAction: '先写一行' })
   })

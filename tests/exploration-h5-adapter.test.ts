@@ -73,6 +73,7 @@ describe('探索主线 H5 API Adapter 与会话保护', () => {
     ['恢复主线', () => apiClient.restoreExplorationTrack('track-1')],
     ['关联事项', () => apiClient.assignItemToExplorationTrack('item-1', 'track-1')],
     ['移除关联', () => apiClient.removeItemFromExplorationTrack('item-1')],
+    ['启动执行', () => apiClient.startExecution('item-1', { startAction: '可能已开始', overwriteExistingStartAction: true })],
     ['原子捕获', () => apiClient.createIdea({ title: '可能已提交', explorationTrack: { type: 'existing', trackId: 'track-1' } })],
   ])('%s 在响应丢失时进入 unknown-outcome，且没有重发', async (_label, operation) => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('response lost'))

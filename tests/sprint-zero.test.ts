@@ -15,8 +15,8 @@ describe('事项状态机', () => {
     expect(canTransition('idea_to_try', 'reviewed')).toBe(false)
   })
 
-  it('只有执行中的事项可以进入待复盘', () => {
-    expect(canTransition('doing', 'waiting_review')).toBe(true)
+  it('公共状态流转不再创建待复盘，历史状态仅由复盘工作流兼容', () => {
+    expect(canTransition('doing', 'waiting_review')).toBe(false)
     expect(canTransition('idea_later', 'waiting_review')).toBe(false)
   })
 })

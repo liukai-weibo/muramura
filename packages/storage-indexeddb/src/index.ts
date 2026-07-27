@@ -172,6 +172,7 @@ export class KnowledgeDatabase extends Dexie {
 
 export interface IndexedDbItemRepositoryTestHooks {
   beforePurgeTransaction?: () => Promise<void> | void
+  now?: () => string
 }
 
 export class IndexedDbItemRepository implements ItemRepository {
@@ -181,7 +182,7 @@ export class IndexedDbItemRepository implements ItemRepository {
   ) {}
 
   async create(input: CreateItemInput): Promise<Item> {
-    const now = new Date().toISOString()
+    const now = this.now()
     const item: Item = {
       id: createId(),
       title: input.title.trim(),
@@ -216,8 +217,24 @@ export class IndexedDbItemRepository implements ItemRepository {
     return this.database.items.filter((item) => Boolean(item.deletedAt)).sortBy('deletedAt')
   }
 
-  listStatusEvents(itemId: string): Promise<ItemStatusEvent[]> {
-    return this.database.itemStatusEvents.where('itemId').equals(itemId).sortBy('createdAt')
+  async listStatusEvents(itemId: string): Promise<ItemStatusEvent[]> {
+    const events = await this.database.itemStatusEvents.where('itemId').equals(itemId).toArray()
+    return events.sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
+  }
+
+  private now(): string {
+    return this.testHooks?.now?.() ?? new Date().toISOString()
+  }
+
+  private async nextStatusEventTime(itemId: string): Promise<string> {
+    const events = await this.database.itemStatusEvents.where('itemId').equals(itemId).toArray()
+    const latest = events.reduce<string | undefined>(
+      (value, event) => !value || event.createdAt > value ? event.createdAt : value,
+      undefined,
+    )
+    const now = this.now()
+    if (!latest || now > latest) return now
+    return new Date(new Date(latest).getTime() + 1).toISOString()
   }
 
   async changeStatus(id: string, status: ItemStatus): Promise<Item> {
@@ -226,15 +243,15 @@ export class IndexedDbItemRepository implements ItemRepository {
       if (!item || item.deletedAt) throw new Error('事项不存在')
       assertTransition(item.status, status)
 
-      const now = new Date().toISOString()
-      const updated = { ...item, status, updatedAt: now }
+      const eventCreatedAt = await this.nextStatusEventTime(item.id)
+      const updated = { ...item, status, updatedAt: eventCreatedAt }
       await this.database.items.put(updated)
       await this.database.itemStatusEvents.add({
         id: createId(),
         itemId: item.id,
         fromStatus: item.status,
         toStatus: status,
-        createdAt: now,
+        createdAt: eventCreatedAt,
       })
       return updated
     })
@@ -248,12 +265,12 @@ export class IndexedDbItemRepository implements ItemRepository {
       if (item.startAction !== undefined) throw new Error('启动动作已存在，不能重写')
 
       const startAction = input?.startAction?.trim() || undefined
-      const now = new Date().toISOString()
+      const eventCreatedAt = await this.nextStatusEventTime(item.id)
       const updated: Item = {
         ...item,
         status: 'doing',
         ...(startAction ? { startAction } : {}),
-        updatedAt: now,
+        updatedAt: eventCreatedAt,
       }
       await this.database.items.put(updated)
       await this.database.itemStatusEvents.add({
@@ -261,7 +278,7 @@ export class IndexedDbItemRepository implements ItemRepository {
         itemId: item.id,
         fromStatus: item.status,
         toStatus: 'doing',
-        createdAt: now,
+        createdAt: eventCreatedAt,
       })
       return updated
     })
@@ -833,7 +850,7 @@ export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowReposito
       async () => {
         const item = await this.itemRepository.getById(input.itemId)
         if (!item || item.deletedAt) throw new Error('事项不存在')
-        if (item.status !== 'waiting_review') throw new Error('只有待复盘事项可以完成复盘')
+        if (item.status !== 'doing' && item.status !== 'waiting_review') throw new Error('只有已开始或待复盘事项可以完成复盘')
 
         const review = await this.reviewRepository.create(input)
         if (input.method && input.existingMethod) throw new Error('不能同时形成新方法和验证已有方法')
@@ -860,7 +877,16 @@ export class IndexedDbReviewWorkflowRepository implements ReviewWorkflowReposito
             createdAt: new Date().toISOString(),
           })
         }
-        const reviewedItem = await this.itemRepository.changeStatus(item.id, 'reviewed')
+        const updatedAt = new Date().toISOString()
+        const reviewedItem = { ...item, status: 'reviewed' as const, updatedAt }
+        await this.database.items.put(reviewedItem)
+        await this.database.itemStatusEvents.add({
+          id: createId(),
+          itemId: item.id,
+          fromStatus: item.status,
+          toStatus: 'reviewed',
+          createdAt: updatedAt,
+        })
         return { item: reviewedItem, review, method, createdIdea }
       },
     )

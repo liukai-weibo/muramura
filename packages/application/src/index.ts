@@ -449,20 +449,29 @@ export class MethodLifecycleApplicationService {
 }
 
 export class TrashApplicationService {
-  constructor(private readonly itemRepository: ItemRepository, private readonly methodRepository: MethodRepository) {}
+  constructor(private readonly itemRepository: ItemRepository, private readonly methodRepository: MethodRepository, private readonly explorationTrackRepository: ExplorationTrackRepository) {}
 
   async listTrashEntries(filter: TrashFilter): Promise<TrashEntry[]> {
     await Promise.all([
       this.itemRepository.purgeDeletedBefore(trashCutoff()),
       this.methodRepository.purgeDeletedBefore(trashCutoff()),
     ])
-    if (filter === 'item') return (await this.itemRepository.listDeleted()).map((item) => ({ type: 'item', id: item.id, title: item.title, deletedAt: item.deletedAt! }))
-    if (filter === 'method') return (await this.methodRepository.listDeleted()).map((method) => ({ type: 'method', id: method.id, title: method.title, deletedAt: method.deletedAt! }))
-    const [items, methods] = await Promise.all([this.itemRepository.listDeleted(), this.methodRepository.listDeleted()])
-    return [
+    if (filter === 'item') return this.sortTrashEntries((await this.itemRepository.listDeleted()).map((item) => ({ type: 'item' as const, id: item.id, title: item.title, deletedAt: item.deletedAt! })))
+    if (filter === 'method') return this.sortTrashEntries((await this.methodRepository.listDeleted()).map((method) => ({ type: 'method' as const, id: method.id, title: method.title, deletedAt: method.deletedAt! })))
+    if (filter === 'exploration-track') return this.sortTrashEntries((await this.explorationTrackRepository.listDeleted()).map(({ track }) => ({ type: 'exploration-track' as const, id: track.id, title: track.name, deletedAt: track.deletedAt })))
+    const [items, methods, explorationTracks] = await Promise.all([this.itemRepository.listDeleted(), this.methodRepository.listDeleted(), this.explorationTrackRepository.listDeleted()])
+    return this.sortTrashEntries([
       ...items.map((item) => ({ type: 'item' as const, id: item.id, title: item.title, deletedAt: item.deletedAt! })),
       ...methods.map((method) => ({ type: 'method' as const, id: method.id, title: method.title, deletedAt: method.deletedAt! })),
-    ].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt))
+      ...explorationTracks.map(({ track }) => ({ type: 'exploration-track' as const, id: track.id, title: track.name, deletedAt: track.deletedAt })),
+    ])
+  }
+
+  private sortTrashEntries(entries: TrashEntry[]): TrashEntry[] {
+    const typeOrder: Record<TrashEntry['type'], number> = { item: 0, method: 1, 'exploration-track': 2 }
+    return [
+      ...entries,
+    ].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt) || typeOrder[left.type] - typeOrder[right.type] || left.id.localeCompare(right.id))
   }
 }
 
@@ -563,8 +572,8 @@ export class ItemApplicationService {
     return item
   }
 
-  startExecution(id: string, startAction?: string): Promise<Item> {
-    return this.repository.startExecution(id, startAction?.trim() ? { startAction } : undefined)
+  startExecution(id: string, startAction?: string, overwriteExistingStartAction?: boolean): Promise<Item> {
+    return this.repository.startExecution(id, startAction?.trim() ? { startAction, overwriteExistingStartAction } : undefined)
   }
 
   updateItemContent(id: string, content: string): Promise<Item> {

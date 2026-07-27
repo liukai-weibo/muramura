@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ItemApplicationService, ReviewApplicationService } from '@knowledge-base/application'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
+  const databases: KnowledgeDatabase[] = []
 
 function services() {
   const storage = createIndexedDbRepository(`item-consistency-${crypto.randomUUID()}`)
@@ -15,7 +15,7 @@ function services() {
   }
 }
 
-const reviewFields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
+  const reviewFields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
 
 afterEach(async () => {
   vi.restoreAllMocks()
@@ -93,12 +93,11 @@ describe('Item Repository 并发读改写一致性', () => {
     const s = services()
     const item = await s.items.createIdea({ title: '嵌套事务' })
     await s.items.changeStatus(item.id, 'doing')
-    await s.items.changeStatus(item.id, 'waiting_review')
-    const add = vi.spyOn(s.storage.database.itemStatusEvents, 'add').mockRejectedValueOnce(new Error('完成状态事件失败'))
+  const add = vi.spyOn(s.storage.database.itemStatusEvents, 'add').mockRejectedValueOnce(new Error('完成状态事件失败'))
 
     await expect(s.reviews.completeReview({ itemId: item.id, ...reviewFields })).rejects.toThrow('完成状态事件失败')
     expect(await s.storage.database.reviews.where('itemId').equals(item.id).count()).toBe(0)
-    expect((await s.storage.database.items.get(item.id))?.status).toBe('waiting_review')
+    expect((await s.storage.database.items.get(item.id))?.status).toBe('doing')
     add.mockRestore()
   })
 })

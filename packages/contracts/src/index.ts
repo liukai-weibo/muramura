@@ -131,6 +131,7 @@ export interface UpdateItemContentInput {
 
 export interface StartItemExecutionInput {
   startAction?: string
+  overwriteExistingStartAction?: boolean
 }
 
 export interface Review {
@@ -447,8 +448,9 @@ export interface SearchRepository {
 export type TrashEntry =
   | { type: 'item'; id: string; title: string; deletedAt: string }
   | { type: 'method'; id: string; title: string; deletedAt: string }
+  | { type: 'exploration-track'; id: string; title: string; deletedAt: string }
 
-export type TrashFilter = 'all' | 'item' | 'method'
+export type TrashFilter = 'all' | 'item' | 'method' | 'exploration-track'
 
 export interface MethodApplicationRepository {
   createItem(input: CreateMethodApplicationInput): Promise<Item>

@@ -1,6 +1,28 @@
-# Knowledge Base
+# Knowledge_Base
 
-KKK 个人系统可视化项目。
+## MySQL 本地主库开发
+
+H5 当前通过开发代理调用 loopback API，并以 MySQL 作为唯一运行主库；浏览器不直接连接 MySQL。
+
+```sh
+cp .env.example .env
+corepack pnpm db:up
+# 既有 mysql-data：启动后必须由 root 路径重复收敛账号权限。
+docker compose exec mysql /usr/local/bin/reconcile-mysql-users
+set -a && . ./.env && set +a && corepack pnpm db:migrate
+set -a && . ./.env && set +a && corepack pnpm api
+corepack pnpm dev:h5
+```
+
+- MySQL：`127.0.0.1:3306`（仅本机回环；候选环境）
+- API：`127.0.0.1:32146`（仅本机回环）
+- H5 QA 验收入口：`http://127.0.0.1:10086`；开发服务器仅监听本机回环，并将 `/api` 代理到 loopback API。
+- 新建 `mysql-data` 时，镜像初始化阶段会通过 root 路径创建 app 与 migrator；不使用 `MYSQL_USER` / `MYSQL_PASSWORD`，避免官方镜像授予 app `ALL PRIVILEGES`。
+- 已有 `mysql-data` 不会重新执行初始化脚本。每次需要校正运行容器账号时执行：
+  `docker compose exec mysql /usr/local/bin/reconcile-mysql-users`。该命令可重复执行，会收敛 app 为业务库 DML-only、收敛 migrator 为冻结 DDL 权限，并删除历史 `mysql_m1_forbidden_create` 测试表。
+- 收敛脚本会输出 app 与 migrator 的 `SHOW GRANTS`。app 必须没有 `CREATE`、`ALTER`、`DROP`、`INDEX`、`REFERENCES` 或 `mysql` 系统库读取权限。
+- 当前 H5 业务读写通过 `/api` 代理使用 MySQL 主库；浏览器不直接连接 MySQL。
+
 
 ## 项目目标
 

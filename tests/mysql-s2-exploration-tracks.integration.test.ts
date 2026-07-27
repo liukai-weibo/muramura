@@ -282,4 +282,22 @@ describe.runIf(enabled)('探索主线 S2 MySQL Repository 与原子工作流', (
       track: { id: deletedTrack.id, deletedAt: expect.any(String) },
     })
   })
+
+  it('locks abandoned items before rejecting association changes and restores existing ability at idea_to_try', async () => {
+    const tracks = new MySqlExplorationTrackRepository(appPool)
+    const items = new MySqlItemRepository(appPool)
+    const original = await createTrack(tracks, `abandoned-original-${testId()}`)
+    const replacement = await createTrack(tracks, `abandoned-replacement-${testId()}`)
+    const item = await tracks.createItemWithExplorationTrack(
+      { id: testId(), title: 'abandoned association', status: 'abandoned', createdAt: '2026-07-24T00:00:00.000Z' }, { type: 'existing', trackId: original.id },
+    )
+    const before = await fullSnapshot()
+    await expect(tracks.assignItemToExplorationTrack(item.id, replacement.id)).rejects.toMatchObject({ code: 'invalid-status' })
+    await expect(tracks.removeItemFromExplorationTrack(item.id)).rejects.toMatchObject({ code: 'invalid-status' })
+    expect(await fullSnapshot()).toEqual(before)
+
+    await items.changeStatus(item.id, 'idea_to_try')
+    await expect(tracks.assignItemToExplorationTrack(item.id, replacement.id)).resolves.toMatchObject({ status: 'available', track: { id: replacement.id } })
+    await expect(tracks.removeItemFromExplorationTrack(item.id)).resolves.toBeUndefined()
+  })
 })

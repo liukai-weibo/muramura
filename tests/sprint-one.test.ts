@@ -37,7 +37,7 @@ describe('Sprint 1 事项应用服务', () => {
     expect(item.content).toBe('')
   })
 
-  it('完成想法到待复盘的执行链路', async () => {
+  it('完成想法到已开始的执行链路', async () => {
     const { application } = createApplication()
     const idea = await application.createIdea({ title: '完成 Sprint 1' })
 
@@ -50,10 +50,8 @@ describe('Sprint 1 事项应用服务', () => {
     const doing = await application.changeStatus(idea.id, 'doing')
     const paused = await application.changeStatus(doing.id, 'paused')
     const resumed = await application.changeStatus(paused.id, 'doing')
-    const waitingReview = await application.changeStatus(resumed.id, 'waiting_review')
-
-    expect(waitingReview.status).toBe('waiting_review')
-    expect(application.actionsFor(waitingReview).map((action) => action.status)).toEqual(['doing'])
+    await expect(application.changeStatus(resumed.id, 'waiting_review')).rejects.toThrow('不允许从 doing 变更为 waiting_review')
+    expect(application.actionsFor(resumed).map((action) => action.status)).toEqual(['paused', 'abandoned'])
   })
 
   it('删除后进入回收站并可以恢复', async () => {

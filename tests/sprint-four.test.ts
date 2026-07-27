@@ -33,7 +33,7 @@ const reviewFields = {
 async function createWaitingReviewItem(services: ReturnType<typeof createServices>, title: string) {
   const item = await services.items.createIdea({ title })
   await services.items.changeStatus(item.id, 'doing')
-  return services.items.changeStatus(item.id, 'waiting_review')
+  return services.items.getItem(item.id)
 }
 
 async function createInitialMethod(services: ReturnType<typeof createServices>) {
@@ -129,7 +129,7 @@ describe('Sprint 4 方法迭代与证据链', () => {
     })).rejects.toThrow('方法不存在')
 
     expect(await services.storage.database.reviews.where('itemId').equals(item.id).count()).toBe(0)
-    expect(await services.storage.database.items.get(item.id)).toMatchObject({ status: 'waiting_review' })
+    expect(await services.storage.database.items.get(item.id)).toMatchObject({ status: 'doing' })
     expect(await services.storage.database.methodEvidence.count()).toBe(0)
   })
 

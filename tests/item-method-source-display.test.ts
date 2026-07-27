@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { ItemApplicationService, MethodApplicationService, ReviewApplicationService } from '@knowledge-base/application'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
-const fields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
+  const databases: KnowledgeDatabase[] = []
+  const fields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
 
 function services() {
   const storage = createIndexedDbRepository(`item-method-source-${crypto.randomUUID()}`)
@@ -20,7 +20,6 @@ function services() {
 async function formMethod(s: ReturnType<typeof services>) {
   const item = await s.items.createIdea({ title: '方法来源' })
   await s.items.changeStatus(item.id, 'doing')
-  await s.items.changeStatus(item.id, 'waiting_review')
   return s.reviews.completeReview({ itemId: item.id, ...fields, method: { title: '可信方法', applicable: '场景', steps: '步骤' } })
 }
 

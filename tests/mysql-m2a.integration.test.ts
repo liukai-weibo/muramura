@@ -173,6 +173,24 @@ describe.runIf(enabled)('MySQL M2-A Item Repository', () => {
     expect(emptyStarted).not.toHaveProperty('startAction')
   })
 
+  it('requires confirmation before atomically overwriting an existing start action after restart', async () => {
+    const repository = new MySqlItemRepository(appPool!)
+    const item = await repository.create({ title: testId() })
+    await repository.startExecution(item.id, { startAction: 'original action' })
+    await repository.changeStatus(item.id, 'abandoned')
+    await repository.changeStatus(item.id, 'idea_to_try')
+
+    const before = await snapshot(item.id)
+    await expect(repository.startExecution(item.id, { startAction: 'replacement action' })).rejects.toThrow('启动动作已存在，不能重写')
+    expect(await snapshot(item.id)).toEqual(before)
+
+    const started = await repository.startExecution(item.id, { startAction: 'replacement action', overwriteExistingStartAction: true })
+    expect(started).toMatchObject({ status: 'doing', startAction: 'replacement action' })
+    const events = await repository.listStatusEvents(item.id)
+    expect(events.filter(event => event.toStatus === 'doing')).toHaveLength(2)
+    expect(events.at(-1)).toMatchObject({ fromStatus: 'idea_to_try', toStatus: 'doing' })
+  })
+
   it('does not purge an Item restored before the purge transaction reads current candidates', async () => {
     const base = new MySqlItemRepository(appPool!)
     const item = await base.create({ title: testId() })

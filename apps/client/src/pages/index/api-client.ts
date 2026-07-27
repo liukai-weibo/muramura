@@ -107,7 +107,7 @@ export const apiClient = {
     catch (error) { if ((error as ApiClientError).status === 404) return undefined; throw error }
   },
   updateItemContent: (id: string, content: string) => request<Item>(`/items/${encodeURIComponent(id)}/content`, { method: 'PATCH', body: json({ content }) }),
-  startExecution: (id: string, startAction?: string) => request<Item>(`/items/${encodeURIComponent(id)}/start`, { method: 'POST', body: json(startAction === undefined ? {} : { startAction }) }),
+  startExecution: (id: string, input: { startAction?: string; overwriteExistingStartAction?: boolean } = {}) => request<Item>(`/items/${encodeURIComponent(id)}/start`, { method: 'POST', body: json(input) }),
   changeStatus: (id: string, status: ItemStatus) => request<Item>(`/items/${encodeURIComponent(id)}/status`, { method: 'POST', body: json({ status }) }),
   deleteItem: (id: string) => request<void>(`/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   restoreItem: (id: string) => request<Item>(`/items/${encodeURIComponent(id)}/restore`, { method: 'POST' }),

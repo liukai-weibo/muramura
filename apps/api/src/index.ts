@@ -113,6 +113,11 @@ function optionalString(value: unknown, label: string): string | undefined {
   if (value === undefined) return undefined
   return requiredString(value, label)
 }
+function optionalBoolean(value: unknown, label: string): boolean | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'boolean') throw new ApiError(400, 'VALIDATION_FAILED', `${label}必须是布尔值`)
+  return value
+}
 function parseStatus(value: unknown): ItemStatus {
   if (typeof value !== 'string' || !itemStatuses.includes(value as ItemStatus)) throw new ApiError(400, 'VALIDATION_FAILED', '事项状态无效')
   return value as ItemStatus
@@ -142,7 +147,7 @@ function createServices(config: MySqlConnectionConfig) {
     reviews: new ReviewApplicationService(reviews, methods, new MySqlReviewWorkflowRepository(pool)),
     methods: new MethodLifecycleApplicationService(methods),
     methodApplications: new MethodApplicationService(methodApplications),
-    trash: new TrashApplicationService(items, methods),
+    trash: new TrashApplicationService(items, methods, explorationTracks),
     search: new SearchApplicationService(new MySqlSearchRepository(pool)),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool)),
     backup: new BackupApplicationService(new MySqlBackupRepository(pool)),
@@ -198,7 +203,7 @@ async function route(request: http.IncomingMessage, response: http.ServerRespons
   if (method === 'POST' && path === '/api/v1/method-applications') { const body = requireObject(await readJson(request, normalBodyLimit)); return json(response, 201, await services.methodApplications.createItem(requiredString(body.methodId, 'methodId'), requiredString(body.title, 'title'), optionalString(body.content, 'content')), id) }
   if (method === 'GET' && path === '/api/v1/backup') return json(response, 200, await services.backup.createBackup(), id)
   if (method === 'POST' && path === '/api/v1/backup/restore') { const raw = await readJson(request, backupBodyLimit); const document = services.backup.parseAndValidate(JSON.stringify(raw)); await services.backup.restoreBackup(document); return empty(response, 204, id) }
-  if (method === 'GET' && path === '/api/v1/trash') { const filter = url.searchParams.get('filter'); if (filter !== 'all' && filter !== 'item' && filter !== 'method') throw new ApiError(400, 'VALIDATION_FAILED', '无效的回收站筛选条件'); return json(response, 200, await services.trash.listTrashEntries(filter as TrashFilter), id) }
+  if (method === 'GET' && path === '/api/v1/trash') { const filter = url.searchParams.get('filter'); if (filter !== 'all' && filter !== 'item' && filter !== 'method' && filter !== 'exploration-track') throw new ApiError(400, 'VALIDATION_FAILED', '无效的回收站筛选条件'); return json(response, 200, await services.trash.listTrashEntries(filter as TrashFilter), id) }
   if (method === 'GET' && path === '/api/v1/method-source-displays') { const raw = url.searchParams.get('itemIds') ?? ''; const itemIds = raw ? raw.split(',') : []; if (url.pathname.length + url.search.length > methodSourceDisplaysUrlLimit || itemIds.length > 100 || itemIds.some(value => !value)) throw new ApiError(400, 'VALIDATION_FAILED', 'itemIds 参数无效'); return json(response, 200, await services.methodApplications.listSourceDisplaysForItems(itemIds), id) }
 
   let values = match(/^\/api\/v1\/exploration-tracks\/([^/]+)\/history$/)
@@ -221,7 +226,7 @@ async function route(request: http.IncomingMessage, response: http.ServerRespons
   values = match(/^\/api\/v1\/items\/([^/]+)\/content$/)
   if (method === 'PATCH' && values) { const body = requireObject(await readJson(request, normalBodyLimit)); return json(response, 200, await services.items.updateItemContent(decodeURIComponent(values[0]!), requiredString(body.content, 'content')), id) }
   values = match(/^\/api\/v1\/items\/([^/]+)\/start$/)
-  if (method === 'POST' && values) { const body = requireObject(await readJson(request, normalBodyLimit)); return json(response, 200, await services.items.startExecution(decodeURIComponent(values[0]!), optionalString(body.startAction, 'startAction')), id) }
+  if (method === 'POST' && values) { const body = requireObject(await readJson(request, normalBodyLimit)); return json(response, 200, await services.items.startExecution(decodeURIComponent(values[0]!), optionalString(body.startAction, 'startAction'), optionalBoolean(body.overwriteExistingStartAction, 'overwriteExistingStartAction')), id) }
   values = match(/^\/api\/v1\/items\/([^/]+)\/status$/)
   if (method === 'POST' && values) { const body = requireObject(await readJson(request, normalBodyLimit)); return json(response, 200, await services.items.changeStatus(decodeURIComponent(values[0]!), parseStatus(body.status)), id) }
   values = match(/^\/api\/v1\/items\/([^/]+)\/restore$/)

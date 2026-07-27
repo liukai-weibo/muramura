@@ -3,7 +3,7 @@ import { BackupApplicationService, ItemApplicationService, ReviewApplicationServ
 import type { BackupData } from '@knowledge-base/contracts'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
+  const databases: KnowledgeDatabase[] = []
 
 function createServices() {
   const storage = createIndexedDbRepository(`backup-${crypto.randomUUID()}`)
@@ -30,7 +30,6 @@ describe('Sprint 3 JSON 备份与恢复', () => {
     const source = createServices()
     const item = await source.items.createIdea({ title: '验证完整备份' })
     await source.items.changeStatus(item.id, 'doing')
-    await source.items.changeStatus(item.id, 'waiting_review')
     await source.reviews.completeReview({
       itemId: item.id,
       actualAction: '执行了一次备份实验',
@@ -66,7 +65,7 @@ describe('Sprint 3 JSON 备份与恢复', () => {
 
     expect(() => backup.parseAndValidate('{')).toThrow('不是有效的 JSON')
     expect(() => backup.parseAndValidate(JSON.stringify({ format: 'other', version: 1 }))).toThrow('不是本系统的备份文件')
-    expect(() => backup.parseAndValidate(JSON.stringify({ format: 'knowledge-base-backup', version: 3, data: {} }))).toThrow('不支持的备份版本')
+    expect(() => backup.parseAndValidate(JSON.stringify({ format: 'knowledge-base-backup', version: 4, data: {} }))).toThrow('不支持的备份版本')
 
     const broken = {
       format: 'knowledge-base-backup',

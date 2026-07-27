@@ -18,7 +18,7 @@ export function createId(): string {
 const transitions: Record<ItemStatus, readonly ItemStatus[]> = {
   idea_to_try: ['idea_later', 'doing', 'abandoned'],
   idea_later: ['idea_to_try', 'abandoned'],
-  doing: ['paused', 'waiting_review', 'archived_no_review', 'abandoned'],
+  doing: ['paused', 'archived_no_review', 'abandoned'],
   paused: ['doing', 'abandoned'],
   waiting_review: ['reviewed', 'doing'],
   reviewed: [],

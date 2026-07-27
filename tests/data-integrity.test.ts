@@ -4,7 +4,7 @@ import { BackupApplicationService, ItemApplicationService, MethodApplicationServ
 import type { BackupDocument } from '@knowledge-base/contracts'
 import { createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
+  const databases: KnowledgeDatabase[] = []
 
 function createServices() {
   const storage = createIndexedDbRepository(`data-integrity-${crypto.randomUUID()}`)
@@ -18,14 +18,13 @@ function createServices() {
   }
 }
 
-const reviewFields = {
+  const reviewFields = {
   actualAction: '完成真实行动', result: '得到结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '',
 }
 
 async function createMethod(services: ReturnType<typeof createServices>) {
   const item = await services.items.createIdea({ title: '方法来源事项' })
   await services.items.changeStatus(item.id, 'doing')
-  await services.items.changeStatus(item.id, 'waiting_review')
   const completed = await services.reviews.completeReview({
     itemId: item.id,
     ...reviewFields,

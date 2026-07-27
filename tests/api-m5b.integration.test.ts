@@ -54,6 +54,44 @@ describe.runIf(enabled)('MySQL M5-B1 candidate write API', () => {
     expect((await request('/api/v1/exploration-tracks/unfrozen')).status).toBe(405)
   })
 
+  it('maps abandoned exploration association writes to validation failure without writing and restores ability after refresh', async () => {
+    const original = await jsonRequest('/api/v1/exploration-tracks', { name: 'abandoned original' })
+    const replacement = await jsonRequest('/api/v1/exploration-tracks', { name: 'abandoned replacement' })
+    const item = await jsonRequest('/api/v1/items', { title: 'abandoned association', explorationTrack: { type: 'existing', trackId: (original.body as { id: string }).id } })
+    const itemId = (item.body as { id: string }).id
+    await jsonRequest(`/api/v1/items/${itemId}/status`, { status: 'abandoned' })
+    const before = await request('/api/v1/backup')
+    const reassignment = await jsonRequest(`/api/v1/items/${itemId}/exploration-track`, { trackId: (replacement.body as { id: string }).id }, 'PUT')
+    expect(reassignment.status).toBe(400); expectHeaders(reassignment)
+    expect(reassignment.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', requestId: expect.any(String) } })
+    const removal = await request(`/api/v1/items/${itemId}/exploration-track`, { method: 'DELETE' })
+    expect(removal.status).toBe(400); expectHeaders(removal)
+    expect(removal.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', requestId: expect.any(String) } })
+    expect((await request('/api/v1/backup')).body).toMatchObject({ data: (before.body as { data: unknown }).data })
+    await jsonRequest(`/api/v1/items/${itemId}/status`, { status: 'idea_to_try' })
+    expect((await jsonRequest(`/api/v1/items/${itemId}/exploration-track`, { trackId: (replacement.body as { id: string }).id }, 'PUT')).status).toBe(200)
+  })
+
+  it('requires explicit confirmation before overwriting a restart start action without retrying', async () => {
+    const item = await jsonRequest('/api/v1/items', { title: 'restart overwrite' })
+    const itemId = (item.body as { id: string }).id
+    await jsonRequest(`/api/v1/items/${itemId}/start`, { startAction: 'original action' })
+    await jsonRequest(`/api/v1/items/${itemId}/status`, { status: 'abandoned' })
+    await jsonRequest(`/api/v1/items/${itemId}/status`, { status: 'idea_to_try' })
+    const before = await request('/api/v1/backup')
+    const beforeEvents = await request(`/api/v1/items/${itemId}/status-events`)
+    const rejected = await jsonRequest(`/api/v1/items/${itemId}/start`, { startAction: 'replacement action' })
+    expect(rejected.status).toBe(409); expectHeaders(rejected)
+    expect(rejected.body).toMatchObject({ error: { code: 'CONFLICT', requestId: expect.any(String) } })
+    expect((await request('/api/v1/backup')).body).toMatchObject({ data: (before.body as { data: unknown }).data })
+    const started = await jsonRequest(`/api/v1/items/${itemId}/start`, { startAction: 'replacement action', overwriteExistingStartAction: true })
+    expect(started.status).toBe(200); expectHeaders(started)
+    expect(started.body).toMatchObject({ status: 'doing', startAction: 'replacement action' })
+    const events = await request(`/api/v1/items/${itemId}/status-events`)
+    expect((events.body as unknown[]).length).toBe((beforeEvents.body as unknown[]).length + 1)
+    expect((events.body as Array<{ fromStatus?: string; toStatus: string }>).at(-1)).toMatchObject({ fromStatus: 'idea_to_try', toStatus: 'doing' })
+  })
+
   it('preserves the existing Item, completeReview, Method and MethodApplication Application workflows', async () => {
     const created = await jsonRequest('/api/v1/items', { title: ' API item ', content: ' original ' }); expect(created.status).toBe(201); expectHeaders(created)
     const item = created.body as { id: string; title: string; status: string }; expect(item).toMatchObject({ title: 'API item', status: 'idea_to_try' })
@@ -94,6 +132,20 @@ describe.runIf(enabled)('MySQL M5-B1 candidate write API', () => {
     const backup = await request('/api/v1/backup'); expect(backup.status).toBe(200); expectHeaders(backup); expect(backup.body).toMatchObject({ format: 'knowledge-base-backup', version: 3 })
     const invalid = await jsonRequest('/api/v1/backup/restore', { format: 'wrong' }); expect(invalid.status).toBe(400); expect(invalid.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', requestId: expect.any(String) } })
     const restoredBackup = await jsonRequest('/api/v1/backup/restore', backup.body); expect(restoredBackup.status).toBe(204); expectHeaders(restoredBackup)
+  })
+
+  it('lists deleted exploration tracks through the existing trash route with frozen filtering and ordering', async () => {
+    const track = await jsonRequest('/api/v1/exploration-tracks', { name: 'trash exploration track' })
+    const trackId = (track.body as { id: string }).id
+    await request(`/api/v1/exploration-tracks/${trackId}`, { method: 'DELETE' })
+    const trackTrash = await request('/api/v1/trash?filter=exploration-track')
+    expect(trackTrash.status).toBe(200); expectHeaders(trackTrash)
+    expect(trackTrash.body).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'exploration-track', id: trackId, title: 'trash exploration track', deletedAt: expect.any(String) })]))
+    const allTrash = await request('/api/v1/trash?filter=all')
+    expect(allTrash.status).toBe(200); expectHeaders(allTrash)
+    const entries = allTrash.body as Array<{ type: 'item' | 'method' | 'exploration-track'; id: string; deletedAt: string }>
+    const order = { item: 0, method: 1, 'exploration-track': 2 }
+    expect(entries).toEqual([...entries].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt) || order[left.type] - order[right.type] || left.id.localeCompare(right.id)))
   })
 
   it('enforces the 16 MiB Backup restore body boundary without writing data', async () => {

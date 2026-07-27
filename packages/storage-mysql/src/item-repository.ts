@@ -77,8 +77,9 @@ export class MySqlItemRepository implements ItemRepository {
     return runInMySqlTransaction(this.pool, async connection => {
       const current = await this.lockActive(connection, id)
       assertTransition(current.status, 'doing')
-      if (current.startAction !== undefined) throw new Error('启动动作已存在，不能重写')
       const startAction = input?.startAction?.trim() || undefined
+      const overwrite = current.startAction !== undefined && startAction !== undefined && startAction !== current.startAction
+      if (current.startAction !== undefined && (!overwrite || input?.overwriteExistingStartAction !== true)) throw new Error('启动动作已存在，不能重写')
       const updatedAt = now()
       await connection.execute('UPDATE items SET status=?,start_action=?,updated_at=? WHERE id=?', ['doing', startAction ?? null, mysqlDateTime(updatedAt), id])
       await this.insertEvent(connection, id, current.status, 'doing', updatedAt)

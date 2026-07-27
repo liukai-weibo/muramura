@@ -165,6 +165,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
     return runInMySqlTransaction(this.pool, async connection => {
       const item = await this.lockActiveItem(connection, itemId)
       if (!item) throw new ExplorationTrackError('事项不存在', 'item-not-found')
+      if (item.status === 'abandoned') throw new ExplorationTrackError('已放弃事项的探索关联只读', 'invalid-status')
       const tracks = await this.lockTracksOrdered(connection, [item.exploration_track_id, trackId])
       const currentTrack = item.exploration_track_id ? tracks.get(item.exploration_track_id) : undefined
       if (item.exploration_track_id && !currentTrack) throw new ExplorationTrackError('关联不可用', 'unavailable')
@@ -182,6 +183,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
     await runInMySqlTransaction(this.pool, async connection => {
       const item = await this.lockActiveItem(connection, itemId)
       if (!item) throw new ExplorationTrackError('事项不存在', 'item-not-found')
+      if (item.status === 'abandoned') throw new ExplorationTrackError('已放弃事项的探索关联只读', 'invalid-status')
       if (item.exploration_track_id) {
         const track = await this.lockTrack(connection, item.exploration_track_id)
         if (!track) throw new ExplorationTrackError('关联不可用', 'unavailable')

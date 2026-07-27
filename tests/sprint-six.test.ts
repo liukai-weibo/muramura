@@ -3,7 +3,7 @@ import { BackupApplicationService, ItemApplicationService, MethodApplicationServ
 import type { BackupDocument } from '@knowledge-base/contracts'
 import { Dexie, createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
+  const databases: KnowledgeDatabase[] = []
 
 function createServices() {
   const storage = createIndexedDbRepository(`sprint-six-${crypto.randomUUID()}`)
@@ -17,14 +17,13 @@ function createServices() {
   }
 }
 
-const reviewFields = {
+  const reviewFields = {
   actualAction: '完成一次真实行动', result: '得到可验证结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '',
 }
 
 async function createMethod(services: ReturnType<typeof createServices>) {
   const item = await services.items.createIdea({ title: '形成方法' })
   await services.items.changeStatus(item.id, 'doing')
-  await services.items.changeStatus(item.id, 'waiting_review')
   return services.reviews.completeReview({
     itemId: item.id,
     ...reviewFields,
@@ -59,7 +58,6 @@ describe('Sprint 6 方法复用与行动验证', () => {
     const appliedItem = await services.methods.createItem(formed.method!.id, '使用第一版')
     const revisionItem = await services.items.createIdea({ title: '修订方法' })
     await services.items.changeStatus(revisionItem.id, 'doing')
-    await services.items.changeStatus(revisionItem.id, 'waiting_review')
     await services.reviews.completeReview({
       itemId: revisionItem.id,
       ...reviewFields,

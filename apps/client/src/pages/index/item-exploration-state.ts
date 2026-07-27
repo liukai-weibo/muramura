@@ -1,8 +1,8 @@
-import type { ItemExplorationTrackContext } from '@knowledge-base/contracts'
+import type { ItemExplorationTrackContext, ItemStatus } from '@knowledge-base/contracts'
 
-/** Structural API context is the only authority for whether the UI may alter an association. */
-export function canModifyItemExplorationContext(context: ItemExplorationTrackContext | undefined): boolean {
-  return context?.status === 'no-association' || context?.status === 'available'
+/** Structured item status and API association facts jointly gate association writes. */
+export function canModifyItemExplorationContext(context: ItemExplorationTrackContext | undefined, itemStatus?: ItemStatus): boolean {
+  return itemStatus !== 'abandoned' && (context?.status === 'no-association' || context?.status === 'available')
 }
 
 export function itemExplorationReadState(input: { loading: boolean; error: string; context?: ItemExplorationTrackContext }): 'loading' | 'error' | 'empty' | 'available' | 'track-deleted' | 'unavailable' {

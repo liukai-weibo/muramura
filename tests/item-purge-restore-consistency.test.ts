@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { BackupApplicationService, ItemApplicationService, MethodApplicationService, ReviewApplicationService } from '@knowledge-base/application'
 import { IndexedDbItemRepository, createIndexedDbRepository, type KnowledgeDatabase } from '@knowledge-base/storage-indexeddb'
 
-const databases: KnowledgeDatabase[] = []
-const reviewFields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
+  const databases: KnowledgeDatabase[] = []
+  const reviewFields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
 
 function services() {
   const storage = createIndexedDbRepository(`purge-restore-${crypto.randomUUID()}`)
@@ -21,7 +21,6 @@ function services() {
 async function createMethod(s: ReturnType<typeof services>) {
   const source = await s.items.createIdea({ title: '方法来源' })
   await s.items.changeStatus(source.id, 'doing')
-  await s.items.changeStatus(source.id, 'waiting_review')
   return s.reviews.completeReview({ itemId: source.id, ...reviewFields, method: { title: '方法', applicable: '场景', steps: '步骤' } })
 }
 
@@ -36,7 +35,6 @@ describe('事项永久清理与恢复交错', () => {
     const formed = await createMethod(s)
     const item = await s.applications.createItem(formed.method!.id, '待恢复的历史应用')
     await s.items.startExecution(item.id, '恢复后仍应保留的启动动作')
-    await s.items.changeStatus(item.id, 'waiting_review')
     await s.reviews.completeReview({ itemId: item.id, ...reviewFields })
     await s.items.deleteItem(item.id)
     await s.storage.database.items.update(item.id, { deletedAt: '2000-01-01T00:00:00.000Z' })

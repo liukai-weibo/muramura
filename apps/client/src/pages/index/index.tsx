@@ -172,6 +172,7 @@ export default function IndexPage() {
   const [trashFilter, setTrashFilter] = useState<TrashFilter>('all')
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([])
   const [trashLoading, setTrashLoading] = useState(false)
+  const [pendingTrashRestore, setPendingTrashRestore] = useState<TrashEntry>()
   const [methodTrashConfirmId, setMethodTrashConfirmId] = useState<string>()
   const [methodMoreMenuId, setMethodMoreMenuId] = useState<string>()
   const [moreStatusMenuOpen, setMoreStatusMenuOpen] = useState(false)
@@ -212,6 +213,8 @@ export default function IndexPage() {
   const [startSubmitting, setStartSubmitting] = useState(false)
   const [startConfirmError, setStartConfirmError] = useState('')
   const [startSaveFailed, setStartSaveFailed] = useState(false)
+  const [startOverwriteConfirm, setStartOverwriteConfirm] = useState(false)
+  const [startUnknownOutcome, setStartUnknownOutcome] = useState(false)
   const [startActionPreview, setStartActionPreview] = useState<string>()
   const startPromptRef = useRef<HTMLTextAreaElement>(null)
   const [startedFeedbackItemId, setStartedFeedbackItemId] = useState<string>()
@@ -264,6 +267,7 @@ export default function IndexPage() {
   const [restoring, setRestoring] = useState(false)
 
   const selectedItem = (showTrash ? trashItems : items).find((item) => item.id === selectedId)
+  const canModifySelectedItemExploration = canModifyItemExplorationContext(itemExplorationContext, selectedItem?.status)
   const startConfirmItem = items.find((item) => item.id === startConfirmItemId)
   const visibleItems = showTrash ? trashItems : filter ? items.filter((item) => item.status === filter) : items
   const itemUpdatedAtById = useMemo(() => new Map(items.map((item) => [item.id, item.updatedAt])), [items])
@@ -539,6 +543,8 @@ export default function IndexPage() {
       setStartConfirmItemId(undefined)
       setStartPrompt('')
       setStartConfirmError('')
+      setStartOverwriteConfirm(false)
+      setStartUnknownOutcome(false)
     }
   }, [startConfirmItem, startConfirmItemId])
 
@@ -759,6 +765,24 @@ export default function IndexPage() {
     return () => controller.abort()
   }, [selectedId, showTrash, application])
 
+  const reloadCurrentItemExplorationContext = async () => {
+    const itemId = selectedIdRef.current
+    if (!itemId || showTrash) return false
+    explorationContextAbortRef.current?.abort()
+    const controller = new AbortController()
+    explorationContextAbortRef.current = controller
+    setItemExplorationLoading(true)
+    setItemExplorationError('')
+    try {
+      const context = await application.getItemExplorationTrack(itemId, controller.signal)
+      if (!controller.signal.aborted && selectedIdRef.current === itemId) setItemExplorationContext(context)
+      return !controller.signal.aborted && selectedIdRef.current === itemId
+    } catch (error) {
+      if (!isApiClientAbort(error) && !controller.signal.aborted && selectedIdRef.current === itemId) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入探索主线关联。')
+      return false
+    } finally { if (!controller.signal.aborted && selectedIdRef.current === itemId) setItemExplorationLoading(false) }
+  }
+
   useEffect(() => {
     if (!selectedId) return
     resetReviewForm()
@@ -776,7 +800,7 @@ export default function IndexPage() {
   }
 
   const openExplorationSelector = async () => {
-    if (!selectedId || itemExplorationSaving || itemExplorationUnknownOutcome) return
+    if (!selectedId || !canModifySelectedItemExploration || itemExplorationSaving || itemExplorationUnknownOutcome) return
     setItemExplorationError('')
     try {
       const tracks = await application.listSelectableExplorationTracks()
@@ -788,12 +812,13 @@ export default function IndexPage() {
   }
 
   const assignSelectedItemToExplorationTrack = async (trackId: string) => {
-    if (!selectedId || itemExplorationSaving || itemExplorationUnknownOutcome) return
+    if (!selectedId || !canModifySelectedItemExploration || itemExplorationSaving || itemExplorationUnknownOutcome) return
     setItemExplorationSaving(true)
     setItemExplorationError('')
     try {
       const context = await application.assignItemToExplorationTrack(selectedId, trackId)
       setItemExplorationContext(context)
+      setExplorationFactsVersion((version) => version + 1)
       setExplorationSelectorOpen(false)
     } catch (error) {
       if (isApiClientUnknownOutcome(error)) { setItemExplorationUnknownOutcome(true); setItemExplorationError('提交结果未确认，未自动重试。请重新读取真实数据后确认是否已生效。') }
@@ -802,12 +827,13 @@ export default function IndexPage() {
   }
 
   const removeSelectedItemFromExplorationTrack = async () => {
-    if (!selectedId || itemExplorationSaving || itemExplorationUnknownOutcome) return
+    if (!selectedId || !canModifySelectedItemExploration || itemExplorationSaving || itemExplorationUnknownOutcome) return
     setItemExplorationSaving(true)
     setItemExplorationError('')
     try {
       await application.removeItemFromExplorationTrack(selectedId)
       setItemExplorationContext({ status: 'no-association', itemId: selectedId })
+      setExplorationFactsVersion((version) => version + 1)
       setExplorationSelectorOpen(false)
     } catch (error) {
       if (isApiClientUnknownOutcome(error)) { setItemExplorationUnknownOutcome(true); setItemExplorationError('提交结果未确认，未自动重试。请重新读取真实数据后确认是否已生效。') }
@@ -1194,6 +1220,8 @@ export default function IndexPage() {
     setStartPrompt('')
     setStartConfirmError('')
     setStartSaveFailed(false)
+    setStartOverwriteConfirm(false)
+    setStartUnknownOutcome(false)
     window.requestAnimationFrame(() => startTriggerRef.current?.focus())
   }
 
@@ -1204,19 +1232,30 @@ export default function IndexPage() {
     setStartPrompt('')
     setStartConfirmError('')
     setStartSaveFailed(false)
+    setStartOverwriteConfirm(false)
+    setStartUnknownOutcome(false)
   }
 
-  const confirmStart = async (withoutSaving = false) => {
+  const requiresStartActionOverwriteConfirmation = (item: Item, prompt: string) => {
+    const existingStartAction = item.startAction?.trim()
+    const nextStartAction = prompt.trim()
+    return item.status === 'idea_to_try' && Boolean(existingStartAction) && Boolean(nextStartAction) && existingStartAction !== nextStartAction
+  }
+
+  const confirmStart = async (withoutSaving = false, overwriteExistingStartAction = false) => {
     const item = startConfirmItem
-    if (!canOpenStartConfirm(item) || startSubmitting) return
+    if (!canOpenStartConfirm(item) || startSubmitting || startUnknownOutcome) return
     const submittedPrompt = startPrompt
     const hasStartAction = Boolean(submittedPrompt.trim())
+    if (!withoutSaving && requiresStartActionOverwriteConfirmation(item, submittedPrompt) && !overwriteExistingStartAction) {
+      setStartOverwriteConfirm(true)
+      return
+    }
     setStartSubmitting(true)
     setStartConfirmError('')
     try {
       if (withoutSaving) await application.changeStatus(item.id, 'doing')
-      else if (hasStartAction) await application.startExecution(item.id, submittedPrompt)
-      else await application.startExecution(item.id)
+      else await application.startExecution(item.id, hasStartAction ? { startAction: submittedPrompt, ...(overwriteExistingStartAction ? { overwriteExistingStartAction: true } : {}) } : {})
       setFilter('doing')
       setCurrentPage(1)
       await refresh(item.id)
@@ -1224,16 +1263,39 @@ export default function IndexPage() {
       setStartConfirmItemId(undefined)
       setStartPrompt('')
       setStartSaveFailed(false)
+      setStartOverwriteConfirm(false)
+      setStartUnknownOutcome(false)
       setStartedFeedbackItemId(item.id)
     } catch (error: unknown) {
       if (isApiClientUnknownOutcome(error)) {
         setStartConfirmError('本次提交结果未确认，未自动重试。请刷新真实数据后确认是否已生效。')
         setStartSaveFailed(false)
+        setStartUnknownOutcome(true)
         handleUnknownOutcome()
       } else {
         setStartConfirmError(withoutSaving ? '未能直接开始，请重试。' : error instanceof Error ? error.message : '未能开始推进，请重试。')
         setStartSaveFailed(!withoutSaving && hasStartAction)
       }
+    } finally {
+      setStartSubmitting(false)
+    }
+  }
+
+  const rereadStartRealFacts = async () => {
+    const item = startConfirmItem
+    if (!item || startSubmitting || !startUnknownOutcome) return
+    setStartSubmitting(true)
+    setStartConfirmError('')
+    try {
+      const refreshed = await refresh(item.id)
+      if (![...refreshed.items, ...refreshed.trashItems].some((candidate) => candidate.id === item.id)) {
+        setStartConfirmError('暂时无法确认真实事项状态，请再次重新读取。')
+        return
+      }
+      setStartUnknownOutcome(false)
+      setStartOverwriteConfirm(false)
+    } catch (error) {
+      setStartConfirmError(error instanceof Error ? error.message : '暂时无法重新读取真实数据。')
     } finally {
       setStartSubmitting(false)
     }
@@ -1255,8 +1317,22 @@ export default function IndexPage() {
   const changeStatus = (action: ItemAction) => {
     requestLeaveAllDrafts(() => run(async () => {
       if (!selectedItem) return
-      await application.changeStatus(selectedItem.id, action.status)
-      await refresh(selectedItem.id)
+      const changedItemId = selectedItem.id
+      const shouldRelocateAfterRefresh = (
+        (selectedItem.status === 'idea_to_try' && action.status === 'idea_later')
+        || (selectedItem.status === 'doing' && action.status === 'paused')
+      )
+      await application.changeStatus(changedItemId, action.status)
+      const refreshed = await refresh(changedItemId)
+      if (shouldRelocateAfterRefresh) {
+        const refreshedIndex = refreshed.items.findIndex((item) => item.id === changedItemId && item.status === action.status)
+        if (refreshedIndex >= 0) {
+          setFilter(action.status)
+          setCurrentPage(Math.floor(refreshedIndex / ITEMS_PER_PAGE) + 1)
+          setSelectedId(changedItemId)
+        }
+      }
+      setExplorationFactsVersion((version) => version + 1)
     }))
   }
 
@@ -1267,6 +1343,7 @@ export default function IndexPage() {
       setDeleteConfirm(false)
       setSelectedId(undefined)
       await refresh(undefined)
+      setExplorationFactsVersion((version) => version + 1)
       setMessage('事项已移入回收站，30 天内可以恢复')
     }))
   }
@@ -1278,6 +1355,7 @@ export default function IndexPage() {
       setShowTrash(false)
       setFilter(undefined)
       await refresh(restored.id)
+      setExplorationFactsVersion((version) => version + 1)
       setMessage(`“${restored.title}”已恢复`)
     }))
   }
@@ -1285,11 +1363,14 @@ export default function IndexPage() {
   const restoreTrashEntry = (entry: TrashEntry) => {
     requestLeaveAllDrafts(() => run(async () => {
       if (entry.type === 'item') await application.restoreItem(entry.id)
-      else await methodLifecycleApplication.restoreMethod(entry.id)
+      else if (entry.type === 'method') await methodLifecycleApplication.restoreMethod(entry.id)
+      else await apiClient.restoreExplorationTrack(entry.id)
       const entries = await trashApplication.listTrashEntries(trashFilter)
       setTrashEntries(entries)
       await refresh()
+      setExplorationFactsVersion((version) => version + 1)
       setMessage(`“${entry.title}”已恢复`)
+      setPendingTrashRestore(undefined)
     }))
   }
 
@@ -1604,6 +1685,7 @@ export default function IndexPage() {
       setSelectedMethodId('')
       setReviseMethod(false)
       await refresh(selectedItem.id)
+      setExplorationFactsVersion((version) => version + 1)
       setMessage(result.createdIdea
         ? `复盘已完成，新想法“${result.createdIdea.title}”已进入想试试`
         : '复盘已完成')
@@ -1817,7 +1899,7 @@ export default function IndexPage() {
       {(activeModule === 'explorations' || explorationMounted) && <View className={activeModule === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
         explorationFactsVersion={explorationFactsVersion}
         itemUpdatedAtById={itemUpdatedAtById}
-        onItemsChanged={() => refresh().then(() => undefined)}
+        onItemsChanged={() => refresh().then(() => reloadCurrentItemExplorationContext()).then(() => undefined)}
         onOpenItem={(locator) => {
           setActiveModule('actions')
           setFilter(locator.status)
@@ -1972,11 +2054,11 @@ export default function IndexPage() {
               <Text className='detail-content-label'>探索主线</Text>
               {itemExplorationLoading ? <Text className='item-exploration-copy'>正在载入探索主线关联…</Text>
                 : itemExplorationError ? <View className='item-exploration-error'><Text>{itemExplorationError}</Text><Button className='exploration-inline-button' onClick={() => { if (selectedId) { explorationContextAbortRef.current?.abort(); const controller = new AbortController(); explorationContextAbortRef.current = controller; setItemExplorationLoading(true); setItemExplorationError(''); application.getItemExplorationTrack(selectedId, controller.signal).then((context) => { if (!controller.signal.aborted) { setItemExplorationContext(context); setItemExplorationUnknownOutcome(false) } }).catch((error: unknown) => { if (!isApiClientAbort(error) && !controller.signal.aborted) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入探索主线关联。') }).finally(() => { if (!controller.signal.aborted) setItemExplorationLoading(false) }) } }}>{itemExplorationUnknownOutcome ? '重新读取真实数据' : '重试读取'}</Button></View>
-                : itemExplorationContext?.status === 'available' ? <View className='item-exploration-row'><Text className='item-exploration-copy'>{itemExplorationContext.track.name}</Text><View className='item-exploration-actions'><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>调整</Button><Button className='exploration-inline-button danger' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void removeSelectedItemFromExplorationTrack()}>移除</Button></View></View>
+                : itemExplorationContext?.status === 'available' ? <View className='item-exploration-row'><Text className='item-exploration-copy'>{itemExplorationContext.track.name}</Text>{canModifySelectedItemExploration && <View className='item-exploration-actions'><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>调整</Button><Button className='exploration-inline-button danger' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void removeSelectedItemFromExplorationTrack()}>移除</Button></View>}</View>
                     : itemExplorationContext?.status === 'track-deleted' ? <Text className='item-exploration-copy'>原探索主线已删除：{itemExplorationContext.track.name}</Text>
                       : itemExplorationContext?.status === 'unavailable' ? <View><Text className='item-exploration-copy'>关联探索主线暂不可用</Text><Text className='item-exploration-copy'>请保留当前事项并等待数据修复。</Text></View>
-                        : <View className='item-exploration-row'><Text className='item-exploration-copy'>未归入探索主线</Text><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>归入</Button></View>}
-              {explorationSelectorOpen && canModifyItemExplorationContext(itemExplorationContext) && <View className='item-exploration-selector'><Text className='item-exploration-selector-heading'>归入探索主线</Text><View className='item-exploration-selector-options'>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选探索主线。</Text>}</View><Button className='exploration-inline-button item-exploration-selector-cancel' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
+                        : <View className='item-exploration-row'><Text className='item-exploration-copy muted'>未归入探索主线</Text>{canModifySelectedItemExploration && <Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>归入</Button>}</View>}
+              {explorationSelectorOpen && canModifySelectedItemExploration && <View className='item-exploration-selector'><Text className='item-exploration-selector-heading'>归入探索主线</Text><View className='item-exploration-selector-options'>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选探索主线。</Text>}</View><Button className='exploration-inline-button item-exploration-selector-cancel' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
             </View>}
             {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
             {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>
@@ -2129,20 +2211,32 @@ export default function IndexPage() {
             <Text id='start-confirm-title'>开始推进「{startConfirmItem.title}」</Text>
             <Button className='start-confirm-close' aria-label='关闭启动确认层' disabled={startSubmitting} onClick={closeStartConfirm}>×</Button>
           </View>
-          <Text className='start-confirm-description'>它现在进入执行阶段。先从一个小动作开始就够了。</Text>
-          <Text className='start-confirm-label'>此刻准备先做什么？（可选）</Text>
-          <textarea ref={startPromptRef} className='start-confirm-input' value={startPrompt} disabled={startSubmitting} placeholder='例如：先找一份入门资料，花 10 分钟看一遍。' onInput={(event) => { setStartPrompt(event.currentTarget.value); setStartSaveFailed(false); setStartConfirmError('') }} />
-          <Text className='start-confirm-hint'>开始后会作为不可编辑的启动动作保留在事项中。</Text>
-          {startConfirmError && <Text className='start-confirm-error'>{startConfirmError}</Text>}
-          <View className='start-confirm-actions'>
-            {startSaveFailed ? <>
-              <Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={() => confirmStart(true)}>不保存，直接开始</Button>
-              <Button className='action-button primary' disabled={startSubmitting} onClick={() => confirmStart()}>{startSubmitting ? '正在开始…' : '重试保存'}</Button>
-            </> : <>
-              <Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={closeStartConfirm}>取消</Button>
-              <Button className='action-button primary' disabled={startSubmitting} onClick={() => confirmStart()}>{startSubmitting ? '正在开始…' : '开始！'}</Button>
-            </>}
-          </View>
+          {startUnknownOutcome ? <>
+            <Text className='start-confirm-description'>提交结果尚未确认。不会自动重试，请重新读取真实数据后再决定下一步。</Text>
+            {startConfirmError && <Text className='start-confirm-error'>{startConfirmError}</Text>}
+            <View className='start-confirm-actions'><Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={closeStartConfirm}>取消</Button><Button className='action-button primary' disabled={startSubmitting} onClick={() => void rereadStartRealFacts()}>{startSubmitting ? '正在读取…' : '重新读取真实数据'}</Button></View>
+          </> : startOverwriteConfirm ? <>
+            <Text className='start-confirm-description'>已有启动动作：{startConfirmItem.startAction}</Text>
+            <Text className='start-confirm-description'>确认后将覆盖为：{startPrompt.trim()}</Text>
+            <Text className='start-confirm-hint'>覆盖后会立即开始执行，且不能撤销。</Text>
+            {startConfirmError && <Text className='start-confirm-error'>{startConfirmError}</Text>}
+            <View className='start-confirm-actions'><Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={() => { setStartOverwriteConfirm(false); setStartConfirmError('') }}>取消</Button><Button className='action-button primary' disabled={startSubmitting} onClick={() => void confirmStart(false, true)}>{startSubmitting ? '正在开始…' : '确认覆盖并开始'}</Button></View>
+          </> : <>
+            <Text className='start-confirm-description'>它现在进入执行阶段。先从一个小动作开始就够了。</Text>
+            <Text className='start-confirm-label'>此刻准备先做什么？（可选）</Text>
+            <textarea ref={startPromptRef} className='start-confirm-input' value={startPrompt} disabled={startSubmitting} placeholder='例如：先找一份入门资料，花 10 分钟看一遍。' onInput={(event) => { setStartPrompt(event.currentTarget.value); setStartSaveFailed(false); setStartOverwriteConfirm(false); setStartConfirmError('') }} />
+            <Text className='start-confirm-hint'>开始后会作为不可编辑的启动动作保留在事项中。</Text>
+            {startConfirmError && <Text className='start-confirm-error'>{startConfirmError}</Text>}
+            <View className='start-confirm-actions'>
+              {startSaveFailed ? <>
+                <Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={() => confirmStart(true)}>不保存，直接开始</Button>
+                <Button className='action-button primary' disabled={startSubmitting} onClick={() => confirmStart()}>{startSubmitting ? '正在开始…' : '重试保存'}</Button>
+              </> : <>
+                <Button className='action-button secondary start-confirm-cancel' disabled={startSubmitting} onClick={closeStartConfirm}>取消</Button>
+                <Button className='action-button primary' disabled={startSubmitting} onClick={() => confirmStart()}>{startSubmitting ? '正在开始…' : '开始！'}</Button>
+              </>}
+            </View>
+          </>}
         </View>
       </View>}
 
@@ -2154,9 +2248,9 @@ export default function IndexPage() {
 
       {activeModule === 'settings' && <View className='settings-module module-panel'>
         <View className='trash-panel'>
-          <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项和方法</Text></View><Text className='backup-description'>删除后保留 30 天，之后自动永久清理。</Text></View>
-          <View className='trash-filter-actions'>{(['all', 'item', 'method'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法' }[entry]}</Text></View>)}</View>
-          {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => <View className='trash-entry' key={`${entry.type}-${entry.id}`}><View><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type === 'item' ? '事项' : '方法'} · 删除于 {formatTime(entry.deletedAt)} · 剩余 {remainingTrashDays(entry.deletedAt)} 天</Text></View><Button className='action-button secondary' disabled={busy} onClick={() => restoreTrashEntry(entry)}>恢复</Button></View>)}</View>}
+          <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和探索主线</Text></View><Text className='backup-description'>事项和方法保留 30 天；探索主线当前不自动清理，可在此恢复。</Text></View>
+          <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '探索主线' }[entry]}</Text></View>)}</View>
+          {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => <View className='trash-entry' key={`${entry.type}-${entry.id}`}><View><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type === 'exploration-track' ? `探索主线 · 删除于 ${formatTime(entry.deletedAt)} · 当前不自动清理，可在此恢复` : `${entry.type === 'item' ? '事项' : '方法'} · 删除于 ${formatTime(entry.deletedAt)} · 剩余 ${remainingTrashDays(entry.deletedAt)} 天`}</Text></View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button></View>)}</View>}
         </View>
         <View className='data-status-panel'>
           <View><Text className='section-kicker'>本地数据状态</Text><Text className='panel-title'>数据仅保存在当前浏览器</Text></View>
@@ -2185,13 +2279,15 @@ export default function IndexPage() {
             <Button className='action-button delete-confirm-button' disabled={busy} onClick={restoreBackup}>备份当前数据并恢复</Button>
           </View>
         </View>}
+      {pendingTrashRestore && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashRestore(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='恢复确认' onClick={(event) => event.stopPropagation()}><Text>恢复“{pendingTrashRestore.title}”？</Text><Text>恢复后将重新回到当前可用数据中。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(undefined)}>取消</Button><Button className='action-button primary' disabled={busy} onClick={() => restoreTrashEntry(pendingTrashRestore)}>恢复</Button></View></View></View>}
         {restoring && <View className='restore-progress'><View className='status-dot' /><Text>恢复正在进行，一级导航已暂时锁定。</Text></View>}
       </View>
       </View>}
 
       {activeModule === 'methods' && <View className='methods-panel module-panel'>
-        <View className='methods-workbench-heading'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View><Text>按最近更新排序</Text></View>
-        {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <View className='methods-workbench'>
+        <View className='methods-page-header'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View><Text>按最近更新排序</Text></View>
+        <View className='methods-workbench'>
+          {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <>
           <View className='method-list-pane'>
             <Input className='method-search-input' value={methodSearchQuery} maxlength={120} placeholder='搜索方法名称、步骤或说明' onInput={(event) => setMethodSearchQuery(event.detail.value)} />
             {workspaceMethods.length === 0 ? <Text className='method-list-empty'>没有匹配的方法</Text> : <View className='method-list'>{workspaceMethods.map((method) => <View key={method.id} className={`method-list-row ${selectedWorkspaceMethodId === method.id ? 'active' : ''}`} onClick={() => selectWorkspaceMethod(method.id)}><Text className='method-list-title'>{method.title}</Text><Text className='method-list-meta'>v{method.version} · 验证 {method.validationCount} 次 · {formatTime(method.updatedAt)}</Text><Text className='method-list-summary'>{method.steps.split(/\r?\n/, 1)[0]}</Text></View>)}</View>}
@@ -2235,7 +2331,8 @@ export default function IndexPage() {
               </View>
             })()}
           </View>
-        </View>}
+          </>}
+        </View>
       </View>}
         </View>
       </View>

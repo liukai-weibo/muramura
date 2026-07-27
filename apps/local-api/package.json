@@ -1,0 +1,12 @@
+{
+  "name": "@knowledge-base/local-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@knowledge-base/storage-sqlite": "workspace:*",
+    "tsx": "^4.21.0"
+  }
+}
