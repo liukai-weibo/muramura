@@ -36,18 +36,18 @@ corepack pnpm dev:h5
 
 ```text
 Taro + React + TypeScript
-├── 第一阶段：H5 / Web 本地优先应用 + Docker 部署
-├── 第二阶段：方向层与计划体系
-└── 后续阶段：微信小程序、CloudBase 与多设备
+├── H5 开发代理 → loopback Node API → Application → MySQL
+├── Docker：单容器双库（knowledge_base / knowledge_base_uat）
+└── Backup V3：完整 JSON 导出与安全恢复
 ```
 
-第一阶段使用 IndexedDB 保存本地数据，以完整 JSON 作为正式备份与恢复格式；Markdown + ZIP 保留为后续可读导出能力。
+MySQL 是当前 H5 唯一运行主库；浏览器不直接连接数据库。IndexedDB 仅保留为历史本地资产，SQLite 仅用于实验和测试，不参与当前运行读写。
 
 ## 当前阶段
 
-**Sprint 11 第一阶段收口中。**
+**探索主线 V1 已封板；V1.1 已完成阶段性 Git 快照。**
 
-当前已完成想法、执行、复盘、方法复用、全局搜索、状态流转历史、周期仪表盘下钻、回收站以及安全备份恢复闭环。当前工作聚焦工程标准核验、文档对齐和 `v0.1.0` 封板。
+当前已完成想法、执行、复盘、方法复用、全局搜索、状态流转历史、回收站及安全备份恢复闭环。运行路径、数据源和禁止事项以 `docs/product/当前运行事实.md` 为准；“本机迁移与一键启动”仍待架构评审，尚未实施。
 
 ## 开发与验证
 
