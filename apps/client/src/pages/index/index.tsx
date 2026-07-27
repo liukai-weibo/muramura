@@ -52,10 +52,10 @@ type NavigationTarget =
 
 const moduleLabels: Record<PrimaryModule, string> = {
   actions: '行动',
-  explorations: '探索主线',
+  explorations: '长期探索',
   methods: '方法',
   insights: '观察',
-  settings: '数据与设置',
+  settings: '数据管理',
 }
 
 const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
@@ -66,6 +66,7 @@ const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
 }
 
 const ITEMS_PER_PAGE = 5
+const TRASH_ENTRIES_PER_PAGE = 8
 
 
 
@@ -171,6 +172,7 @@ export default function IndexPage() {
   const [historyReviews, setHistoryReviews] = useState<Record<string, Review>>({})
   const [trashFilter, setTrashFilter] = useState<TrashFilter>('all')
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([])
+  const [trashPage, setTrashPage] = useState(1)
   const [trashLoading, setTrashLoading] = useState(false)
   const [pendingTrashRestore, setPendingTrashRestore] = useState<TrashEntry>()
   const [methodTrashConfirmId, setMethodTrashConfirmId] = useState<string>()
@@ -273,6 +275,8 @@ export default function IndexPage() {
   const itemUpdatedAtById = useMemo(() => new Map(items.map((item) => [item.id, item.updatedAt])), [items])
   const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE))
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  const trashPageCount = Math.max(1, Math.ceil(trashEntries.length / TRASH_ENTRIES_PER_PAGE))
+  const visibleTrashEntries = trashEntries.slice((trashPage - 1) * TRASH_ENTRIES_PER_PAGE, trashPage * TRASH_ENTRIES_PER_PAGE)
   const visibleMethodSourceItemIds = useMemo(() => pagedItems.map((item) => item.id), [pagedItems])
   const visibleMethodSourceItemIdsKey = visibleMethodSourceItemIds.join('\u0000')
   const hasCaptureContent = Boolean(title.trim() || content.trim())
@@ -460,11 +464,16 @@ export default function IndexPage() {
   }, [currentPage, totalPages])
 
   useEffect(() => {
+    if (trashPage > trashPageCount) setTrashPage(trashPageCount)
+  }, [trashPage, trashPageCount])
+
+  useEffect(() => {
     if (activeModule !== 'settings') return
     const controller = new AbortController()
     setTrashLoading(true)
     trashApplication.listTrashEntries(trashFilter, controller.signal).then((entries) => {
       setTrashEntries(entries)
+      setTrashPage((page) => Math.min(page, Math.max(1, Math.ceil(entries.length / TRASH_ENTRIES_PER_PAGE))))
     }).catch((error: unknown) => {
       if (!isApiClientAbort(error)) setMessage(error instanceof Error ? error.message : '读取回收站失败')
     }).finally(() => {
@@ -1320,13 +1329,19 @@ export default function IndexPage() {
       const changedItemId = selectedItem.id
       const shouldRelocateAfterRefresh = (
         (selectedItem.status === 'idea_to_try' && action.status === 'idea_later')
+        || (selectedItem.status === 'idea_later' && action.status === 'idea_to_try')
         || (selectedItem.status === 'doing' && action.status === 'paused')
+        || (selectedItem.status === 'paused' && action.status === 'doing')
+        || (selectedItem.status === 'idea_later' && action.status === 'abandoned')
+        || (selectedItem.status === 'paused' && action.status === 'abandoned')
+        || (selectedItem.status === 'abandoned' && action.status === 'idea_to_try')
       )
       await application.changeStatus(changedItemId, action.status)
       const refreshed = await refresh(changedItemId)
       if (shouldRelocateAfterRefresh) {
         const refreshedIndex = refreshed.items.findIndex((item) => item.id === changedItemId && item.status === action.status)
         if (refreshedIndex >= 0) {
+          setMoreStatusMenuOpen(false)
           setFilter(action.status)
           setCurrentPage(Math.floor(refreshedIndex / ITEMS_PER_PAGE) + 1)
           setSelectedId(changedItemId)
@@ -1367,6 +1382,7 @@ export default function IndexPage() {
       else await apiClient.restoreExplorationTrack(entry.id)
       const entries = await trashApplication.listTrashEntries(trashFilter)
       setTrashEntries(entries)
+      setTrashPage((page) => Math.min(page, Math.max(1, Math.ceil(entries.length / TRASH_ENTRIES_PER_PAGE))))
       await refresh()
       setExplorationFactsVersion((version) => version + 1)
       setMessage(`“${entry.title}”已恢复`)
@@ -1806,14 +1822,14 @@ export default function IndexPage() {
           <View
             className={`navigation-item ${activeModule === 'settings' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('settings')) }}
-          ><Text>数据与设置</Text></View>
+          ><Text>数据管理</Text></View>
         </View>
         <View className='navigation-status'><View className='status-dot' /><View><Text>本地数据正常</Text><Text>{items.length} 条事项 · {methods.length} 条方法</Text></View></View>
       </View>
 
       <View className='app-main'>
         <View className='global-header'>
-          <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{activeModule === 'explorations' ? '探索主线 · 已接入本地真实数据' : restoring ? '正在安全恢复数据，请勿离开' : message}</Text></View>
+          <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{activeModule === 'explorations' ? '长期探索 · 已接入本地真实数据' : restoring ? '正在安全恢复数据，请勿离开' : message}</Text></View>
           {activeModule !== 'explorations' && <View className='global-actions'>
             <View className={`global-tool-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '刷新数据失败')) }}><Text>刷新数据</Text></View>
             <View className='global-search-control' ref={searchControlRef}>
@@ -2249,8 +2265,8 @@ export default function IndexPage() {
       {activeModule === 'settings' && <View className='settings-module module-panel'>
         <View className='trash-panel'>
           <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和探索主线</Text></View><Text className='backup-description'>事项和方法保留 30 天；探索主线当前不自动清理，可在此恢复。</Text></View>
-          <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '探索主线' }[entry]}</Text></View>)}</View>
-          {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => <View className='trash-entry' key={`${entry.type}-${entry.id}`}><View><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type === 'exploration-track' ? `探索主线 · 删除于 ${formatTime(entry.deletedAt)} · 当前不自动清理，可在此恢复` : `${entry.type === 'item' ? '事项' : '方法'} · 删除于 ${formatTime(entry.deletedAt)} · 剩余 ${remainingTrashDays(entry.deletedAt)} 天`}</Text></View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button></View>)}</View>}
+          <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => { setTrashFilter(entry); setTrashPage(1) }}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '探索主线' }[entry]}</Text></View>)}</View>
+          {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <><View className='trash-entry-list'>{visibleTrashEntries.map((entry) => <View className='trash-entry' key={`${entry.type}-${entry.id}`}><View><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type === 'exploration-track' ? `探索主线 · 删除于 ${formatTime(entry.deletedAt)} · 当前不自动清理，可在此恢复` : `${entry.type === 'item' ? '事项' : '方法'} · 删除于 ${formatTime(entry.deletedAt)} · 剩余 ${remainingTrashDays(entry.deletedAt)} 天`}</Text></View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button></View>)}</View>{trashPageCount > 1 && <View className='pagination trash-pagination'><View className={`pagination-button ${trashPage === 1 ? 'disabled' : ''}`} onClick={() => { if (trashPage > 1) setTrashPage((page) => page - 1) }}><Text>上一页</Text></View><Text className='pagination-status'>第 {trashPage} / {trashPageCount} 页</Text><View className={`pagination-button ${trashPage === trashPageCount ? 'disabled' : ''}`} onClick={() => { if (trashPage < trashPageCount) setTrashPage((page) => page + 1) }}><Text>下一页</Text></View></View>}</>}
         </View>
         <View className='data-status-panel'>
           <View><Text className='section-kicker'>本地数据状态</Text><Text className='panel-title'>数据仅保存在当前浏览器</Text></View>
@@ -2267,7 +2283,7 @@ export default function IndexPage() {
         </View>
         <View className='backup-actions'>
           <View className={`secondary-button backup-export-button ${busy ? 'disabled' : ''}`} onClick={() => { if (!busy) exportBackup() }}><Text>导出完整备份</Text></View>
-          <label className={`file-button ${busy ? 'disabled' : ''}`}>选择备份文件<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy} onChange={selectBackup} /></label>
+          <label className={`file-button ${busy ? 'disabled' : ''}`}>导入恢复<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy} onChange={selectBackup} /></label>
         </View>
         {backupMessage && <Text className={`backup-message ${pendingBackup ? 'warning' : ''}`}>{backupMessage}</Text>}
         {pendingBackup && <View className='restore-confirm'>

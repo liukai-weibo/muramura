@@ -24,6 +24,21 @@ describe('H5 status navigation layout', () => {
     expect(pageSource).not.toContain('待完成复盘（历史）（{historicalWaitingReviewCount}）')
   })
 
+  it('relocates only the seven approved status transitions after a confirmed refresh', () => {
+    expect(pageSource).toContain("(selectedItem.status === 'idea_to_try' && action.status === 'idea_later')")
+    expect(pageSource).toContain("(selectedItem.status === 'idea_later' && action.status === 'idea_to_try')")
+    expect(pageSource).toContain("(selectedItem.status === 'doing' && action.status === 'paused')")
+    expect(pageSource).toContain("(selectedItem.status === 'paused' && action.status === 'doing')")
+    expect(pageSource).toContain("(selectedItem.status === 'idea_later' && action.status === 'abandoned')")
+    expect(pageSource).toContain("(selectedItem.status === 'paused' && action.status === 'abandoned')")
+    expect(pageSource).toContain("(selectedItem.status === 'abandoned' && action.status === 'idea_to_try')")
+    expect(pageSource).toContain('const refreshed = await refresh(changedItemId)')
+    expect(pageSource).toContain('const refreshedIndex = refreshed.items.findIndex((item) => item.id === changedItemId && item.status === action.status)')
+    expect(pageSource).toContain('if (refreshedIndex >= 0) {\n          setMoreStatusMenuOpen(false)\n          setFilter(action.status)')
+    expect(pageSource).toContain('setCurrentPage(Math.floor(refreshedIndex / ITEMS_PER_PAGE) + 1)')
+    expect(pageSource).toContain('setSelectedId(changedItemId)')
+  })
+
   it('uses one vertical gap for adjacent detail action stacks and the delete action', () => {
     expect(styleSource).toContain('.action-stack { display: flex; flex-direction: column;')
     expect(styleSource).toContain('.action-stack + .action-stack {')
