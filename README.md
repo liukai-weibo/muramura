@@ -108,8 +108,8 @@ docker compose down
 
 ## 文档入口
 
-1. [`docs/product/功能清单-v2.md`](<docs/product/功能清单-v2.md>)：当前有效产品范围与第一阶段完成标准
-2. [`docs/product/功能清单-v1.md`](<docs/product/功能清单-v1.md>)：早期产品设计，仅保留决策历史
+1. [`docs/product/功能清单-v4.md`](<docs/product/功能清单-v4.md>)：当前有效产品范围与已验收行为
+2. [`功能清单历史版本`](<docs/archive/product/feature-list-history/>)：早期产品设计与版本演进，仅供追溯
 3. [`docs/architecture/整体架构设计-v2.md`](<docs/architecture/整体架构设计-v2.md>)：当前有效技术架构
 4. [`docs/development/开发流程-v1.md`](<docs/development/开发流程-v1.md>)：整体开发顺序
 5. [`docs/development/Git与镜像约定.md`](<docs/development/Git与镜像约定.md>)：Git、隐私和 Docker 约定
