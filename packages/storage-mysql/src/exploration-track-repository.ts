@@ -28,6 +28,8 @@ const mysqlDateTime = (value: string) => value.replace('T', ' ').replace('Z', ''
 const mapTrack = (row: TrackRow): ExplorationTrack => ({ id: row.id, name: row.name, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }) })
 const mapItem = (row: ItemRow): Item => ({ id: row.id, title: row.title, content: row.content, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.start_action == null ? {} : { startAction: row.start_action }), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.exploration_track_id == null ? {} : { explorationTrackId: row.exploration_track_id }) })
 const currentStatuses: readonly CurrentAssociatedStatus[] = ['doing', 'idea_to_try', 'idea_later', 'paused']
+const trackColumns = 'id, name, normalized_name, created_at, updated_at, deleted_at'
+const itemColumns = 'id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_id'
 
 export interface MySqlExplorationTrackRepositoryTestHooks {
   beforeTrackInsert?: () => Promise<void> | void
@@ -48,7 +50,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   }
 
   async getById(id: string): Promise<ExplorationTrack | undefined> {
-    const [rows] = await this.pool.query<TrackRow[]>('SELECT * FROM exploration_tracks WHERE id=?', [id])
+    const [rows] = await this.pool.query<TrackRow[]>('SELECT id, name, normalized_name, created_at, updated_at, deleted_at FROM exploration_tracks WHERE id=?', [id])
     return rows[0] && mapTrack(rows[0])
   }
 
@@ -90,29 +92,49 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   }
 
   async listActive(): Promise<ExplorationTrackListEntry[]> {
-    const [tracks] = await this.pool.query<TrackRow[]>('SELECT * FROM exploration_tracks WHERE deleted_at IS NULL ORDER BY updated_at DESC,id ASC')
-    const result: ExplorationTrackListEntry[] = []
-    for (const track of tracks) {
-      const [items] = await this.pool.query<ItemRow[]>('SELECT * FROM items WHERE exploration_track_id=? AND deleted_at IS NULL ORDER BY created_at DESC,id ASC LIMIT 1', [track.id])
-      result.push({ track: mapTrack(track), ...(items[0] ? { latestAssociatedItem: mapItem(items[0]) } : {}) })
+    const [tracks] = await this.pool.query<TrackRow[]>(`SELECT ${trackColumns} FROM exploration_tracks WHERE deleted_at IS NULL ORDER BY updated_at DESC,id ASC`)
+    if (tracks.length === 0) return []
+    const trackIds = tracks.map(track => track.id)
+    const trackPlaceholders = trackIds.map(() => '?').join(',')
+    const [latestRows] = await this.pool.query<Array<RowDataPacket & { exploration_track_id: string; item_id: string | null }>>(
+      `SELECT t.id AS exploration_track_id, (SELECT i.id FROM items i WHERE i.exploration_track_id = t.id AND i.deleted_at IS NULL ORDER BY i.created_at DESC, i.id ASC LIMIT 1) AS item_id FROM exploration_tracks t WHERE t.id IN (${trackPlaceholders})`,
+      trackIds,
+    )
+    const latestItemIdByTrackId = new Map<string, string>()
+    const latestItemIds: string[] = []
+    for (const row of latestRows) {
+      if (row.item_id) {
+        latestItemIdByTrackId.set(row.exploration_track_id, row.item_id)
+        latestItemIds.push(row.item_id)
+      }
     }
-    return result
+    const itemById = new Map<string, ItemRow>()
+    if (latestItemIds.length > 0) {
+      const itemPlaceholders = latestItemIds.map(() => '?').join(',')
+      const [items] = await this.pool.query<ItemRow[]>(`SELECT ${itemColumns} FROM items WHERE id IN (${itemPlaceholders})`, latestItemIds)
+      for (const item of items) itemById.set(item.id, item)
+    }
+    return tracks.map(track => {
+      const latestItemId = latestItemIdByTrackId.get(track.id)
+      const latestItem = latestItemId ? itemById.get(latestItemId) : undefined
+      return { track: mapTrack(track), ...(latestItem ? { latestAssociatedItem: mapItem(latestItem) } : {}) }
+    })
   }
 
   async listSelectable(): Promise<ExplorationTrack[]> {
-    const [rows] = await this.pool.query<TrackRow[]>('SELECT * FROM exploration_tracks WHERE deleted_at IS NULL ORDER BY normalized_name ASC,id ASC')
+    const [rows] = await this.pool.query<TrackRow[]>('SELECT id, name, normalized_name, created_at, updated_at, deleted_at FROM exploration_tracks WHERE deleted_at IS NULL ORDER BY normalized_name ASC,id ASC')
     return rows.map(mapTrack)
   }
 
   async listDeleted(): Promise<DeletedExplorationTrackListEntry[]> {
-    const [rows] = await this.pool.query<TrackRow[]>('SELECT * FROM exploration_tracks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC,id ASC')
+    const [rows] = await this.pool.query<TrackRow[]>('SELECT id, name, normalized_name, created_at, updated_at, deleted_at FROM exploration_tracks WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC,id ASC')
     return rows.map(row => ({ track: mapTrack(row) as Required<ExplorationTrack> }))
   }
 
   async getHistory(id: string): Promise<ExplorationTrackHistory | undefined> {
     const track = await this.getById(id)
     if (!track) return undefined
-    const [rows] = await this.pool.query<ItemRow[]>('SELECT * FROM items WHERE exploration_track_id=? AND deleted_at IS NULL ORDER BY created_at DESC,id ASC', [id])
+    const [rows] = await this.pool.query<ItemRow[]>('SELECT id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_id FROM items WHERE exploration_track_id=? AND deleted_at IS NULL ORDER BY created_at DESC,id ASC', [id])
     const entries = await this.historyEntries(rows)
     const currentAssociatedItems = currentStatuses.map(status => {
       const items = entries.filter(entry => entry.item.status === status)
@@ -122,7 +144,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   }
 
   async getItemContext(itemId: string): Promise<ItemExplorationTrackContext | undefined> {
-    const [items] = await this.pool.query<ItemRow[]>('SELECT * FROM items WHERE id=?', [itemId])
+    const [items] = await this.pool.query<ItemRow[]>('SELECT id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_id FROM items WHERE id=?', [itemId])
     const item = items[0]
     if (!item) return undefined
     if (item.exploration_track_id == null) return { status: 'no-association', itemId }
@@ -141,7 +163,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         '受限状态参数无效',
       )
     }
-    const [rows] = await this.pool.query<ItemRow[]>('SELECT * FROM items WHERE exploration_track_id=? AND status=? AND deleted_at IS NULL ORDER BY updated_at DESC,id ASC', [trackId, status])
+    const [rows] = await this.pool.query<ItemRow[]>('SELECT id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_id FROM items WHERE exploration_track_id=? AND status=? AND deleted_at IS NULL ORDER BY updated_at DESC,id ASC', [trackId, status])
     return rows.map(mapItem)
   }
 
@@ -266,33 +288,36 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   }
 
   private async historyEntries(rows: ItemRow[]): Promise<ExplorationTrackItem[]> {
-    const entries: ExplorationTrackItem[] = []
-    for (const row of rows) {
+    if (rows.length === 0) return []
+    const itemIds = rows.map(row => row.id)
+    const placeholders = itemIds.map(() => '?').join(',')
+    const [reviews] = await this.pool.query<ReviewRow[]>(`SELECT item_id,actual_action,result FROM reviews WHERE item_id IN (${placeholders})`, itemIds)
+    const reviewByItemId = new Map<string, ReviewRow>()
+    for (const review of reviews) reviewByItemId.set(review.item_id, review)
+    return rows.map(row => {
       const item = mapItem(row)
-      const [reviews] = await this.pool.query<ReviewRow[]>('SELECT item_id,actual_action,result FROM reviews WHERE item_id=?', [item.id])
-      const review = reviews[0]
-      entries.push({ item, locator: { itemId: item.id, status: item.status }, ...(review ? { reviewSummary: { actualAction: review.actual_action, result: review.result }, reviewSummaryStatus: 'available' as const } : { reviewSummaryStatus: 'not-reviewed' as const }) })
-    }
-    return entries
+      const review = reviewByItemId.get(item.id)
+      return { item, locator: { itemId: item.id, status: item.status }, ...(review ? { reviewSummary: { actualAction: review.actual_action, result: review.result }, reviewSummaryStatus: 'available' as const } : { reviewSummaryStatus: 'not-reviewed' as const }) }
+    })
   }
 
   private async lockTrack(connection: PoolConnection, id: string): Promise<ExplorationTrack | undefined> {
-    const [rows] = await connection.query<TrackRow[]>('SELECT * FROM exploration_tracks WHERE id=? FOR UPDATE', [id])
+    const [rows] = await connection.query<TrackRow[]>('SELECT id, name, normalized_name, created_at, updated_at, deleted_at FROM exploration_tracks WHERE id=? FOR UPDATE', [id])
     return rows[0] && mapTrack(rows[0])
   }
   private async lockActiveTrack(connection: PoolConnection, id: string): Promise<ExplorationTrack | undefined> {
-    const [rows] = await connection.query<TrackRow[]>('SELECT * FROM exploration_tracks WHERE id=? AND deleted_at IS NULL FOR UPDATE', [id])
+    const [rows] = await connection.query<TrackRow[]>('SELECT id, name, normalized_name, created_at, updated_at, deleted_at FROM exploration_tracks WHERE id=? AND deleted_at IS NULL FOR UPDATE', [id])
     return rows[0] && mapTrack(rows[0])
   }
   private async lockActiveItem(connection: PoolConnection, id: string): Promise<ItemRow | undefined> {
-    const [rows] = await connection.query<ItemRow[]>('SELECT * FROM items WHERE id=? AND deleted_at IS NULL FOR UPDATE', [id])
+    const [rows] = await connection.query<ItemRow[]>('SELECT id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_id FROM items WHERE id=? AND deleted_at IS NULL FOR UPDATE', [id])
     return rows[0]
   }
   private async lockTracksOrdered(connection: PoolConnection, ids: Array<string | null>): Promise<Map<string, ExplorationTrack>> {
     const uniqueIds = [...new Set(ids.filter((id): id is string => Boolean(id)))].sort()
     if (uniqueIds.length === 0) return new Map()
     const placeholders = uniqueIds.map(() => '?').join(',')
-    const [rows] = await connection.query<TrackRow[]>(`SELECT * FROM exploration_tracks WHERE id IN (${placeholders}) ORDER BY id ASC FOR UPDATE`, uniqueIds)
+    const [rows] = await connection.query<TrackRow[]>(`SELECT id, name, normalized_name, created_at, updated_at, deleted_at FROM exploration_tracks WHERE id IN (${placeholders}) ORDER BY id ASC FOR UPDATE`, uniqueIds)
     return new Map(rows.map(row => {
       const track = mapTrack(row)
       return [track.id, track]
