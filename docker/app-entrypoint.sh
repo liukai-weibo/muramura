@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-if [ "${1:-}" = 'migrate' ]; then
+if [ "${1:-}" = "migrate" ]; then
   sed 's@mysql --protocol=socket --socket=/var/run/mysqld/mysqld.sock@mysql --protocol=tcp --host="$MYSQL_HOST" --port="${MYSQL_PORT:-3306}"@' /app/docker/reconcile-users.sh | sh
   exec node apps/api/node_modules/tsx/dist/cli.mjs apps/api/src/migrate.ts
 fi
