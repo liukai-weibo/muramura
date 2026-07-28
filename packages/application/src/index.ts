@@ -36,7 +36,7 @@ import type {
   SearchRepository,
   SearchResult,
 } from '@knowledge-base/contracts'
-import { allowedTransitions, createId } from '@knowledge-base/domain'
+import { allowedTransitions, assertItemTitleLength, createId, normalizeItemTitle } from '@knowledge-base/domain'
 import { itemStatuses } from '@knowledge-base/contracts'
 
 export const TRASH_RETENTION_DAYS = 30
@@ -415,7 +415,9 @@ export class MethodApplicationService {
   constructor(private readonly repository: MethodApplicationRepository) {}
 
   createItem(methodId: string, title: string, content?: string): Promise<Item> {
-    return this.repository.createItem({ methodId, title, content })
+    const normalizedTitle = normalizeItemTitle(title)
+    assertItemTitleLength(normalizedTitle)
+    return this.repository.createItem({ methodId, title: normalizedTitle, content })
   }
 
   getContextForItem(itemId: string): Promise<MethodApplicationContext | undefined> {
@@ -516,8 +518,9 @@ export class ExplorationTrackApplicationService {
   listItemsByExplorationTrackAndStatus(trackId: string, status: CurrentAssociatedStatus) { return this.repository.listItemsByTrackAndStatus(trackId, status) }
 
   createItemWithExplorationTrack(input: CreateItemInput, selection: ExplorationTrackSelection): Promise<Item> {
-    const title = input.title.trim()
+    const title = normalizeItemTitle(input.title)
     if (!title) throw new Error('标题不能为空')
+    assertItemTitleLength(title)
     const prepared = this.prepareSelection(selection)
     return this.workflow.createItemWithExplorationTrack({ ...input, title, id: createId(), createdAt: new Date().toISOString() }, prepared)
   }
@@ -539,9 +542,10 @@ export class ItemApplicationService {
   }
 
   createIdea(input: CaptureIdeaInput): Promise<Item> {
-    const enteredTitle = input.title?.trim() ?? ''
+    const enteredTitle = normalizeItemTitle(input.title ?? '')
     const enteredContent = input.content?.trim() ?? ''
-    const title = enteredTitle || enteredContent.split(/\r?\n/, 1)[0]?.slice(0, 120) || ''
+    const title = normalizeItemTitle(enteredTitle || enteredContent.split(/\r?\n/, 1)[0] || '')
+    assertItemTitleLength(title)
     const capture = { title, content: enteredTitle ? enteredContent : '', status: input.saveForLater ? 'idea_later' as const : 'idea_to_try' as const }
     if (!input.explorationTrack) return this.repository.create(capture)
     if (!this.explorationWorkflow) throw new Error('探索主线工作流不可用')

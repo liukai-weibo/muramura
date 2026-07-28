@@ -33,7 +33,7 @@ describe.runIf(enabled)('MySQL M3-B method application and purge repositories', 
   afterAll(async () => { await app?.end(); await migrator?.end(); await root?.query(`DROP DATABASE IF EXISTS \`${database}\``); await root?.query(`DROP USER IF EXISTS '${appUser}'@'%'`); await root?.query(`DROP USER IF EXISTS '${migratorUser}'@'%'`); await root?.end() })
   afterEach(async () => { for (const table of ['item_links', 'item_status_events', 'method_applications', 'method_evidence', 'method_versions', 'method_tombstones', 'methods', 'reviews', 'items']) await app.query(`DELETE FROM ${table}`) })
 
-  async function review() { const item = await new MySqlItemRepository(app).create({ title: id() }); return new MySqlReviewRepository(app).create({ itemId: item.id, actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '' }) }
+  async function review() { const item = await new MySqlItemRepository(app).create({ title: '源事项' }); return new MySqlReviewRepository(app).create({ itemId: item.id, actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '' }) }
   async function activeMethod() { const source = await review(); return new MySqlMethodRepository(app).createFromReview(methodInput(), source.id) }
 
   it('creates Item, initial event, and Application atomically and rejects unavailable methods without writes', async () => {
@@ -44,6 +44,16 @@ describe.runIf(enabled)('MySQL M3-B method application and purge repositories', 
     expect((await new MySqlItemRepository(app).listStatusEvents(item.id)).map(event => event.toStatus)).toEqual(['idea_to_try'])
     const before = await snapshot(); await expect(repository.createItem({ methodId: id(), title: '不应创建' })).rejects.toThrow('选择的方法不存在'); expect(await snapshot()).toEqual(before)
     await new MySqlMethodRepository(app).moveToTrash(method.id); const trashedBefore = await snapshot(); await expect(repository.createItem({ methodId: method.id, title: '不应创建' })).rejects.toThrow('选择的方法不存在'); expect(await snapshot()).toEqual(trashedBefore)
+  })
+
+  it('rejects over-limit direct Item and MethodApplication repository writes before INSERT', async () => {
+    const title = '😀'.repeat(21)
+    const itemBefore = await snapshot()
+    await expect(new MySqlItemRepository(app).create({ title })).rejects.toThrow('标题最多 20 个字符')
+    expect(await snapshot()).toEqual(itemBefore)
+    const method = await activeMethod(); const applicationBefore = await snapshot()
+    await expect(new MySqlMethodApplicationRepository(app).createItem({ methodId: method.id, title })).rejects.toThrow('标题最多 20 个字符')
+    expect(await snapshot()).toEqual(applicationBefore)
   })
 
   it('rolls Item, event, and Application back when the terminal application write fails', async () => {

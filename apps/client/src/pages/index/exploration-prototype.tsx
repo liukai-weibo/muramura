@@ -13,6 +13,16 @@ const itemTimeFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'numeric', d
 const formatItemTime = (value: string) => itemTimeFormatter.format(new Date(value))
 const ItemUpdatedAtContext = createContext<ReadonlyMap<string, string>>(new Map())
 const EXPLORATION_TRACK_PAGE_SIZE = 9
+const ITEM_TITLE_MAX_GRAPHEMES = 20
+const itemTitleSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+function itemTitleGraphemeCount(value: string): number {
+  return [...itemTitleSegmenter.segment(value.trim())].length
+}
+
+function acceptsItemTitleInput(value: string): boolean {
+  return itemTitleGraphemeCount(value) <= ITEM_TITLE_MAX_GRAPHEMES
+}
 
 function Summary({ item }: { item: ExplorationTrackItem }) {
   if (item.reviewSummaryStatus !== 'available' || !item.reviewSummary) return <Text className='exploration-review-summary'>复盘详情请在事项中查看。</Text>
@@ -42,6 +52,7 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
   const [draft, setDraft] = useState('')
+  const [draftTitleLimitReached, setDraftTitleLimitReached] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -139,11 +150,12 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
   }
   const capture = async (saveForLater: boolean) => {
     if (!history || !draft.trim()) return
+    if (!acceptsItemTitleInput(draft)) { setDraftTitleLimitReached(true); return }
     setCreating(true); setError('')
     try {
       try { await apiClient.createIdea({ title: draft, saveForLater, explorationTrack: { type: 'existing', trackId: history.track.id } }) }
       catch (cause) { setDraft(captureDraftAfterWrite(draft, false)); preserveUnknownOutcome(cause, '创建未完成，请重试。'); return }
-      try { setDraft(captureDraftAfterWrite(draft, true)); await loadList(history.track.id); await loadHistory(history.track.id); await onItemsChanged() }
+      try { setDraft(captureDraftAfterWrite(draft, true)); setDraftTitleLimitReached(false); await loadList(history.track.id); await loadHistory(history.track.id); await onItemsChanged() }
       catch (cause) { setError(messageOf(cause, '事项已创建，但暂时无法刷新行动事项。')) }
     } finally { setCreating(false) }
   }
@@ -225,7 +237,7 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
           {detailLoading && <Text className='exploration-refreshing'>正在更新…</Text>}
           <Text className='exploration-description'>由独立行动与复盘组成；不代表计划或完成进度。</Text>
           <View className='exploration-section'><Text className='exploration-section-title'>当前关联事项</Text>{history.currentAssociatedItems.every((group) => group.items.length === 0) ? <Text className='exploration-empty-copy'>还没有关联行动。</Text> : currentStatuses.map((status) => { const group = history.currentAssociatedItems.find((value) => value.status === status); return group?.items.length ? <View key={status} className='exploration-current-group'><Text className='exploration-group-title'>{statusLabels[status]}</Text>{group.items.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />)}{group.hasMore && group.moreLocator && <Button className='exploration-inline-button' onClick={() => apiClient.listItemsByExplorationTrackAndStatus(group.moreLocator!.explorationTrackId, group.moreLocator!.status).then((items) => onOpenItems(group.moreLocator!.status, items)).catch((cause) => setError(messageOf(cause, '暂时无法载入该状态下的事项。')))}>查看该状态下的事项</Button>}</View> : null })}</View>
-          <View className='exploration-section exploration-capture'><Text className='exploration-section-title'>在「{history.track.name}」下记下想做的事</Text><Input className='exploration-capture-input' value={draft} onInput={(event) => setDraft(event.detail.value)} placeholder='例如：预约一次线下二胡体验课' disabled={creating} /><View className='exploration-capture-actions'><Button className='primary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture(false)}>加入想试试</Button><Button className='secondary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture(true)}>加入以后再说</Button></View></View>
+          <View className='exploration-section exploration-capture'><Text className='exploration-section-title'>在「{history.track.name}」下记下想做的事</Text><View className='item-title-input-wrap'><Input className='exploration-capture-input' value={draft} onInput={(event) => { const next = event.detail.value; if (acceptsItemTitleInput(next)) { setDraft(next); setDraftTitleLimitReached(false) } else setDraftTitleLimitReached(true) }} placeholder='例如：预约一次线下二胡体验课' disabled={creating} /><Text className='item-title-counter'>{itemTitleGraphemeCount(draft)}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>{draftTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}<View className='exploration-capture-actions'><Button className='primary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture(false)}>加入想试试</Button><Button className='secondary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture(true)}>加入以后再说</Button></View></View>
           <View className='exploration-section'><View className='exploration-history-heading'><Text className='exploration-section-title'>{historyView === 'history' ? '探索历史' : '已放弃记录'}</Text>{history.abandonedHistory.length > 0 && <Button className='exploration-inline-button exploration-history-toggle' onClick={() => setHistoryView((view) => view === 'history' ? 'abandoned' : 'history')}>{historyView === 'history' ? '查看已放弃记录' : '查看探索历史'}</Button>}</View>{visibleHistory?.length ? visibleHistory.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />) : <Text className='exploration-empty-copy'>{historyView === 'history' ? '当前还没有可回看的探索历史。' : '当前还没有已放弃记录。'}</Text>}</View>
         </View>}
       </View>

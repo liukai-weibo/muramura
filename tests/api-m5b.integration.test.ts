@@ -57,7 +57,7 @@ describe.runIf(enabled)('MySQL M5-B1 candidate write API', () => {
   it('maps abandoned exploration association writes to validation failure without writing and restores ability after refresh', async () => {
     const original = await jsonRequest('/api/v1/exploration-tracks', { name: 'abandoned original' })
     const replacement = await jsonRequest('/api/v1/exploration-tracks', { name: 'abandoned replacement' })
-    const item = await jsonRequest('/api/v1/items', { title: 'abandoned association', explorationTrack: { type: 'existing', trackId: (original.body as { id: string }).id } })
+    const item = await jsonRequest('/api/v1/items', { title: 'abandoned item', explorationTrack: { type: 'existing', trackId: (original.body as { id: string }).id } })
     const itemId = (item.body as { id: string }).id
     await jsonRequest(`/api/v1/items/${itemId}/status`, { status: 'abandoned' })
     const before = await request('/api/v1/backup')

@@ -67,6 +67,20 @@ const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
 
 const ITEMS_PER_PAGE = 5
 const TRASH_ENTRIES_PER_PAGE = 8
+const ITEM_TITLE_MAX_GRAPHEMES = 20
+const itemTitleSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+function itemTitleGraphemeCount(value: string): number {
+  return [...itemTitleSegmenter.segment(value.trim())].length
+}
+
+function acceptsItemTitleInput(value: string): boolean {
+  return itemTitleGraphemeCount(value) <= ITEM_TITLE_MAX_GRAPHEMES
+}
+
+function captureTitleCandidate(title: string, content: string): string {
+  return title.trim() || content.split(/\r?\n/, 1)[0]?.trim() || ''
+}
 
 
 
@@ -156,6 +170,7 @@ export default function IndexPage() {
   const [dashboardMetric, setDashboardMetric] = useState<DashboardMetricKey>()
   const [rhythmNow, setRhythmNow] = useState(() => new Date())
   const [title, setTitle] = useState('')
+  const [captureTitleLimitReached, setCaptureTitleLimitReached] = useState(false)
   const [content, setContent] = useState('')
   const [items, setItems] = useState<Item[]>([])
   const [trashItems, setTrashItems] = useState<Item[]>([])
@@ -263,6 +278,7 @@ export default function IndexPage() {
   const [itemExplorationUnknownOutcome, setItemExplorationUnknownOutcome] = useState(false)
   const [applyingMethodId, setApplyingMethodId] = useState<string>()
   const [methodActionTitle, setMethodActionTitle] = useState('')
+  const [methodActionTitleLimitReached, setMethodActionTitleLimitReached] = useState(false)
   const [methodActionContent, setMethodActionContent] = useState('')
   const [message, setMessage] = useState('正在读取本地事项…')
   const [busy, setBusy] = useState(false)
@@ -279,7 +295,12 @@ export default function IndexPage() {
   const visibleTrashEntries = trashEntries.slice((trashPage - 1) * TRASH_ENTRIES_PER_PAGE, trashPage * TRASH_ENTRIES_PER_PAGE)
   const visibleMethodSourceItemIds = useMemo(() => pagedItems.map((item) => item.id), [pagedItems])
   const visibleMethodSourceItemIdsKey = visibleMethodSourceItemIds.join('\u0000')
-  const hasCaptureContent = Boolean(title.trim() || content.trim())
+  const captureTitle = captureTitleCandidate(title, content)
+  const captureTitleGraphemes = itemTitleGraphemeCount(captureTitle)
+  const captureTitleWithinLimit = captureTitleGraphemes <= ITEM_TITLE_MAX_GRAPHEMES
+  const methodActionTitleGraphemes = itemTitleGraphemeCount(methodActionTitle)
+  const methodActionTitleWithinLimit = methodActionTitleGraphemes <= ITEM_TITLE_MAX_GRAPHEMES
+  const hasCaptureContent = Boolean(captureTitle)
   const captureLocked = restoring || Boolean(pendingBackup)
   const contentBelowFacts = selectedItem?.status === 'waiting_review'
     || selectedItem?.status === 'reviewed'
@@ -1197,6 +1218,7 @@ export default function IndexPage() {
   const discardCapture = () => {
     setTitle('')
     setContent('')
+    setCaptureTitleLimitReached(false)
     setCaptureDiscardConfirm(false)
     setActiveGlobalTool(undefined)
   }
@@ -1258,6 +1280,10 @@ export default function IndexPage() {
     const hasStartAction = Boolean(submittedPrompt.trim())
     if (!withoutSaving && requiresStartActionOverwriteConfirmation(item, submittedPrompt) && !overwriteExistingStartAction) {
       setStartOverwriteConfirm(true)
+      return
+    }
+    if (!captureTitleWithinLimit) {
+      setCaptureTitleLimitReached(true)
       return
     }
     setStartSubmitting(true)
@@ -1460,6 +1486,7 @@ export default function IndexPage() {
     setCaptureDiscardConfirm(false)
     setTitle('')
     setContent('')
+    setCaptureTitleLimitReached(false)
     setBackupMessage('正在生成恢复前安全备份…')
     try {
       const safetyBackup = await backupApplication.createBackup()
@@ -1563,19 +1590,27 @@ export default function IndexPage() {
     if (applyingMethodId === method.id) {
       setApplyingMethodId(undefined)
       setMethodActionTitle('')
+      setMethodActionTitleLimitReached(false)
       setMethodActionContent('')
       return
     }
     setApplyingMethodId(method.id)
-    setMethodActionTitle(`使用“${method.title}”完成一次行动`)
+    const suggestedTitle = `使用“${method.title}”完成一次行动`
+    setMethodActionTitle(acceptsItemTitleInput(suggestedTitle) ? suggestedTitle : '')
+    setMethodActionTitleLimitReached(false)
     setMethodActionContent('')
   }
 
   const createMethodAction = (method: Method) => run(async () => {
+    if (!methodActionTitleWithinLimit) {
+      setMethodActionTitleLimitReached(true)
+      return
+    }
     const item = await methodApplication.createMethodItem(method.id, methodActionTitle, methodActionContent)
     const refreshed = await refresh(item.id)
     setApplyingMethodId(undefined)
     setMethodActionTitle('')
+    setMethodActionTitleLimitReached(false)
     setMethodActionContent('')
     locateActiveItem(item.id, refreshed.items)
     setMessage(`已基于“${method.title}”v${method.version} 创建行动事项`)
@@ -1860,7 +1895,8 @@ export default function IndexPage() {
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
         <View className='capture-modal' role='dialog' aria-label='快速捕获'>
           <View className='capture-modal-heading'><View><Text className='section-kicker'>快速捕获</Text><Text>记录一个现在不想丢失的行动念头</Text></View><View className='capture-modal-close' onClick={closeCapture}><Text>关闭</Text></View></View>
-          <Input ref={captureInputRef} className='capture-modal-input' value={title} maxlength={120} placeholder='一句话记录你想做什么' onInput={(event) => setTitle(event.detail.value)} />
+          <View className='item-title-input-wrap'><Input ref={captureInputRef} className='capture-modal-input' value={title} placeholder='一句话记录你想做什么' onInput={(event) => { const next = event.detail.value; if (acceptsItemTitleInput(next)) { setTitle(next); setCaptureTitleLimitReached(false) } else setCaptureTitleLimitReached(true) }} /><Text className='item-title-counter'>{captureTitleGraphemes}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>
+          {captureTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}
           <View className='capture-actions'>
             <View className={`secondary-button ${busy || captureLocked || captureUnknownOutcome || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && !captureUnknownOutcome && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
             <View className={`primary-button ${busy || captureLocked || captureUnknownOutcome || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && !captureUnknownOutcome && hasCaptureContent) createIdea(false) }}><Text>{busy ? '正在创建…' : '加入想试试'}</Text></View>
@@ -2339,7 +2375,7 @@ export default function IndexPage() {
                 <Text className='method-label'>补充：</Text><Text className='method-value'>{method.applicable || '暂无补充说明'}</Text>
                 {method.unsuitable && <><Text className='method-label'>不适用情况</Text><Text className='method-value'>{method.unsuitable}</Text></>}
                 <View className={`method-apply-button ${applyingMethodId === method.id ? 'active' : ''}`} onClick={() => openMethodApplication(method)}><Text>{applyingMethodId === method.id ? '取消创建行动' : '用此方法开始行动'}</Text></View>
-                {applyingMethodId === method.id && <View className='method-apply-form'><input className='method-action-input' value={methodActionTitle} maxLength={120} placeholder='这次具体要完成什么' onInput={(event) => setMethodActionTitle(event.currentTarget.value)} /><textarea className='method-action-textarea' value={methodActionContent} maxLength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.currentTarget.value)} /><View className={`method-action-submit ${methodActionTitle.trim() && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View></View>}
+                {applyingMethodId === method.id && <View className='method-apply-form'><View className='item-title-input-wrap'><input className='method-action-input' value={methodActionTitle} placeholder='这次具体要完成什么' onInput={(event) => { const next = event.currentTarget.value; if (acceptsItemTitleInput(next)) { setMethodActionTitle(next); setMethodActionTitleLimitReached(false) } else setMethodActionTitleLimitReached(true) }} /><Text className='item-title-counter'>{methodActionTitleGraphemes}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>{methodActionTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}<textarea className='method-action-textarea' value={methodActionContent} maxLength={1000} placeholder='补充目标、场景或约束（可选）' onInput={(event) => setMethodActionContent(event.currentTarget.value)} /><View className={`method-action-submit ${methodActionTitle.trim() && methodActionTitleWithinLimit && !busy ? '' : 'disabled'}`} onClick={() => methodActionTitle.trim() && methodActionTitleWithinLimit && !busy && createMethodAction(method)}><Text>创建到想试试</Text></View></View>}
                 <View className={`method-evidence-button ${expandedEvidenceMethodId === method.id ? 'active' : ''}`} onClick={() => toggleMethodEvidence(method.id)}><Text>{expandedEvidenceMethodId === method.id ? '收起来源与验证证据' : '查看来源与验证证据'}</Text></View>
                 {expandedEvidenceMethodId === method.id && <View className='method-evidence-panel'><Text className='method-evidence-title'>来源与验证证据</Text>{methodEvidenceLoading ? <Text className='method-evidence-state'>正在读取证据…</Text> : methodEvidenceError ? <Text className='method-evidence-state error'>{methodEvidenceError}</Text> : methodEvidenceDetails.length === 0 ? <Text className='method-evidence-state'>暂无来源与验证证据</Text> : <View className='method-evidence-list'>{methodEvidenceDetails.map((evidence) => <View className='method-evidence-entry' key={evidence.evidenceId}><View className='method-evidence-entry-heading'><Text className={`method-evidence-relation ${evidence.relation}`}>{evidenceRelationLabels[evidence.relation]}</Text><Text className='method-evidence-time'>{formatTime(evidence.reviewCreatedAt)}</Text></View><Text className='method-evidence-item'>{evidence.itemTitle}</Text><Text className='method-evidence-summary'>{formatEvidenceSummary(evidence.reviewSummary)}</Text>{evidence.methodVersion !== undefined && <Text className='method-evidence-version'>对应方法版本 v{evidence.methodVersion}</Text>}{evidence.relation === 'unknown' && <Text className='method-evidence-unknown'>关系类型无法从旧数据中确定</Text>}</View>)}</View>}</View>}
                 <View className={`method-history-button ${expanded ? 'active' : ''}`} onClick={() => toggleMethodHistory(method.id)}><Text>{expanded ? '收起版本历史' : `查看版本历史（${method.version}）`}</Text></View>

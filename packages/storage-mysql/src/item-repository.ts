@@ -1,5 +1,5 @@
 import type { CreateItemInput, Item, ItemRepository, ItemStatus, ItemStatusEvent, StartItemExecutionInput, UpdateItemContentInput } from '@knowledge-base/contracts'
-import { assertTransition, createId } from '@knowledge-base/domain'
+import { assertItemTitleLength, assertTransition, createId, normalizeItemTitle } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
 
@@ -33,9 +33,10 @@ export class MySqlItemRepository implements ItemRepository {
 
   async create(input: CreateItemInput): Promise<Item> {
     const createdAt = now()
-    const item: Item = { id: createId(), title: input.title.trim(), content: input.content?.trim() ?? '', status: input.status ?? 'idea_to_try', createdAt, updatedAt: createdAt }
+    const item: Item = { id: createId(), title: normalizeItemTitle(input.title), content: input.content?.trim() ?? '', status: input.status ?? 'idea_to_try', createdAt, updatedAt: createdAt }
     if (!item.title) throw new Error('标题不能为空')
     await runInMySqlTransaction(this.pool, async connection => {
+      assertItemTitleLength(item.title)
       await connection.execute('INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at) VALUES(?,?,?,?,NULL,?,?,NULL)', [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt)])
       await this.insertEvent(connection, item.id, undefined, item.status, createdAt)
     })
