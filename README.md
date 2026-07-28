@@ -117,6 +117,22 @@ docker compose stop
 
 禁止使用 `docker compose down -v`，它会删除本机命名 volume。`.env`、备份、导出、`mysql-data` 和个人数据均不得提交 Git 或进入镜像构建上下文。
 
+### Compose 局域网 H5 发布
+
+仅已启动并验证过的 Compose `app` 服务可以发布 H5 到同一私有局域网。脚本会自动选择唯一的本机 Private 私网 IPv4：
+
+```powershell
+powershell.exe -NoProfile -File scripts/kb-lan.ps1
+```
+
+在管理员 PowerShell 中执行。若有多个私网 IP，才需显式使用 `-LanBindIp 192.168.x.x` 选择其一。脚本只接受本机网卡上的 RFC1918 私网地址，允许 Windows 网络类别为 Private 或 Public，拒绝 `0.0.0.0`、回环和非私网地址，并仅为该 IP 的 TCP `10086` 新建防火墙入站规则。本机仍可通过 `http://127.0.0.1:10086` 访问；局域网设备同时通过 `http://<LAN_BIND_IP>:10086` 访问。API `32146` 和 MySQL `3306` 始终保持 `127.0.0.1`，不会对局域网开放。两个 H5 入口的 `/api` 与 `/health` 都由 app 内部同源代理处理。若检测到本工作区已有旧 Compose MySQL 容器，脚本只复用其 Compose 项目和网络并以 `--no-deps` 启动 app，不会启动、重建或修改 MySQL。
+
+恢复仅本机访问：
+
+```powershell
+powershell.exe -NoProfile -File scripts/kb-lan.ps1 -Disable
+```
+
 ## 文档入口
 
 1. [`docs/product/功能清单-v4.md`](<docs/product/功能清单-v4.md>)：当前有效产品范围与已验收行为
