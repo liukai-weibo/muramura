@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { readMySqlConfig, type MySqlConnectionConfig } from '@knowledge-base/storage-mysql'
+import { reportUnexpectedFailure } from '../api-errors'
 import { errorResponse, mapFailure } from './errors'
 import { enforceBodyLimit, requestContext } from './http'
 import { createBackupRoutes } from './routes/backup'
@@ -70,6 +71,7 @@ export function buildHonoApp(
     : errorResponse(context, 404, 'NOT_FOUND_ROUTE', '路由不存在'))
 
   routes.onError((cause, context) => {
+    reportUnexpectedFailure(context.get('requestId'), cause)
     const [status, code, message] = mapFailure(cause)
     return errorResponse(context, status, code, message)
   })

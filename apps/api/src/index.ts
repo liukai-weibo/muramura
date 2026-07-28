@@ -23,12 +23,16 @@ import {
   MySqlMethodRepository,
   MySqlReviewRepository,
   MySqlReviewWorkflowRepository,
-  MySqlSchemaNotReadyError,
-  ExplorationTrackError,
   MySqlSearchRepository,
   readMySqlConfig,
   type MySqlConnectionConfig,
 } from '@knowledge-base/storage-mysql'
+import {
+  ApiError,
+  mapFailure,
+  reportUnexpectedFailure,
+  type ApiErrorCode,
+} from './api-errors'
 
 const allowedApiOrigins = new Set([
   'http://127.0.0.1:10086',
@@ -36,7 +40,6 @@ const allowedApiOrigins = new Set([
 const normalBodyLimit = 64 * 1024
 const backupBodyLimit = 16 * 1024 * 1024
 const methodSourceDisplaysUrlLimit = 8 * 1024
-type ErrorCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'CONFLICT' | 'REQUEST_TOO_LARGE' | 'UNSUPPORTED_MEDIA_TYPE' | 'METHOD_NOT_ALLOWED' | 'NOT_FOUND_ROUTE' | 'MYSQL_SCHEMA_NOT_READY' | 'MYSQL_UNAVAILABLE' | 'INTERNAL_ERROR'
 type Services = ReturnType<typeof createServices>
 
 const requestId = () => crypto.randomUUID()
@@ -51,7 +54,7 @@ function empty(response: http.ServerResponse, status: number, id: string) {
   response.writeHead(status, { 'cache-control': 'no-store', 'x-request-id': id })
   response.end()
 }
-function error(response: http.ServerResponse, status: number, code: ErrorCode, message: string, id: string) {
+function error(response: http.ServerResponse, status: number, code: ApiErrorCode, message: string, id: string) {
   json(response, status, { error: { code, message, requestId: id } }, id)
 }
 function cors(request: http.IncomingMessage, response: http.ServerResponse, id: string): boolean {
@@ -63,25 +66,6 @@ function cors(request: http.IncomingMessage, response: http.ServerResponse, id: 
   response.setHeader('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS')
   response.setHeader('access-control-allow-headers', 'content-type, x-request-id')
   return true
-}
-function isMySqlUnavailable(value: unknown): boolean {
-  if (typeof value !== 'object' || value === null || !('code' in value)) return false
-  return ['ECONNREFUSED', 'ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'ER_ACCESS_DENIED_ERROR', 'ER_CON_COUNT_ERROR', 'ER_TOO_MANY_USER_CONNECTIONS', 'PROTOCOL_CONNECTION_LOST', 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR'].includes(String(value.code))
-}
-function mapFailure(value: unknown): [number, ErrorCode, string] {
-  if (value instanceof MySqlSchemaNotReadyError) return [503, 'MYSQL_SCHEMA_NOT_READY', '本地 MySQL 候选环境当前不可用']
-  if (value instanceof Error) {
-    if (value instanceof ExplorationTrackError) {
-      if (value.code === 'conflict') return [409, 'CONFLICT', value.message]
-      if (value.code === 'not-found' || value.code === 'deleted' || value.code === 'item-not-found') return [404, 'NOT_FOUND', value.message]
-      if (value.code === 'unavailable' || value.code === 'invalid-status') return [400, 'VALIDATION_FAILED', value.message]
-    }
-    if (['事项不存在', '方法不存在', '选择的方法不存在', '复盘不存在', '回收站中不存在该事项', '回收站中不存在该方法'].includes(value.message)) return [404, 'NOT_FOUND', value.message]
-    if (value.message.includes('已经') || value.message.includes('只有待复盘') || value.message.includes('不允许从') || value.message.includes('启动动作已存在') || value.message.includes('复盘存在方法关联')) return [409, 'CONFLICT', value.message]
-    if (value.message.startsWith('请填写：') || value.message === '标题不能为空' || value.message === '请完成方法标题、适用情况和具体步骤' || value.message.includes('备份') || value.message.includes('无效') || value.message.includes('不存在的方法版本') || value.message === 'V3 事项引用了不存在的主线') return [400, 'VALIDATION_FAILED', value.message]
-  }
-  if (isMySqlUnavailable(value)) return [503, 'MYSQL_UNAVAILABLE', '本地 MySQL 候选环境当前不可用']
-  return [500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误']
 }
 async function readJson(request: http.IncomingMessage, limit: number): Promise<unknown> {
   const contentType = request.headers['content-type']
@@ -97,9 +81,6 @@ async function readJson(request: http.IncomingMessage, limit: number): Promise<u
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')) }
   catch { throw new ApiError(400, 'VALIDATION_FAILED', '请求不是有效的 JSON') }
-}
-class ApiError extends Error {
-  constructor(readonly status: number, readonly code: ErrorCode, message: string) { super(message) }
 }
 function requireObject(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw new ApiError(400, 'VALIDATION_FAILED', '请求体必须是 JSON 对象')
@@ -174,7 +155,11 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
       await route(request, response, url, services, id)
     } catch (cause) {
       if (cause instanceof ApiError) error(response, cause.status, cause.code, cause.message, id)
-      else { const [status, code, message] = mapFailure(cause); error(response, status, code, message, id) }
+      else {
+        reportUnexpectedFailure(id, cause)
+        const [status, code, message] = mapFailure(cause)
+        error(response, status, code, message, id)
+      }
     }
   })
   server.once('close', () => { void services.pool.end() })

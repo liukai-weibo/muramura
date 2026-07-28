@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@knowledge-base/domain": "workspace:*",
     "mysql2": "^3.14.0"
   }
 }

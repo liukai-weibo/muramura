@@ -1,16 +1,6 @@
-export type ApiErrorCode =
-  | 'VALIDATION_FAILED'
-  | 'NOT_FOUND'
-  | 'CONFLICT'
-  | 'REQUEST_TOO_LARGE'
-  | 'UNSUPPORTED_MEDIA_TYPE'
-  | 'METHOD_NOT_ALLOWED'
-  | 'NOT_FOUND_ROUTE'
-  | 'MYSQL_SCHEMA_NOT_READY'
-  | 'MYSQL_UNAVAILABLE'
-  | 'INTERNAL_ERROR'
+import type { ApiErrorCode, ApiErrorStatus } from '../api-errors'
 
-export type ApiErrorStatus = 400 | 403 | 404 | 405 | 409 | 413 | 415 | 500 | 503
+export type { ApiErrorCode, ApiErrorStatus } from '../api-errors'
 
 export type ApiEnv = {
   Variables: {
