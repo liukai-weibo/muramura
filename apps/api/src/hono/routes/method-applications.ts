@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { ApiError } from '../errors'
+import { validationError } from '../errors'
 import { requireJson } from '../http'
 import type { HonoServices } from '../services'
 import type { ApiEnv } from '../types'
@@ -22,7 +22,7 @@ export function createMethodApplicationRoutes(services: HonoServices) {
       requireJson,
       zValidator('json', createMethodApplicationSchema, (result) => {
         if (!result.success) {
-          throw new ApiError(400, 'VALIDATION_FAILED', '方法应用参数无效')
+          throw validationError('方法应用参数无效')
         }
       }),
       async (context) => {
@@ -54,7 +54,7 @@ export function createMethodSourceDisplayRoutes(services: HonoServices) {
     '/',
     zValidator('query', sourceDisplaysQuerySchema, (result) => {
       if (!result.success) {
-        throw new ApiError(400, 'VALIDATION_FAILED', 'itemIds 参数无效')
+        throw validationError('itemIds 参数无效')
       }
     }),
     async (context) => {
@@ -66,7 +66,7 @@ export function createMethodSourceDisplayRoutes(services: HonoServices) {
         || itemIds.length > 100
         || itemIds.some((value) => !value)
       ) {
-        throw new ApiError(400, 'VALIDATION_FAILED', 'itemIds 参数无效')
+        throw validationError('itemIds 参数无效')
       }
       return context.json(
         await services.methodApplications.listSourceDisplaysForItems(itemIds),

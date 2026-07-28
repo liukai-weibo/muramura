@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { ApiError } from '../errors'
+import { validationError } from '../errors'
 import type { HonoServices } from '../services'
 import type { ApiEnv } from '../types'
 
@@ -24,7 +24,7 @@ export function createDashboardRoutes(services: HonoServices) {
     '/',
     zValidator('query', dashboardQuerySchema, (result) => {
       if (!result.success) {
-        throw new ApiError(400, 'VALIDATION_FAILED', '无效的仪表盘时间范围')
+        throw validationError('无效的仪表盘时间范围')
       }
     }),
     async (context) => context.json(

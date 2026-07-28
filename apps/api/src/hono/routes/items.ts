@@ -2,7 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { itemStatuses } from '@knowledge-base/contracts'
 import { z } from 'zod'
-import { ApiError } from '../errors'
+import { validationError } from '../errors'
 import { requireJson } from '../http'
 import type { HonoServices } from '../services'
 import type { ApiEnv } from '../types'
@@ -40,14 +40,12 @@ const startItemSchema = z.object({
 const changeStatusSchema = z.object({ status: statusSchema })
 const assignExplorationTrackSchema = z.object({ trackId: z.string() })
 
-const invalidJson = (message: string) => new ApiError(400, 'VALIDATION_FAILED', message)
-
 export function createItemRoutes(services: HonoServices) {
   return new Hono<ApiEnv>()
     .get(
       '/',
       zValidator('query', itemLocatorQuerySchema, (result) => {
-        if (!result.success) throw invalidJson('事项定位参数无效')
+        if (!result.success) throw validationError('事项定位参数无效')
       }),
       async (context) => {
         const statuses = context.req.queries('status') ?? []
@@ -62,7 +60,7 @@ export function createItemRoutes(services: HonoServices) {
           || query.status === undefined
           || query.explorationTrackId === undefined
         ) {
-          throw invalidJson('事项定位参数无效')
+          throw validationError('事项定位参数无效')
         }
         return context.json(
           await services.explorationTracks.listItemsByExplorationTrackAndStatus(
@@ -77,7 +75,7 @@ export function createItemRoutes(services: HonoServices) {
       '/',
       requireJson,
       zValidator('json', createItemSchema, (result) => {
-        if (!result.success) throw invalidJson('事项参数无效')
+        if (!result.success) throw validationError('事项参数无效')
       }),
       async (context) => context.json(
         await services.items.createIdea(context.req.valid('json')),
@@ -100,7 +98,7 @@ export function createItemRoutes(services: HonoServices) {
       zValidator('param', idParamSchema),
       requireJson,
       zValidator('json', assignExplorationTrackSchema, (result) => {
-        if (!result.success) throw invalidJson('trackId必须是字符串')
+        if (!result.success) throw validationError('trackId必须是字符串')
       }),
       async (context) => context.json(
         await services.explorationTracks.assignItemToExplorationTrack(
@@ -133,7 +131,7 @@ export function createItemRoutes(services: HonoServices) {
       zValidator('param', idParamSchema),
       requireJson,
       zValidator('json', updateContentSchema, (result) => {
-        if (!result.success) throw invalidJson('content必须是字符串')
+        if (!result.success) throw validationError('content必须是字符串')
       }),
       async (context) => context.json(
         await services.items.updateItemContent(
@@ -148,7 +146,7 @@ export function createItemRoutes(services: HonoServices) {
       zValidator('param', idParamSchema),
       requireJson,
       zValidator('json', startItemSchema, (result) => {
-        if (!result.success) throw invalidJson('开始执行参数无效')
+        if (!result.success) throw validationError('开始执行参数无效')
       }),
       async (context) => {
         const input = context.req.valid('json')
@@ -167,7 +165,7 @@ export function createItemRoutes(services: HonoServices) {
       zValidator('param', idParamSchema),
       requireJson,
       zValidator('json', changeStatusSchema, (result) => {
-        if (!result.success) throw invalidJson('事项状态无效')
+        if (!result.success) throw validationError('事项状态无效')
       }),
       async (context) => context.json(
         await services.items.changeStatus(

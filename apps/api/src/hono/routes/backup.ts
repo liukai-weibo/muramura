@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { ApiError } from '../errors'
+import { validationError } from '../errors'
 import { requireJson } from '../http'
 import type { HonoServices } from '../services'
 import type { ApiEnv } from '../types'
@@ -16,7 +16,7 @@ export function createBackupRoutes(services: HonoServices) {
       requireJson,
       zValidator('json', backupDocumentSchema, (result) => {
         if (!result.success) {
-          throw new ApiError(400, 'VALIDATION_FAILED', '备份不是有效的 JSON')
+          throw validationError('备份不是有效的 JSON')
         }
       }),
       async (context) => {

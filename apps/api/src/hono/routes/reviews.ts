@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { ApiError } from '../errors'
+import { ApiError, validationError } from '../errors'
 import { requireJson } from '../http'
 import type { HonoServices } from '../services'
 import type { ApiEnv } from '../types'
@@ -36,7 +36,7 @@ export function createReviewRoutes(services: HonoServices) {
       requireJson,
       zValidator('json', completeReviewSchema, (result) => {
         if (!result.success) {
-          throw new ApiError(400, 'VALIDATION_FAILED', '复盘参数无效')
+          throw validationError('复盘参数无效')
         }
       }),
       async (context) => context.json(

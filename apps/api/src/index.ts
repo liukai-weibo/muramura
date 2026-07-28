@@ -154,12 +154,9 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
       if (!url.pathname.startsWith('/api/v1/')) { error(response, 404, 'NOT_FOUND_ROUTE', '路由不存在', id); return }
       await route(request, response, url, services, id)
     } catch (cause) {
-      if (cause instanceof ApiError) error(response, cause.status, cause.code, cause.message, id)
-      else {
-        reportUnexpectedFailure(id, cause)
-        const [status, code, message] = mapFailure(cause)
-        error(response, status, code, message, id)
-      }
+      reportUnexpectedFailure(id, cause)
+      const failure = mapFailure(cause)
+      error(response, failure.status, failure.code, failure.message, id)
     }
   })
   server.once('close', () => { void services.pool.end() })

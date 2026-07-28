@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { ApiError } from '../errors'
+import { ApiError, validationError } from '../errors'
 import { requireJson } from '../http'
 import type { HonoServices } from '../services'
 import type { ApiEnv } from '../types'
@@ -27,7 +27,7 @@ export function createExplorationTrackRoutes(services: HonoServices) {
       '/',
       requireJson,
       zValidator('json', nameSchema, (result) => {
-        if (!result.success) throw new ApiError(400, 'VALIDATION_FAILED', 'name必须是字符串')
+        if (!result.success) throw validationError('name必须是字符串')
       }),
       async (context) => context.json(
         await services.explorationTracks.createExplorationTrack(context.req.valid('json').name),
@@ -60,7 +60,7 @@ export function createExplorationTrackRoutes(services: HonoServices) {
       zValidator('param', idParamSchema),
       requireJson,
       zValidator('json', nameSchema, (result) => {
-        if (!result.success) throw new ApiError(400, 'VALIDATION_FAILED', 'name必须是字符串')
+        if (!result.success) throw validationError('name必须是字符串')
       }),
       async (context) => context.json(
         await services.explorationTracks.renameExplorationTrack(

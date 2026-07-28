@@ -1,7 +1,13 @@
 import type { Context } from 'hono'
-export { ApiError } from '../api-errors'
-export { mapFailure } from '../api-errors'
+import { ApiError } from '../api-errors'
 import type { ApiEnv, ApiErrorBody, ApiErrorCode, ApiErrorStatus } from './types'
+
+export { ApiError }
+export { mapFailure } from '../api-errors'
+
+export function validationError(message: string): ApiError {
+  return new ApiError(400, 'VALIDATION_FAILED', message)
+}
 
 export function errorResponse(
   context: Context<ApiEnv>,

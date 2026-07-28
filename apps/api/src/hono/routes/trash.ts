@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { ApiError } from '../errors'
+import { ApiError, validationError } from '../errors'
 import type { HonoServices } from '../services'
 import type { ApiEnv } from '../types'
 
@@ -18,7 +18,7 @@ export function createTrashRoutes(services: HonoServices) {
       '/',
       zValidator('query', trashQuerySchema, (result) => {
         if (!result.success) {
-          throw new ApiError(400, 'VALIDATION_FAILED', '无效的回收站筛选条件')
+          throw validationError('无效的回收站筛选条件')
         }
       }),
       async (context) => context.json(

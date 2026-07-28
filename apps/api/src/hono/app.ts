@@ -72,8 +72,8 @@ export function buildHonoApp(
 
   routes.onError((cause, context) => {
     reportUnexpectedFailure(context.get('requestId'), cause)
-    const [status, code, message] = mapFailure(cause)
-    return errorResponse(context, status, code, message)
+    const failure = mapFailure(cause)
+    return errorResponse(context, failure.status, failure.code, failure.message)
   })
 
   return routes
