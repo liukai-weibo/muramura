@@ -14,7 +14,7 @@ import type {
   ItemExplorationTrackContext,
   ItemStatus,
 } from '@knowledge-base/contracts'
-import { createId } from '@knowledge-base/domain'
+import { assertItemTitleLength, createId, normalizeItemTitle } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
 
@@ -136,6 +136,9 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
 
   async createItemWithExplorationTrack(input: CreateItemInput & { id: string; createdAt: string }, selection: PreparedExplorationTrackSelection): Promise<Item> {
     return runInMySqlTransaction(this.pool, async connection => {
+      const title = normalizeItemTitle(input.title)
+      if (!title) throw new Error('标题不能为空')
+      assertItemTitleLength(title)
       let trackId: string
       if (selection.type === 'existing') {
         const track = await this.lockActiveTrack(connection, selection.trackId)
@@ -151,7 +154,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         }
         catch (error) { throw this.mapConflict(error) }
       }
-      const item: Item = { id: input.id, title: input.title, content: input.content ?? '', status: input.status ?? 'idea_to_try', createdAt: input.createdAt, updatedAt: input.createdAt, explorationTrackId: trackId }
+      const item: Item = { id: input.id, title, content: input.content ?? '', status: input.status ?? 'idea_to_try', createdAt: input.createdAt, updatedAt: input.createdAt, explorationTrackId: trackId }
       await this.hooks?.beforeItemInsert?.()
       await connection.execute('INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at,exploration_track_id) VALUES(?,?,?,?,NULL,?,?,NULL,?)', [item.id, item.title, item.content, item.status, mysqlDateTime(item.createdAt), mysqlDateTime(item.updatedAt), trackId])
       await this.hooks?.beforeStatusEventInsert?.()

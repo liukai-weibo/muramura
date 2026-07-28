@@ -10,7 +10,7 @@ import type {
   MethodTombstone,
   MethodVersion,
 } from '@knowledge-base/contracts'
-import { createId } from '@knowledge-base/domain'
+import { assertItemTitleLength, createId, normalizeItemTitle } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
 
@@ -35,9 +35,10 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
   constructor(private readonly pool: Pool, private readonly hooks?: MySqlMethodApplicationRepositoryTestHooks) {}
 
   async createItem(input: CreateMethodApplicationInput): Promise<Item> {
-    const title = input.title.trim()
+    const title = normalizeItemTitle(input.title)
     if (!title) throw new Error('标题不能为空')
     return runInMySqlTransaction(this.pool, async connection => {
+      assertItemTitleLength(title)
       const method = await this.lockMethod(connection, input.methodId)
       if (!method || method.deleted_at) throw new Error('选择的方法不存在')
       const [versions] = await connection.query<VersionRow[]>('SELECT * FROM method_versions WHERE method_id=? AND version=? FOR UPDATE', [method.id, method.version])

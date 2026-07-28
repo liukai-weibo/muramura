@@ -15,6 +15,16 @@ export function createId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+const itemTitleSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+export function normalizeItemTitle(value: string): string {
+  return value.trim()
+}
+
+export function assertItemTitleLength(value: string): void {
+  if (Array.from(itemTitleSegmenter.segment(value)).length > 20) throw new Error('标题最多 20 个字符')
+}
+
 const transitions: Record<ItemStatus, readonly ItemStatus[]> = {
   idea_to_try: ['idea_later', 'doing', 'abandoned'],
   idea_later: ['idea_to_try', 'abandoned'],

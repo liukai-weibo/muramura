@@ -78,7 +78,7 @@ function mapFailure(value: unknown): [number, ErrorCode, string] {
     }
     if (['事项不存在', '方法不存在', '选择的方法不存在', '复盘不存在', '回收站中不存在该事项', '回收站中不存在该方法'].includes(value.message)) return [404, 'NOT_FOUND', value.message]
     if (value.message.includes('已经') || value.message.includes('只有待复盘') || value.message.includes('不允许从') || value.message.includes('启动动作已存在') || value.message.includes('复盘存在方法关联')) return [409, 'CONFLICT', value.message]
-    if (value.message.startsWith('请填写：') || value.message === '标题不能为空' || value.message === '请完成方法标题、适用情况和具体步骤' || value.message.includes('备份') || value.message.includes('无效') || value.message.includes('不存在的方法版本') || value.message === 'V3 事项引用了不存在的主线') return [400, 'VALIDATION_FAILED', value.message]
+    if (value.message.startsWith('请填写：') || value.message === '标题不能为空' || value.message === '标题最多 20 个字符' || value.message === '请完成方法标题、适用情况和具体步骤' || value.message.includes('备份') || value.message.includes('无效') || value.message.includes('不存在的方法版本') || value.message === 'V3 事项引用了不存在的主线') return [400, 'VALIDATION_FAILED', value.message]
   }
   if (isMySqlUnavailable(value)) return [503, 'MYSQL_UNAVAILABLE', '本地 MySQL 候选环境当前不可用']
   return [500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误']
