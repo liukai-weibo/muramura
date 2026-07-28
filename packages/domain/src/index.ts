@@ -1,5 +1,28 @@
 import type { ItemStatus } from '@knowledge-base/contracts'
 
+export type BusinessErrorCategory = 'validation' | 'not-found' | 'conflict' | 'internal'
+
+export type BusinessErrorCode =
+  | 'INVALID_BACKUP'
+  | 'INVALID_ITEM_STATUS_TRANSITION'
+  | 'ITEM_NOT_FOUND'
+  | 'ITEM_TITLE_REQUIRED'
+  | 'EXPLORATION_TRACK_NAME_REQUIRED'
+  | 'EXPLORATION_TRACK_NAME_TOO_LONG'
+  | 'EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE'
+
+export class BusinessError extends Error {
+  override readonly name = 'BusinessError'
+
+  constructor(
+    readonly code: BusinessErrorCode,
+    readonly category: BusinessErrorCategory,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
 export function createId(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
 
@@ -36,6 +59,10 @@ export function canTransition(from: ItemStatus, to: ItemStatus): boolean {
 
 export function assertTransition(from: ItemStatus, to: ItemStatus): void {
   if (!canTransition(from, to)) {
-    throw new Error(`不允许从 ${from} 变更为 ${to}`)
+    throw new BusinessError(
+      'INVALID_ITEM_STATUS_TRANSITION',
+      'conflict',
+      `不允许从 ${from} 变更为 ${to}`,
+    )
   }
 }

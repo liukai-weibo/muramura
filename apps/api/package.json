@@ -2,13 +2,21 @@
   "name": "@knowledge-base/api",
   "private": true,
   "type": "module",
+  "exports": {
+    "./hono": "./src/hono/app.ts"
+  },
   "scripts": {
     "start": "tsx src/main.ts",
     "migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.12",
+    "@hono/zod-validator": "^0.9.0",
     "@knowledge-base/application": "workspace:*",
+    "@knowledge-base/domain": "workspace:*",
     "@knowledge-base/storage-mysql": "workspace:*",
-    "tsx": "^4.21.0"
+    "hono": "^4.12.32",
+    "tsx": "^4.21.0",
+    "zod": "^4.4.3"
   }
 }
