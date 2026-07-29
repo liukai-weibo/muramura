@@ -100,6 +100,12 @@ describe('exploration H5 visual and refresh state', () => {
     expect(styles).toContain('.method-detail-pane { min-width: 0; overflow-y: auto; background: #fffdf9; }')
     expect(styles).toContain('.method-apply-button, .method-action-submit { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; height: 42px; margin-top: 16px; padding: 0 14px; overflow: hidden; border-radius: 999px;')
     expect(styles).toContain('.methods-workbench { grid-template-columns: 1fr; height: auto; }')
+    expect(styles).toContain('.method-list-title { overflow: hidden; color: #38332d; font-size: 15px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }')
+  })
+
+  it('uses literal three dots when an action-pool title overflows', () => {
+    expect(page).toContain("className='item-title'>{item.title}</Text>")
+    expect(styles).toContain(".item-title { font-size: 16px; font-weight: 720; line-height: 22px; text-overflow: '...'; }")
   })
 
   it('keeps the shared history heading at the exploration history weight', () => {
@@ -177,5 +183,36 @@ describe('exploration H5 visual and refresh state', () => {
     expect(styles).toContain('.trash-pagination { grid-template-columns: auto auto auto; justify-content: center; gap: 8px; }')
     expect(styles).toContain('.trash-pagination .pagination-button { min-width: 52px; height: 30px; padding: 0 8px; }')
     expect(styles).toContain('.trash-pagination .pagination-button:last-child { justify-self: auto; }')
+  })
+
+  it('limits every H5 item-creation title to twenty Unicode graphemes without truncating content', () => {
+    const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    const count = (value: string) => [...segmenter.segment(value.trim())].length
+
+    expect(count('中'.repeat(20))).toBe(20)
+    expect(count('a'.repeat(21))).toBe(21)
+    expect(count('👨‍👩‍👧‍👦'.repeat(20))).toBe(20)
+    expect(count('中a👨‍👩‍👧‍👦'.repeat(7))).toBe(21)
+    expect(page).toContain("const ITEM_TITLE_MAX_GRAPHEMES = 20")
+    expect(page).toContain("new Intl.Segmenter(undefined, { granularity: 'grapheme' })")
+    expect(page).toContain('function captureTitleCandidate(title: string, content: string): string')
+    expect(page).toContain('if (!captureTitleWithinLimit) {')
+    expect(page).toContain("value={title} placeholder='一句话记录你想做什么'")
+    expect(page).toContain("<View className='item-title-input-wrap'><Input ref={captureInputRef}")
+    expect(page).toContain("<Text className='item-title-counter'>{captureTitleGraphemes}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>")
+    expect(page).toContain("value={methodActionTitle} placeholder='这次具体要完成什么'")
+    expect(page).toContain("<View className='item-title-input-wrap'><input className='method-action-input'")
+    expect(page).toContain('methodActionTitleGraphemes}/{ITEM_TITLE_MAX_GRAPHEMES}')
+    expect(prototype).toContain('const ITEM_TITLE_MAX_GRAPHEMES = 20')
+    expect(prototype).toContain("new Intl.Segmenter(undefined, { granularity: 'grapheme' })")
+    expect(prototype).toContain('if (!acceptsItemTitleInput(draft)) { setDraftTitleLimitReached(true); return }')
+    expect(prototype).toContain("<View className='item-title-input-wrap'><Input className='exploration-capture-input'")
+    expect(prototype).toContain("className='item-title-counter'>{itemTitleGraphemeCount(draft)}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>")
+    expect(prototype).toContain("className='item-title-limit-notice'>标题最多20个字符")
+    expect(styles).toContain('.item-title-input-wrap { position: relative; }')
+    expect(styles).toContain('.item-title-input-wrap .capture-modal-input, .item-title-input-wrap .exploration-capture-input, .item-title-input-wrap .method-action-input { padding-right: 50px; }')
+    expect(styles).toContain('.item-title-counter { position: absolute;')
+    expect(styles).toContain('color: #b5aea4;')
+    expect(styles).toContain('.item-title-limit-notice { display: block;')
   })
 })

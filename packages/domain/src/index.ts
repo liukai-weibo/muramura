@@ -8,6 +8,7 @@ export type BusinessErrorCode =
   | 'ITEM_NOT_FOUND'
   | 'ITEM_NOT_IN_TRASH'
   | 'ITEM_TITLE_REQUIRED'
+  | 'ITEM_TITLE_TOO_LONG'
   | 'ITEM_START_ACTION_ALREADY_EXISTS'
   | 'ITEM_METHOD_ALREADY_ASSOCIATED'
   | 'EXPLORATION_TRACK_NAME_REQUIRED'
@@ -59,6 +60,18 @@ export function createId(): string {
   bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+const itemTitleSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+export function normalizeItemTitle(value: string): string {
+  return value.trim()
+}
+
+export function assertItemTitleLength(value: string): void {
+  if (Array.from(itemTitleSegmenter.segment(value)).length > 20) {
+    throw new BusinessError('ITEM_TITLE_TOO_LONG', 'validation', '标题最多 20 个字符')
+  }
 }
 
 const transitions: Record<ItemStatus, readonly ItemStatus[]> = {

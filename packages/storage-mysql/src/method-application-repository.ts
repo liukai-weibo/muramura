@@ -10,7 +10,7 @@ import type {
   MethodTombstone,
   MethodVersion,
 } from '@knowledge-base/contracts'
-import { createId } from '@knowledge-base/domain'
+import { assertItemTitleLength, createId, normalizeItemTitle } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
@@ -36,9 +36,10 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
   constructor(private readonly pool: Pool, private readonly hooks?: MySqlMethodApplicationRepositoryTestHooks) {}
 
   async createItem(input: CreateMethodApplicationInput): Promise<Item> {
-    const title = input.title.trim()
+    const title = normalizeItemTitle(input.title)
     if (!title) throw businessError('ITEM_TITLE_REQUIRED', 'validation', '标题不能为空')
     return runInMySqlTransaction(this.pool, async connection => {
+      assertItemTitleLength(title)
       const method = await this.lockMethod(connection, input.methodId)
       if (!method || method.deleted_at) {
         throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')

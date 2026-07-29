@@ -7,6 +7,9 @@ test-results
 .git
 .env
 .env.*
+!/.env.example
+mysql-data
+docker-compose.override.yml
 data
 exports
 backups

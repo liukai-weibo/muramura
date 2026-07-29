@@ -47,7 +47,7 @@ MySQL 是当前 H5 唯一运行主库；浏览器不直接连接数据库。Inde
 
 **探索主线 V1 已封板；V1.1 已完成阶段性 Git 快照。**
 
-当前已完成想法、执行、复盘、方法复用、全局搜索、状态流转历史、回收站及安全备份恢复闭环。运行路径、数据源和禁止事项以 `docs/product/当前运行事实.md` 为准；“本机迁移与一键启动”仍待架构评审，尚未实施。
+当前已完成想法、执行、复盘、方法复用、全局搜索、状态流转历史、回收站及安全备份恢复闭环。运行路径、数据源和禁止事项以 `docs/product/当前运行事实.md` 为准。
 
 ## 开发与验证
 
@@ -86,24 +86,51 @@ corepack pnpm build:h5
 
 构建产物位于 `apps/client/dist`。
 
-### Docker 构建与运行
+### Docker Compose 本机启动
 
 ```bash
-docker build -t kkk-personal-system:local .
-docker run --rm -d --name kkk-personal-system-test -p 8080:8080 kkk-personal-system:local
+cp .env.example .env
+# 编辑 .env，替换全部本机密码占位值后执行
+docker login --username=<阿里云用户名> crpi-v8ex1zrhoe87bb3d.cn-hangzhou.personal.cr.aliyuncs.com
+docker compose up -d --pull always
 ```
 
-打开 `http://localhost:8080` 验证应用。停止测试容器：
+Compose 使用官方 `mysql:8.4`、本机未提交命名 volume `knowledge_base_mysql_data`，并以同一应用镜像运行一次性数据库账号初始化、migration 与 app 服务；新机器不需要本地 `docker/mysql/` 目录。app 内部的 Nginx 将 `/api` 和 `/health` 转发给同容器 loopback API；宿主机入口保持：
+
+- H5：`http://127.0.0.1:10086`
+- API / health：`http://127.0.0.1:32146`
+- MySQL：`127.0.0.1:3306`
+
+启动成功后，确认：
 
 ```bash
-docker stop kkk-personal-system-test
+curl http://127.0.0.1:32146/health
 ```
 
-也可以使用 Compose：
+它应返回 `ready / knowledge_base / schemaVersion=4`。当前交付包默认拉取不可变复测候选 `crpi-v8ex1zrhoe87bb3d.cn-hangzhou.personal.cr.aliyuncs.com/my-acr-demo/dnf:1.0.1-qa.1`；本机 `.env` 的 `KB_APP_IMAGE_TAG` 可显式选择其他已验收的固定版本。失败的 `latest` 和 `1.0.0` 不得使用。首次空 volume 会自动复用既有 migration；个人数据不会随镜像或 volume 迁移，如需迁移，请在服务就绪后通过既有 H5/API 显式恢复 Backup V3。
+
+停止服务使用：
 
 ```bash
-docker compose up -d --build
-docker compose down
+docker compose stop
+```
+
+禁止使用 `docker compose down -v`，它会删除本机命名 volume。`.env`、备份、导出、`mysql-data` 和个人数据均不得提交 Git 或进入镜像构建上下文。
+
+### Compose 局域网 H5 发布
+
+仅已启动并验证过的 Compose `app` 服务可以发布 H5 到同一私有局域网。脚本会自动选择唯一的本机 Private 私网 IPv4：
+
+```powershell
+powershell.exe -NoProfile -File scripts/kb-lan.ps1
+```
+
+在管理员 PowerShell 中执行。若有多个私网 IP，才需显式使用 `-LanBindIp 192.168.x.x` 选择其一。脚本只接受本机网卡上的 RFC1918 私网地址，允许 Windows 网络类别为 Private 或 Public，拒绝 `0.0.0.0`、回环和非私网地址，并仅为该 IP 的 TCP `10086` 新建防火墙入站规则。本机仍可通过 `http://127.0.0.1:10086` 访问；局域网设备同时通过 `http://<LAN_BIND_IP>:10086` 访问。API `32146` 和 MySQL `3306` 始终保持 `127.0.0.1`，不会对局域网开放。两个 H5 入口的 `/api` 与 `/health` 都由 app 内部同源代理处理。若检测到本工作区已有旧 Compose MySQL 容器，脚本只复用其 Compose 项目和网络并以 `--no-deps` 启动 app，不会启动、重建或修改 MySQL。
+
+恢复仅本机访问：
+
+```powershell
+powershell.exe -NoProfile -File scripts/kb-lan.ps1 -Disable
 ```
 
 ## 文档入口

@@ -57,7 +57,7 @@ describe.runIf(enabled)('MySQL M5-B1 candidate write API', () => {
   it('maps abandoned exploration association writes to validation failure without writing and restores ability after refresh', async () => {
     const original = await jsonRequest('/api/v1/exploration-tracks', { name: 'abandoned original' })
     const replacement = await jsonRequest('/api/v1/exploration-tracks', { name: 'abandoned replacement' })
-    const item = await jsonRequest('/api/v1/items', { title: 'abandoned association', explorationTrack: { type: 'existing', trackId: (original.body as { id: string }).id } })
+    const item = await jsonRequest('/api/v1/items', { title: 'abandoned item', explorationTrack: { type: 'existing', trackId: (original.body as { id: string }).id } })
     const itemId = (item.body as { id: string }).id
     await jsonRequest(`/api/v1/items/${itemId}/status`, { status: 'abandoned' })
     const before = await request('/api/v1/backup')
@@ -170,6 +170,7 @@ describe.runIf(enabled)('MySQL M5-B1 candidate write API', () => {
 
   it('returns stable validation, conflict and transport errors without creating success DTOs', async () => {
     const invalid = await jsonRequest('/api/v1/items', { title: '  ' }); expect(invalid.status).toBe(400); expect(invalid.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', message: '标题不能为空', requestId: expect.any(String) } })
+    const overlong = await jsonRequest('/api/v1/items', { title: '😀'.repeat(21) }); expect(overlong.status).toBe(400); expect(overlong.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', message: '标题最多 20 个字符', requestId: expect.any(String) } })
     const invalidReview = await jsonRequest('/api/v1/reviews/complete', { itemId: crypto.randomUUID() }); expect(invalidReview.status).toBe(400); expect(invalidReview.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', requestId: expect.any(String) } })
     const item = (await jsonRequest('/api/v1/items', { title: 'conflict item' })).body as { id: string }
     const illegal = await jsonRequest(`/api/v1/items/${item.id}/status`, { status: 'reviewed' }); expect(illegal.status).toBe(409); expect(illegal.body).toMatchObject({ error: { code: 'CONFLICT', requestId: expect.any(String) } })
