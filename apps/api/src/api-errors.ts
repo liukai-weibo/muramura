@@ -1,24 +1,23 @@
+import type {
+  ApiErrorCode,
+  ApiErrorStatus,
+  BusinessErrorCode,
+} from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { MySqlSchemaNotReadyError } from '@knowledge-base/storage-mysql'
 
-export type ApiErrorCode =
-  | 'VALIDATION_FAILED'
-  | 'NOT_FOUND'
-  | 'CONFLICT'
-  | 'REQUEST_TOO_LARGE'
-  | 'UNSUPPORTED_MEDIA_TYPE'
-  | 'METHOD_NOT_ALLOWED'
-  | 'NOT_FOUND_ROUTE'
-  | 'MYSQL_SCHEMA_NOT_READY'
-  | 'MYSQL_UNAVAILABLE'
-  | 'INTERNAL_ERROR'
-
-export type ApiErrorStatus = 400 | 403 | 404 | 405 | 409 | 413 | 415 | 500 | 503
+export type {
+  ApiErrorBody,
+  ApiErrorCode,
+  ApiErrorPayload,
+  ApiErrorStatus,
+} from '@knowledge-base/contracts'
 
 export type ApiFailure = {
   status: ApiErrorStatus
   code: ApiErrorCode
   message: string
+  businessCode?: BusinessErrorCode
 }
 
 export class ApiError extends Error {
@@ -53,16 +52,20 @@ const failure = (
   status: ApiErrorStatus,
   code: ApiErrorCode,
   message: string,
-): ApiFailure => ({ status, code, message })
+  businessCode?: BusinessErrorCode,
+): ApiFailure => ({ status, code, message, ...(businessCode ? { businessCode } : {}) })
 
+/**
+ * internal 分类按未分类故障对外呈现，因此既不透出原始 message 也不透出 businessCode。
+ */
 function mapBusinessFailure(error: BusinessError): ApiFailure {
   switch (error.category) {
     case 'validation':
-      return failure(400, 'VALIDATION_FAILED', error.message)
+      return failure(400, 'VALIDATION_FAILED', error.message, error.code)
     case 'not-found':
-      return failure(404, 'NOT_FOUND', error.message)
+      return failure(404, 'NOT_FOUND', error.message, error.code)
     case 'conflict':
-      return failure(409, 'CONFLICT', error.message)
+      return failure(409, 'CONFLICT', error.message, error.code)
     case 'internal':
       return failure(500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误')
   }

@@ -1,3 +1,4 @@
+import type { BusinessErrorCode } from '@knowledge-base/contracts'
 import type { Context } from 'hono'
 import { ApiError } from '../api-errors'
 import type { ApiEnv, ApiErrorBody, ApiErrorCode, ApiErrorStatus } from './types'
@@ -14,12 +15,14 @@ export function errorResponse(
   status: ApiErrorStatus,
   code: ApiErrorCode,
   message: string,
+  businessCode?: BusinessErrorCode,
 ) {
   const body: ApiErrorBody = {
     error: {
       code,
       message,
       requestId: context.get('requestId'),
+      ...(businessCode ? { businessCode } : {}),
     },
   }
   return context.json(body, status)

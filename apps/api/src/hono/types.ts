@@ -1,17 +1,12 @@
-import type { ApiErrorCode, ApiErrorStatus } from '../api-errors'
-
-export type { ApiErrorCode, ApiErrorStatus } from '../api-errors'
+export type {
+  ApiErrorBody,
+  ApiErrorCode,
+  ApiErrorPayload,
+  ApiErrorStatus,
+} from '@knowledge-base/contracts'
 
 export type ApiEnv = {
   Variables: {
-    requestId: string
-  }
-}
-
-export type ApiErrorBody = {
-  error: {
-    code: ApiErrorCode
-    message: string
     requestId: string
   }
 }

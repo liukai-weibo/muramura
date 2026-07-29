@@ -11,7 +11,7 @@ import {
   SearchApplicationService,
   TrashApplicationService,
 } from '@knowledge-base/application'
-import { itemStatuses, type BackupDocument, type CompleteReviewInput, type CurrentAssociatedStatus, type ExplorationTrackSelection, type ItemStatus, type TrashFilter } from '@knowledge-base/contracts'
+import { itemStatuses, type ApiErrorBody, type BackupDocument, type BusinessErrorCode, type CompleteReviewInput, type CurrentAssociatedStatus, type ExplorationTrackSelection, type ItemStatus, type TrashFilter } from '@knowledge-base/contracts'
 import {
   createMySqlPool,
   getMySqlHealth,
@@ -54,8 +54,9 @@ function empty(response: http.ServerResponse, status: number, id: string) {
   response.writeHead(status, { 'cache-control': 'no-store', 'x-request-id': id })
   response.end()
 }
-function error(response: http.ServerResponse, status: number, code: ApiErrorCode, message: string, id: string) {
-  json(response, status, { error: { code, message, requestId: id } }, id)
+function error(response: http.ServerResponse, status: number, code: ApiErrorCode, message: string, id: string, businessCode?: BusinessErrorCode) {
+  const body: ApiErrorBody = { error: { code, message, requestId: id, ...(businessCode ? { businessCode } : {}) } }
+  json(response, status, body, id)
 }
 function cors(request: http.IncomingMessage, response: http.ServerResponse, id: string): boolean {
   const origin = request.headers.origin
@@ -156,7 +157,7 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
     } catch (cause) {
       reportUnexpectedFailure(id, cause)
       const failure = mapFailure(cause)
-      error(response, failure.status, failure.code, failure.message, id)
+      error(response, failure.status, failure.code, failure.message, id, failure.businessCode)
     }
   })
   server.once('close', () => { void services.pool.end() })

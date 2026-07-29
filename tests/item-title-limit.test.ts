@@ -29,6 +29,7 @@ describe('item title grapheme boundary', () => {
         status: 400,
         code: 'VALIDATION_FAILED',
         message: '标题最多 20 个字符',
+        businessCode: 'ITEM_TITLE_TOO_LONG',
       })
     }
   })
