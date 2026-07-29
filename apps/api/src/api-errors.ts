@@ -67,7 +67,7 @@ function mapBusinessFailure(error: BusinessError): ApiFailure {
       return failure(500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误')
   }
   const unhandledCategory: never = error.category
-  return unhandledCategory
+  throw new Error(`未处理的业务错误分类：${String(unhandledCategory)}`)
 }
 
 function shouldReportBusinessFailure(error: BusinessError): boolean {
@@ -80,7 +80,7 @@ function shouldReportBusinessFailure(error: BusinessError): boolean {
       return true
   }
   const unhandledCategory: never = error.category
-  return unhandledCategory
+  throw new Error(`未处理的业务错误分类：${String(unhandledCategory)}`)
 }
 
 export function mapFailure(value: unknown): ApiFailure {
