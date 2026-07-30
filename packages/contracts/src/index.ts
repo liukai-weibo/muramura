@@ -1,5 +1,7 @@
 export * from './errors'
 
+// --- Item / 事项 ---
+
 export const itemStatuses = [
   'idea_to_try',
   'idea_later',
@@ -50,6 +52,8 @@ export interface Item {
   startAction?: string
   explorationTrackId?: string
 }
+
+// --- ExplorationTrack / 探索主线 ---
 
 export interface ExplorationTrack {
   id: string
@@ -146,6 +150,8 @@ export interface ExplorationTrackWorkflowRepository {
   removeItemFromExplorationTrack(itemId: string): Promise<void>
 }
 
+// --- Item 写入输入 ---
+
 export interface CreateItemInput {
   title: string
   content?: string
@@ -161,6 +167,8 @@ export interface StartItemExecutionInput {
   startAction?: string
   overwriteExistingStartAction?: boolean
 }
+
+// --- Review / 复盘 ---
 
 export interface Review {
   id: string
@@ -186,6 +194,8 @@ export interface CreateReviewInput {
   adjustment: string
   newIdeas?: string
 }
+
+// --- Method / 方法 ---
 
 export interface Method {
   id: string
@@ -304,6 +314,8 @@ export interface MethodEvidenceDetail {
   methodVersion?: number
 }
 
+// --- Item 状态事件与链接 ---
+
 export interface ItemStatusEvent {
   id: string
   itemId: string
@@ -322,6 +334,8 @@ export interface ItemLink {
   createdAt: string
 }
 
+// --- Method 墓碑 ---
+
 export interface MethodTombstoneVersion {
   version: number
 }
@@ -332,6 +346,8 @@ export interface MethodTombstone {
   permanentlyDeletedAt: string
   versions: MethodTombstoneVersion[]
 }
+
+// --- Backup / 备份 ---
 
 export interface BackupData {
   items: Item[]
@@ -385,6 +401,8 @@ export interface BackupRepository {
   exportData(): Promise<BackupData | BackupDataV3>
   replaceData(data: BackupData | BackupDataV3): Promise<void>
 }
+
+// --- Dashboard / 仪表盘 ---
 
 export type DashboardWindow = '7d' | '30d' | 'all'
 
@@ -456,6 +474,8 @@ export interface DashboardRepository {
   getSnapshot(): Promise<DashboardSnapshot>
 }
 
+// --- Search / 搜索 ---
+
 export type SearchResultType = 'item' | 'review' | 'method'
 
 export interface SearchResult {
@@ -473,12 +493,16 @@ export interface SearchRepository {
   search(query: string): Promise<SearchResult[]>
 }
 
+// --- Trash / 回收站 ---
+
 export type TrashEntry =
   | { type: 'item'; id: string; title: string; deletedAt: string }
   | { type: 'method'; id: string; title: string; deletedAt: string }
   | { type: 'exploration-track'; id: string; title: string; deletedAt: string }
 
 export type TrashFilter = 'all' | 'item' | 'method' | 'exploration-track'
+
+// --- Repository 端口（事项 / 复盘 / 方法 / 工作流）---
 
 export interface MethodApplicationRepository {
   createItem(input: CreateMethodApplicationInput): Promise<Item>
