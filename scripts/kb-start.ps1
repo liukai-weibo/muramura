@@ -13,6 +13,20 @@ function Fail([string]$Message) { [Console]::Error.WriteLine("ERROR: $Message");
 function Ensure-TempRoot { if (-not (Test-Path -LiteralPath $TempRoot)) { New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null } }
 function Write-Log([string]$Message) { Ensure-TempRoot; Add-Content -LiteralPath $LogPath -Encoding ASCII -Value "$([DateTime]::UtcNow.ToString('o')) $Message" }
 function Get-ListenerPid([int]$Port) { $rows = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue); if ($rows.Count -eq 0) { return $null }; if ($rows.Count -ne 1) { throw 'multiple port listeners' }; return [int]$rows[0].OwningProcess }
+function Get-ManagedRootPid([int]$ListenerPid, [int]$LauncherPid) {
+  $snapshot = @(Get-CimInstance Win32_Process -ErrorAction Stop | Select-Object ProcessId, ParentProcessId)
+  $current = $ListenerPid
+  for ($i = 0; $i -lt 32; $i++) {
+    if ($current -eq $LauncherPid) { return $current }
+    $row = $snapshot | Where-Object { [int]$_.ProcessId -eq $current } | Select-Object -First 1
+    if ($null -eq $row) { throw 'managed listener process disappeared' }
+    $parent = [int]$row.ParentProcessId
+    if ($parent -eq $LauncherPid) { return $(if ($snapshot.ProcessId -contains $LauncherPid) { $LauncherPid } else { $current }) }
+    if ($parent -le 0 -or -not ($snapshot.ProcessId -contains $parent)) { return $current }
+    $current = $parent
+  }
+  throw 'managed process ancestry is too deep'
+}
 function Get-State { if (-not (Test-Path -LiteralPath $StatePath)) { return $null }; try { return (Get-Content -LiteralPath $StatePath -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { return [pscustomobject]@{ invalid = $true } } }
 function Remove-StaleState {
   $state = Get-State; if ($null -eq $state) { return }
@@ -44,12 +58,13 @@ $command
 exit `$LASTEXITCODE
 "@
   $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($child))
-  Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-EncodedCommand', $encoded) -WindowStyle Hidden | Out-Null
+  $process = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-EncodedCommand', $encoded) -WindowStyle Hidden -PassThru
+  return [int]$process.Id
 }
 function Get-Health {
   try { $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:32146/health' -TimeoutSec 3; return [pscustomobject]@{ code = [int]$response.StatusCode; body = ($response.Content | ConvertFrom-Json) } } catch { return $null }
 }
-function Test-DailyReady { $health = Get-Health; return $null -ne $health -and $health.code -eq 200 -and $health.body.status -eq 'ready' -and $health.body.database -eq 'knowledge_base' -and [int]$health.body.schemaVersion -eq 4 }
+function Test-DailyReady { $health = Get-Health; return $null -ne $health -and $health.code -eq 200 -and $health.body.status -eq 'ready' -and $health.body.database -eq 'knowledge_base' -and [int]$health.body.schemaVersion -eq 5 }
 
 try {
   Read-Environment | Out-Null
@@ -61,16 +76,18 @@ try {
   & docker compose up -d mysql
   if ($LASTEXITCODE -ne 0) { throw 'docker compose mysql start failed' }
   Write-Log 'starting daily API child'
-  Start-Child 'api'
+  $apiLauncherPid = Start-Child 'api'
   for ($i = 0; $i -lt 60; $i++) { if (Test-DailyReady) { break }; Start-Sleep -Milliseconds 500 }
   if (-not (Test-DailyReady)) { throw 'daily API did not become ready' }
   Write-Log 'starting H5 child'
-  Start-Child 'h5'
+  $h5LauncherPid = Start-Child 'h5'
   $apiPid = $null; $h5Pid = $null
   for ($i = 0; $i -lt 60; $i++) { $apiPid = Get-ListenerPid $ApiPort; $h5Pid = Get-ListenerPid $H5Port; if ($null -ne $apiPid -and $null -ne $h5Pid) { break }; Start-Sleep -Milliseconds 500 }
   if ($null -eq $apiPid -or $null -eq $h5Pid -or -not (Test-DailyReady)) { throw 'daily services did not become ready' }
+  $apiRootPid = Get-ManagedRootPid $apiPid $apiLauncherPid
+  $h5RootPid = Get-ManagedRootPid $h5Pid $h5LauncherPid
   Ensure-TempRoot
-  [ordered]@{ apiListenerPid = $apiPid; h5ListenerPid = $h5Pid; apiPort = $ApiPort; h5Port = $H5Port; startedAt = [DateTime]::UtcNow.ToString('o'); projectRoot = $ProjectRoot } | ConvertTo-Json -Compress | Set-Content -LiteralPath $StatePath -Encoding UTF8
+  [ordered]@{ apiRootPid = $apiRootPid; h5RootPid = $h5RootPid; apiListenerPid = $apiPid; h5ListenerPid = $h5Pid; apiPort = $ApiPort; h5Port = $H5Port; startedAt = [DateTime]::UtcNow.ToString('o'); projectRoot = $ProjectRoot } | ConvertTo-Json -Compress | Set-Content -LiteralPath $StatePath -Encoding UTF8
   Write-Log 'daily services ready'
-  [ordered]@{ status = 'ready'; database = 'knowledge_base'; schemaVersion = 4 } | ConvertTo-Json -Compress
+  [ordered]@{ status = 'ready'; database = 'knowledge_base'; schemaVersion = 5 } | ConvertTo-Json -Compress
 } catch { Write-Log 'start failed'; Fail $_.Exception.Message }

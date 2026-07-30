@@ -42,7 +42,7 @@ const TrackItem = memo(function TrackItem({ item, onOpen }: { item: ExplorationT
   </View>
 })
 
-export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, onOpenItem, onOpenItems, itemUpdatedAtById }: { explorationFactsVersion: number; onItemsChanged: () => Promise<void>; onOpenItem: (locator: ItemLocator) => void; onOpenItems: (status: CurrentAssociatedStatus, items: import('@knowledge-base/contracts').Item[]) => void; itemUpdatedAtById: ReadonlyMap<string, string> }) {
+export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVersion, onRestoreFactsConfirmed, onRestoreFactsFailed, onExplorationTrackCountChange, onItemsChanged, onOpenItem, onOpenItems, itemUpdatedAtById }: { explorationFactsVersion: number; restoreFactsVersion: number; onRestoreFactsConfirmed: () => void; onRestoreFactsFailed: (message: string) => void; onExplorationTrackCountChange: (count: number) => void; onItemsChanged: () => Promise<void>; onOpenItem: (locator: ItemLocator) => void; onOpenItems: (status: CurrentAssociatedStatus, items: import('@knowledge-base/contracts').Item[]) => void; itemUpdatedAtById: ReadonlyMap<string, string> }) {
   const [tracks, setTracks] = useState<ExplorationTrackListEntry[]>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [listPage, setListPage] = useState(1)
@@ -72,6 +72,7 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
   const editingSessionRef = useRef(0)
   const savingRenameSessionRef = useRef<number>()
   const selectedIdRef = useRef<string>()
+  const restoredHistoryIdRef = useRef<string>()
   selectedIdRef.current = selectedId
 
   const loadList = async (preferredId?: string, resetToFirstPage = false, preserveCurrentSelection = false): Promise<{ succeeded: boolean; selectedId?: string }> => {
@@ -84,6 +85,7 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
       if (!isCurrentExplorationRequest(requestId, listRequest.current)) return { succeeded: false }
       const normalized = next
       setTracks(normalized)
+      onExplorationTrackCountChange(normalized.length)
       setListReadSucceeded(true)
       const effectivePreferredId = preserveCurrentSelection ? selectedIdRef.current : preferredId
       const preferredIndex = effectivePreferredId ? normalized.findIndex((entry) => entry.track.id === effectivePreferredId) : -1
@@ -92,7 +94,12 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
       const nextId = preferredIndex >= 0 && !resetToFirstPage ? effectivePreferredId : normalized[(nextPage - 1) * EXPLORATION_TRACK_PAGE_SIZE]?.track.id
       setListPage(nextPage)
       setSelectedId(nextId)
-      if (!nextId) setHistory(undefined)
+      if (!nextId) {
+        setHistory(undefined)
+        setDraft(''); setDraftTitleLimitReached(false)
+        setEditing(false); setEditingTrackId(undefined); editingTrackIdRef.current = undefined
+        setRenameName(''); setConfirmDelete(false); setHistoryView('history')
+      }
       return { succeeded: true, selectedId: nextId }
     } catch (cause) {
       if (!isApiClientAbort(cause) && isCurrentExplorationRequest(requestId, listRequest.current)) setError(messageOf(cause, '暂时无法载入探索主线。'))
@@ -121,7 +128,14 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
   }
 
   useEffect(() => { void loadList(); return () => { listAbort.current?.abort(); detailAbort.current?.abort() } }, [])
-  useEffect(() => { setHistoryView('history'); if (selectedId) void loadHistory(selectedId) }, [selectedId])
+  useEffect(() => {
+    setHistoryView('history')
+    if (selectedId && restoredHistoryIdRef.current === selectedId) {
+      restoredHistoryIdRef.current = undefined
+      return
+    }
+    if (selectedId) void loadHistory(selectedId)
+  }, [selectedId])
   useEffect(() => {
     if (explorationFactsVersion <= 0) return
     void (async () => {
@@ -131,6 +145,61 @@ export function ExplorationPrototype({ explorationFactsVersion, onItemsChanged, 
       await loadHistory(confirmedId)
     })()
   }, [explorationFactsVersion])
+  useEffect(() => {
+    if (restoreFactsVersion <= 0) return
+    void (async () => {
+      listAbort.current?.abort(); detailAbort.current?.abort()
+      const listController = new AbortController(); listAbort.current = listController
+      const listRequestId = ++listRequest.current
+      setListLoading(true); setError('')
+      try {
+        const nextTracks = await apiClient.listExplorationTracks(listController.signal)
+        if (!isCurrentExplorationRequest(listRequestId, listRequest.current)) return
+        const nextSelectedId = nextTracks[0]?.track.id
+        let nextHistory: ExplorationTrackHistory | undefined
+        if (nextSelectedId) {
+          const detailController = new AbortController(); detailAbort.current = detailController
+          const detailRequestId = ++detailRequest.current
+          setDetailLoading(true)
+          try {
+            nextHistory = await apiClient.getExplorationTrackHistory(nextSelectedId, detailController.signal)
+          } catch (cause) {
+            if (!isApiClientAbort(cause) && isCurrentExplorationRequest(detailRequestId, detailRequest.current)) {
+              setError(messageOf(cause, '恢复后的探索历史读取失败，请保留当前事实并重新读取。'))
+              onRestoreFactsFailed('恢复后的探索历史读取失败，请保留当前事实并重新读取。')
+            }
+            return
+          } finally {
+            if (isCurrentExplorationRequest(detailRequestId, detailRequest.current)) setDetailLoading(false)
+          }
+          if (!isCurrentExplorationRequest(listRequestId, listRequest.current) || !isCurrentExplorationRequest(detailRequestId, detailRequest.current)) return
+        }
+        setTracks(nextTracks)
+        onExplorationTrackCountChange(nextTracks.length)
+        setListReadSucceeded(true)
+        setListPage(1)
+        if (nextSelectedId && nextHistory) {
+          restoredHistoryIdRef.current = nextSelectedId
+          setHistory(nextHistory)
+          setSelectedId(nextSelectedId)
+        } else {
+          setSelectedId(undefined)
+          setHistory(undefined)
+          setDraft(''); setDraftTitleLimitReached(false)
+          setEditing(false); setEditingTrackId(undefined); editingTrackIdRef.current = undefined
+          setRenameName(''); setConfirmDelete(false); setHistoryView('history')
+        }
+        onRestoreFactsConfirmed()
+      } catch (cause) {
+        if (!isApiClientAbort(cause) && isCurrentExplorationRequest(listRequestId, listRequest.current)) {
+          setError(messageOf(cause, '恢复后的探索主线读取失败，请保留当前事实并重新读取。'))
+          onRestoreFactsFailed('恢复后的探索主线读取失败，请保留当前事实并重新读取。')
+        }
+      } finally {
+        if (isCurrentExplorationRequest(listRequestId, listRequest.current)) setListLoading(false)
+      }
+    })()
+  }, [restoreFactsVersion])
 
   const confirmRealFacts = async () => {
     const listConfirmed = await loadList(selectedId)

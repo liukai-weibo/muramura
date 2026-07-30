@@ -3,7 +3,7 @@ export default defineAppConfig({
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: '#f7f4ed',
-    navigationBarTitleText: 'KKK 个人系统',
+    navigationBarTitleText: 'MaruMaru｜圈圈',
     navigationBarTextStyle: 'black',
   },
 })

@@ -165,8 +165,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
   const [explorationMounted, setExplorationMounted] = useState(false)
   const [explorationFactsVersion, setExplorationFactsVersion] = useState(0)
+  const [restoreFactsVersion, setRestoreFactsVersion] = useState(0)
+  const restoreFactsConfirmationRef = useRef<{ resolve: () => void; reject: (error: Error) => void }>()
+  const [activeExplorationTrackCount, setActiveExplorationTrackCount] = useState<number>()
   useEffect(() => {
-    if (activeModule === 'explorations') setExplorationMounted(true)
+    if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
   }, [activeModule])
   const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
   const captureOriginModuleRef = useRef<PrimaryModule>('actions')
@@ -376,7 +379,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     || JSON.stringify(methodForm) !== JSON.stringify(emptyMethod)
   )
 
-  const refresh = async (nextSelectedId = selectedId) => {
+  const refresh = async (nextSelectedId = selectedId, commit = true) => {
     refreshAbortRef.current?.abort()
     const controller = new AbortController()
     refreshAbortRef.current = controller
@@ -386,17 +389,19 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       const [nextItems, nextTrashItems, nextMethods] = await Promise.all([
         application.listItems(controller.signal), application.listTrash(controller.signal), reviewApplication.listMethods(controller.signal),
       ])
-      if (requestId !== refreshRequestRef.current) return { items: [], trashItems: [], methods: [] }
-      setItems(nextItems)
-      setTrashItems(nextTrashItems)
-      setMethods(nextMethods)
-      const selectionPool = [...nextItems, ...nextTrashItems]
-      if (nextSelectedId && selectionPool.some((item) => item.id === nextSelectedId)) setSelectedId(nextSelectedId)
-      else if (selectedId && !selectionPool.some((item) => item.id === selectedId)) setSelectedId(undefined)
-      setMessage(`${nextItems.length} 条有效事项 · ${nextMethods.length} 条当前方法 · 回收站 ${nextTrashItems.length} 条`)
-      return { items: nextItems, trashItems: nextTrashItems, methods: nextMethods }
+      if (requestId !== refreshRequestRef.current) return { succeeded: false, items: [], trashItems: [], methods: [] }
+      if (commit) {
+        setItems(nextItems)
+        setTrashItems(nextTrashItems)
+        setMethods(nextMethods)
+        const selectionPool = [...nextItems, ...nextTrashItems]
+        if (nextSelectedId && selectionPool.some((item) => item.id === nextSelectedId)) setSelectedId(nextSelectedId)
+        else if (selectedId && !selectionPool.some((item) => item.id === selectedId)) setSelectedId(undefined)
+        setMessage(`${nextItems.length} 条有效事项 · ${nextMethods.length} 条当前方法 · 回收站 ${nextTrashItems.length} 条`)
+      }
+      return { succeeded: true, items: nextItems, trashItems: nextTrashItems, methods: nextMethods }
     } catch (error) {
-      if (isApiClientAbort(error) || requestId !== refreshRequestRef.current) return { items: [], trashItems: [], methods: [] }
+      if (isApiClientAbort(error) || requestId !== refreshRequestRef.current) return { succeeded: false, items: [], trashItems: [], methods: [] }
       throw error
     }
   }
@@ -1489,6 +1494,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
   const restoreBackup = async () => {
     if (!pendingBackup || busy || restoring) return
+    let restoreFactsConfirmed = false
     setBusy(true)
     setRestoring(true)
     setActiveGlobalTool(undefined)
@@ -1502,14 +1508,28 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       downloadBackup(safetyBackup, 'knowledge-base-before-restore')
       setBackupMessage('安全备份已下载，正在恢复数据…')
       await backupApplication.restoreBackup(pendingBackup)
+      const restoredFacts = await refresh(undefined, false)
+      if (!restoredFacts.succeeded) throw new Error('恢复后的事项、方法或回收站读取未确认，请保留当前事实并重新读取。')
+      const restoredTrashEntries = await trashApplication.listTrashEntries('all')
+      setExplorationMounted(true)
+      await new Promise<void>((resolve, reject) => {
+        restoreFactsConfirmationRef.current = { resolve, reject }
+        setRestoreFactsVersion((version) => version + 1)
+      })
+      restoreFactsConfirmationRef.current = undefined
+      setItems(restoredFacts.items)
+      setTrashItems(restoredFacts.trashItems)
+      setMethods(restoredFacts.methods)
+      setTrashEntries(restoredTrashEntries)
       setPendingBackup(undefined)
       setSelectedId(undefined)
       setFilter('idea_to_try')
       setShowTrash(false)
       setCurrentPage(1)
-      await refresh(undefined)
+      restoreFactsConfirmed = true
       setBackupMessage('恢复完成；覆盖前的数据已自动下载为安全备份')
     } catch (error: unknown) {
+      restoreFactsConfirmationRef.current = undefined
       if (isApiClientUnknownOutcome(error)) {
         const notice = '本次提交结果未确认，未自动重试。请刷新真实数据后确认是否已生效。'
         setBackupMessage(notice)
@@ -1520,7 +1540,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         setMessage(errorMessage)
       }
     } finally {
-      setRestoring(false)
+      setRestoring(!restoreFactsConfirmed)
       setBusy(false)
     }
   }
@@ -1854,7 +1874,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   return (
     <View className='app-shell'>
       <View className='primary-navigation'>
-        <View className='navigation-brand'><Text>个人系统</Text><Text>行动与方法</Text></View>
+        <View className='navigation-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
         <View className='navigation-group'>
           {(['actions', 'explorations', 'methods', 'insights'] as PrimaryModule[]).map((module) => <View
             key={module}
@@ -1965,6 +1985,10 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
       {(activeModule === 'explorations' || explorationMounted) && <View className={activeModule === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
         explorationFactsVersion={explorationFactsVersion}
+        restoreFactsVersion={restoreFactsVersion}
+        onRestoreFactsConfirmed={() => restoreFactsConfirmationRef.current?.resolve()}
+        onRestoreFactsFailed={(error) => restoreFactsConfirmationRef.current?.reject(new Error(error))}
+        onExplorationTrackCountChange={setActiveExplorationTrackCount}
         itemUpdatedAtById={itemUpdatedAtById}
         onItemsChanged={() => refresh().then(() => reloadCurrentItemExplorationContext()).then(() => undefined)}
         onOpenItem={(locator) => {
@@ -2324,6 +2348,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           <View className='data-status-grid'>
             <View><Text>{items.length}</Text><Text>有效事项</Text></View>
             <View><Text>{methods.length}</Text><Text>当前方法</Text></View>
+            <View><Text>{activeExplorationTrackCount ?? '—'}</Text><Text>探索主线</Text></View>
             <View><Text>{trashItems.length}</Text><Text>回收站</Text></View>
           </View>
         </View>
@@ -2333,17 +2358,17 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           <Text className='backup-description'>数据仅保存在当前浏览器。建议每周及重大更新前导出一次 JSON 备份。</Text>
         </View>
         <View className='backup-actions'>
-          <View className={`secondary-button backup-export-button ${busy ? 'disabled' : ''}`} onClick={() => { if (!busy) exportBackup() }}><Text>导出完整备份</Text></View>
-          <label className={`file-button ${busy ? 'disabled' : ''}`}>导入恢复<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy} onChange={selectBackup} /></label>
+          <View className={`secondary-button backup-export-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) exportBackup() }}><Text>导出完整备份</Text></View>
+          <label className={`file-button ${busy || restoring ? 'disabled' : ''}`}>导入恢复<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy || restoring} onChange={selectBackup} /></label>
         </View>
         {backupMessage && <Text className={`backup-message ${pendingBackup ? 'warning' : ''}`}>{backupMessage}</Text>}
         {pendingBackup && <View className='restore-confirm'>
           <Text>备份时间：{formatTime(pendingBackup.exportedAt)}</Text>
-          <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法</Text>
+          <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法 · {pendingBackup.version === 3 ? pendingBackup.data.explorationTracks.length : 0} 条探索主线</Text>
           <Text className='restore-warning'>恢复会完整覆盖当前浏览器中的全部数据。确认后，系统会先自动下载当前数据的安全备份，再执行恢复。</Text>
           <View className='restore-actions'>
-            <View className={`secondary-button restore-cancel-button ${busy ? 'disabled' : ''}`} onClick={() => { if (!busy) { setPendingBackup(undefined); setBackupMessage('已取消恢复') } }}><Text>取消</Text></View>
-            <Button className='action-button delete-confirm-button' disabled={busy} onClick={restoreBackup}>备份当前数据并恢复</Button>
+            <View className={`secondary-button restore-cancel-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) { setPendingBackup(undefined); setBackupMessage('已取消恢复') } }}><Text>取消</Text></View>
+            <Button className='action-button delete-confirm-button' disabled={busy || restoring} onClick={restoreBackup}>备份当前数据并恢复</Button>
           </View>
         </View>}
       {pendingTrashRestore && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashRestore(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='恢复确认' onClick={(event) => event.stopPropagation()}><Text>恢复“{pendingTrashRestore.title}”？</Text><Text>恢复后将重新回到当前可用数据中。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(undefined)}>取消</Button><Button className='action-button primary' disabled={busy} onClick={() => restoreTrashEntry(pendingTrashRestore)}>恢复</Button></View></View></View>}

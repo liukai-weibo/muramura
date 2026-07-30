@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const prototype = readFileSync(new URL('../apps/client/src/pages/index/exploration-prototype.tsx', import.meta.url), 'utf8')
+const prototype = readFileSync(new URL('../apps/client/src/pages/index/exploration-prototype.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 describe('exploration track low-friction rename interaction', () => {
   it('uses one frozen-track save path for the save button and consumed outside pointer clicks', () => {

@@ -8,6 +8,7 @@ import {
 import { readFileSync } from 'node:fs'
 
 const page = readFileSync(new URL('../apps/client/src/pages/index/index.tsx', import.meta.url), 'utf8')
+const styles = readFileSync(new URL('../apps/client/src/pages/index/index.scss', import.meta.url), 'utf8')
 
 const session = {
   user: { id: 'user-1', username: 'alice', createdAt: '2026-07-30T00:00:00.000Z' },
@@ -95,6 +96,12 @@ describe('H5 authentication API adapter', () => {
 })
 
 describe('H5 authentication gate UI boundary', () => {
+  it('gives only the enabled logout button a visible hover response', () => {
+    expect(styles).toContain('.navigation-logout:hover:not([disabled="true"])')
+    expect(styles).toContain('background: #514c45; color: #fffaf2;')
+    expect(styles).toContain('.navigation-logout:disabled, .navigation-session-confirm:disabled')
+  })
+
   it('does not mount the business workspace before a real current session exists', () => {
     expect(page).toContain("if (authSession) return <AuthenticatedWorkspace")
     expect(page).toContain("void readCurrentSession('initial')")
