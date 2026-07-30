@@ -1,5 +1,6 @@
 import type {
   CreateMethodApplicationInput,
+  CurrentUserScope,
   Item,
   ItemMethodSourceDisplay,
   Method,
@@ -32,7 +33,7 @@ export interface MySqlMethodApplicationRepositoryTestHooks {
 }
 
 export class MySqlMethodApplicationRepository implements MethodApplicationRepository {
-  constructor(private readonly pool: Pool, private readonly hooks?: MySqlMethodApplicationRepositoryTestHooks) {}
+  constructor(private readonly pool: Pool, private readonly hooks?: MySqlMethodApplicationRepositoryTestHooks, private readonly scope?: CurrentUserScope) {}
 
   async createItem(input: CreateMethodApplicationInput): Promise<Item> {
     const title = normalizeItemTitle(input.title)
@@ -41,15 +42,15 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
       assertItemTitleLength(title)
       const method = await this.lockMethod(connection, input.methodId)
       if (!method || method.deleted_at) throw new Error('选择的方法不存在')
-      const [versions] = await connection.query<VersionRow[]>('SELECT * FROM method_versions WHERE method_id=? AND version=? FOR UPDATE', [method.id, method.version])
+      const [versions] = await connection.query<VersionRow[]>(this.scope ? 'SELECT * FROM method_versions WHERE method_id=? AND version=? AND owner_user_id=? FOR UPDATE' : 'SELECT * FROM method_versions WHERE method_id=? AND version=? FOR UPDATE', this.scope ? [method.id, method.version, this.scope.userId] : [method.id, method.version])
       if (!versions[0]) throw new Error('选择的方法不存在')
       const createdAt = new Date().toISOString()
       const item: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: 'idea_to_try', createdAt, updatedAt: createdAt }
-      await connection.execute('INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at) VALUES(?,?,?,?,NULL,?,?,NULL)', [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt)])
-      await connection.execute('INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at) VALUES(?,?,NULL,?,?)', [createId(), item.id, item.status, mysqlDateTime(createdAt)])
+      await connection.execute(this.scope ? 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,?,?,NULL,?,?,NULL,?)' : 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at) VALUES(?,?,?,?,NULL,?,?,NULL)', this.scope ? [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt), this.scope.userId] : [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt)])
+      await connection.execute(this.scope ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,owner_user_id) VALUES(?,?,NULL,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at) VALUES(?,?,NULL,?,?)', this.scope ? [createId(), item.id, item.status, mysqlDateTime(createdAt), this.scope.userId] : [createId(), item.id, item.status, mysqlDateTime(createdAt)])
       await this.hooks?.beforeApplicationInsert?.()
       try {
-        await connection.execute('INSERT INTO method_applications(id,method_id,method_version,item_id,created_at) VALUES(?,?,?,?,?)', [createId(), method.id, method.version, item.id, mysqlDateTime(createdAt)])
+        await connection.execute(this.scope ? 'INSERT INTO method_applications(id,method_id,method_version,item_id,created_at,owner_user_id) VALUES(?,?,?,?,?,?)' : 'INSERT INTO method_applications(id,method_id,method_version,item_id,created_at) VALUES(?,?,?,?,?)', this.scope ? [createId(), method.id, method.version, item.id, mysqlDateTime(createdAt), this.scope.userId] : [createId(), method.id, method.version, item.id, mysqlDateTime(createdAt)])
       } catch (error) {
         if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') throw new Error('事项已经关联方法')
         throw error
@@ -64,6 +65,10 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
   }
 
   async getContextResultByItemId(itemId: string): Promise<MethodApplicationContextResult> {
+    if (this.scope) {
+      const [items] = await this.pool.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM items WHERE id=? AND owner_user_id=?', [itemId, this.scope.userId])
+      if (!items[0]) throw new Error('事项不存在')
+    }
     const application = await this.getApplication(itemId)
     if (!application) return { status: 'no-association' }
     const [method, version, tombstone] = await Promise.all([this.getMethod(application.methodId), this.getVersion(application.methodId, application.methodVersion), this.getTombstone(application.methodId)])
@@ -86,9 +91,9 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
     }))
   }
 
-  private async lockMethod(connection: PoolConnection, id: string): Promise<MethodRow | undefined> { const [rows] = await connection.query<MethodRow[]>('SELECT * FROM methods WHERE id=? FOR UPDATE', [id]); return rows[0] }
-  private async getApplication(itemId: string): Promise<MethodApplication | undefined> { const [rows] = await this.pool.query<ApplicationRow[]>('SELECT * FROM method_applications WHERE item_id=?', [itemId]); return rows[0] && mapApplication(rows[0]) }
-  private async getMethod(id: string): Promise<Method | undefined> { const [rows] = await this.pool.query<MethodRow[]>('SELECT * FROM methods WHERE id=?', [id]); return rows[0] && mapMethod(rows[0]) }
-  private async getVersion(methodId: string, version: number): Promise<MethodVersion | undefined> { const [rows] = await this.pool.query<VersionRow[]>('SELECT * FROM method_versions WHERE method_id=? AND version=?', [methodId, version]); return rows[0] && mapVersion(rows[0]) }
-  private async getTombstone(methodId: string): Promise<MethodTombstone | undefined> { const [rows] = await this.pool.query<TombstoneRow[]>('SELECT * FROM method_tombstones WHERE method_id=?', [methodId]); return rows[0] && mapTombstone(rows[0]) }
+  private async lockMethod(connection: PoolConnection, id: string): Promise<MethodRow | undefined> { const [rows] = await connection.query<MethodRow[]>(this.scope ? 'SELECT * FROM methods WHERE id=? AND owner_user_id=? FOR UPDATE' : 'SELECT * FROM methods WHERE id=? FOR UPDATE', this.scope ? [id,this.scope.userId] : [id]); return rows[0] }
+  private async getApplication(itemId: string): Promise<MethodApplication | undefined> { const [rows] = await this.pool.query<ApplicationRow[]>(this.scope ? 'SELECT * FROM method_applications WHERE item_id=? AND owner_user_id=?' : 'SELECT * FROM method_applications WHERE item_id=?', this.scope ? [itemId,this.scope.userId] : [itemId]); return rows[0] && mapApplication(rows[0]) }
+  private async getMethod(id: string): Promise<Method | undefined> { const [rows] = await this.pool.query<MethodRow[]>(this.scope ? 'SELECT * FROM methods WHERE id=? AND owner_user_id=?' : 'SELECT * FROM methods WHERE id=?', this.scope ? [id,this.scope.userId] : [id]); return rows[0] && mapMethod(rows[0]) }
+  private async getVersion(methodId: string, version: number): Promise<MethodVersion | undefined> { const [rows] = await this.pool.query<VersionRow[]>(this.scope ? 'SELECT * FROM method_versions WHERE method_id=? AND version=? AND owner_user_id=?' : 'SELECT * FROM method_versions WHERE method_id=? AND version=?', this.scope ? [methodId,version,this.scope.userId] : [methodId,version]); return rows[0] && mapVersion(rows[0]) }
+  private async getTombstone(methodId: string): Promise<MethodTombstone | undefined> { const [rows] = await this.pool.query<TombstoneRow[]>(this.scope ? 'SELECT * FROM method_tombstones WHERE method_id=? AND owner_user_id=?' : 'SELECT * FROM method_tombstones WHERE method_id=?', this.scope ? [methodId,this.scope.userId] : [methodId]); return rows[0] && mapTombstone(rows[0]) }
 }

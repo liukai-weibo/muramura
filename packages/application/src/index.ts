@@ -1,5 +1,10 @@
 import type {
   BackupDocument,
+  AuthRepository,
+  AuthSession,
+  AuthUser,
+  LoginInput,
+  RegisterInput,
   BackupData,
   BackupDataV3,
   BackupRepository,
@@ -21,6 +26,8 @@ import type {
   ItemRepository,
   ItemStatus,
   ItemStatusEvent,
+  InitialOwnerClaimRepository,
+  InitialOwnerClaimResult,
   Method,
   MethodApplicationContext,
   MethodApplicationContextResult,
@@ -36,10 +43,40 @@ import type {
   SearchRepository,
   SearchResult,
 } from '@knowledge-base/contracts'
-import { allowedTransitions, assertItemTitleLength, createId, normalizeItemTitle } from '@knowledge-base/domain'
+import { allowedTransitions, assertAuthCredentials, assertItemTitleLength, createId, createSessionSecret, hashPassword, hashSessionSecret, normalizeItemTitle, normalizeUsername, verifyPassword } from '@knowledge-base/domain'
 import { itemStatuses } from '@knowledge-base/contracts'
 
 export const TRASH_RETENTION_DAYS = 30
+export const AUTH_SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000
+
+export class AuthenticationError extends Error { constructor(readonly code: 'invalid-credentials' | 'username-taken') { super(code) } }
+export class AuthenticationApplicationService {
+  constructor(private readonly repository: AuthRepository, private readonly now: () => Date = () => new Date()) {}
+  async register(input: RegisterInput): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> {
+    const username = normalizeUsername(input.username); assertAuthCredentials(username, input.password)
+    if (await this.repository.findUserByUsername(username)) throw new AuthenticationError('username-taken')
+    const createdAt = this.now().toISOString(); const user = await this.repository.createUser({ id: createId(), username, passwordHash: await hashPassword(input.password), createdAt })
+    return this.startSession(user)
+  }
+  async login(input: LoginInput): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> {
+    const username = normalizeUsername(input.username); assertAuthCredentials(username, input.password)
+    const user = await this.repository.findUserByUsername(username)
+    if (!user || !(await verifyPassword(input.password, user.passwordHash))) throw new AuthenticationError('invalid-credentials')
+    return this.startSession(user)
+  }
+  async current(secret: Uint8Array | undefined): Promise<AuthSession | undefined> { if (!secret) return undefined; const user = await this.repository.getSessionBySecretHash(hashSessionSecret(secret), this.now().toISOString()); return user ? { user } : undefined }
+  async logout(secret: Uint8Array | undefined): Promise<void> { if (secret) await this.repository.revokeSessionBySecretHash(hashSessionSecret(secret), this.now().toISOString()) }
+  private async startSession(user: AuthUser): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> { const secret = createSessionSecret(); const now = this.now(); const expiresAt = new Date(now.getTime() + AUTH_SESSION_DURATION_MS).toISOString(); await this.repository.createSession({ id: createId(), userId: user.id, secretHash: hashSessionSecret(secret), expiresAt, createdAt: now.toISOString() }); return { session: { user }, secret, expiresAt } }
+}
+
+export class InitialOwnerClaimApplicationService {
+  constructor(private readonly repository: InitialOwnerClaimRepository) {}
+  claim(userId: string): Promise<InitialOwnerClaimResult> {
+    const target = userId.trim()
+    if (!target) throw new Error('target user id is required')
+    return this.repository.claimInitialOwner(target)
+  }
+}
 
 function trashCutoff(now = new Date()): string {
   return new Date(now.getTime() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()

@@ -1,4 +1,4 @@
-import type { CreateReviewInput, Review, ReviewRepository } from '@knowledge-base/contracts'
+import type { CreateReviewInput, CurrentUserScope, Review, ReviewRepository } from '@knowledge-base/contracts'
 import { createId } from '@knowledge-base/domain'
 import type { Pool, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
@@ -35,7 +35,7 @@ const mapReview = (row: ReviewRow): Review => ({
 })
 
 export class MySqlReviewRepository implements ReviewRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly scope?: CurrentUserScope) {}
 
   async create(input: CreateReviewInput): Promise<Review> {
     const createdAt = new Date().toISOString()
@@ -59,14 +59,14 @@ export class MySqlReviewRepository implements ReviewRepository {
     if (required.length) throw new Error(`请填写：${required.join('、')}`)
 
     return runInMySqlTransaction(this.pool, async connection => {
-      const [items] = await connection.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM items WHERE id=? FOR UPDATE', [review.itemId])
+      const [items] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM items WHERE id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM items WHERE id=? FOR UPDATE', this.scope ? [review.itemId,this.scope.userId] : [review.itemId])
       if (!items[0]) throw new Error('事项不存在')
-      const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM reviews WHERE item_id=? FOR UPDATE', [review.itemId])
+      const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE item_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE item_id=? FOR UPDATE', this.scope ? [review.itemId, this.scope.userId] : [review.itemId])
       if (existing[0]) throw new Error('该事项已经完成复盘')
       try {
         await connection.execute(
-          'INSERT INTO reviews(id,item_id,actual_action,result,effective,incompatible,reason,adjustment,new_ideas,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-          [review.id, review.itemId, review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas, mysqlDateTime(createdAt), mysqlDateTime(createdAt)],
+          this.scope ? 'INSERT INTO reviews(id,item_id,actual_action,result,effective,incompatible,reason,adjustment,new_ideas,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO reviews(id,item_id,actual_action,result,effective,incompatible,reason,adjustment,new_ideas,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+          this.scope ? [review.id, review.itemId, review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas, mysqlDateTime(createdAt), mysqlDateTime(createdAt), this.scope.userId] : [review.id, review.itemId, review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas, mysqlDateTime(createdAt), mysqlDateTime(createdAt)],
         )
       } catch (error) {
         if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') throw new Error('该事项已经完成复盘')
@@ -77,23 +77,23 @@ export class MySqlReviewRepository implements ReviewRepository {
   }
 
   async getById(id: string): Promise<Review | undefined> {
-    const [rows] = await this.pool.query<ReviewRow[]>('SELECT * FROM reviews WHERE id=?', [id])
+    const [rows] = await this.pool.query<ReviewRow[]>(this.scope ? 'SELECT * FROM reviews WHERE id=? AND owner_user_id=?' : 'SELECT * FROM reviews WHERE id=?', this.scope ? [id,this.scope.userId] : [id])
     return rows[0] ? mapReview(rows[0]) : undefined
   }
 
   async getByItemId(itemId: string): Promise<Review | undefined> {
-    const [rows] = await this.pool.query<ReviewRow[]>('SELECT * FROM reviews WHERE item_id=?', [itemId])
+    const [rows] = await this.pool.query<ReviewRow[]>(this.scope ? 'SELECT * FROM reviews WHERE item_id=? AND owner_user_id=?' : 'SELECT * FROM reviews WHERE item_id=?', this.scope ? [itemId,this.scope.userId] : [itemId])
     return rows[0] ? mapReview(rows[0]) : undefined
   }
 
   async delete(id: string): Promise<void> {
     await runInMySqlTransaction(this.pool, async connection => {
-      const [reviews] = await connection.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM reviews WHERE id=? FOR UPDATE', [id])
+      const [reviews] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE id=? FOR UPDATE', this.scope ? [id,this.scope.userId] : [id])
       if (!reviews[0]) return
-      const [evidence] = await connection.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM method_evidence WHERE review_id=? LIMIT 1 FOR UPDATE', [id])
-      const [versions] = await connection.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM method_versions WHERE source_review_id=? LIMIT 1 FOR UPDATE', [id])
+      const [evidence] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM method_evidence WHERE review_id=? AND owner_user_id=? LIMIT 1 FOR UPDATE' : 'SELECT id FROM method_evidence WHERE review_id=? LIMIT 1 FOR UPDATE', this.scope ? [id, this.scope.userId] : [id])
+      const [versions] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM method_versions WHERE source_review_id=? AND owner_user_id=? LIMIT 1 FOR UPDATE' : 'SELECT id FROM method_versions WHERE source_review_id=? LIMIT 1 FOR UPDATE', this.scope ? [id, this.scope.userId] : [id])
       if (evidence[0] || versions[0]) throw new Error('复盘存在方法关联，暂不能删除')
-      await connection.execute('DELETE FROM reviews WHERE id=?', [id])
+      await connection.execute(this.scope ? 'DELETE FROM reviews WHERE id=? AND owner_user_id=?' : 'DELETE FROM reviews WHERE id=?', this.scope ? [id,this.scope.userId] : [id])
     })
   }
 }

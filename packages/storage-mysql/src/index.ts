@@ -2,6 +2,8 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import mysql, { type Pool, type PoolConnection, type PoolOptions, type RowDataPacket } from 'mysql2/promise'
+export { MySqlAuthRepository } from './account-repository'
+export { InitialOwnerClaimError, MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
 
 export const MYSQL_REQUIRED_SCHEMA_VERSION = 1
 
@@ -155,7 +157,7 @@ export { MySqlReviewRepository } from './review-repository'
 export { MySqlReviewWorkflowRepository, type MySqlReviewWorkflowRepositoryTestHooks } from './review-workflow-repository'
 export { MySqlMethodRepository, type MySqlMethodRepositoryTestHooks } from './method-repository'
 export { MySqlMethodApplicationRepository, type MySqlMethodApplicationRepositoryTestHooks } from './method-application-repository'
-export { MySqlBackupRepository, type MySqlBackupRepositoryTestHooks } from './backup-repository'
+export { BackupOwnershipConflictError, MySqlBackupRepository, type MySqlBackupRepositoryTestHooks } from './backup-repository'
 export { MySqlDashboardRepository, MySqlSearchRepository, type MySqlSearchRepositoryTestHooks } from './read-model-repositories'
 export {
   MySqlExplorationTrackRepository,

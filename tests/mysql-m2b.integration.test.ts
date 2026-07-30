@@ -7,7 +7,7 @@ import { createMySqlPool, MySqlBackupRepository, MySqlItemRepository, MySqlRevie
 const required = ['MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_MIGRATOR_PASSWORD', 'MYSQL_ROOT_PASSWORD']
 const enabled = required.every(name => Boolean(process.env[name]))
 const prefix = 'mysql-m2b-'
-const id = () => `${prefix}${crypto.randomUUID()}`
+const id = () => `${prefix}${crypto.randomUUID().slice(0, 8)}`
 const timestamp = '2026-07-23T00:00:00.000Z'
 let appPool: ReturnType<typeof createMySqlPool> | undefined
 let migratorPool: ReturnType<typeof createMySqlPool> | undefined

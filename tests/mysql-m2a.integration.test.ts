@@ -24,7 +24,7 @@ const config = (user: string, password: string): MySqlConnectionConfig => ({
 })
 const prefix = 'mysql-m2a-'
 const cutoff = '2099-01-01T00:00:00.000Z'
-const testId = () => `${prefix}${crypto.randomUUID()}`
+const testId = () => `${prefix}${crypto.randomUUID().slice(0, 8)}`
 const statuses: ItemStatus[] = ['idea_to_try', 'idea_later', 'doing', 'paused', 'waiting_review', 'reviewed', 'archived_no_review', 'abandoned']
 
 async function snapshot(itemId: string) {
