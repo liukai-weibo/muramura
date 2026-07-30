@@ -44,6 +44,22 @@ function isKnownApiPath(path: string): boolean {
   ].some((pattern) => typeof pattern === 'string' ? pattern === path : pattern.test(path))
 }
 
+export const apiV1BasePath = '/api/v1'
+
+function buildApiV1Routes(services: HonoServices) {
+  return new Hono<ApiEnv>()
+    .route('/items', createItemRoutes(services))
+    .route('/exploration-tracks', createExplorationTrackRoutes(services))
+    .route('/reviews', createReviewRoutes(services))
+    .route('/methods', createMethodRoutes(services))
+    .route('/method-applications', createMethodApplicationRoutes(services))
+    .route('/method-source-displays', createMethodSourceDisplayRoutes(services))
+    .route('/backup', createBackupRoutes(services))
+    .route('/trash', createTrashRoutes(services))
+    .route('/search', createSearchRoutes(services))
+    .route('/dashboard', createDashboardRoutes(services))
+}
+
 export function buildHonoApp(
   services: HonoServices,
   config: MySqlConnectionConfig,
@@ -55,16 +71,7 @@ export function buildHonoApp(
 
   const routes = app
     .route('/health', createHealthRoutes(services, config))
-    .route('/api/v1/items', createItemRoutes(services))
-    .route('/api/v1/exploration-tracks', createExplorationTrackRoutes(services))
-    .route('/api/v1/reviews', createReviewRoutes(services))
-    .route('/api/v1/methods', createMethodRoutes(services))
-    .route('/api/v1/method-applications', createMethodApplicationRoutes(services))
-    .route('/api/v1/method-source-displays', createMethodSourceDisplayRoutes(services))
-    .route('/api/v1/backup', createBackupRoutes(services))
-    .route('/api/v1/trash', createTrashRoutes(services))
-    .route('/api/v1/search', createSearchRoutes(services))
-    .route('/api/v1/dashboard', createDashboardRoutes(services))
+    .route(apiV1BasePath, buildApiV1Routes(services))
 
   routes.notFound((context) => isKnownApiPath(context.req.path)
     ? errorResponse(context, 405, 'METHOD_NOT_ALLOWED', '不允许的请求方法')
