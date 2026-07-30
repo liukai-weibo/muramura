@@ -1,4 +1,5 @@
 import type {
+  AuthSession,
   BackupDocument,
   CompleteReviewInput,
   CompleteReviewResult,
@@ -25,7 +26,23 @@ import type {
   TrashFilter,
 } from '@knowledge-base/contracts'
 
-export interface ApiClientError extends Error { status?: number }
+export interface ApiClientError extends Error {
+  status?: number
+  code?: string
+  requestId?: string
+}
+
+let authenticationContextVersion = 0
+let unauthorizedHandler: (() => void) | undefined
+
+export function advanceApiClientAuthenticationContext(): void {
+  authenticationContextVersion += 1
+}
+
+export function setApiClientUnauthorizedHandler(handler: (() => void) | undefined): () => void {
+  unauthorizedHandler = handler
+  return () => { if (unauthorizedHandler === handler) unauthorizedHandler = undefined }
+}
 
 export class ApiClientUnknownOutcomeError extends Error {
   readonly name = 'ApiClientUnknownOutcomeError'
@@ -45,10 +62,12 @@ export function isApiClientAbort(error: unknown): boolean {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isWrite = init.method !== undefined && init.method !== 'GET'
+  const requestAuthenticationContext = authenticationContextVersion
   let response: Response
   try {
     response = await fetch(`/api/v1${path}`, {
       ...init,
+      credentials: 'same-origin',
       headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers },
     })
   } catch (error) {
@@ -63,9 +82,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
   }
-  const body = await response.json().catch(() => undefined) as { error?: { message?: string } } | undefined
+  const body = await response.json().catch(() => undefined) as { error?: { code?: string; message?: string; requestId?: string } } | undefined
   const error = new Error(body?.error?.message ?? '本地数据服务请求失败。') as ApiClientError
   error.status = response.status
+  error.code = body?.error?.code
+  error.requestId = body?.error?.requestId
+  if (response.status === 401 && !path.startsWith('/auth/') && requestAuthenticationContext === authenticationContextVersion) unauthorizedHandler?.()
   throw error
 }
 
@@ -87,6 +109,10 @@ export function actionsFor(item: Item): ApiItemAction[] {
 
 export const apiClient = {
   actionsFor,
+  register: (input: { username: string; password: string }) => request<AuthSession>('/auth/register', { method: 'POST', body: json(input) }),
+  login: (input: { username: string; password: string }) => request<AuthSession>('/auth/login', { method: 'POST', body: json(input) }),
+  logout: () => request<void>('/auth/logout', { method: 'POST', body: json({}) }),
+  getCurrentSession: (signal?: AbortSignal) => request<AuthSession>('/auth/session', { signal }),
   listItems: (signal?: AbortSignal) => request<Item[]>('/items', { signal }),
   listTrash: (signal?: AbortSignal) => request<Item[]>('/items/trash', { signal }),
   createIdea: (input: { title?: string; content?: string; saveForLater?: boolean; explorationTrack?: ExplorationTrackSelection }, signal?: AbortSignal) => request<Item>('/items', { method: 'POST', body: json(input), signal }),

@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const pageSource = fs.readFileSync(path.resolve(process.cwd(), 'apps/client/src/pages/index/index.tsx'), 'utf8')
-const styleSource = fs.readFileSync(path.resolve(process.cwd(), 'apps/client/src/pages/index/index.scss'), 'utf8')
+const pageSource = fs.readFileSync(path.resolve(process.cwd(), 'apps/client/src/pages/index/index.tsx'), 'utf8').replace(/\r\n/g, '\n')
+const styleSource = fs.readFileSync(path.resolve(process.cwd(), 'apps/client/src/pages/index/index.scss'), 'utf8').replace(/\r\n/g, '\n')
 
 describe('H5 status navigation layout', () => {
   it('renders the five persistent states and more-status as one six-cell navigation', () => {

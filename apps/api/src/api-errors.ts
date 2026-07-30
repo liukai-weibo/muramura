@@ -1,10 +1,11 @@
+import { AuthenticationError } from '@knowledge-base/application'
 import type {
   ApiErrorCode,
   ApiErrorStatus,
   BusinessErrorCode,
 } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
-import { MySqlSchemaNotReadyError } from '@knowledge-base/storage-mysql'
+import { BackupOwnershipConflictError, MySqlSchemaNotReadyError } from '@knowledge-base/storage-mysql'
 
 export type {
   ApiErrorBody,
@@ -88,6 +89,17 @@ function shouldReportBusinessFailure(error: BusinessError): boolean {
 
 export function mapFailure(value: unknown): ApiFailure {
   if (value instanceof ApiError) return failure(value.status, value.code, value.message)
+  if (value instanceof AuthenticationError) {
+    return value.code === 'username-taken'
+      ? failure(409, 'CONFLICT', 'username already exists')
+      : failure(401, 'UNAUTHORIZED', 'invalid username or password')
+  }
+  if (value instanceof BackupOwnershipConflictError) {
+    return failure(409, 'CONFLICT', '备份包含属于其他用户的数据 ID')
+  }
+  if (value instanceof Error && value.message === 'invalid authentication credentials') {
+    return failure(400, 'VALIDATION_FAILED', value.message)
+  }
   if (value instanceof BusinessError) return mapBusinessFailure(value)
   if (value instanceof MySqlSchemaNotReadyError) {
     return failure(503, 'MYSQL_SCHEMA_NOT_READY', '本地 MySQL 候选环境当前不可用')
@@ -95,11 +107,16 @@ export function mapFailure(value: unknown): ApiFailure {
   if (isMySqlUnavailable(value)) {
     return failure(503, 'MYSQL_UNAVAILABLE', '本地 MySQL 候选环境当前不可用')
   }
+  if (typeof value === 'object' && value !== null && 'code' in value && value.code === 'ER_DUP_ENTRY') {
+    return failure(409, 'CONFLICT', 'username already exists')
+  }
   return failure(500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误')
 }
 
 function shouldReportFailure(value: unknown): boolean {
   if (value instanceof ApiError) return value.status === 500
+  if (value instanceof AuthenticationError || value instanceof BackupOwnershipConflictError) return false
+  if (value instanceof Error && value.message === 'invalid authentication credentials') return false
   if (value instanceof BusinessError) return shouldReportBusinessFailure(value)
   if (value instanceof MySqlSchemaNotReadyError) return false
   if (isMySqlUnavailable(value)) return false

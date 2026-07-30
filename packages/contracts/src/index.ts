@@ -13,6 +13,32 @@ export const itemStatuses = [
 
 export type ItemStatus = (typeof itemStatuses)[number]
 
+export interface AuthUser { id: string; username: string; createdAt: string }
+export interface RegisterInput { username: string; password: string }
+export interface LoginInput { username: string; password: string }
+export interface AuthSession { user: AuthUser }
+export interface CurrentUserScope { userId: string }
+export const ownedBusinessCollections = ['items', 'reviews', 'methods', 'methodEvidence', 'methodVersions', 'methodApplications', 'itemStatusEvents', 'itemLinks', 'methodTombstones', 'explorationTracks'] as const
+export type OwnedBusinessCollection = typeof ownedBusinessCollections[number]
+export type OwnerClaimCollectionSummary = { total: number; unowned: number; targetOwned: number; otherOwned: number }
+export type OwnerClaimSummary = Record<OwnedBusinessCollection, OwnerClaimCollectionSummary>
+export interface InitialOwnerClaimResult {
+  status: 'claimed' | 'already-claimed'
+  userId: string
+  before: OwnerClaimSummary
+  after: OwnerClaimSummary
+}
+export interface InitialOwnerClaimRepository {
+  claimInitialOwner(userId: string): Promise<InitialOwnerClaimResult>
+}
+export interface AuthRepository {
+  createUser(input: AuthUser & { passwordHash: string }): Promise<AuthUser>
+  findUserByUsername(username: string): Promise<(AuthUser & { passwordHash: string }) | undefined>
+  createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<void>
+  getSessionBySecretHash(secretHash: Uint8Array, now: string): Promise<AuthUser | undefined>
+  revokeSessionBySecretHash(secretHash: Uint8Array, revokedAt: string): Promise<void>
+}
+
 export interface Item {
   id: string
   title: string

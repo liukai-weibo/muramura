@@ -2,6 +2,8 @@ import crypto from 'node:crypto'
 import http from 'node:http'
 import {
   BackupApplicationService,
+  AuthenticationApplicationService,
+  AuthenticationError,
   DashboardApplicationService,
   ExplorationTrackApplicationService,
   ItemApplicationService,
@@ -15,6 +17,7 @@ import { itemStatuses, type ApiErrorBody, type BackupDocument, type BusinessErro
 import {
   createMySqlPool,
   getMySqlHealth,
+  MySqlAuthRepository,
   MySqlBackupRepository,
   MySqlDashboardRepository,
   MySqlExplorationTrackRepository,
@@ -100,6 +103,10 @@ function optionalBoolean(value: unknown, label: string): boolean | undefined {
   if (typeof value !== 'boolean') throw new ApiError(400, 'VALIDATION_FAILED', `${label}必须是布尔值`)
   return value
 }
+function emptyWithCookie(response: http.ServerResponse, status: number, id: string, cookie: string) { response.writeHead(status, { 'cache-control': 'no-store', 'x-request-id': id, 'set-cookie': cookie }); response.end() }
+function sessionSecret(request: http.IncomingMessage): Buffer | undefined { const raw = request.headers.cookie?.split(';').map(value => value.trim()).find(value => value.startsWith('kb_session='))?.slice('kb_session='.length); if (!raw || !/^[A-Za-z0-9_-]+$/.test(raw)) return undefined; try { const value = Buffer.from(raw, 'base64url'); return value.length === 32 ? value : undefined } catch { return undefined } }
+function sessionCookie(secret: Buffer, expiresAt: string): string { return `kb_session=${secret.toString('base64url')}; HttpOnly; SameSite=Lax; Path=/; Expires=${new Date(expiresAt).toUTCString()}` }
+function expiredSessionCookie(): string { return 'kb_session=; HttpOnly; SameSite=Lax; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT' }
 function parseStatus(value: unknown): ItemStatus {
   if (typeof value !== 'string' || !itemStatuses.includes(value as ItemStatus)) throw new ApiError(400, 'VALIDATION_FAILED', '事项状态无效')
   return value as ItemStatus
@@ -115,24 +122,25 @@ function parseCurrentAssociatedStatus(value: string | null): CurrentAssociatedSt
   if (value !== 'doing' && value !== 'idea_to_try' && value !== 'idea_later' && value !== 'paused') throw new ApiError(400, 'VALIDATION_FAILED', '事项状态无效')
   return value
 }
-function createServices(config: MySqlConnectionConfig) {
-  const pool = createMySqlPool(config)
-  const items = new MySqlItemRepository(pool)
-  const methods = new MySqlMethodRepository(pool)
-  const reviews = new MySqlReviewRepository(pool)
-  const methodApplications = new MySqlMethodApplicationRepository(pool)
-  const explorationTracks = new MySqlExplorationTrackRepository(pool)
+function createServices(config: MySqlConnectionConfig, scope?: { userId: string }, sharedPool?: ReturnType<typeof createMySqlPool>) {
+  const pool = sharedPool ?? createMySqlPool(config)
+  const items = new MySqlItemRepository(pool, undefined, scope)
+  const methods = new MySqlMethodRepository(pool, undefined, scope)
+  const reviews = new MySqlReviewRepository(pool, scope)
+  const methodApplications = new MySqlMethodApplicationRepository(pool, undefined, scope)
+  const explorationTracks = new MySqlExplorationTrackRepository(pool, undefined, scope)
   return {
     pool,
     items: new ItemApplicationService(items, explorationTracks),
     explorationTracks: new ExplorationTrackApplicationService(explorationTracks, explorationTracks),
-    reviews: new ReviewApplicationService(reviews, methods, new MySqlReviewWorkflowRepository(pool)),
+    reviews: new ReviewApplicationService(reviews, methods, new MySqlReviewWorkflowRepository(pool, undefined, scope)),
     methods: new MethodLifecycleApplicationService(methods),
     methodApplications: new MethodApplicationService(methodApplications),
     trash: new TrashApplicationService(items, methods, explorationTracks),
-    search: new SearchApplicationService(new MySqlSearchRepository(pool)),
-    dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool)),
-    backup: new BackupApplicationService(new MySqlBackupRepository(pool)),
+    search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
+    dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
+    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope)),
+    auth: new AuthenticationApplicationService(new MySqlAuthRepository(pool)),
   }
 }
 
@@ -153,7 +161,10 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
       }
       if (url.pathname === '/health') { error(response, 405, 'METHOD_NOT_ALLOWED', '不允许的请求方法', id); return }
       if (!url.pathname.startsWith('/api/v1/')) { error(response, 404, 'NOT_FOUND_ROUTE', '路由不存在', id); return }
-      await route(request, response, url, services, id)
+      if (url.pathname.startsWith('/api/v1/auth/')) { await route(request, response, url, services, id); return }
+      const session = await services.auth.current(sessionSecret(request))
+      if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
+      await route(request, response, url, createServices(config, { userId: session.user.id }, services.pool), id)
     } catch (cause) {
       reportUnexpectedFailure(id, cause)
       const failure = mapFailure(cause)
@@ -167,6 +178,10 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
 async function route(request: http.IncomingMessage, response: http.ServerResponse, url: URL, services: Services, id: string): Promise<void> {
   const { method = 'GET' } = request; const path = url.pathname
   const match = (pattern: RegExp) => pattern.exec(path)?.slice(1)
+  if (method === 'POST' && path === '/api/v1/auth/register') { const body = requireObject(await readJson(request, normalBodyLimit)); const result = await services.auth.register({ username: requiredString(body.username, 'username'), password: requiredString(body.password, 'password') }); return json(response, 201, result.session, id, { 'set-cookie': sessionCookie(result.secret, result.expiresAt) }) }
+  if (method === 'POST' && path === '/api/v1/auth/login') { const body = requireObject(await readJson(request, normalBodyLimit)); const result = await services.auth.login({ username: requiredString(body.username, 'username'), password: requiredString(body.password, 'password') }); return json(response, 200, result.session, id, { 'set-cookie': sessionCookie(result.secret, result.expiresAt) }) }
+  if (method === 'POST' && path === '/api/v1/auth/logout') { await services.auth.logout(sessionSecret(request)); return emptyWithCookie(response, 204, id, expiredSessionCookie()) }
+  if (method === 'GET' && path === '/api/v1/auth/session') { const session = await services.auth.current(sessionSecret(request)); if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required'); return json(response, 200, session, id) }
   if (method === 'GET' && path === '/api/v1/search') return json(response, 200, await services.search.search(url.searchParams.get('query') ?? ''), id)
   if (method === 'GET' && path === '/api/v1/dashboard') { const window = url.searchParams.get('window'); if (window !== '7d' && window !== '30d' && window !== 'all') throw new ApiError(400, 'VALIDATION_FAILED', '无效的仪表盘时间范围'); return json(response, 200, await services.dashboard.getReport(window), id) }
   if (method === 'GET' && path === '/api/v1/methods') return json(response, 200, await services.reviews.listMethods(), id)
@@ -201,7 +216,7 @@ async function route(request: http.IncomingMessage, response: http.ServerRespons
   values = match(/^\/api\/v1\/reviews\/([^/]+)$/)
   if (method === 'GET' && values) { const review = await services.reviews.getReview(decodeURIComponent(values[0]!)); if (!review) throw new ApiError(404, 'NOT_FOUND', '复盘不存在'); return json(response, 200, review, id) }
   values = match(/^\/api\/v1\/items\/([^/]+)\/exploration-track$/)
-  if (method === 'GET' && values) return json(response, 200, await services.explorationTracks.getItemExplorationTrackContext(decodeURIComponent(values[0]!)), id)
+  if (method === 'GET' && values) { const context = await services.explorationTracks.getItemExplorationTrackContext(decodeURIComponent(values[0]!)); if (!context) throw new ApiError(404, 'NOT_FOUND', '事项不存在'); return json(response, 200, context, id) }
   if (method === 'PUT' && values) { const body = requireObject(await readJson(request, normalBodyLimit)); return json(response, 200, await services.explorationTracks.assignItemToExplorationTrack(decodeURIComponent(values[0]!), requiredString(body.trackId, 'trackId')), id) }
   if (method === 'DELETE' && values) { await services.explorationTracks.removeItemFromExplorationTrack(decodeURIComponent(values[0]!)); return empty(response, 204, id) }
   values = match(/^\/api\/v1\/items\/([^/]+)\/status-events$/)
@@ -237,7 +252,7 @@ async function route(request: http.IncomingMessage, response: http.ServerRespons
 
 function isKnownApiPath(path: string): boolean {
   return [
-    '/api/v1/search', '/api/v1/dashboard', '/api/v1/methods', '/api/v1/items', '/api/v1/reviews/complete', '/api/v1/method-applications', '/api/v1/backup', '/api/v1/backup/restore', '/api/v1/trash', '/api/v1/method-source-displays',
+    '/api/v1/search', '/api/v1/dashboard', '/api/v1/methods', '/api/v1/items', '/api/v1/reviews/complete', '/api/v1/method-applications', '/api/v1/backup', '/api/v1/backup/restore', '/api/v1/trash', '/api/v1/method-source-displays', '/api/v1/auth/register', '/api/v1/auth/login', '/api/v1/auth/logout', '/api/v1/auth/session',
     '/api/v1/exploration-tracks', '/api/v1/exploration-tracks/selectable', '/api/v1/exploration-tracks/deleted',
     /^\/api\/v1\/exploration-tracks\/[^/]+(?:\/(?:history|restore))?$/,
     /^\/api\/v1\/reviews\/(?:by-item\/)?[^/]+$/,

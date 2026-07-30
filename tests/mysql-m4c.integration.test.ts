@@ -4,7 +4,7 @@ import { BackupApplicationService } from '../packages/application/src/index'
 import { createMySqlPool, MySqlBackupRepository, MySqlItemRepository, MySqlReviewWorkflowRepository, runMySqlMigrations, type MySqlConnectionConfig } from '../packages/storage-mysql/src/index'
 
 const enabled = ['MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_MIGRATOR_PASSWORD', 'MYSQL_ROOT_PASSWORD'].every(name => Boolean(process.env[name]))
-const id = () => `mysql-m4c-${crypto.randomUUID()}`
+const id = () => `mysql-m4c-${crypto.randomUUID().slice(0, 8)}`
 let database = ''; let appUser = ''; let migratorUser = ''; let appPassword = ''; let migratorPassword = ''
 let root: ReturnType<typeof createMySqlPool>; let app: ReturnType<typeof createMySqlPool>; let migrator: ReturnType<typeof createMySqlPool>
 const config = (user: string, password: string): MySqlConnectionConfig => ({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user, password, connectionLimit: 4 })

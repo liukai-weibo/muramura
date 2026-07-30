@@ -1,7 +1,7 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import type { BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter } from '@knowledge-base/contracts'
-import { apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, type ApiItemAction } from './api-client'
+import type { AuthSession, BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter } from '@knowledge-base/contracts'
+import { advanceApiClientAuthenticationContext, apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, setApiClientUnauthorizedHandler, type ApiClientError, type ApiItemAction } from './api-client'
 import { ExplorationPrototype } from './exploration-prototype'
 import { searchCollapseState, searchExitState, searchResultSelectionState, shouldOpenSearchResults } from './search-session-state'
 import { canModifyItemExplorationContext } from './item-exploration-state'
@@ -136,7 +136,16 @@ function remainingTrashDays(deletedAt: string): number {
   return Math.max(1, 30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000))
 }
 
-export default function IndexPage() {
+interface AuthenticatedWorkspaceProps {
+  session: AuthSession
+  logoutBusy: boolean
+  logoutUnknownOutcome: boolean
+  logoutError: string
+  onLogout: () => void
+  onConfirmLogoutOutcome: () => void
+}
+
+function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, logoutError, onLogout, onConfirmLogoutOutcome }: AuthenticatedWorkspaceProps) {
   const application = apiClient
   const reviewApplication = apiClient
   const searchApplication = apiClient
@@ -156,8 +165,11 @@ export default function IndexPage() {
   const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
   const [explorationMounted, setExplorationMounted] = useState(false)
   const [explorationFactsVersion, setExplorationFactsVersion] = useState(0)
+  const [restoreFactsVersion, setRestoreFactsVersion] = useState(0)
+  const restoreFactsConfirmationRef = useRef<{ resolve: () => void; reject: (error: Error) => void }>()
+  const [activeExplorationTrackCount, setActiveExplorationTrackCount] = useState<number>()
   useEffect(() => {
-    if (activeModule === 'explorations') setExplorationMounted(true)
+    if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
   }, [activeModule])
   const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
   const captureOriginModuleRef = useRef<PrimaryModule>('actions')
@@ -367,7 +379,7 @@ export default function IndexPage() {
     || JSON.stringify(methodForm) !== JSON.stringify(emptyMethod)
   )
 
-  const refresh = async (nextSelectedId = selectedId) => {
+  const refresh = async (nextSelectedId = selectedId, commit = true) => {
     refreshAbortRef.current?.abort()
     const controller = new AbortController()
     refreshAbortRef.current = controller
@@ -377,17 +389,19 @@ export default function IndexPage() {
       const [nextItems, nextTrashItems, nextMethods] = await Promise.all([
         application.listItems(controller.signal), application.listTrash(controller.signal), reviewApplication.listMethods(controller.signal),
       ])
-      if (requestId !== refreshRequestRef.current) return { items: [], trashItems: [], methods: [] }
-      setItems(nextItems)
-      setTrashItems(nextTrashItems)
-      setMethods(nextMethods)
-      const selectionPool = [...nextItems, ...nextTrashItems]
-      if (nextSelectedId && selectionPool.some((item) => item.id === nextSelectedId)) setSelectedId(nextSelectedId)
-      else if (selectedId && !selectionPool.some((item) => item.id === selectedId)) setSelectedId(undefined)
-      setMessage(`${nextItems.length} 条有效事项 · ${nextMethods.length} 条当前方法 · 回收站 ${nextTrashItems.length} 条`)
-      return { items: nextItems, trashItems: nextTrashItems, methods: nextMethods }
+      if (requestId !== refreshRequestRef.current) return { succeeded: false, items: [], trashItems: [], methods: [] }
+      if (commit) {
+        setItems(nextItems)
+        setTrashItems(nextTrashItems)
+        setMethods(nextMethods)
+        const selectionPool = [...nextItems, ...nextTrashItems]
+        if (nextSelectedId && selectionPool.some((item) => item.id === nextSelectedId)) setSelectedId(nextSelectedId)
+        else if (selectedId && !selectionPool.some((item) => item.id === selectedId)) setSelectedId(undefined)
+        setMessage(`${nextItems.length} 条有效事项 · ${nextMethods.length} 条当前方法 · 回收站 ${nextTrashItems.length} 条`)
+      }
+      return { succeeded: true, items: nextItems, trashItems: nextTrashItems, methods: nextMethods }
     } catch (error) {
-      if (isApiClientAbort(error) || requestId !== refreshRequestRef.current) return { items: [], trashItems: [], methods: [] }
+      if (isApiClientAbort(error) || requestId !== refreshRequestRef.current) return { succeeded: false, items: [], trashItems: [], methods: [] }
       throw error
     }
   }
@@ -1480,6 +1494,7 @@ export default function IndexPage() {
 
   const restoreBackup = async () => {
     if (!pendingBackup || busy || restoring) return
+    let restoreFactsConfirmed = false
     setBusy(true)
     setRestoring(true)
     setActiveGlobalTool(undefined)
@@ -1493,14 +1508,28 @@ export default function IndexPage() {
       downloadBackup(safetyBackup, 'knowledge-base-before-restore')
       setBackupMessage('安全备份已下载，正在恢复数据…')
       await backupApplication.restoreBackup(pendingBackup)
+      const restoredFacts = await refresh(undefined, false)
+      if (!restoredFacts.succeeded) throw new Error('恢复后的事项、方法或回收站读取未确认，请保留当前事实并重新读取。')
+      const restoredTrashEntries = await trashApplication.listTrashEntries('all')
+      setExplorationMounted(true)
+      await new Promise<void>((resolve, reject) => {
+        restoreFactsConfirmationRef.current = { resolve, reject }
+        setRestoreFactsVersion((version) => version + 1)
+      })
+      restoreFactsConfirmationRef.current = undefined
+      setItems(restoredFacts.items)
+      setTrashItems(restoredFacts.trashItems)
+      setMethods(restoredFacts.methods)
+      setTrashEntries(restoredTrashEntries)
       setPendingBackup(undefined)
       setSelectedId(undefined)
       setFilter('idea_to_try')
       setShowTrash(false)
       setCurrentPage(1)
-      await refresh(undefined)
+      restoreFactsConfirmed = true
       setBackupMessage('恢复完成；覆盖前的数据已自动下载为安全备份')
     } catch (error: unknown) {
+      restoreFactsConfirmationRef.current = undefined
       if (isApiClientUnknownOutcome(error)) {
         const notice = '本次提交结果未确认，未自动重试。请刷新真实数据后确认是否已生效。'
         setBackupMessage(notice)
@@ -1511,7 +1540,7 @@ export default function IndexPage() {
         setMessage(errorMessage)
       }
     } finally {
-      setRestoring(false)
+      setRestoring(!restoreFactsConfirmed)
       setBusy(false)
     }
   }
@@ -1845,7 +1874,7 @@ export default function IndexPage() {
   return (
     <View className='app-shell'>
       <View className='primary-navigation'>
-        <View className='navigation-brand'><Text>个人系统</Text><Text>行动与方法</Text></View>
+        <View className='navigation-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
         <View className='navigation-group'>
           {(['actions', 'explorations', 'methods', 'insights'] as PrimaryModule[]).map((module) => <View
             key={module}
@@ -1860,6 +1889,12 @@ export default function IndexPage() {
           ><Text>数据管理</Text></View>
         </View>
         <View className='navigation-status'><View className='status-dot' /><View><Text>本地数据正常</Text><Text>{items.length} 条事项 · {methods.length} 条方法</Text></View></View>
+        <View className='navigation-account'>
+          <View><Text className='navigation-account-label'>当前账户</Text><Text className='navigation-account-name'>{session.user.username}</Text></View>
+          <Button className='navigation-logout' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出'}</Button>
+          {logoutError && <Text className='navigation-account-error'>{logoutError}</Text>}
+          {logoutUnknownOutcome && <Button className='navigation-session-confirm' disabled={logoutBusy} onClick={onConfirmLogoutOutcome}>重新读取当前会话</Button>}
+        </View>
       </View>
 
       <View className='app-main'>
@@ -1950,6 +1985,10 @@ export default function IndexPage() {
 
       {(activeModule === 'explorations' || explorationMounted) && <View className={activeModule === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
         explorationFactsVersion={explorationFactsVersion}
+        restoreFactsVersion={restoreFactsVersion}
+        onRestoreFactsConfirmed={() => restoreFactsConfirmationRef.current?.resolve()}
+        onRestoreFactsFailed={(error) => restoreFactsConfirmationRef.current?.reject(new Error(error))}
+        onExplorationTrackCountChange={setActiveExplorationTrackCount}
         itemUpdatedAtById={itemUpdatedAtById}
         onItemsChanged={() => refresh().then(() => reloadCurrentItemExplorationContext()).then(() => undefined)}
         onOpenItem={(locator) => {
@@ -2309,6 +2348,7 @@ export default function IndexPage() {
           <View className='data-status-grid'>
             <View><Text>{items.length}</Text><Text>有效事项</Text></View>
             <View><Text>{methods.length}</Text><Text>当前方法</Text></View>
+            <View><Text>{activeExplorationTrackCount ?? '—'}</Text><Text>探索主线</Text></View>
             <View><Text>{trashItems.length}</Text><Text>回收站</Text></View>
           </View>
         </View>
@@ -2318,17 +2358,17 @@ export default function IndexPage() {
           <Text className='backup-description'>数据仅保存在当前浏览器。建议每周及重大更新前导出一次 JSON 备份。</Text>
         </View>
         <View className='backup-actions'>
-          <View className={`secondary-button backup-export-button ${busy ? 'disabled' : ''}`} onClick={() => { if (!busy) exportBackup() }}><Text>导出完整备份</Text></View>
-          <label className={`file-button ${busy ? 'disabled' : ''}`}>导入恢复<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy} onChange={selectBackup} /></label>
+          <View className={`secondary-button backup-export-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) exportBackup() }}><Text>导出完整备份</Text></View>
+          <label className={`file-button ${busy || restoring ? 'disabled' : ''}`}>导入恢复<input className='backup-file-input' style={{ display: 'none' }} type='file' accept='application/json,.json' disabled={busy || restoring} onChange={selectBackup} /></label>
         </View>
         {backupMessage && <Text className={`backup-message ${pendingBackup ? 'warning' : ''}`}>{backupMessage}</Text>}
         {pendingBackup && <View className='restore-confirm'>
           <Text>备份时间：{formatTime(pendingBackup.exportedAt)}</Text>
-          <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法</Text>
+          <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法 · {pendingBackup.version === 3 ? pendingBackup.data.explorationTracks.length : 0} 条探索主线</Text>
           <Text className='restore-warning'>恢复会完整覆盖当前浏览器中的全部数据。确认后，系统会先自动下载当前数据的安全备份，再执行恢复。</Text>
           <View className='restore-actions'>
-            <View className={`secondary-button restore-cancel-button ${busy ? 'disabled' : ''}`} onClick={() => { if (!busy) { setPendingBackup(undefined); setBackupMessage('已取消恢复') } }}><Text>取消</Text></View>
-            <Button className='action-button delete-confirm-button' disabled={busy} onClick={restoreBackup}>备份当前数据并恢复</Button>
+            <View className={`secondary-button restore-cancel-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) { setPendingBackup(undefined); setBackupMessage('已取消恢复') } }}><Text>取消</Text></View>
+            <Button className='action-button delete-confirm-button' disabled={busy || restoring} onClick={restoreBackup}>备份当前数据并恢复</Button>
           </View>
         </View>}
       {pendingTrashRestore && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashRestore(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='恢复确认' onClick={(event) => event.stopPropagation()}><Text>恢复“{pendingTrashRestore.title}”？</Text><Text>恢复后将重新回到当前可用数据中。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(undefined)}>取消</Button><Button className='action-button primary' disabled={busy} onClick={() => restoreTrashEntry(pendingTrashRestore)}>恢复</Button></View></View></View>}
@@ -2390,4 +2430,211 @@ export default function IndexPage() {
       </View>
     </View>
   )
+}
+
+type AuthenticationMode = 'login' | 'register'
+type SessionReadSource = 'initial' | 'after-auth-write' | 'confirm-unknown-logout' | 'manual'
+
+function authenticationErrorMessage(error: unknown, fallback: string): string {
+  const apiError = error as ApiClientError
+  const requestId = apiError.requestId ? `（requestId：${apiError.requestId}）` : ''
+  return `${error instanceof Error ? error.message : fallback}${requestId}`
+}
+
+export default function IndexPage() {
+  const [authSession, setAuthSession] = useState<AuthSession>()
+  const [sessionResolved, setSessionResolved] = useState(false)
+  const [sessionReading, setSessionReading] = useState(true)
+  const [authMode, setAuthMode] = useState<AuthenticationMode>('login')
+  const [authUsername, setAuthUsername] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [authUnknownOutcome, setAuthUnknownOutcome] = useState(false)
+  const [authNeedsSessionConfirmation, setAuthNeedsSessionConfirmation] = useState(false)
+  const [logoutBusy, setLogoutBusy] = useState(false)
+  const [logoutUnknownOutcome, setLogoutUnknownOutcome] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
+  const sessionReadRequestRef = useRef(0)
+  const sessionReadAbortRef = useRef<AbortController>()
+  const authOperationRef = useRef(0)
+
+  const enterUnauthenticatedGate = (message = '', preserveDraft = false) => {
+    authOperationRef.current += 1
+    sessionReadRequestRef.current += 1
+    sessionReadAbortRef.current?.abort()
+    advanceApiClientAuthenticationContext()
+    setAuthSession(undefined)
+    setSessionResolved(true)
+    setSessionReading(false)
+    setAuthSubmitting(false)
+    setAuthUnknownOutcome(false)
+    setAuthNeedsSessionConfirmation(false)
+    setLogoutBusy(false)
+    setLogoutUnknownOutcome(false)
+    setLogoutError('')
+    if (!preserveDraft) setAuthPassword('')
+    setAuthError(message)
+  }
+
+  const readCurrentSession = async (source: SessionReadSource): Promise<'authenticated' | 'unauthenticated' | 'failed'> => {
+    sessionReadAbortRef.current?.abort()
+    const controller = new AbortController()
+    sessionReadAbortRef.current = controller
+    const requestId = sessionReadRequestRef.current + 1
+    sessionReadRequestRef.current = requestId
+    setSessionReading(true)
+    if (source !== 'confirm-unknown-logout') setAuthError('')
+    if (source === 'confirm-unknown-logout') setLogoutError('')
+    try {
+      const session = await apiClient.getCurrentSession(controller.signal)
+      if (controller.signal.aborted || requestId !== sessionReadRequestRef.current) return 'failed'
+      advanceApiClientAuthenticationContext()
+      setAuthSession(session)
+      setSessionResolved(true)
+      setAuthUnknownOutcome(false)
+      setAuthNeedsSessionConfirmation(false)
+      setLogoutUnknownOutcome(false)
+      setAuthPassword('')
+      return 'authenticated'
+    } catch (error) {
+      if (controller.signal.aborted || requestId !== sessionReadRequestRef.current) return 'failed'
+      if ((error as ApiClientError).status === 401) {
+        enterUnauthenticatedGate(source === 'initial' ? '' : '当前没有有效会话，请登录。', source === 'after-auth-write' || source === 'manual')
+        return 'unauthenticated'
+      }
+      if (!isApiClientAbort(error)) {
+        const message = authenticationErrorMessage(error, '无法读取当前会话。')
+        if (source === 'confirm-unknown-logout') setLogoutError(message)
+        else setAuthError(message)
+      }
+      return 'failed'
+    } finally {
+      if (!controller.signal.aborted && requestId === sessionReadRequestRef.current) setSessionReading(false)
+    }
+  }
+
+  useEffect(() => {
+    const clearHandler = setApiClientUnauthorizedHandler(() => enterUnauthenticatedGate('当前会话已过期，请重新登录。'))
+    void readCurrentSession('initial')
+    return () => {
+      clearHandler()
+      sessionReadAbortRef.current?.abort()
+    }
+  }, [])
+
+  const switchAuthenticationMode = (mode: AuthenticationMode) => {
+    if (authSubmitting || authUnknownOutcome || authNeedsSessionConfirmation) return
+    authOperationRef.current += 1
+    setAuthMode(mode)
+    setAuthError('')
+  }
+
+  const submitAuthentication = async () => {
+    if (authSubmitting || sessionReading || authUnknownOutcome || authNeedsSessionConfirmation || !authUsername.trim() || authPassword.length < 8) return
+    const operationId = authOperationRef.current + 1
+    authOperationRef.current = operationId
+    setAuthSubmitting(true)
+    setAuthError('')
+    try {
+      if (authMode === 'register') await apiClient.register({ username: authUsername, password: authPassword })
+      else await apiClient.login({ username: authUsername, password: authPassword })
+      if (operationId !== authOperationRef.current) return
+      setAuthNeedsSessionConfirmation(true)
+      await readCurrentSession('after-auth-write')
+    } catch (error) {
+      if (operationId !== authOperationRef.current) return
+      if (isApiClientUnknownOutcome(error)) {
+        setAuthUnknownOutcome(true)
+        setAuthNeedsSessionConfirmation(true)
+        setAuthError(error.message)
+      } else {
+        setAuthError(authenticationErrorMessage(error, authMode === 'register' ? '注册失败。' : '登录失败。'))
+      }
+    } finally {
+      if (operationId === authOperationRef.current) setAuthSubmitting(false)
+    }
+  }
+
+  const logout = async () => {
+    if (!authSession || logoutBusy || logoutUnknownOutcome) return
+    const operationId = authOperationRef.current + 1
+    authOperationRef.current = operationId
+    setLogoutBusy(true)
+    setLogoutError('')
+    try {
+      await apiClient.logout()
+      if (operationId !== authOperationRef.current) return
+      setAuthUsername(authSession.user.username)
+      enterUnauthenticatedGate('')
+    } catch (error) {
+      if (operationId !== authOperationRef.current) return
+      if ((error as ApiClientError).status === 401) {
+        setAuthUsername(authSession.user.username)
+        enterUnauthenticatedGate('当前会话已失效，请重新登录。')
+      } else if (isApiClientUnknownOutcome(error)) {
+        setLogoutUnknownOutcome(true)
+        setLogoutError(error.message)
+      } else {
+        setLogoutError(authenticationErrorMessage(error, '退出失败。'))
+      }
+    } finally {
+      if (operationId === authOperationRef.current) setLogoutBusy(false)
+    }
+  }
+
+  const confirmUnknownLogout = async () => {
+    if (logoutBusy || !logoutUnknownOutcome) return
+    setLogoutBusy(true)
+    const result = await readCurrentSession('confirm-unknown-logout')
+    if (result === 'authenticated') setLogoutError('当前会话仍有效，未退出。')
+    setLogoutBusy(false)
+  }
+
+  if (authSession) return <AuthenticatedWorkspace
+    key={`${authSession.user.id}-${authSession.user.createdAt}`}
+    session={authSession}
+    logoutBusy={logoutBusy}
+    logoutUnknownOutcome={logoutUnknownOutcome}
+    logoutError={logoutError}
+    onLogout={() => void logout()}
+    onConfirmLogoutOutcome={() => void confirmUnknownLogout()}
+  />
+
+  const authenticationLocked = authSubmitting || sessionReading || authUnknownOutcome || authNeedsSessionConfirmation
+  const canSubmitAuthentication = Boolean(authUsername.trim()) && authPassword.length >= 8 && !authenticationLocked
+
+  return <View className='auth-gate-shell'>
+    <View className='auth-gate-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
+    <View className='auth-gate-card'>
+      <Text className='auth-gate-kicker'>个人行动闭环</Text>
+      <Text className='auth-gate-title'>{!sessionResolved ? '正在确认当前会话' : authMode === 'register' ? '创建账户' : '登录圈圈'}</Text>
+      <Text className='auth-gate-description'>{!sessionResolved ? '确认完成前不会读取或展示业务数据。' : '登录后进入仅属于当前账户的工作台。'}</Text>
+
+      {!sessionResolved ? <View className='auth-session-state'>
+        {sessionReading ? <Text>正在读取当前会话…</Text> : <>
+          <Text className='auth-gate-error'>{authError || '暂时无法确认当前会话。'}</Text>
+          <Button className='auth-primary-button' disabled={sessionReading} onClick={() => void readCurrentSession('manual')}>重新读取当前会话</Button>
+        </>}
+      </View> : <>
+        <View className='auth-mode-switch'>
+          <Button className={authMode === 'login' ? 'active' : ''} disabled={authenticationLocked} onClick={() => switchAuthenticationMode('login')}>登录</Button>
+          <Button className={authMode === 'register' ? 'active' : ''} disabled={authenticationLocked} onClick={() => switchAuthenticationMode('register')}>注册</Button>
+        </View>
+        <View className='auth-field'>
+          <Text>用户名</Text>
+          <Input value={authUsername} maxlength={80} disabled={authenticationLocked} placeholder='输入用户名' onInput={(event) => setAuthUsername(event.detail.value)} />
+        </View>
+        <View className='auth-field'>
+          <Text>密码</Text>
+          <Input value={authPassword} maxlength={256} disabled={authenticationLocked} password placeholder='至少 8 个字符' onInput={(event) => setAuthPassword(event.detail.value)} />
+        </View>
+        {authError && <Text className='auth-gate-error'>{authError}</Text>}
+        {(authUnknownOutcome || authNeedsSessionConfirmation) ? <View className='auth-confirm-session'>
+          <Text>未根据本地状态推断认证结果，也不会自动重发。</Text>
+          <Button className='auth-primary-button' disabled={sessionReading} onClick={() => void readCurrentSession('manual')}>{sessionReading ? '正在读取…' : '重新读取当前会话'}</Button>
+        </View> : <Button className='auth-primary-button' disabled={!canSubmitAuthentication} onClick={() => void submitAuthentication()}>{authSubmitting ? '正在提交…' : authMode === 'register' ? '注册并进入' : '登录'}</Button>}
+      </>}
+    </View>
+  </View>
 }

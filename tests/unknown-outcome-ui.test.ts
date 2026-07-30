@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const pageSource = fs.readFileSync(path.resolve(process.cwd(), 'apps/client/src/pages/index/index.tsx'), 'utf8')
+const pageSource = fs.readFileSync(path.resolve(process.cwd(), 'apps/client/src/pages/index/index.tsx'), 'utf8').replace(/\r\n/g, '\n')
 const unknownOutcomeNotice = '本次提交结果未确认，未自动重试。请刷新真实数据后确认是否已生效。'
 
 describe('H5 unknown-outcome interaction boundary', () => {
@@ -16,7 +16,8 @@ describe('H5 unknown-outcome interaction boundary', () => {
   })
 
   it('keeps the existing draft on an unknown outcome', () => {
-    const contentSaveCatch = pageSource.match(/if \(isApiClientUnknownOutcome\(error\)\) \{([\s\S]*?)\n      \} else \{/g)?.[0]
+    const saveItemContent = pageSource.slice(pageSource.indexOf('const saveItemContent = async'), pageSource.indexOf('const locateActiveItemNow'))
+    const contentSaveCatch = saveItemContent.match(/if \(isApiClientUnknownOutcome\(error\)\) \{([\s\S]*?)\n      \} else \{/g)?.[0]
 
     expect(contentSaveCatch).toContain('setContentSaveUnknownOutcome(true)')
     expect(contentSaveCatch).toContain('handleUnknownOutcome()')

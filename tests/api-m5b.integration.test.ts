@@ -5,12 +5,13 @@ import { createApiServer } from '../apps/api/src/index'
 import { createMySqlPool, runMySqlMigrations, type MySqlConnectionConfig } from '../packages/storage-mysql/src/index'
 
 const enabled = ['MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_ROOT_PASSWORD'].every(key => Boolean(process.env[key]))
-let database = ''; let appUser = ''; let migratorUser = ''; let appPassword = ''; let migratorPassword = ''; let root: ReturnType<typeof createMySqlPool>; let server: http.Server
+let database = ''; let appUser = ''; let migratorUser = ''; let appPassword = ''; let migratorPassword = ''; let sessionCookie = ''; let root: ReturnType<typeof createMySqlPool>; let server: http.Server
 const config = (user: string, password: string): MySqlConnectionConfig => ({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user, password, connectionLimit: 3 })
 type Response = { status: number; headers: http.IncomingHttpHeaders; body?: unknown }
 const request = (path: string, options: http.RequestOptions = {}, body?: string, target = server) => new Promise<Response>((resolve, reject) => {
   const address = target.address() as { port: number }
-  const probe = http.request({ host: '127.0.0.1', port: address.port, path, ...options }, response => { let text = ''; response.on('data', chunk => { text += chunk }); response.on('end', () => resolve({ status: response.statusCode ?? 0, headers: response.headers, ...(text ? { body: JSON.parse(text) } : {}) })) })
+  const headers = { ...options.headers, ...(sessionCookie && path.startsWith('/api/v1/') ? { cookie: sessionCookie } : {}) }
+  const probe = http.request({ host: '127.0.0.1', port: address.port, path, ...options, headers }, response => { let text = ''; response.on('data', chunk => { text += chunk }); response.on('end', () => resolve({ status: response.statusCode ?? 0, headers: response.headers, ...(text ? { body: JSON.parse(text) } : {}) })) })
   probe.on('error', reject); probe.end(body)
 })
 const jsonRequest = (path: string, value: unknown, method = 'POST') => request(path, { method, headers: { 'content-type': 'application/json' } }, JSON.stringify(value))
@@ -25,6 +26,8 @@ describe.runIf(enabled)('MySQL M5-B1 candidate write API', () => {
     await root.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON \`${database}\`.* TO '${appUser}'@'%'`); await root.query(`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`); await root.query('FLUSH PRIVILEGES')
     const migrator = createMySqlPool(config(migratorUser, migratorPassword)); await runMySqlMigrations(migrator, `${process.cwd()}/migrations`); await migrator.end()
     server = createApiServer(config(appUser, appPassword)); await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const registered = await jsonRequest('/api/v1/auth/register', { username: `m5b_${suffix}`, password: crypto.randomUUID() })
+    sessionCookie = String(registered.headers['set-cookie']).split(';')[0]!
   })
   afterAll(async () => { await new Promise<void>(resolve => server?.close(() => resolve())); await root?.query(`DROP DATABASE IF EXISTS \`${database}\``); await root?.query(`DROP USER IF EXISTS '${appUser}'@'%'`); await root?.query(`DROP USER IF EXISTS '${migratorUser}'@'%'`); await root?.end() })
 
