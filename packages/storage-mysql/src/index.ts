@@ -161,6 +161,5 @@ export { BackupOwnershipConflictError, MySqlBackupRepository, type MySqlBackupRe
 export { MySqlDashboardRepository, MySqlSearchRepository, type MySqlSearchRepositoryTestHooks } from './read-model-repositories'
 export {
   MySqlExplorationTrackRepository,
-  ExplorationTrackError,
   type MySqlExplorationTrackRepositoryTestHooks,
 } from './exploration-track-repository'

@@ -13,6 +13,7 @@ import type {
 } from '@knowledge-base/contracts'
 import { assertItemTitleLength, createId, normalizeItemTitle } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
+import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
 type DateTime = string | Date
@@ -37,13 +38,17 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
 
   async createItem(input: CreateMethodApplicationInput): Promise<Item> {
     const title = normalizeItemTitle(input.title)
-    if (!title) throw new Error('标题不能为空')
+    if (!title) throw businessError('ITEM_TITLE_REQUIRED', 'validation', '标题不能为空')
     return runInMySqlTransaction(this.pool, async connection => {
       assertItemTitleLength(title)
       const method = await this.lockMethod(connection, input.methodId)
-      if (!method || method.deleted_at) throw new Error('选择的方法不存在')
+      if (!method || method.deleted_at) {
+        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+      }
       const [versions] = await connection.query<VersionRow[]>(this.scope ? 'SELECT * FROM method_versions WHERE method_id=? AND version=? AND owner_user_id=? FOR UPDATE' : 'SELECT * FROM method_versions WHERE method_id=? AND version=? FOR UPDATE', this.scope ? [method.id, method.version, this.scope.userId] : [method.id, method.version])
-      if (!versions[0]) throw new Error('选择的方法不存在')
+      if (!versions[0]) {
+        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+      }
       const createdAt = new Date().toISOString()
       const item: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: 'idea_to_try', createdAt, updatedAt: createdAt }
       await connection.execute(this.scope ? 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,?,?,NULL,?,?,NULL,?)' : 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at) VALUES(?,?,?,?,NULL,?,?,NULL)', this.scope ? [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt), this.scope.userId] : [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt)])
@@ -52,8 +57,11 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
       try {
         await connection.execute(this.scope ? 'INSERT INTO method_applications(id,method_id,method_version,item_id,created_at,owner_user_id) VALUES(?,?,?,?,?,?)' : 'INSERT INTO method_applications(id,method_id,method_version,item_id,created_at) VALUES(?,?,?,?,?)', this.scope ? [createId(), method.id, method.version, item.id, mysqlDateTime(createdAt), this.scope.userId] : [createId(), method.id, method.version, item.id, mysqlDateTime(createdAt)])
       } catch (error) {
-        if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') throw new Error('事项已经关联方法')
-        throw error
+        rethrowDuplicateAsBusinessError(
+          error,
+          'ITEM_METHOD_ALREADY_ASSOCIATED',
+          '事项已经关联方法',
+        )
       }
       return item
     })

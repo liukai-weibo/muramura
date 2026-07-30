@@ -9,6 +9,7 @@ import type {
 } from '@knowledge-base/contracts'
 import { createId } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
+import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
 type DateTime = string | Date
@@ -45,7 +46,13 @@ function normalizeInput(input: CreateMethodInput) {
   const normalized = {
     title: input.title.trim(), applicable: input.applicable.trim(), unsuitable: input.unsuitable?.trim() ?? '', steps: input.steps.trim(),
   }
-  if (!normalized.title || !normalized.applicable || !normalized.steps) throw new Error('请完成方法标题、适用情况和具体步骤')
+  if (!normalized.title || !normalized.applicable || !normalized.steps) {
+    throw businessError(
+      'METHOD_REQUIRED_FIELDS_MISSING',
+      'validation',
+      '请完成方法标题、适用情况和具体步骤',
+    )
+  }
   return normalized
 }
 
@@ -136,8 +143,10 @@ export class MySqlMethodRepository implements MethodRepository {
   async moveToTrash(methodId: string): Promise<void> {
     await runInMySqlTransaction(this.pool, async connection => {
       const method = await this.lockMethod(connection, methodId)
-      if (!method) throw new Error('方法不存在')
-      if (method.deleted_at) throw new Error('方法已在回收站')
+      if (!method) throw businessError('METHOD_NOT_FOUND', 'not-found', '方法不存在')
+      if (method.deleted_at) {
+        throw businessError('METHOD_ALREADY_IN_TRASH', 'conflict', '方法已在回收站')
+      }
       const now = new Date().toISOString()
       await connection.execute(this.scope ? 'UPDATE methods SET deleted_at=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE methods SET deleted_at=?,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(now), mysqlDateTime(now), methodId,this.scope.userId] : [mysqlDateTime(now), mysqlDateTime(now), methodId])
     })
@@ -146,7 +155,9 @@ export class MySqlMethodRepository implements MethodRepository {
   async restore(methodId: string): Promise<Method> {
     return runInMySqlTransaction(this.pool, async connection => {
       const method = await this.lockMethod(connection, methodId)
-      if (!method?.deleted_at) throw new Error('回收站中不存在该方法')
+      if (!method?.deleted_at) {
+        throw businessError('METHOD_NOT_IN_TRASH', 'not-found', '回收站中不存在该方法')
+      }
       const now = new Date().toISOString()
       await connection.execute(this.scope ? 'UPDATE methods SET deleted_at=NULL,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE methods SET deleted_at=NULL,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(now), methodId,this.scope.userId] : [mysqlDateTime(now), methodId])
       return { ...mapMethod(method), updatedAt: now, deletedAt: undefined }
@@ -163,10 +174,20 @@ export class MySqlMethodRepository implements MethodRepository {
         await connection.query(this.scope ? 'SELECT id FROM method_evidence WHERE method_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM method_evidence WHERE method_id=? FOR UPDATE', this.scope ? [method.id, this.scope.userId] : [method.id])
         const [applications] = await connection.query<Array<RowDataPacket & { method_version: number }>>(this.scope ? 'SELECT method_version FROM method_applications WHERE method_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT method_version FROM method_applications WHERE method_id=? FOR UPDATE', this.scope ? [method.id, this.scope.userId] : [method.id])
         const [tombstones] = await connection.query<Array<RowDataPacket & { method_id: string }>>(this.scope ? 'SELECT method_id FROM method_tombstones WHERE method_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT method_id FROM method_tombstones WHERE method_id=? FOR UPDATE', this.scope ? [method.id, this.scope.userId] : [method.id])
-        if (tombstones[0]) throw new Error('方法永久清理记录已存在')
+        if (tombstones[0]) {
+          throw businessError(
+            'METHOD_TOMBSTONE_ALREADY_EXISTS',
+            'conflict',
+            '方法永久清理记录已存在',
+          )
+        }
         const versionNumbers = versions.map(version => ({ version: version.version }))
         if (applications.some(application => !versionNumbers.some(version => version.version === application.method_version))) {
-          throw new Error('方法应用引用了无法证明的历史版本')
+          throw businessError(
+            'METHOD_VERSION_HISTORY_UNPROVABLE',
+            'internal',
+            '方法应用引用了无法证明的历史版本',
+          )
         }
         const permanentlyDeletedAt = new Date().toISOString()
         await connection.execute(this.scope ? 'INSERT INTO method_tombstones(method_id,title,permanently_deleted_at,versions,owner_user_id) VALUES(?,?,?,?,?)' : 'INSERT INTO method_tombstones(method_id,title,permanently_deleted_at,versions) VALUES(?,?,?,?)', this.scope ? [method.id, method.title, mysqlDateTime(permanentlyDeletedAt), JSON.stringify(versionNumbers), this.scope.userId] : [method.id, method.title, mysqlDateTime(permanentlyDeletedAt), JSON.stringify(versionNumbers)])
@@ -181,12 +202,20 @@ export class MySqlMethodRepository implements MethodRepository {
     const revisionData = revision ? normalizeInput(revision) : undefined
     return runInMySqlTransaction(this.pool, async connection => {
       const methodRow = await this.lockMethod(connection, methodId)
-      if (!methodRow || methodRow.deleted_at) throw new Error('选择的方法不存在')
+      if (!methodRow || methodRow.deleted_at) {
+        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+      }
       await this.lockReview(connection, reviewId)
       const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>(
         this.scope ? 'SELECT id FROM method_evidence WHERE method_id=? AND review_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM method_evidence WHERE method_id=? AND review_id=? FOR UPDATE', this.scope ? [methodId, reviewId, this.scope.userId] : [methodId, reviewId],
       )
-      if (existing[0]) throw new Error('该复盘已经验证过这个方法')
+      if (existing[0]) {
+        throw businessError(
+          'METHOD_ALREADY_VALIDATED_BY_REVIEW',
+          'conflict',
+          '该复盘已经验证过这个方法',
+        )
+      }
       const method = mapMethod(methodRow)
       const now = new Date().toISOString()
       const nextVersion = revisionData ? method.version + 1 : method.version
@@ -211,8 +240,11 @@ export class MySqlMethodRepository implements MethodRepository {
           this.scope ? [createId(), methodId, reviewId, revisionData ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), this.scope.userId] : [createId(), methodId, reviewId, revisionData ? 'revision' : 'validation', nextVersion, mysqlDateTime(now)],
         )
       } catch (error) {
-        if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') throw new Error('该复盘已经验证过这个方法')
-        throw error
+        rethrowDuplicateAsBusinessError(
+          error,
+          'METHOD_ALREADY_VALIDATED_BY_REVIEW',
+          '该复盘已经验证过这个方法',
+        )
       }
       return updated
     })
@@ -220,7 +252,7 @@ export class MySqlMethodRepository implements MethodRepository {
 
   private async lockReview(connection: PoolConnection, reviewId: string): Promise<void> {
     const [reviews] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE id=? FOR UPDATE', this.scope ? [reviewId,this.scope.userId] : [reviewId])
-    if (!reviews[0]) throw new Error('关联复盘不存在')
+    if (!reviews[0]) throw businessError('REVIEW_NOT_FOUND', 'not-found', '关联复盘不存在')
   }
 
   private async lockMethod(connection: PoolConnection, methodId: string): Promise<MethodRow | undefined> {

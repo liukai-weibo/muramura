@@ -1,6 +1,7 @@
 import type { CompleteReviewInput, CompleteReviewResult, CreateMethodInput, CurrentUserScope, Item, ItemStatus, Method, Review, ReviewWorkflowRepository } from '@knowledge-base/contracts'
 import { createId } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
+import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
 type DateTime = string | Date
@@ -27,7 +28,11 @@ function normalizeMethodInput(input: CreateMethodInput): NormalizedMethodInput {
     steps: input.steps.trim(),
   }
   if (!normalized.title || !normalized.applicable || !normalized.steps) {
-    throw new Error('请完成方法标题、适用情况和具体步骤')
+    throw businessError(
+      'METHOD_REQUIRED_FIELDS_MISSING',
+      'validation',
+      '请完成方法标题、适用情况和具体步骤',
+    )
   }
   return normalized
 }
@@ -49,21 +54,45 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
   constructor(private readonly pool: Pool, private readonly hooks?: MySqlReviewWorkflowRepositoryTestHooks, private readonly scope?: CurrentUserScope) {}
 
   async complete(input: CompleteReviewInput): Promise<CompleteReviewResult> {
-    if (input.method && input.existingMethod) throw new Error('不能同时形成新方法和验证已有方法')
+    if (input.method && input.existingMethod) {
+      throw businessError(
+        'REVIEW_METHOD_MODE_CONFLICT',
+        'validation',
+        '不能同时形成新方法和验证已有方法',
+      )
+    }
     const formation = input.method ? normalizeMethodInput(input.method) : undefined
     const revision = input.existingMethod?.revision ? normalizeMethodInput(input.existingMethod.revision) : undefined
     const review = this.buildReview(input)
     return runInMySqlTransaction(this.pool, async connection => {
       const item = await this.lockItem(connection, input.itemId)
-      if (!item || item.deleted_at) throw new Error('事项不存在')
-      if (item.status !== 'doing' && item.status !== 'waiting_review') throw new Error('只有已开始或待复盘事项可以完成复盘')
+      if (!item || item.deleted_at) {
+        throw businessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+      }
+      if (item.status !== 'doing' && item.status !== 'waiting_review') {
+        throw businessError(
+          'ITEM_NOT_REVIEWABLE',
+          'conflict',
+          '只有已开始或待复盘事项可以完成复盘',
+        )
+      }
       const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE item_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE item_id=? FOR UPDATE', this.scope ? [input.itemId, this.scope.userId] : [input.itemId])
-      if (existing[0]) throw new Error('该事项已经完成复盘')
+      if (existing[0]) {
+        throw businessError('REVIEW_ALREADY_COMPLETED', 'conflict', '该事项已经完成复盘')
+      }
       const existingMethod = input.existingMethod ? await this.lockActiveMethod(connection, input.existingMethod.methodId) : undefined
-      if (input.existingMethod && !existingMethod) throw new Error('选择的方法不存在')
+      if (input.existingMethod && !existingMethod) {
+        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+      }
       if (existingMethod) {
         const [evidence] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM method_evidence WHERE method_id=? AND review_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM method_evidence WHERE method_id=? AND review_id=? FOR UPDATE', this.scope ? [existingMethod.id, review.id, this.scope.userId] : [existingMethod.id, review.id])
-        if (evidence[0]) throw new Error('该复盘已经验证过这个方法')
+        if (evidence[0]) {
+          throw businessError(
+            'METHOD_ALREADY_VALIDATED_BY_REVIEW',
+            'conflict',
+            '该复盘已经验证过这个方法',
+          )
+        }
       }
       await this.hooks?.beforeReviewInsert?.()
       await this.insertReview(connection, review)
@@ -90,10 +119,11 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
         this.scope ? [review.id, review.itemId, review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas, mysqlDateTime(review.createdAt), mysqlDateTime(review.updatedAt), this.scope.userId] : [review.id, review.itemId, review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas, mysqlDateTime(review.createdAt), mysqlDateTime(review.updatedAt)],
       )
     } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') {
-        throw new Error('该事项已经完成复盘')
-      }
-      throw error
+      rethrowDuplicateAsBusinessError(
+        error,
+        'REVIEW_ALREADY_COMPLETED',
+        '该事项已经完成复盘',
+      )
     }
   }
 
@@ -144,10 +174,11 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
         this.scope ? [createId(), updated.id, review.id, revision ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), this.scope.userId] : [createId(), updated.id, review.id, revision ? 'revision' : 'validation', nextVersion, mysqlDateTime(now)],
       )
     } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') {
-        throw new Error('该复盘已经验证过这个方法')
-      }
-      throw error
+      rethrowDuplicateAsBusinessError(
+        error,
+        'METHOD_ALREADY_VALIDATED_BY_REVIEW',
+        '该复盘已经验证过这个方法',
+      )
     }
     return updated
   }
@@ -178,7 +209,13 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
       id: createId(), itemId: input.itemId, actualAction: input.actualAction.trim(), result: input.result.trim(), effective: input.effective.trim(), incompatible: input.incompatible.trim(), reason: input.reason.trim(), adjustment: input.adjustment.trim(), newIdeas: input.newIdeas?.trim() ?? '', createdAt, updatedAt: createdAt,
     }
     const required = [['实际行动', review.actualAction], ['结果', review.result]].filter(([, value]) => !value).map(([label]) => label)
-    if (required.length) throw new Error(`请填写：${required.join('、')}`)
+    if (required.length) {
+      throw businessError(
+        'REVIEW_REQUIRED_FIELDS_MISSING',
+        'validation',
+        `请填写：${required.join('、')}`,
+      )
+    }
     return review
   }
 
