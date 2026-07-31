@@ -1,6 +1,7 @@
 import type { CreateReviewInput, CurrentUserScope, Review, ReviewRepository } from '@knowledge-base/contracts'
 import { createId } from '@knowledge-base/domain'
 import type { Pool, RowDataPacket } from 'mysql2/promise'
+import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
 type ReviewRow = RowDataPacket & {
@@ -56,21 +57,32 @@ export class MySqlReviewRepository implements ReviewRepository {
       ['实际行动', review.actualAction],
       ['结果', review.result],
     ].filter(([, value]) => !value).map(([label]) => label)
-    if (required.length) throw new Error(`请填写：${required.join('、')}`)
+    if (required.length) {
+      throw businessError(
+        'REVIEW_REQUIRED_FIELDS_MISSING',
+        'validation',
+        `请填写：${required.join('、')}`,
+      )
+    }
 
     return runInMySqlTransaction(this.pool, async connection => {
       const [items] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM items WHERE id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM items WHERE id=? FOR UPDATE', this.scope ? [review.itemId,this.scope.userId] : [review.itemId])
-      if (!items[0]) throw new Error('事项不存在')
+      if (!items[0]) throw businessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
       const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE item_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE item_id=? FOR UPDATE', this.scope ? [review.itemId, this.scope.userId] : [review.itemId])
-      if (existing[0]) throw new Error('该事项已经完成复盘')
+      if (existing[0]) {
+        throw businessError('REVIEW_ALREADY_COMPLETED', 'conflict', '该事项已经完成复盘')
+      }
       try {
         await connection.execute(
           this.scope ? 'INSERT INTO reviews(id,item_id,actual_action,result,effective,incompatible,reason,adjustment,new_ideas,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO reviews(id,item_id,actual_action,result,effective,incompatible,reason,adjustment,new_ideas,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
           this.scope ? [review.id, review.itemId, review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas, mysqlDateTime(createdAt), mysqlDateTime(createdAt), this.scope.userId] : [review.id, review.itemId, review.actualAction, review.result, review.effective, review.incompatible, review.reason, review.adjustment, review.newIdeas, mysqlDateTime(createdAt), mysqlDateTime(createdAt)],
         )
       } catch (error) {
-        if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') throw new Error('该事项已经完成复盘')
-        throw error
+        rethrowDuplicateAsBusinessError(
+          error,
+          'REVIEW_ALREADY_COMPLETED',
+          '该事项已经完成复盘',
+        )
       }
       return review
     })
@@ -92,7 +104,13 @@ export class MySqlReviewRepository implements ReviewRepository {
       if (!reviews[0]) return
       const [evidence] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM method_evidence WHERE review_id=? AND owner_user_id=? LIMIT 1 FOR UPDATE' : 'SELECT id FROM method_evidence WHERE review_id=? LIMIT 1 FOR UPDATE', this.scope ? [id, this.scope.userId] : [id])
       const [versions] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM method_versions WHERE source_review_id=? AND owner_user_id=? LIMIT 1 FOR UPDATE' : 'SELECT id FROM method_versions WHERE source_review_id=? LIMIT 1 FOR UPDATE', this.scope ? [id, this.scope.userId] : [id])
-      if (evidence[0] || versions[0]) throw new Error('复盘存在方法关联，暂不能删除')
+      if (evidence[0] || versions[0]) {
+        throw businessError(
+          'REVIEW_HAS_METHOD_RELATION',
+          'conflict',
+          '复盘存在方法关联，暂不能删除',
+        )
+      }
       await connection.execute(this.scope ? 'DELETE FROM reviews WHERE id=? AND owner_user_id=?' : 'DELETE FROM reviews WHERE id=?', this.scope ? [id,this.scope.userId] : [id])
     })
   }

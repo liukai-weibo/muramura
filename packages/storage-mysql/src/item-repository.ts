@@ -1,6 +1,7 @@
 import type { CreateItemInput, CurrentUserScope, Item, ItemRepository, ItemStatus, ItemStatusEvent, StartItemExecutionInput, UpdateItemContentInput } from '@knowledge-base/contracts'
 import { assertItemTitleLength, assertTransition, createId, normalizeItemTitle } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
+import { businessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
 type ItemRow = RowDataPacket & {
@@ -35,7 +36,7 @@ export class MySqlItemRepository implements ItemRepository {
   async create(input: CreateItemInput): Promise<Item> {
     const createdAt = now()
     const item: Item = { id: createId(), title: normalizeItemTitle(input.title), content: input.content?.trim() ?? '', status: input.status ?? 'idea_to_try', createdAt, updatedAt: createdAt }
-    if (!item.title) throw new Error('标题不能为空')
+    if (!item.title) throw businessError('ITEM_TITLE_REQUIRED', 'validation', '标题不能为空')
     await runInMySqlTransaction(this.pool, async connection => {
       assertItemTitleLength(item.title)
       await connection.execute(
@@ -85,7 +86,13 @@ export class MySqlItemRepository implements ItemRepository {
       assertTransition(current.status, 'doing')
       const startAction = input?.startAction?.trim() || undefined
       const overwrite = current.startAction !== undefined && startAction !== undefined && startAction !== current.startAction
-      if (current.startAction !== undefined && (!overwrite || input?.overwriteExistingStartAction !== true)) throw new Error('启动动作已存在，不能重写')
+      if (current.startAction !== undefined && (!overwrite || input?.overwriteExistingStartAction !== true)) {
+        throw businessError(
+          'ITEM_START_ACTION_ALREADY_EXISTS',
+          'conflict',
+          '启动动作已存在，不能重写',
+        )
+      }
       const updatedAt = now()
       await connection.execute(this.owner ? 'UPDATE items SET status=?,start_action=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE items SET status=?,start_action=?,updated_at=? WHERE id=?', this.owner ? ['doing', startAction ?? null, mysqlDateTime(updatedAt), id, this.owner] : ['doing', startAction ?? null, mysqlDateTime(updatedAt), id])
       await this.insertEvent(connection, id, current.status, 'doing', updatedAt)
@@ -116,7 +123,9 @@ export class MySqlItemRepository implements ItemRepository {
   async restore(id: string): Promise<Item> {
     return runInMySqlTransaction(this.pool, async connection => {
       const current = await this.lock(connection, id)
-      if (!current?.deletedAt) throw new Error('回收站中不存在该事项')
+      if (!current?.deletedAt) {
+        throw businessError('ITEM_NOT_IN_TRASH', 'not-found', '回收站中不存在该事项')
+      }
       const updatedAt = now()
       await connection.execute(this.owner ? 'UPDATE items SET deleted_at=NULL,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE items SET deleted_at=NULL,updated_at=? WHERE id=?', this.owner ? [mysqlDateTime(updatedAt),id,this.owner] : [mysqlDateTime(updatedAt),id])
       const { deletedAt: _deletedAt, ...restored } = current
@@ -192,7 +201,9 @@ export class MySqlItemRepository implements ItemRepository {
 
   private async lockActive(connection: PoolConnection, id: string): Promise<Item> {
     const item = await this.lock(connection, id)
-    if (!item || item.deletedAt) throw new Error('事项不存在')
+    if (!item || item.deletedAt) {
+      throw businessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+    }
     return item
   }
 

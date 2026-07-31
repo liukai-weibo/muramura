@@ -1,6 +1,20 @@
 import crypto from 'node:crypto'
 import { promisify } from 'node:util'
-import type { ItemStatus } from '@knowledge-base/contracts'
+import type {
+  BusinessErrorCategory,
+  BusinessErrorCode,
+  ItemStatus,
+} from '@knowledge-base/contracts'
+
+export type {
+  BackupErrorCode,
+  BusinessErrorCategory,
+  BusinessErrorCode,
+  ExplorationTrackErrorCode,
+  ItemErrorCode,
+  MethodErrorCode,
+  ReviewErrorCode,
+} from '@knowledge-base/contracts'
 
 const scrypt = promisify(crypto.scrypt) as unknown as (password: crypto.BinaryLike, salt: crypto.BinaryLike, keylen: number, options: crypto.ScryptOptions) => Promise<Buffer>
 const SCRYPT_N = 32768; const SCRYPT_R = 8; const SCRYPT_P = 1; const SCRYPT_KEY_LENGTH = 64
@@ -18,6 +32,18 @@ export async function verifyPassword(password: string, encoded: string): Promise
 }
 export function createSessionSecret(): Buffer { return crypto.randomBytes(32) }
 export function hashSessionSecret(secret: Uint8Array): Buffer { return crypto.createHash('sha256').update(secret).digest() }
+
+export class BusinessError extends Error {
+  override readonly name = 'BusinessError'
+
+  constructor(
+    readonly code: BusinessErrorCode,
+    readonly category: BusinessErrorCategory,
+    message: string,
+  ) {
+    super(message)
+  }
+}
 
 export function createId(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
@@ -41,7 +67,9 @@ export function normalizeItemTitle(value: string): string {
 }
 
 export function assertItemTitleLength(value: string): void {
-  if (Array.from(itemTitleSegmenter.segment(value)).length > 20) throw new Error('标题最多 20 个字符')
+  if (Array.from(itemTitleSegmenter.segment(value)).length > 20) {
+    throw new BusinessError('ITEM_TITLE_TOO_LONG', 'validation', '标题最多 20 个字符')
+  }
 }
 
 const transitions: Record<ItemStatus, readonly ItemStatus[]> = {
@@ -65,6 +93,10 @@ export function canTransition(from: ItemStatus, to: ItemStatus): boolean {
 
 export function assertTransition(from: ItemStatus, to: ItemStatus): void {
   if (!canTransition(from, to)) {
-    throw new Error(`不允许从 ${from} 变更为 ${to}`)
+    throw new BusinessError(
+      'INVALID_ITEM_STATUS_TRANSITION',
+      'conflict',
+      `不允许从 ${from} 变更为 ${to}`,
+    )
   }
 }

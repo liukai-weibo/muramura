@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { ItemApplicationService, MethodApplicationService } from '@knowledge-base/application'
-import { assertItemTitleLength, normalizeItemTitle } from '@knowledge-base/domain'
+import { assertItemTitleLength, BusinessError, normalizeItemTitle } from '@knowledge-base/domain'
 import type { CreateItemInput, Item, ItemRepository, MethodApplicationRepository } from '@knowledge-base/contracts'
+import { mapFailure } from '../apps/api/src/api-errors'
 
 const twenty = '😀'.repeat(20)
 const twentyOne = '😀'.repeat(21)
@@ -12,6 +13,25 @@ describe('item title grapheme boundary', () => {
     expect(normalizeItemTitle(` ${twenty} `)).toBe(twenty)
     expect(() => assertItemTitleLength(twenty)).not.toThrow()
     expect(() => assertItemTitleLength(twentyOne)).toThrow('标题最多 20 个字符')
+    try {
+      assertItemTitleLength(twentyOne)
+    } catch (error) {
+      expect(error).toBeInstanceOf(BusinessError)
+      expect(error).toMatchObject({ code: 'ITEM_TITLE_TOO_LONG', category: 'validation' })
+    }
+  })
+
+  it('maps an overlong title to the frozen API validation failure', () => {
+    try {
+      assertItemTitleLength(twentyOne)
+    } catch (error) {
+      expect(mapFailure(error)).toEqual({
+        status: 400,
+        code: 'VALIDATION_FAILED',
+        message: '标题最多 20 个字符',
+        businessCode: 'ITEM_TITLE_TOO_LONG',
+      })
+    }
   })
 
   it('rejects Application writes before repositories, including content-first title generation', async () => {
