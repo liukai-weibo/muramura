@@ -51,15 +51,18 @@ export async function runInMySqlTransaction<T>(pool: Pool, work: (connection: Po
   finally { connection.release() }
 }
 
-interface Migration { version: number; name: string; checksum: string; sql: string }
+interface Migration { version: number; name: string; checksum: string; acceptedChecksums: readonly string[]; sql: string }
 function splitStatements(sql: string): string[] {
   return sql.split(/;\s*(?:\r?\n|$)/).map(statement => statement.trim()).filter(Boolean)
 }
 function loadMigrations(directory: string): Migration[] {
   return fs.readdirSync(directory).filter(file => /^\d{3}_[a-z0-9_]+\.sql$/.test(file)).sort().map(file => {
-    const sql = fs.readFileSync(path.join(directory, file), 'utf8')
+    const rawSql = fs.readFileSync(path.join(directory, file), 'utf8')
+    const sql = rawSql.replace(/\r\n?/g, '\n')
     const version = Number(file.slice(0, 3))
-    return { version, name: file, checksum: crypto.createHash('sha256').update(sql).digest('hex'), sql }
+    const checksum = crypto.createHash('sha256').update(sql).digest('hex')
+    const rawChecksum = crypto.createHash('sha256').update(rawSql).digest('hex')
+    return { version, name: file, checksum, acceptedChecksums: [...new Set([checksum, rawChecksum])], sql }
   })
 }
 
@@ -104,7 +107,7 @@ export async function runMySqlMigrations(pool: Pool, directory: string): Promise
     for (const migration of loadMigrations(directory)) {
       const existing = records.get(migration.version)
       if (existing) {
-        if (existing.name !== migration.name || existing.checksum !== migration.checksum) throw new Error(`已执行的 migration 内容不一致：${migration.name}`)
+        if (existing.name !== migration.name || !migration.acceptedChecksums.includes(existing.checksum)) throw new Error(`已执行的 migration 内容不一致：${migration.name}`)
         continue
       }
       if (migration.version === 3) {

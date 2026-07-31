@@ -36,7 +36,7 @@ function currentMigrationExpectations(directory = migrationsDirectory): Migratio
     .map(name => ({
       version: Number(name.slice(0, 3)),
       name,
-      checksum: crypto.createHash('sha256').update(fs.readFileSync(path.join(directory, name), 'utf8')).digest('hex'),
+      checksum: crypto.createHash('sha256').update(fs.readFileSync(path.join(directory, name), 'utf8').replace(/\r\n?/g, '\n')).digest('hex'),
     }))
 }
 
@@ -128,7 +128,13 @@ describe.runIf(mysqlIntegrationEnabled)('MySQL M1 repeatable integration verific
         'SELECT version, name, checksum FROM schema_migrations ORDER BY version',
       )
       expect(records).toEqual(expected)
-      fs.appendFileSync(path.join(migrationDirectory, expected.at(-1)!.name), '\n-- test-only checksum drift\n')
+      const latestMigrationPath = path.join(migrationDirectory, expected.at(-1)!.name)
+      fs.writeFileSync(latestMigrationPath, fs.readFileSync(latestMigrationPath, 'utf8').replace(/\r?\n/g, '\r\n'))
+      const legacyRawChecksum = crypto.createHash('sha256').update(fs.readFileSync(latestMigrationPath, 'utf8')).digest('hex')
+      expect(legacyRawChecksum).not.toBe(expected.at(-1)!.checksum)
+      await migrator.query('UPDATE schema_migrations SET checksum = ? WHERE version = ?', [legacyRawChecksum, expected.at(-1)!.version])
+      await expect(runMySqlMigrations(migrator, migrationDirectory)).resolves.toBeUndefined()
+      fs.appendFileSync(latestMigrationPath, '\r\n-- test-only checksum drift\r\n')
       await expect(runMySqlMigrations(migrator, migrationDirectory)).rejects.toThrow(`已执行的 migration 内容不一致：${expected.at(-1)!.name}`)
     })
   })
