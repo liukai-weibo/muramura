@@ -29,7 +29,7 @@
 .platform-administration-header {
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .platform-administration-header > taro-button-core.platform-administration-refresh,
@@ -50,7 +50,8 @@
   pointer-events: none;
 }
 
-.platform-administration-header > view:first-child {
+.platform-administration-header > view:first-child,
+.platform-administration-header > taro-view-core:first-child {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -58,71 +59,151 @@
 
 .platform-administration-title {
   font-size: 24px;
+  line-height: 32px;
   font-weight: 700;
+  color: #413c35;
 }
 
-.platform-administration-description,
-.platform-user-created,
-.platform-administration-pagination,
-.platform-administration-updating {
+.platform-administration-description {
   color: #81796e;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
 }
 
-.platform-administration-refresh,
-.platform-administration-search button,
-.platform-administration-search > taro-button-core,
-.platform-administration-pagination button,
-.platform-inline-action,
-.platform-more-button,
-.platform-user-menu button,
-.platform-administration-empty button,
-.platform-administration-initial-error button,
-.platform-confirmation-actions button,
-.platform-target-notice button {
+.platform-user-created {
+  color: #81796e;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.platform-administration button,
+.platform-administration taro-button-core {
+  display: inline-flex;
+  width: auto;
+  min-width: 72px;
+  height: 40px;
   min-height: 40px;
   margin: 0;
-  padding: 0 16px;
-  font-size: 14px;
-  line-height: 1;
+  padding: 0 14px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: visible;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
+  white-space: nowrap;
   color: #413c35;
   background: #fffdf9;
   border: 1px solid #cfc4b5;
   border-radius: 8px;
+  opacity: 1;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
-.platform-administration button::after {
+.platform-administration taro-button-core {
+  width: auto !important;
+}
+
+.platform-administration button text,
+.platform-administration button taro-text-core,
+.platform-administration taro-button-core text,
+.platform-administration taro-button-core taro-text-core {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+.platform-administration button::after,
+.platform-administration taro-button-core::after {
   display: none;
+  border: 0;
 }
 
 .platform-administration button:focus-visible,
+.platform-administration taro-button-core:focus-visible,
 .platform-administration input:focus-visible {
   outline: 2px solid #817568;
   outline-offset: 2px;
 }
 
-.platform-administration button[disabled='true'] {
-  color: #81796e;
+.platform-administration button:not(:disabled):hover,
+.platform-administration taro-button-core:not([disabled='true']):hover {
+  background: #f4f0e9;
+  border-color: #b8aea0;
+}
+
+.platform-administration button:not(:disabled):active,
+.platform-administration taro-button-core:not([disabled='true']):active {
+  background: #e9e2d8;
+  border-color: #a99e90;
+}
+
+.platform-administration button:disabled,
+.platform-administration taro-button-core[disabled='true'] {
+  color: #6f675e;
   background: #eeeae4;
-  border-color: #e1d9cc;
+  border-color: #ddd4c8;
+  opacity: 1;
   cursor: not-allowed;
   pointer-events: none;
 }
 
 .platform-administration-search {
-  gap: 10px;
+  width: min(100%, 680px);
+  gap: 8px;
   margin-bottom: 16px;
 }
 
-.platform-administration-search input {
-  flex: 1;
-  min-width: 0;
-  height: 42px;
+.platform-administration-search input,
+.platform-administration-search [aria-label='按用户名搜索'] {
+  flex: 1 1 420px;
+  min-width: 320px;
+  height: 40px;
   padding: 0 12px;
   box-sizing: border-box;
+  font-size: 14px;
+  line-height: 20px;
   color: #413c35;
-  background: #fffdf9;
+  background: #fff;
   border: 1px solid #cfc4b5;
   border-radius: 8px;
+}
+
+.platform-administration-search input::placeholder,
+.platform-administration-search [aria-label='按用户名搜索']::placeholder {
+  color: #91897e;
+  opacity: 1;
+}
+
+.platform-administration-search input:focus,
+.platform-administration-search [aria-label='按用户名搜索']:focus {
+  border-color: #817568;
+  box-shadow: 0 0 0 3px rgba(129, 117, 104, .14);
+}
+
+.platform-administration-clear {
+  min-width: 64px !important;
+}
+
+.platform-administration-refresh,
+.platform-administration-search-button {
+  min-width: 72px !important;
+}
+
+.platform-administration-header > taro-button-core.platform-administration-refresh:not([disabled='true']) {
+  color: #413c35 !important;
+  -webkit-text-fill-color: #413c35;
+}
+
+.platform-administration-header > taro-button-core.platform-administration-refresh[disabled='true'] {
+  color: #6f675e !important;
+  -webkit-text-fill-color: #6f675e;
 }
 
 .platform-administration-search .platform-administration-search-button,
@@ -132,10 +213,27 @@
   border-color: #5b554d;
 }
 
+.platform-administration-search .platform-administration-search-button:hover,
+.platform-confirmation-actions .primary:hover {
+  color: #fffdf9;
+  background: #49433d;
+  border-color: #49433d;
+}
+
+.platform-administration-search .platform-administration-search-button:active,
+.platform-confirmation-actions .primary:active {
+  color: #fffdf9;
+  background: #37322d;
+  border-color: #37322d;
+}
+
 .platform-administration-updating {
   display: block;
   margin: -6px 0 10px;
+  color: #81796e;
   font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
 }
 
 .platform-administration-error,
@@ -178,6 +276,8 @@
 }
 
 .platform-user-list {
+  min-width: 0;
+  overflow: visible;
   border: 1px solid #e1d9cc;
   border-radius: 8px;
 }
@@ -185,7 +285,7 @@
 .platform-user-table-heading,
 .platform-user-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) minmax(140px, .8fr) minmax(170px, .9fr) minmax(150px, .8fr);
+  grid-template-columns: minmax(220px, 34fr) minmax(140px, 20fr) minmax(190px, 28fr) minmax(148px, 18fr);
   align-items: center;
   column-gap: 16px;
   padding: 0 16px;
@@ -193,11 +293,13 @@
 }
 
 .platform-user-table-heading {
-  min-height: 44px;
+  height: 40px;
+  min-height: 40px;
   color: #81796e;
   background: #f8f4ec;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
 }
 
 .platform-user-row {
@@ -209,17 +311,26 @@
 .platform-user-name {
   min-width: 0;
   overflow: hidden;
+  color: #413c35;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
 }
 
 .platform-role-badge,
 .platform-current-user {
+  display: inline-flex;
+  min-height: 26px;
   justify-self: start;
-  padding: 5px 10px;
+  padding: 4px 10px;
+  align-items: center;
+  box-sizing: border-box;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
 }
 
 .platform-role-badge.member {
@@ -241,6 +352,11 @@
   position: relative;
   display: flex;
   justify-content: flex-end;
+  min-width: 0;
+}
+
+.platform-user-actions > .platform-current-user {
+  justify-self: end;
 }
 
 .platform-user-menu {
@@ -262,15 +378,20 @@
   inset: 0;
 }
 
-.platform-user-menu button {
-  width: 100%;
+.platform-user-menu button,
+.platform-user-menu taro-button-core {
+  width: 100% !important;
   border: 0;
+  justify-content: flex-start;
   text-align: left;
 }
 
 .platform-user-menu button.danger,
+.platform-user-menu taro-button-core.danger,
 .platform-inline-action.danger {
-  color: #a14f3f;
+  color: #7d3023;
+  background: #fff6f2;
+  border-color: #b86d5c;
 }
 
 .platform-user-menu-divider {
@@ -283,6 +404,8 @@
   grid-column: 1 / -1;
   margin: 0 0 10px;
   font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
 }
 
 .platform-target-notice.success {
@@ -298,13 +421,55 @@
 .platform-administration-pagination {
   justify-content: space-between;
   gap: 16px;
-  margin-top: 16px;
+  min-height: 40px;
+  margin-top: 12px;
+  color: #6f675e;
 }
 
-.platform-administration-pagination > view {
+.platform-administration-pagination > view,
+.platform-administration-pagination > taro-view-core {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+
+.platform-administration-pagination > text,
+.platform-administration-pagination > taro-text-core {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #6f675e;
+}
+
+.platform-administration-pagination > view > text,
+.platform-administration-pagination > view > taro-text-core,
+.platform-administration-pagination > taro-view-core > text,
+.platform-administration-pagination > taro-view-core > taro-text-core {
+  min-width: 96px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #625a50;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.platform-administration-pagination button,
+.platform-administration-pagination taro-button-core {
+  width: 72px !important;
+  min-width: 72px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.platform-administration-pagination .platform-pagination-button.platform-pagination-button-disabled {
+  color: #6f675e;
+  background: #eeeae4;
+  border-color: #ddd4c8;
+  opacity: 1;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .platform-confirmation-backdrop {
@@ -340,6 +505,7 @@
 
 .platform-confirmation-description {
   color: #6f675e;
+  font-size: 14px;
   line-height: 1.7;
 }
 
@@ -355,25 +521,109 @@
   border-color: #a14f3f;
 }
 
+.platform-confirmation-actions .danger:hover {
+  color: #fffdf9;
+  background: #873e32;
+  border-color: #873e32;
+}
+
+.platform-confirmation-actions .danger:active {
+  color: #fffdf9;
+  background: #713328;
+  border-color: #713328;
+}
+
+.platform-administration button:disabled,
+.platform-administration taro-button-core[disabled='true'] {
+  color: #6f675e;
+  background: #eeeae4;
+  border-color: #ddd4c8;
+  opacity: 1;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 @media (max-width: 768px) {
   .platform-administration {
-    padding: 16px;
+    width: 100%;
+    max-width: 100%;
+    padding: 16PX;
+    overflow-x: hidden;
+  }
+
+  .platform-administration-header {
+    gap: 16PX;
+    margin-bottom: 18PX;
+  }
+
+  .platform-administration-header > taro-view-core:first-child {
+    gap: 4PX;
+  }
+
+  .platform-administration-title {
+    font-size: 24PX;
+    line-height: 32PX;
+  }
+
+  .platform-administration-description {
+    font-size: 14PX;
+    line-height: 22PX;
+  }
+
+  .platform-administration button,
+  .platform-administration taro-button-core {
+    min-width: 72PX;
+    height: 44PX;
+    min-height: 44PX;
+    padding: 0 14PX;
+    font-size: 13PX;
+    line-height: 20PX;
+    border-width: 1PX;
+    border-radius: 8PX;
   }
 
   .platform-administration-header,
-  .platform-administration-search,
   .platform-administration-pagination {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .platform-administration-refresh,
+  .platform-administration-header > button.platform-administration-refresh,
   .platform-administration-header > taro-button-core.platform-administration-refresh,
-  .platform-administration-search button,
-  .platform-administration-search > taro-button-core,
-  .platform-administration-search input {
-    min-height: 44px;
+  .platform-confirmation-actions button,
+  .platform-confirmation-actions taro-button-core {
+    width: 100% !important;
+    min-height: 44PX;
+  }
+
+  .platform-administration-search {
+    display: flex;
     width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8PX;
+    margin-bottom: 16PX;
+  }
+
+  .platform-administration-search input,
+  .platform-administration-search [aria-label='按用户名搜索'] {
+    width: 100%;
+    min-width: 0;
+    height: 44PX;
+    padding: 0 12PX;
+    flex: 0 0 100%;
+    font-size: 14PX;
+    line-height: 20PX;
+    border-width: 1PX;
+    border-radius: 8PX;
+  }
+
+  .platform-administration-search button,
+  .platform-administration-search > taro-button-core {
+    width: auto !important;
+    min-width: 0;
+    min-height: 44PX;
+    flex: 1 1 0;
   }
 
   .platform-user-table-heading {
@@ -382,27 +632,42 @@
 
   .platform-user-list {
     display: grid;
-    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    gap: 12PX;
     border: 0;
   }
 
   .platform-user-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px 12px;
+    gap: 10PX 12PX;
     min-height: auto;
-    padding: 16px;
-    border: 1px solid #e1d9cc;
-    border-radius: 12px;
+    min-width: 0;
+    padding: 16PX;
+    border: 1PX solid #e1d9cc;
+    border-radius: 12PX;
   }
 
   .platform-user-name {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+    font-size: 15PX;
+    line-height: 22PX;
+  }
+
+  .platform-role-badge,
+  .platform-current-user {
+    min-height: 26PX;
+    padding: 4PX 10PX;
+    font-size: 12PX;
+    line-height: 18PX;
   }
 
   .platform-user-created {
     grid-column: 1 / 2;
+    font-size: 12PX;
+    line-height: 18PX;
   }
 
   .platform-user-actions {
@@ -414,32 +679,67 @@
     position: fixed;
     z-index: 310;
     top: auto;
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
+    right: 12PX;
+    bottom: 12PX;
+    left: 12PX;
     width: auto;
-    padding: 12px;
+    padding: 12PX;
   }
 
   .platform-target-notice {
     grid-column: 1 / -1;
   }
 
-  .platform-administration-pagination > view {
+  .platform-administration-pagination {
+    width: 100%;
+    min-width: 0;
+    gap: 8PX;
+  }
+
+  .platform-administration-pagination > taro-text-core {
+    font-size: 13PX;
+    line-height: 20PX;
+  }
+
+  .platform-administration-pagination > view,
+  .platform-administration-pagination > taro-view-core {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    gap: 8PX;
     justify-content: space-between;
+  }
+
+  .platform-administration-pagination button,
+  .platform-administration-pagination taro-button-core {
+    width: auto !important;
+    min-width: 0;
+    height: 44PX;
+    min-height: 44PX;
+    flex: 1 1 0;
+  }
+
+  .platform-administration-pagination > view > text,
+  .platform-administration-pagination > view > taro-text-core,
+  .platform-administration-pagination > taro-view-core > text,
+  .platform-administration-pagination > taro-view-core > taro-text-core {
+    min-width: 96PX;
+    flex: 0 0 96PX;
+    font-size: 13PX;
+    line-height: 20PX;
   }
 
   .platform-confirmation-backdrop {
     align-items: flex-end;
-    padding: 12px;
+    padding: 12PX;
   }
 
   .platform-confirmation {
     width: 100%;
   }
 
-  .platform-confirmation-actions button {
-    min-height: 44px;
+  .platform-confirmation-actions button,
+  .platform-confirmation-actions taro-button-core {
     flex: 1;
   }
 }

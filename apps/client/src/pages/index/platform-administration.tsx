@@ -364,7 +364,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
           </View>}
           <View className='platform-administration-pagination'>
             <Text>共 {snapshot.total} 位用户</Text>
-            <View><Button disabled={page <= 1 || refreshing} onClick={() => changePage(page - 1)}>上一页</Button><Text>第 {page} / {pageCount} 页</Text><Button disabled={page >= pageCount || refreshing} onClick={() => changePage(page + 1)}>下一页</Button></View>
+            <View><Button className={`platform-pagination-button ${page <= 1 || refreshing ? 'platform-pagination-button-disabled' : ''}`} disabled={page <= 1 || refreshing} onClick={() => changePage(page - 1)}>上一页</Button><Text>第 {page} / {pageCount} 页</Text><Button className={`platform-pagination-button ${page >= pageCount || refreshing ? 'platform-pagination-button-disabled' : ''}`} disabled={page >= pageCount || refreshing} onClick={() => changePage(page + 1)}>下一页</Button></View>
           </View>
         </>}
 
