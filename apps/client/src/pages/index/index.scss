@@ -302,6 +302,11 @@
   line-height: 18px;
 }
 
+.platform-user-table-heading > taro-text-core:last-child {
+  justify-self: end;
+  text-align: right;
+}
+
 .platform-user-row {
   position: relative;
   min-height: 64px;
@@ -381,8 +386,13 @@
 .platform-user-menu button,
 .platform-user-menu taro-button-core {
   width: 100% !important;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 16px;
+  align-items: center;
   border: 0;
   justify-content: flex-start;
+  line-height: 20px;
   text-align: left;
 }
 
