@@ -202,7 +202,7 @@ KB_APP_IMAGE_TAG=latest docker compose run --rm --no-deps --entrypoint node migr
 ```bash
 corepack pnpm typecheck
 corepack pnpm test
-corepack pnpm build:h5
+corepack pnpm --filter @knowledge-base/client build:h5
 git diff --check
 ```
 
