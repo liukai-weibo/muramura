@@ -1,7 +1,7 @@
 # 平台角色与最小权限管理 V1：切片 1 Schema / Contracts / Repository 冻结记录
 
 日期：2026-07-30
-状态：架构契约已冻结；仅允许切片 1 在随机独立临时数据库中编码和测试，不授权真实 Migration 或切片 2–5
+状态：架构契约已按产品裁决修订；切片 1 QA 仍不通过，等待新的最小修复编码授权，不授权真实 Migration 或切片 2–5
 
 ## 技术结论
 
@@ -112,7 +112,6 @@ export type PlatformAdministrationRepositoryErrorCode =
   | 'user-not-found'
   | 'self-role-change'
   | 'self-session-revoke'
-  | 'last-platform-admin'
   | 'operation-conflict'
 
 export interface PlatformAdministrationRepository {
@@ -137,14 +136,14 @@ export interface PlatformAdministrationRepository {
 
 ## 管理写入、并发与审计
 
-三个管理写方法均须使用一个 MySQL DML transaction，并遵循同一锁顺序，避免并发撤销最后管理员：
+三个管理写方法均须使用一个 MySQL DML transaction，并遵循同一锁顺序，保证任意成功提交后至少保留一名管理员：
 
 1. 以 `SELECT user_id FROM user_roles WHERE role_code = 'platform_admin' ORDER BY user_id FOR UPDATE` 锁定 `user_roles_role_user_idx` 对应的管理员集合/范围，使 grant 与 revoke 串行化；不得先读取数量后无锁写入。
 2. 按 userId 升序锁定 actor 与 target 的 `users` 行。任一不存在时返回 `user-not-found`，零业务写入、零审计写入。
 3. actor 必须在已锁定的管理员集合中，否则返回 `actor-not-platform-admin`。角色调整 actor 与 target 相同时返回 `self-role-change`；会话撤销 actor 与 target 相同时返回 `self-session-revoke`。这些拒绝均发生在任何写入前。
 4. 按 `operation_id` 唯一索引执行锁定读取。已有相同 operationId 时返回 `operation-conflict`，不得把它猜测为成功、失败或幂等重试。
 5. grant 在 target 已有 `platform_admin` 且 operationId 未使用时返回 `already-granted`；revoke 在 target 已无该角色时返回 `already-revoked`。二者均零写入、零审计。成功变更才插入对应审计事件。
-6. revoke 在 target 是唯一管理员时返回 `last-platform-admin`，角色与审计均零写入。管理员集合锁必须保持到 commit / rollback。
+6. `last-platform-admin` 仅是事务必须维持的内部安全不变量，不是 `PlatformAdministrationRepositoryErrorCode`，Repository 不得公开抛出该 code。仅一名管理员时，唯一可撤销目标就是 actor 自己，按第 3 步稳定返回 `self-role-change`。两名管理员并发互撤时，第一个事务成功后，第二个事务重新获得管理员集合锁；其 actor 已不在最新管理员集合中，按第 3 步稳定返回 `actor-not-platform-admin`。不得调整错误优先级或构造不可自然到达的 `last-platform-admin` 分支。管理员集合锁必须保持到 commit / rollback；删除角色前 actor 必须仍在已锁定的管理员集合中且 target 必须与 actor 不同，从而保证成功提交后至少保留 actor 这一名管理员。
 7. revokeAllSessions 对 target 执行 `UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`，包括尚未标记撤销的已过期会话；返回实际 affected rows。target 存在且操作合法时即使 affected rows 为 0，也写入一条 `user_sessions_revoked` 审计事件。
 8. 角色变更/会话撤销与对应审计 INSERT 必须同事务提交。审计唯一约束、外键或任何写入失败必须整体回滚，不得留下无审计管理变更。
 
@@ -170,10 +169,18 @@ export interface MySqlPlatformAdministrationRepositoryTestHooks {
 ## 测试与运行库保护
 
 - `tests/mysql-platform-security-schema.integration.test.ts` 逐项断言两表列顺序、类型、可空性、默认值、主键、唯一约束、索引列顺序、CHECK、RESTRICT 外键、既有用户 member 回填和不自动创建管理员。
-- `tests/mysql-platform-administration-repository.integration.test.ts` 覆盖 createUser 同事务 member、固定分页/搜索/排序/角色顺序、权限拒绝、自操作拒绝、重复角色操作、最后管理员并发保护、会话撤销、审计同事务和 unknown-outcome。
+- `tests/mysql-platform-administration-repository.integration.test.ts` 覆盖 createUser 同事务 member、固定分页/搜索/排序/角色顺序、权限拒绝、自操作拒绝、重复角色操作、最后管理员安全不变量、会话撤销、审计同事务和 unknown-outcome。单管理员自撤必须精确断言 `self-role-change`；双管理员并发互撤必须精确断言一次成功、一次 `actor-not-platform-admin`，并断言最终 `platform_admin` 数量至少为 1。测试不得再期待、构造或公开 `last-platform-admin`。
 - 所有测试仅使用随机命名的独立临时数据库与独立临时 app/migrator 账号，`finally` 清理。不得连接、迁移或写入 `knowledge_base`、`knowledge_base_uat`、Docker 或云端。
 - 测试前后必须对两个运行库执行只读深度快照并得到 `SNAPSHOTS_IDENTICAL`，同时证明无临时数据库或账号残留。
 
 ## 切片边界
 
 切片 1 不接入 `AuthUser.roles`、会话角色刷新、初始管理员 CLI、Application、管理 API、H5、Backup、Docker、云端或运行配置；不得执行真实 006 Migration。切片 2–5 必须等待切片 1 独立 QA 与产品验收后另行书面授权。
+
+## 2026-07-30 最小契约修订边界
+
+- 从 Contracts 的 `PlatformAdministrationRepositoryErrorCode` 中移除 `last-platform-admin`。
+- Repository 删除公开抛出 `last-platform-admin` 的分支，不用其他公开错误码包装或替代该不可达分支。
+- 保留管理员集合范围锁、按 userId 固定锁序、actor 最新角色检查、角色与审计同事务、operationId 唯一冲突、`beforeCommit` 回滚、`afterCommit` unknown-outcome 和显式审计重读。
+- 只修订上述错误联合、Repository 分支和两项直接测试断言；Schema 006、两张表、固定 role/action code、`AuthUser`、认证刷新、CLI、Application、API、H5、Backup 与运行环境均不变。
+- 本次文档修订不构成最小修复编码授权；切片 1 当前仍为 QA 不通过。

@@ -3,9 +3,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import mysql, { type Pool, type PoolConnection, type PoolOptions, type RowDataPacket } from 'mysql2/promise'
 export { MySqlAuthRepository } from './account-repository'
+export {
+  MySqlPlatformAdministrationRepository,
+  PlatformAdministrationRepositoryError,
+  type MySqlPlatformAdministrationRepositoryTestHooks,
+} from './platform-administration-repository'
 export { InitialOwnerClaimError, MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
 
-export const MYSQL_REQUIRED_SCHEMA_VERSION = 1
+export const MYSQL_REQUIRED_SCHEMA_VERSION = 6
 
 export interface MySqlConnectionConfig {
   host: string
@@ -140,6 +145,16 @@ export async function getMySqlHealth(pool: Pool, expectedDatabase: string): Prom
     const schemaVersion = versions[0]?.version ?? 0
     if (schemaVersion < MYSQL_REQUIRED_SCHEMA_VERSION) throw new MySqlSchemaNotReadyError()
     return { database: expectedDatabase, schemaVersion }
+  } finally { connection.release() }
+}
+
+export async function assertMySqlPlatformSchemaReady(pool: Pool, expectedDatabase: string): Promise<{ database: string; schemaVersion: number }> {
+  const health = await getMySqlHealth(pool, expectedDatabase)
+  const connection = await pool.getConnection()
+  try {
+    await connection.query('SELECT 1 FROM user_roles LIMIT 0')
+    await connection.query('SELECT 1 FROM security_audit_events LIMIT 0')
+    return health
   } finally { connection.release() }
 }
 

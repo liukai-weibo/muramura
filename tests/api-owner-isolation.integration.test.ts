@@ -49,6 +49,8 @@ describe.runIf(enabled)('all business owner isolation', () => {
   it('isolates full read/write workflows and maps cross-user IDs to 404', async () => {
     const aRegister = await json('/api/v1/auth/register', { username: `owner_a_${crypto.randomUUID()}`, password: 'password-a' }); const a = cookieOf(aRegister); const aId = aRegister.body.user.id as string
     const bRegister = await json('/api/v1/auth/register', { username: `owner_b_${crypto.randomUUID()}`, password: 'password-b' }); const b = cookieOf(bRegister); const bId = bRegister.body.user.id as string
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'platform_admin',NULL,UTC_TIMESTAMP(3))", [bId])
+    expect((await get('/api/v1/auth/session', b)).body.user.roles).toEqual(['member', 'platform_admin'])
 
     const track = await json('/api/v1/exploration-tracks', { name: `track-${crypto.randomUUID()}` }, a); const trackId = track.body.id as string
     const source = await json('/api/v1/items', { title: 'owner-a-source', explorationTrack: { type: 'existing', trackId } }, a); const itemId = source.body.id as string

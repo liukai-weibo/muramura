@@ -20,6 +20,11 @@ import type {
   MethodApplicationContextResult,
   MethodEvidenceDetail,
   MethodVersion,
+  AdminRevokeUserSessionsRequest,
+  AdminRevokeUserSessionsResponse,
+  AdminSetUserRolesRequest,
+  PlatformUserPage,
+  PlatformUserSummary,
   Review,
   SearchResult,
   TrashEntry,
@@ -34,6 +39,7 @@ export interface ApiClientError extends Error {
 
 let authenticationContextVersion = 0
 let unauthorizedHandler: (() => void) | undefined
+let adminForbiddenHandler: ((error: ApiClientError) => void) | undefined
 
 export function advanceApiClientAuthenticationContext(): void {
   authenticationContextVersion += 1
@@ -42,6 +48,11 @@ export function advanceApiClientAuthenticationContext(): void {
 export function setApiClientUnauthorizedHandler(handler: (() => void) | undefined): () => void {
   unauthorizedHandler = handler
   return () => { if (unauthorizedHandler === handler) unauthorizedHandler = undefined }
+}
+
+export function setApiClientAdminForbiddenHandler(handler: ((error: ApiClientError) => void) | undefined): () => void {
+  adminForbiddenHandler = handler
+  return () => { if (adminForbiddenHandler === handler) adminForbiddenHandler = undefined }
 }
 
 export class ApiClientUnknownOutcomeError extends Error {
@@ -88,10 +99,90 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   error.code = body?.error?.code
   error.requestId = body?.error?.requestId
   if (response.status === 401 && !path.startsWith('/auth/') && requestAuthenticationContext === authenticationContextVersion) unauthorizedHandler?.()
+  if (response.status === 403 && path.startsWith('/admin/') && requestAuthenticationContext === authenticationContextVersion) adminForbiddenHandler?.(error)
   throw error
 }
 
 const json = (value: unknown) => JSON.stringify(value)
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasExactKeys(value: Record<string, unknown>, expected: string[]): boolean {
+  const keys = Object.keys(value).sort()
+  return keys.length === expected.length && keys.every((key, index) => key === [...expected].sort()[index])
+}
+
+function parsePlatformUserSummary(value: unknown): PlatformUserSummary {
+  if (!isRecord(value) || !hasExactKeys(value, ['id', 'username', 'roles', 'createdAt'])
+    || typeof value.id !== 'string' || value.id.length === 0
+    || typeof value.username !== 'string' || value.username.length === 0
+    || typeof value.createdAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value.createdAt) || !Number.isFinite(Date.parse(value.createdAt))
+    || !Array.isArray(value.roles)
+    || !(value.roles.length === 1 && value.roles[0] === 'member')
+      && !(value.roles.length === 2 && value.roles[0] === 'member' && value.roles[1] === 'platform_admin')) {
+    throw new Error('用户管理响应结构无效。')
+  }
+  return { id: value.id, username: value.username, roles: [...value.roles], createdAt: value.createdAt } as PlatformUserSummary
+}
+
+function parsePlatformUserPage(value: unknown, expectedPage: number): PlatformUserPage {
+  if (!isRecord(value) || !hasExactKeys(value, ['items', 'page', 'pageSize', 'total'])
+    || !Number.isSafeInteger(value.page) || value.page !== expectedPage || expectedPage < 1
+    || value.pageSize !== 20
+    || !Number.isSafeInteger(value.total) || (value.total as number) < 0
+    || !Array.isArray(value.items)) {
+    throw new Error('用户管理列表响应结构无效。')
+  }
+  const items = value.items.map(parsePlatformUserSummary)
+  const availableOnPage = Math.max(0, Math.min(20, (value.total as number) - (expectedPage - 1) * 20))
+  if (items.length > availableOnPage) throw new Error('用户管理列表条目数量无效。')
+  if (new Set(items.map((item) => item.id)).size !== items.length) throw new Error('用户管理列表包含重复用户。')
+  return { items, page: expectedPage, pageSize: 20, total: value.total as number }
+}
+
+function parseRevokeSessionsResponse(value: unknown): AdminRevokeUserSessionsResponse {
+  if (!isRecord(value) || !hasExactKeys(value, ['revokedSessionCount']) || !Number.isSafeInteger(value.revokedSessionCount) || (value.revokedSessionCount as number) < 0) {
+    throw new Error('会话撤销响应结构无效。')
+  }
+  return { revokedSessionCount: value.revokedSessionCount as number }
+}
+
+async function parseUnknownRoleWrite(promise: Promise<unknown>, targetUserId: string): Promise<PlatformUserSummary> {
+  try {
+    const summary = parsePlatformUserSummary(await promise)
+    if (summary.id !== targetUserId) throw new Error('角色响应目标不匹配。')
+    return summary
+  } catch (error) {
+    if (error instanceof ApiClientUnknownOutcomeError || (error as ApiClientError).status !== undefined) throw error
+    throw new ApiClientUnknownOutcomeError()
+  }
+}
+
+async function parseUnknownSessionsWrite(promise: Promise<unknown>): Promise<AdminRevokeUserSessionsResponse> {
+  try {
+    return parseRevokeSessionsResponse(await promise)
+  } catch (error) {
+    if (error instanceof ApiClientUnknownOutcomeError || (error as ApiClientError).status !== undefined) throw error
+    throw new ApiClientUnknownOutcomeError()
+  }
+}
+
+const operationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function validOperationId(value: string): boolean {
+  return operationIdPattern.test(value)
+}
+
+function validAdminTargetId(value: string): boolean {
+  return value.length >= 1 && value.length <= 128 && value.trim() === value && !/[\u0000-\u001f\u007f/?#]/.test(value)
+}
+
+function validPlatformRoles(value: readonly string[]): boolean {
+  return value.length === 1 && value[0] === 'member'
+    || value.length === 2 && value[0] === 'member' && value[1] === 'platform_admin'
+}
 
 export type ApiItemAction = { label: string; status: ItemStatus; tone: 'primary' | 'secondary' | 'danger' }
 
@@ -113,6 +204,26 @@ export const apiClient = {
   login: (input: { username: string; password: string }) => request<AuthSession>('/auth/login', { method: 'POST', body: json(input) }),
   logout: () => request<void>('/auth/logout', { method: 'POST', body: json({}) }),
   getCurrentSession: (signal?: AbortSignal) => request<AuthSession>('/auth/session', { signal }),
+  listPlatformUsers: async (input: { page: number; query?: string }, signal?: AbortSignal) => {
+    const query = input.query?.trim()
+    if (!Number.isSafeInteger(input.page) || input.page < 1 || (query?.length ?? 0) > 80) throw new Error('用户列表请求参数无效。')
+    const search = new URLSearchParams({ page: String(input.page) })
+    if (query) search.set('query', query)
+    return parsePlatformUserPage(await request<unknown>(`/admin/users?${search.toString()}`, { signal }), input.page)
+  },
+  setPlatformUserRoles: (targetUserId: string, input: AdminSetUserRolesRequest) => {
+    if (!validAdminTargetId(targetUserId) || !validPlatformRoles(input.roles) || !validOperationId(input.operationId)) return Promise.reject(new Error('用户角色请求参数无效。'))
+    return parseUnknownRoleWrite(
+      request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/roles`, { method: 'PUT', body: json({ roles: input.roles, operationId: input.operationId }) }),
+      targetUserId,
+    )
+  },
+  revokePlatformUserSessions: (targetUserId: string, input: AdminRevokeUserSessionsRequest) => {
+    if (!validAdminTargetId(targetUserId) || !validOperationId(input.operationId)) return Promise.reject(new Error('会话撤销请求参数无效。'))
+    return parseUnknownSessionsWrite(
+      request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/revoke-sessions`, { method: 'POST', body: json({ operationId: input.operationId }) }),
+    )
+  },
   listItems: (signal?: AbortSignal) => request<Item[]>('/items', { signal }),
   listTrash: (signal?: AbortSignal) => request<Item[]>('/items/trash', { signal }),
   createIdea: (input: { title?: string; content?: string; saveForLater?: boolean; explorationTrack?: ExplorationTrackSelection }, signal?: AbortSignal) => request<Item>('/items', { method: 'POST', body: json(input), signal }),

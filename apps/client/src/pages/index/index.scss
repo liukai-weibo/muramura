@@ -2,6 +2,447 @@
   html, body, #app, .app-shell { height: 100%; overflow: clip; }
   .app-shell { position: fixed; inset: 0; min-height: 0; }
 }
+
+.platform-administration {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  color: #413c35;
+  background: #fffdf9;
+  border: 1px solid #e1d9cc;
+  border-radius: 12px;
+}
+
+.platform-administration-hidden {
+  display: none;
+}
+
+.platform-administration-header,
+.platform-administration-search,
+.platform-administration-pagination,
+.platform-confirmation-actions {
+  display: flex;
+  align-items: center;
+}
+
+.platform-administration-header {
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.platform-administration-header > taro-button-core.platform-administration-refresh,
+.platform-administration-search > taro-button-core {
+  display: inline-flex;
+  width: auto;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.platform-administration-header > taro-button-core.platform-administration-refresh[disabled='true'],
+.platform-administration-search > taro-button-core[disabled='true'] {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.platform-administration-header > view:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.platform-administration-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.platform-administration-description,
+.platform-user-created,
+.platform-administration-pagination,
+.platform-administration-updating {
+  color: #81796e;
+}
+
+.platform-administration-refresh,
+.platform-administration-search button,
+.platform-administration-search > taro-button-core,
+.platform-administration-pagination button,
+.platform-inline-action,
+.platform-more-button,
+.platform-user-menu button,
+.platform-administration-empty button,
+.platform-administration-initial-error button,
+.platform-confirmation-actions button,
+.platform-target-notice button {
+  min-height: 40px;
+  margin: 0;
+  padding: 0 16px;
+  font-size: 14px;
+  line-height: 1;
+  color: #413c35;
+  background: #fffdf9;
+  border: 1px solid #cfc4b5;
+  border-radius: 8px;
+}
+
+.platform-administration button::after {
+  display: none;
+}
+
+.platform-administration button:focus-visible,
+.platform-administration input:focus-visible {
+  outline: 2px solid #817568;
+  outline-offset: 2px;
+}
+
+.platform-administration button[disabled='true'] {
+  color: #81796e;
+  background: #eeeae4;
+  border-color: #e1d9cc;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.platform-administration-search {
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.platform-administration-search input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  color: #413c35;
+  background: #fffdf9;
+  border: 1px solid #cfc4b5;
+  border-radius: 8px;
+}
+
+.platform-administration-search .platform-administration-search-button,
+.platform-confirmation-actions .primary {
+  color: #fffdf9;
+  background: #5b554d;
+  border-color: #5b554d;
+}
+
+.platform-administration-updating {
+  display: block;
+  margin: -6px 0 10px;
+  font-size: 13px;
+}
+
+.platform-administration-error,
+.platform-target-notice,
+.platform-administration-initial-error,
+.platform-administration-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  background: #f5eadb;
+  border-radius: 8px;
+  color: #906538;
+}
+
+.platform-administration-error {
+  margin-bottom: 12px;
+}
+
+.platform-administration-skeleton {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  background: #e1d9cc;
+  border: 1px solid #e1d9cc;
+  border-radius: 8px;
+}
+
+.platform-administration-skeleton > view {
+  height: 64px;
+  background: linear-gradient(90deg, #eeeae4 20%, #f8f4ec 40%, #eeeae4 60%);
+  background-size: 200% 100%;
+  animation: platform-skeleton 1.4s ease infinite;
+}
+
+@keyframes platform-skeleton {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+.platform-user-list {
+  border: 1px solid #e1d9cc;
+  border-radius: 8px;
+}
+
+.platform-user-table-heading,
+.platform-user-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(140px, .8fr) minmax(170px, .9fr) minmax(150px, .8fr);
+  align-items: center;
+  column-gap: 16px;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+.platform-user-table-heading {
+  min-height: 44px;
+  color: #81796e;
+  background: #f8f4ec;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.platform-user-row {
+  position: relative;
+  min-height: 64px;
+  border-top: 1px solid #e1d9cc;
+}
+
+.platform-user-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.platform-role-badge,
+.platform-current-user {
+  justify-self: start;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.platform-role-badge.member {
+  color: #6f675e;
+  background: #eeeae4;
+}
+
+.platform-role-badge.administrator {
+  color: #4f687d;
+  background: #e9eff4;
+}
+
+.platform-current-user {
+  color: #6f675e;
+  background: #eeeae4;
+}
+
+.platform-user-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.platform-user-menu {
+  position: absolute;
+  z-index: 8;
+  top: 46px;
+  right: 0;
+  width: 190px;
+  padding: 8px;
+  background: #fffdf9;
+  border: 1px solid #e1d9cc;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(65, 60, 53, .14);
+}
+
+.platform-menu-dismiss-layer {
+  position: fixed;
+  z-index: 7;
+  inset: 0;
+}
+
+.platform-user-menu button {
+  width: 100%;
+  border: 0;
+  text-align: left;
+}
+
+.platform-user-menu button.danger,
+.platform-inline-action.danger {
+  color: #a14f3f;
+}
+
+.platform-user-menu-divider {
+  height: 1px;
+  margin: 6px 0;
+  background: #e1d9cc;
+}
+
+.platform-target-notice {
+  grid-column: 1 / -1;
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.platform-target-notice.success {
+  color: #526d58;
+  background: #eaf1e8;
+}
+
+.platform-target-notice.error {
+  color: #a14f3f;
+  background: #f7e9e5;
+}
+
+.platform-administration-pagination {
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.platform-administration-pagination > view {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.platform-confirmation-backdrop {
+  position: fixed;
+  z-index: 300;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(43, 39, 34, .38);
+}
+
+.platform-confirmation {
+  width: min(100%, 480px);
+  padding: 24px;
+  box-sizing: border-box;
+  background: #fffdf9;
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(43, 39, 34, .22);
+}
+
+.platform-confirmation-title,
+.platform-confirmation-description {
+  display: block;
+}
+
+.platform-confirmation-title {
+  margin-bottom: 12px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.platform-confirmation-description {
+  color: #6f675e;
+  line-height: 1.7;
+}
+
+.platform-confirmation-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.platform-confirmation-actions .danger {
+  color: #fffdf9;
+  background: #a14f3f;
+  border-color: #a14f3f;
+}
+
+@media (max-width: 768px) {
+  .platform-administration {
+    padding: 16px;
+  }
+
+  .platform-administration-header,
+  .platform-administration-search,
+  .platform-administration-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .platform-administration-refresh,
+  .platform-administration-header > taro-button-core.platform-administration-refresh,
+  .platform-administration-search button,
+  .platform-administration-search > taro-button-core,
+  .platform-administration-search input {
+    min-height: 44px;
+    width: 100%;
+  }
+
+  .platform-user-table-heading {
+    display: none;
+  }
+
+  .platform-user-list {
+    display: grid;
+    gap: 12px;
+    border: 0;
+  }
+
+  .platform-user-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 12px;
+    min-height: auto;
+    padding: 16px;
+    border: 1px solid #e1d9cc;
+    border-radius: 12px;
+  }
+
+  .platform-user-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .platform-user-created {
+    grid-column: 1 / 2;
+  }
+
+  .platform-user-actions {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+  }
+
+  .platform-user-menu {
+    position: fixed;
+    z-index: 310;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    padding: 12px;
+  }
+
+  .platform-target-notice {
+    grid-column: 1 / -1;
+  }
+
+  .platform-administration-pagination > view {
+    justify-content: space-between;
+  }
+
+  .platform-confirmation-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .platform-confirmation {
+    width: 100%;
+  }
+
+  .platform-confirmation-actions button {
+    min-height: 44px;
+    flex: 1;
+  }
+}
 .app-shell { min-height: 100vh; background: #f5f2ec; color: #302c27; }
 .auth-gate-shell { display: grid; box-sizing: border-box; min-height: 100dvh; padding: 32px; place-items: center; background: radial-gradient(circle at 18% 12%, #fffaf0 0, transparent 34%), #f2eee7; color: #302c27; }
 .auth-gate-brand { position: fixed; top: 28px; left: 32px; display: flex; flex-direction: column; }
@@ -54,6 +495,7 @@
 @media (min-width: 981px) {
   .app-main { overflow: clip; }
   .app-main:has(.settings-module) { overflow-y: auto; }
+  .app-main:has(.platform-administration:not(.platform-administration-hidden)) { overflow-y: auto; }
 }
 .global-header { position: sticky; top: 0; z-index: 15; display: flex; align-items: center; justify-content: space-between; box-sizing: border-box; min-height: 74px; padding: 14px 28px; gap: 24px; border-bottom: 1px solid #ddd6ca; background: rgba(255, 253, 249, 0.96); backdrop-filter: blur(12px); }
 .global-header > view:first-child { display: flex; min-width: 0; flex-direction: column; }

@@ -9,11 +9,13 @@ import {
   ItemApplicationService,
   MethodApplicationService,
   MethodLifecycleApplicationService,
+  PlatformAdministrationApplicationError,
+  PlatformAdministrationApplicationService,
   ReviewApplicationService,
   SearchApplicationService,
   TrashApplicationService,
 } from '@knowledge-base/application'
-import { itemStatuses, type BackupDocument, type CompleteReviewInput, type CurrentAssociatedStatus, type ExplorationTrackSelection, type ItemStatus, type TrashFilter } from '@knowledge-base/contracts'
+import { itemStatuses, type AuthUser, type BackupDocument, type CompleteReviewInput, type CurrentAssociatedStatus, type ExplorationTrackSelection, type ItemStatus, type PlatformRole, type TrashFilter } from '@knowledge-base/contracts'
 import {
   BackupOwnershipConflictError,
   createMySqlPool,
@@ -25,9 +27,11 @@ import {
   MySqlItemRepository,
   MySqlMethodApplicationRepository,
   MySqlMethodRepository,
+  MySqlPlatformAdministrationRepository,
   MySqlReviewRepository,
   MySqlReviewWorkflowRepository,
   MySqlSchemaNotReadyError,
+  PlatformAdministrationRepositoryError,
   ExplorationTrackError,
   MySqlSearchRepository,
   readMySqlConfig,
@@ -64,7 +68,7 @@ function cors(request: http.IncomingMessage, response: http.ServerResponse, id: 
   if (!allowedApiOrigins.has(origin)) { error(response, 403, 'VALIDATION_FAILED', '不允许的请求来源', id); return false }
   response.setHeader('access-control-allow-origin', origin)
   response.setHeader('vary', 'origin')
-  response.setHeader('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS')
+  response.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
   response.setHeader('access-control-allow-headers', 'content-type, x-request-id')
   return true
 }
@@ -77,6 +81,21 @@ function mapFailure(value: unknown): [number, ErrorCode, string] {
   if (value instanceof Error) {
     if (value instanceof BackupOwnershipConflictError) return [409, 'CONFLICT', '备份包含属于其他用户的数据 ID']
     if (value instanceof AuthenticationError) return value.code === 'username-taken' ? [409, 'CONFLICT', 'username already exists'] : [401, 'UNAUTHORIZED', 'invalid username or password']
+    if (value instanceof PlatformAdministrationApplicationError) {
+      if (value.code === 'forbidden') return [403, 'FORBIDDEN', '无权执行平台管理操作']
+      if (value.code === 'validation-failed') return [400, 'VALIDATION_FAILED', '平台管理请求参数无效']
+      return [500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误']
+    }
+    if (value instanceof PlatformAdministrationRepositoryError) {
+      if (value.code === 'actor-not-platform-admin') return [403, 'FORBIDDEN', '无权执行平台管理操作']
+      if (value.code === 'self-role-change') return [403, 'FORBIDDEN', '不允许调整自己的平台角色']
+      if (value.code === 'self-session-revoke') return [403, 'FORBIDDEN', '不允许通过管理接口撤销自己的会话']
+      if (value.code === 'user-not-found') return [404, 'NOT_FOUND', '目标用户不存在']
+      if (value.code === 'invalid-page') return [400, 'VALIDATION_FAILED', '页码无效']
+      if (value.code === 'operation-conflict') return [409, 'CONFLICT', 'operationId 已被使用，不能推断本次成功']
+      if (value.code === 'target-not-member') return [409, 'CONFLICT', '目标账号角色状态不可操作']
+      return [500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误']
+    }
     if (value.message === 'invalid authentication credentials') return [400, 'VALIDATION_FAILED', value.message]
     if (value instanceof ExplorationTrackError) {
       if (value.code === 'conflict') return [409, 'CONFLICT', value.message]
@@ -164,6 +183,7 @@ function createServices(config: MySqlConnectionConfig, scope?: { userId: string 
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
     backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope)),
     auth: new AuthenticationApplicationService(new MySqlAuthRepository(pool)),
+    platformAdministration: new PlatformAdministrationApplicationService(new MySqlPlatformAdministrationRepository(pool)),
   }
 }
 
@@ -175,7 +195,8 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
     if (request.method === 'OPTIONS') { response.writeHead(204, { 'x-request-id': id, 'cache-control': 'no-store' }); response.end(); return }
     const declaredLength = Number(request.headers['content-length'] ?? '0')
     const bodyLimit = url.pathname === '/api/v1/backup/restore' ? backupBodyLimit : normalBodyLimit
-    if (!Number.isFinite(declaredLength) || declaredLength > bodyLimit) { error(response, 413, 'REQUEST_TOO_LARGE', '请求内容超过大小限制', id); return }
+    const isAdminRequest = url.pathname.startsWith('/api/v1/admin/')
+    if (!isAdminRequest && (!Number.isFinite(declaredLength) || declaredLength > bodyLimit)) { error(response, 413, 'REQUEST_TOO_LARGE', '请求内容超过大小限制', id); return }
     try {
       if (request.method === 'GET' && url.pathname === '/health') {
         try { const health = await getMySqlHealth(services.pool, config.database); json(response, 200, { status: 'ready', database: health.database, schemaVersion: health.schemaVersion }, id) }
@@ -187,7 +208,11 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
       if (url.pathname.startsWith('/api/v1/auth/')) { await route(request, response, url, services, id); return }
       const session = await services.auth.current(sessionSecret(request))
       if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
-      await route(request, response, url, createServices(config, { userId: session.user.id }, services.pool), id)
+      if (isAdminRequest) {
+        if (!session.user.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', '无权执行平台管理操作')
+        if (!Number.isFinite(declaredLength) || declaredLength > normalBodyLimit) throw new ApiError(413, 'REQUEST_TOO_LARGE', '请求内容超过大小限制')
+      }
+      await route(request, response, url, createServices(config, { userId: session.user.id }, services.pool), id, session.user)
     } catch (cause) {
       if (cause instanceof ApiError) error(response, cause.status, cause.code, cause.message, id)
       else { const [status, code, message] = mapFailure(cause); error(response, status, code, message, id) }
@@ -197,13 +222,36 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
   return server
 }
 
-async function route(request: http.IncomingMessage, response: http.ServerResponse, url: URL, services: Services, id: string): Promise<void> {
+async function route(request: http.IncomingMessage, response: http.ServerResponse, url: URL, services: Services, id: string, actor?: AuthUser): Promise<void> {
   const { method = 'GET' } = request; const path = url.pathname
   const match = (pattern: RegExp) => pattern.exec(path)?.slice(1)
   if (method === 'POST' && path === '/api/v1/auth/register') { const body = requireObject(await readJson(request, normalBodyLimit)); const result = await services.auth.register({ username: requiredString(body.username, 'username'), password: requiredString(body.password, 'password') }); return json(response, 201, result.session, id, { 'set-cookie': sessionCookie(result.secret, result.expiresAt) }) }
   if (method === 'POST' && path === '/api/v1/auth/login') { const body = requireObject(await readJson(request, normalBodyLimit)); const result = await services.auth.login({ username: requiredString(body.username, 'username'), password: requiredString(body.password, 'password') }); return json(response, 200, result.session, id, { 'set-cookie': sessionCookie(result.secret, result.expiresAt) }) }
   if (method === 'POST' && path === '/api/v1/auth/logout') { await services.auth.logout(sessionSecret(request)); return emptyWithCookie(response, 204, id, expiredSessionCookie()) }
   if (method === 'GET' && path === '/api/v1/auth/session') { const session = await services.auth.current(sessionSecret(request)); if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required'); return json(response, 200, session, id) }
+  if (method === 'GET' && path === '/api/v1/admin/users') {
+    const administrator = requireAdministrator(actor)
+    return json(response, 200, await services.platformAdministration.listUsers(administrator, parseAdminUserListQuery(url.searchParams)), id)
+  }
+  let adminValues = match(/^\/api\/v1\/admin\/users\/([^/]+)\/roles$/)
+  if (method === 'PUT' && adminValues) {
+    const administrator = requireAdministrator(actor)
+    const body = requireExactObject(await readJson(request, normalBodyLimit), ['roles', 'operationId'])
+    return json(response, 200, await services.platformAdministration.setUserRoles(administrator, {
+      targetUserId: parseAdminTargetId(adminValues[0]!),
+      roles: parseAdminRoles(body.roles),
+      operationId: requiredString(body.operationId, 'operationId'),
+    }), id)
+  }
+  adminValues = match(/^\/api\/v1\/admin\/users\/([^/]+)\/revoke-sessions$/)
+  if (method === 'POST' && adminValues) {
+    const administrator = requireAdministrator(actor)
+    const body = requireExactObject(await readJson(request, normalBodyLimit), ['operationId'])
+    return json(response, 200, await services.platformAdministration.revokeAllUserSessions(administrator, {
+      targetUserId: parseAdminTargetId(adminValues[0]!),
+      operationId: requiredString(body.operationId, 'operationId'),
+    }), id)
+  }
   if (method === 'GET' && path === '/api/v1/search') return json(response, 200, await services.search.search(url.searchParams.get('query') ?? ''), id)
   if (method === 'GET' && path === '/api/v1/dashboard') { const window = url.searchParams.get('window'); if (window !== '7d' && window !== '30d' && window !== 'all') throw new ApiError(400, 'VALIDATION_FAILED', '无效的仪表盘时间范围'); return json(response, 200, await services.dashboard.getReport(window), id) }
   if (method === 'GET' && path === '/api/v1/methods') return json(response, 200, await services.reviews.listMethods(), id)
@@ -274,7 +322,8 @@ async function route(request: http.IncomingMessage, response: http.ServerRespons
 
 function isKnownApiPath(path: string): boolean {
   return [
-    '/api/v1/search', '/api/v1/dashboard', '/api/v1/methods', '/api/v1/items', '/api/v1/reviews/complete', '/api/v1/method-applications', '/api/v1/backup', '/api/v1/backup/restore', '/api/v1/trash', '/api/v1/method-source-displays', '/api/v1/auth/register', '/api/v1/auth/login', '/api/v1/auth/logout', '/api/v1/auth/session',
+    '/api/v1/search', '/api/v1/dashboard', '/api/v1/methods', '/api/v1/items', '/api/v1/reviews/complete', '/api/v1/method-applications', '/api/v1/backup', '/api/v1/backup/restore', '/api/v1/trash', '/api/v1/method-source-displays', '/api/v1/auth/register', '/api/v1/auth/login', '/api/v1/auth/logout', '/api/v1/auth/session', '/api/v1/admin/users',
+    /^\/api\/v1\/admin\/users\/[^/]+\/(?:roles|revoke-sessions)$/,
     '/api/v1/exploration-tracks', '/api/v1/exploration-tracks/selectable', '/api/v1/exploration-tracks/deleted',
     /^\/api\/v1\/exploration-tracks\/[^/]+(?:\/(?:history|restore))?$/,
     /^\/api\/v1\/reviews\/(?:by-item\/)?[^/]+$/,
@@ -283,6 +332,51 @@ function isKnownApiPath(path: string): boolean {
     /^\/api\/v1\/method-applications\/[^/]+\/context$/,
     /^\/api\/v1\/trash\/(?:item|method)\/[^/]+\/restore$/,
   ].some(pattern => typeof pattern === 'string' ? pattern === path : pattern.test(path))
+}
+
+function requireAdministrator(actor: AuthUser | undefined): AuthUser {
+  if (!actor?.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', '无权执行平台管理操作')
+  return actor
+}
+
+function requireExactObject(value: unknown, keys: readonly string[]): Record<string, unknown> {
+  const body = requireObject(value)
+  const actual = Object.keys(body).sort()
+  const expected = [...keys].sort()
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new ApiError(400, 'VALIDATION_FAILED', '请求体字段无效')
+  }
+  return body
+}
+
+function parseAdminRoles(value: unknown): PlatformRole[] {
+  if (!Array.isArray(value) || value.some(role => typeof role !== 'string')) throw new ApiError(400, 'VALIDATION_FAILED', 'roles 参数无效')
+  if (value.length === 1 && value[0] === 'member') return ['member']
+  if (value.length === 2 && value[0] === 'member' && value[1] === 'platform_admin') return ['member', 'platform_admin']
+  throw new ApiError(400, 'VALIDATION_FAILED', 'roles 参数无效')
+}
+
+function parseAdminTargetId(encoded: string): string {
+  let value: string
+  try { value = decodeURIComponent(encoded) } catch { throw new ApiError(400, 'VALIDATION_FAILED', '目标用户 ID 无效') }
+  if (value.length < 1 || value.length > 128 || value.trim() !== value || /[\u0000-\u001f\u007f/?#]/.test(value)) {
+    throw new ApiError(400, 'VALIDATION_FAILED', '目标用户 ID 无效')
+  }
+  return value
+}
+
+function parseAdminUserListQuery(parameters: URLSearchParams): { page: number; query?: string } {
+  for (const key of parameters.keys()) if (key !== 'page' && key !== 'query') throw new ApiError(400, 'VALIDATION_FAILED', '用户列表查询参数无效')
+  const pages = parameters.getAll('page')
+  const queries = parameters.getAll('query')
+  if (pages.length > 1 || queries.length > 1) throw new ApiError(400, 'VALIDATION_FAILED', '用户列表查询参数无效')
+  const rawPage = pages[0]
+  if (rawPage !== undefined && !/^[1-9][0-9]*$/.test(rawPage)) throw new ApiError(400, 'VALIDATION_FAILED', '页码无效')
+  const page = rawPage === undefined ? 1 : Number(rawPage)
+  if (!Number.isSafeInteger(page)) throw new ApiError(400, 'VALIDATION_FAILED', '页码无效')
+  const query = queries[0]?.trim()
+  if (query !== undefined && query.length > 80) throw new ApiError(400, 'VALIDATION_FAILED', '搜索文本过长')
+  return query ? { page, query } : { page }
 }
 
 function parseReview(body: Record<string, unknown>): CompleteReviewInput {

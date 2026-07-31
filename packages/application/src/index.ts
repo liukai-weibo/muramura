@@ -3,6 +3,9 @@ import type {
   AuthRepository,
   AuthSession,
   AuthUser,
+  AdminRevokeUserSessionsResponse,
+  InitialPlatformAdminGrantResult,
+  InitialPlatformAdminRepository,
   LoginInput,
   RegisterInput,
   BackupData,
@@ -37,6 +40,10 @@ import type {
   TrashEntry,
   TrashFilter,
   MethodVersion,
+  PlatformAdministrationRepository,
+  PlatformRole,
+  PlatformUserPage,
+  PlatformUserSummary,
   Review,
   ReviewRepository,
   ReviewWorkflowRepository,
@@ -60,13 +67,102 @@ export class AuthenticationApplicationService {
   }
   async login(input: LoginInput): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> {
     const username = normalizeUsername(input.username); assertAuthCredentials(username, input.password)
-    const user = await this.repository.findUserByUsername(username)
-    if (!user || !(await verifyPassword(input.password, user.passwordHash))) throw new AuthenticationError('invalid-credentials')
-    return this.startSession(user)
+    const record = await this.repository.findUserByUsername(username)
+    if (!record || !(await verifyPassword(input.password, record.passwordHash))) throw new AuthenticationError('invalid-credentials')
+    return this.startSession(record.user)
   }
   async current(secret: Uint8Array | undefined): Promise<AuthSession | undefined> { if (!secret) return undefined; const user = await this.repository.getSessionBySecretHash(hashSessionSecret(secret), this.now().toISOString()); return user ? { user } : undefined }
   async logout(secret: Uint8Array | undefined): Promise<void> { if (secret) await this.repository.revokeSessionBySecretHash(hashSessionSecret(secret), this.now().toISOString()) }
   private async startSession(user: AuthUser): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> { const secret = createSessionSecret(); const now = this.now(); const expiresAt = new Date(now.getTime() + AUTH_SESSION_DURATION_MS).toISOString(); await this.repository.createSession({ id: createId(), userId: user.id, secretHash: hashSessionSecret(secret), expiresAt, createdAt: now.toISOString() }); return { session: { user }, secret, expiresAt } }
+}
+
+export class InitialPlatformAdminApplicationService {
+  constructor(
+    private readonly repository: InitialPlatformAdminRepository,
+    private readonly now: () => Date = () => new Date(),
+    private readonly newId: () => string = createId,
+  ) {}
+
+  async initialize(targetUserId: string): Promise<{ targetUserId: string; status: InitialPlatformAdminGrantResult; operationId?: string }> {
+    const target = targetUserId.trim()
+    if (!target || target.length > 128) throw new Error('invalid-target-user-id')
+    const operationId = this.newId()
+    const status = await this.repository.initializePlatformAdmin({
+      targetUserId: target,
+      auditEventId: this.newId(),
+      operationId,
+      createdAt: this.now().toISOString(),
+    })
+    return status === 'granted' ? { targetUserId: target, status, operationId } : { targetUserId: target, status }
+  }
+}
+
+export class PlatformAdministrationApplicationError extends Error {
+  constructor(readonly code: 'forbidden' | 'validation-failed' | 'user-read-failed') {
+    super(code)
+    this.name = 'PlatformAdministrationApplicationError'
+  }
+}
+
+export class PlatformAdministrationApplicationService {
+  constructor(
+    private readonly repository: PlatformAdministrationRepository,
+    private readonly now: () => Date = () => new Date(),
+    private readonly newId: () => string = createId,
+  ) {}
+
+  async listUsers(actor: AuthUser, input: { page: number; query?: string }): Promise<PlatformUserPage> {
+    this.assertAdministrator(actor)
+    return this.repository.listUsers(input)
+  }
+
+  async setUserRoles(actor: AuthUser, input: { targetUserId: string; roles: PlatformRole[]; operationId: string }): Promise<PlatformUserSummary> {
+    this.assertAdministrator(actor)
+    assertCanonicalOperationId(input.operationId)
+    if (!isCanonicalRoleRequest(input.roles)) throw new PlatformAdministrationApplicationError('validation-failed')
+    const createdAt = this.now().toISOString()
+    const change = {
+      actorUserId: actor.id,
+      targetUserId: input.targetUserId,
+      auditEventId: this.newId(),
+      operationId: input.operationId,
+      createdAt,
+    }
+    if (input.roles.length === 2) await this.repository.grantPlatformAdmin(change)
+    else await this.repository.revokePlatformAdmin(change)
+    const user = await this.repository.getUserById(input.targetUserId)
+    if (!user) throw new PlatformAdministrationApplicationError('user-read-failed')
+    return user
+  }
+
+  async revokeAllUserSessions(actor: AuthUser, input: { targetUserId: string; operationId: string }): Promise<AdminRevokeUserSessionsResponse> {
+    this.assertAdministrator(actor)
+    assertCanonicalOperationId(input.operationId)
+    const createdAt = this.now().toISOString()
+    return this.repository.revokeAllSessions({
+      actorUserId: actor.id,
+      targetUserId: input.targetUserId,
+      auditEventId: this.newId(),
+      operationId: input.operationId,
+      createdAt,
+      revokedAt: createdAt,
+    })
+  }
+
+  private assertAdministrator(actor: AuthUser): void {
+    if (!actor.roles.includes('platform_admin')) throw new PlatformAdministrationApplicationError('forbidden')
+  }
+}
+
+function assertCanonicalOperationId(value: string): void {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)) {
+    throw new PlatformAdministrationApplicationError('validation-failed')
+  }
+}
+
+function isCanonicalRoleRequest(roles: PlatformRole[]): boolean {
+  return roles.length === 1 && roles[0] === 'member'
+    || roles.length === 2 && roles[0] === 'member' && roles[1] === 'platform_admin'
 }
 
 export class InitialOwnerClaimApplicationService {

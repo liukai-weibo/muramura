@@ -14,7 +14,7 @@ type MockOptions = {
 }
 
 const root = join(process.cwd(), 'apps/client/dist')
-const authSession = { user: { id: 'auth-user', username: 'alice', createdAt: '2026-07-30T00:00:00.000Z' } }
+const authSession = { user: { id: 'auth-user', username: 'alice', roles: ['member'], createdAt: '2026-07-30T00:00:00.000Z' } }
 const contentType = (path: string) => ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[extname(path)] ?? 'application/octet-stream')
 let browser: Browser
 

@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "grant-initial-platform-admin": "tsx src/grant-initial-platform-admin.ts",
     "start": "tsx src/main.ts",
     "migrate": "tsx src/migrate.ts"
   },

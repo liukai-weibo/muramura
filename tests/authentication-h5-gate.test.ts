@@ -11,7 +11,7 @@ const page = readFileSync(new URL('../apps/client/src/pages/index/index.tsx', im
 const styles = readFileSync(new URL('../apps/client/src/pages/index/index.scss', import.meta.url), 'utf8')
 
 const session = {
-  user: { id: 'user-1', username: 'alice', createdAt: '2026-07-30T00:00:00.000Z' },
+  user: { id: 'user-1', username: 'alice', roles: ['member'], createdAt: '2026-07-30T00:00:00.000Z' },
 }
 
 describe('H5 authentication API adapter', () => {
@@ -96,6 +96,14 @@ describe('H5 authentication API adapter', () => {
 })
 
 describe('H5 authentication gate UI boundary', () => {
+  it('pre-gates user management by the current session role and fully unloads it after management 403', () => {
+    expect(page).toContain('const isPlatformAdministrator = hasPlatformAdminRole(session.user.roles)')
+    expect(page).toContain("{isPlatformAdministrator && !managementAccessDenied && <View")
+    expect(page).toContain("setActiveModule('actions')")
+    expect(page).toContain('setAdministrationMounted(false)')
+    expect(page).toContain('你的管理员权限已变化，无法继续访问用户管理。')
+  })
+
   it('gives only the enabled logout button a visible hover response', () => {
     expect(styles).toContain('.navigation-logout:hover:not([disabled="true"])')
     expect(styles).toContain('background: #514c45; color: #fffaf2;')
