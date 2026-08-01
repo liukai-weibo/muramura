@@ -1,8 +1,44 @@
-import type { BackupErrorCode } from './backup'
-import type { ExplorationTrackErrorCode } from './exploration-track'
-import type { ItemErrorCode } from './item'
-import type { MethodErrorCode } from './method'
-import type { ReviewErrorCode } from './review'
+export type BusinessErrorCategory = 'validation' | 'not-found' | 'conflict' | 'internal'
+
+export type ItemErrorCode =
+  | 'INVALID_ITEM_STATUS_TRANSITION'
+  | 'ITEM_NOT_FOUND'
+  | 'ITEM_NOT_IN_TRASH'
+  | 'ITEM_TITLE_REQUIRED'
+  | 'ITEM_TITLE_TOO_LONG'
+  | 'ITEM_START_ACTION_ALREADY_EXISTS'
+  | 'ITEM_METHOD_ALREADY_ASSOCIATED'
+  | 'ITEM_NOT_REVIEWABLE'
+
+export type ExplorationTrackErrorCode =
+  | 'EXPLORATION_TRACK_NAME_REQUIRED'
+  | 'EXPLORATION_TRACK_NAME_TOO_LONG'
+  | 'EXPLORATION_TRACK_NOT_FOUND'
+  | 'EXPLORATION_TRACK_DELETED'
+  | 'EXPLORATION_TRACK_NAME_CONFLICT'
+  | 'EXPLORATION_TRACK_ASSOCIATION_READ_ONLY'
+  | 'EXPLORATION_TRACK_ASSOCIATION_UNAVAILABLE'
+  | 'EXPLORATION_TRACK_STATUS_INVALID'
+  | 'EXPLORATION_TRACK_NORMALIZED_NAME_MISSING'
+  | 'EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE'
+
+export type MethodErrorCode =
+  | 'METHOD_REQUIRED_FIELDS_MISSING'
+  | 'METHOD_NOT_FOUND'
+  | 'METHOD_NOT_IN_TRASH'
+  | 'METHOD_ALREADY_IN_TRASH'
+  | 'METHOD_TOMBSTONE_ALREADY_EXISTS'
+  | 'METHOD_VERSION_HISTORY_UNPROVABLE'
+  | 'METHOD_ALREADY_VALIDATED_BY_REVIEW'
+
+export type ReviewErrorCode =
+  | 'REVIEW_NOT_FOUND'
+  | 'REVIEW_REQUIRED_FIELDS_MISSING'
+  | 'REVIEW_ALREADY_COMPLETED'
+  | 'REVIEW_HAS_METHOD_RELATION'
+  | 'REVIEW_METHOD_MODE_CONFLICT'
+
+export type BackupErrorCode = 'INVALID_BACKUP'
 
 export type BusinessErrorCode =
   | BackupErrorCode
