@@ -1,8 +1,15 @@
-import { Hono } from 'hono'
+import { apiReference } from '@scalar/hono-api-reference'
 import { readMySqlConfig, type MySqlConnectionConfig } from '@knowledge-base/storage-mysql'
 import { reportUnexpectedFailure } from '../api-errors'
+import {
+  requireAuthenticatedSession,
+  requirePlatformAdministrator,
+} from './auth-middleware'
 import { errorResponse, mapFailure } from './errors'
 import { enforceBodyLimit, requestContext } from './http'
+import { createOpenApiApp, openApiInfo } from './openapi'
+import { createAdminRoutes } from './routes/admin'
+import { createAuthRoutes } from './routes/auth'
 import { createBackupRoutes } from './routes/backup'
 import { createExplorationTrackRoutes } from './routes/exploration-tracks'
 import { createHealthRoutes } from './routes/health'
@@ -15,12 +22,13 @@ import { createMethodRoutes } from './routes/methods'
 import { createDashboardRoutes, createSearchRoutes } from './routes/read-models'
 import { createReviewRoutes } from './routes/reviews'
 import { createTrashRoutes } from './routes/trash'
-import { createHonoServices, type HonoServices } from './services'
-import type { ApiEnv } from './types'
+import { createRootHonoServices, type RootHonoServices } from './services'
 
 function isKnownApiPath(path: string): boolean {
   return [
     '/health',
+    '/openapi.json',
+    '/docs',
     '/api/v1/search',
     '/api/v1/dashboard',
     '/api/v1/methods',
@@ -35,6 +43,12 @@ function isKnownApiPath(path: string): boolean {
     '/api/v1/exploration-tracks',
     '/api/v1/exploration-tracks/selectable',
     '/api/v1/exploration-tracks/deleted',
+    '/api/v1/auth/register',
+    '/api/v1/auth/login',
+    '/api/v1/auth/logout',
+    '/api/v1/auth/session',
+    '/api/v1/admin/users',
+    /^\/api\/v1\/admin\/users\/[^/]+\/(?:roles|revoke-sessions)$/,
     /^\/api\/v1\/exploration-tracks\/[^/]+(?:\/(?:history|restore))?$/,
     /^\/api\/v1\/reviews\/(?:by-item\/)?[^/]+$/,
     /^\/api\/v1\/items\/[^/]+(?:\/(?:status-events|content|start|status|restore|exploration-track))?$/,
@@ -46,44 +60,60 @@ function isKnownApiPath(path: string): boolean {
 
 export const apiV1BasePath = '/api/v1'
 
-function buildApiV1Routes(services: HonoServices) {
-  return new Hono<ApiEnv>()
-    .route('/items', createItemRoutes(services))
-    .route('/exploration-tracks', createExplorationTrackRoutes(services))
-    .route('/reviews', createReviewRoutes(services))
-    .route('/methods', createMethodRoutes(services))
-    .route('/method-applications', createMethodApplicationRoutes(services))
-    .route('/method-source-displays', createMethodSourceDisplayRoutes(services))
-    .route('/backup', createBackupRoutes(services))
-    .route('/trash', createTrashRoutes(services))
-    .route('/search', createSearchRoutes(services))
-    .route('/dashboard', createDashboardRoutes(services))
+function buildProtectedApiV1Routes(root: RootHonoServices) {
+  return createOpenApiApp()
+    .use('*', requireAuthenticatedSession(root))
+    .use('/admin/*', requirePlatformAdministrator())
+    .route('/admin', createAdminRoutes(root))
+    .route('/items', createItemRoutes())
+    .route('/exploration-tracks', createExplorationTrackRoutes())
+    .route('/reviews', createReviewRoutes())
+    .route('/methods', createMethodRoutes())
+    .route('/method-applications', createMethodApplicationRoutes())
+    .route('/method-source-displays', createMethodSourceDisplayRoutes())
+    .route('/backup', createBackupRoutes())
+    .route('/trash', createTrashRoutes())
+    .route('/search', createSearchRoutes())
+    .route('/dashboard', createDashboardRoutes())
 }
 
 export function buildHonoApp(
-  services: HonoServices,
+  root: RootHonoServices,
   config: MySqlConnectionConfig,
 ) {
-  const app = new Hono<ApiEnv>()
+  const app = createOpenApiApp()
   app.use('*', requestContext)
   app.use('*', enforceBodyLimit)
   app.options('*', (context) => context.body(null, 204))
 
-  const routes = app
-    .route('/health', createHealthRoutes(services, config))
-    .route(apiV1BasePath, buildApiV1Routes(services))
+  app.route('/health', createHealthRoutes(root, config))
+  app.route(`${apiV1BasePath}/auth`, createAuthRoutes(root))
+  app.route(apiV1BasePath, buildProtectedApiV1Routes(root))
 
-  routes.notFound((context) => isKnownApiPath(context.req.path)
+  app.doc('/openapi.json', {
+    openapi: openApiInfo.openapi,
+    info: { ...openApiInfo.info },
+    tags: [...openApiInfo.tags],
+  })
+  app.get(
+    '/docs',
+    apiReference({
+      pageTitle: 'Knowledge Base API 文档',
+      url: '/openapi.json',
+    }),
+  )
+
+  app.notFound((context) => isKnownApiPath(context.req.path)
     ? errorResponse(context, 405, 'METHOD_NOT_ALLOWED', '不允许的请求方法')
     : errorResponse(context, 404, 'NOT_FOUND_ROUTE', '路由不存在'))
 
-  routes.onError((cause, context) => {
+  app.onError((cause, context) => {
     reportUnexpectedFailure(context.get('requestId'), cause)
     const failure = mapFailure(cause)
     return errorResponse(context, failure.status, failure.code, failure.message, failure.businessCode)
   })
 
-  return routes
+  return app
 }
 
 export type AppType = ReturnType<typeof buildHonoApp>
@@ -91,10 +121,10 @@ export type AppType = ReturnType<typeof buildHonoApp>
 export function createHonoApi(
   config = readMySqlConfig(process.env, 'app'),
 ) {
-  const services = createHonoServices(config)
-  const app = buildHonoApp(services, config)
+  const root = createRootHonoServices(config)
+  const app = buildHonoApp(root, config)
   return {
     app,
-    close: () => services.pool.end(),
+    close: () => root.pool.end(),
   }
 }

@@ -99,7 +99,7 @@ export class MySqlMethodRepository implements MethodRepository {
   async listByReviewId(reviewId: string): Promise<Method[]> {
     if (this.scope) {
       const [reviews] = await this.pool.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM reviews WHERE id=? AND owner_user_id=?', [reviewId, this.scope.userId])
-      if (!reviews[0]) throw new Error('复盘不存在')
+      if (!reviews[0]) throw businessError('REVIEW_NOT_FOUND', '复盘不存在')
     }
     const [rows] = await this.pool.query<MethodRow[]>(
       this.scope ? `SELECT DISTINCT m.* FROM methods m INNER JOIN method_evidence e ON e.method_id=m.id WHERE e.review_id=? AND m.deleted_at IS NULL AND m.owner_user_id=? AND e.owner_user_id=? ORDER BY m.updated_at ASC,m.id ASC` : `SELECT DISTINCT m.* FROM methods m INNER JOIN method_evidence e ON e.method_id=m.id WHERE e.review_id=? AND m.deleted_at IS NULL ORDER BY m.updated_at ASC,m.id ASC`, this.scope ? [reviewId,this.scope.userId,this.scope.userId] : [reviewId],
@@ -108,13 +108,13 @@ export class MySqlMethodRepository implements MethodRepository {
   }
 
   async listVersions(methodId: string): Promise<MethodVersion[]> {
-    if (this.scope && !(await this.ownsMethod(methodId))) throw new Error('方法不存在')
+    if (this.scope && !(await this.ownsMethod(methodId))) throw businessError('METHOD_NOT_FOUND', '方法不存在')
     const [rows] = await this.pool.query<VersionRow[]>(this.scope ? 'SELECT * FROM method_versions WHERE method_id=? AND owner_user_id=? ORDER BY version ASC,id ASC' : 'SELECT * FROM method_versions WHERE method_id=? ORDER BY version ASC,id ASC', this.scope ? [methodId,this.scope.userId] : [methodId])
     return rows.map(mapVersion)
   }
 
   async listEvidenceDetails(methodId: string): Promise<MethodEvidenceDetail[]> {
-    if (this.scope && !(await this.ownsMethod(methodId))) throw new Error('方法不存在')
+    if (this.scope && !(await this.ownsMethod(methodId))) throw businessError('METHOD_NOT_FOUND', '方法不存在')
     const [rows] = await this.pool.query<EvidenceDetailRow[]>(
       `SELECT e.id AS evidence_id,e.method_id,e.review_id,e.created_at AS evidence_created_at,e.relation,e.method_version,
               r.item_id,r.created_at AS review_created_at,r.actual_action,r.result,i.title AS item_title,i.deleted_at AS item_deleted_at

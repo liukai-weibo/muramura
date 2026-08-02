@@ -1,16 +1,41 @@
-import { Hono } from 'hono'
+import { createRoute, z } from '@hono/zod-openapi'
 import { getMySqlHealth } from '@knowledge-base/storage-mysql'
 import type { MySqlConnectionConfig } from '@knowledge-base/storage-mysql'
-import type { HonoServices } from '../services'
-import type { ApiEnv } from '../types'
+import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
+import type { RootHonoServices } from '../services'
+
+const healthReadySchema = z.object({
+  status: z.literal('ready'),
+  database: z.string(),
+  schemaVersion: z.number(),
+}).openapi('HealthReady')
+
+const healthUnavailableSchema = z.object({
+  status: z.literal('database-unavailable'),
+  message: z.string(),
+}).openapi('HealthUnavailable')
+
+const healthRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Health'],
+  summary: '健康检查',
+  description: '探测本地 MySQL 是否可用并返回当前 schema 版本；无需登录。',
+  responses: {
+    200: jsonSuccess(healthReadySchema, '数据库就绪'),
+    503: jsonSuccess(healthUnavailableSchema, '数据库不可用'),
+  },
+})
 
 export function createHealthRoutes(
-  services: HonoServices,
+  root: RootHonoServices,
   config: MySqlConnectionConfig,
 ) {
-  return new Hono<ApiEnv>().get('/', async (context) => {
+  const app = createOpenApiApp()
+
+  app.openapi(healthRoute, async (context) => {
     try {
-      const health = await getMySqlHealth(services.pool, config.database)
+      const health = await getMySqlHealth(root.pool, config.database)
       return context.json({
         status: 'ready' as const,
         database: health.database,
@@ -23,4 +48,6 @@ export function createHealthRoutes(
       }, 503)
     }
   })
+
+  return app
 }

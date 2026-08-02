@@ -75,7 +75,7 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
   async getContextResultByItemId(itemId: string): Promise<MethodApplicationContextResult> {
     if (this.scope) {
       const [items] = await this.pool.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM items WHERE id=? AND owner_user_id=?', [itemId, this.scope.userId])
-      if (!items[0]) throw new Error('事项不存在')
+      if (!items[0]) throw businessError('ITEM_NOT_FOUND', '事项不存在')
     }
     const application = await this.getApplication(itemId)
     if (!application) return { status: 'no-association' }

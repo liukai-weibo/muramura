@@ -34,15 +34,23 @@ export const requestContext: MiddlewareHandler<ApiEnv> = async (context, next) =
       return errorResponse(context, 403, 'VALIDATION_FAILED', '不允许的请求来源')
     }
     context.header('access-control-allow-origin', origin)
+    context.header('access-control-allow-credentials', 'true')
     context.header('vary', 'origin')
-    context.header('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS')
+    context.header('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
     context.header('access-control-allow-headers', 'content-type, x-request-id')
   }
 
   await next()
 }
 
+/**
+ * 非管理路由提前做 body 上限；管理路由在鉴权后由 requirePlatformAdministrator 再拦 413。
+ */
 export const enforceBodyLimit: MiddlewareHandler<ApiEnv> = async (context, next) => {
+  if (context.req.path.startsWith('/api/v1/admin/')) {
+    await next()
+    return
+  }
   const limit = context.req.path === backupRestorePath ? backupBodyLimit : normalBodyLimit
   const declaredLength = Number(context.req.header('content-length') ?? '0')
   if (!Number.isFinite(declaredLength) || declaredLength > limit) {

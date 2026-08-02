@@ -64,7 +64,7 @@ export class MySqlItemRepository implements ItemRepository {
   }
 
   async listStatusEvents(itemId: string): Promise<ItemStatusEvent[]> {
-    if (this.owner && !(await this.getById(itemId))) throw new Error('事项不存在')
+    if (this.owner && !(await this.getById(itemId))) throw businessError('ITEM_NOT_FOUND', '事项不存在')
     const [rows] = await this.pool.query<EventRow[]>(this.owner ? 'SELECT e.* FROM item_status_events e JOIN items i ON i.id=e.item_id WHERE e.item_id=? AND i.owner_user_id=? ORDER BY e.created_at ASC,e.id ASC' : 'SELECT * FROM item_status_events WHERE item_id=? ORDER BY created_at ASC,id ASC', this.owner ? [itemId, this.owner] : [itemId])
     return rows.map(mapEvent)
   }
@@ -112,7 +112,7 @@ export class MySqlItemRepository implements ItemRepository {
   async delete(id: string): Promise<void> {
     await runInMySqlTransaction(this.pool, async connection => {
       const current = await this.lock(connection, id)
-      if (!current) throw new Error('事项不存在')
+      if (!current) throw businessError('ITEM_NOT_FOUND', '事项不存在')
       if (current.deletedAt) return
       const updatedAt = now()
       await connection.execute(this.owner ? 'UPDATE items SET deleted_at=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE items SET deleted_at=?,updated_at=? WHERE id=?', this.owner ? [mysqlDateTime(updatedAt),mysqlDateTime(updatedAt),id,this.owner] : [mysqlDateTime(updatedAt),mysqlDateTime(updatedAt),id])

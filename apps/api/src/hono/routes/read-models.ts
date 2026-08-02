@@ -1,35 +1,76 @@
-import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
-import { z } from 'zod'
+import { createRoute, z } from '@hono/zod-openapi'
 import { validationError } from '../errors'
-import type { HonoServices } from '../services'
-import type { ApiEnv } from '../types'
+import { requireServices } from '../auth-middleware'
+import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
 
-const searchQuerySchema = z.object({ query: z.string().optional() })
-const dashboardQuerySchema = z.object({ window: z.enum(['7d', '30d', 'all']) })
+const searchResultSchema = z.array(z.unknown()).openapi('SearchResults')
 
-export function createSearchRoutes(services: HonoServices) {
-  return new Hono<ApiEnv>().get(
-    '/',
-    zValidator('query', searchQuerySchema),
-    async (context) => context.json(
-      await services.search.search(context.req.valid('query').query ?? ''),
+const dashboardReportSchema = z.unknown().openapi('DashboardReport')
+
+const searchRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Search'],
+  summary: '全文搜索',
+  description: '按 query 关键词搜索事项与方法等内容；空 query 返回空结果集。',
+  request: {
+    query: z.object({
+      query: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: jsonSuccess(searchResultSchema, '搜索结果'),
+    401: commonErrorResponses[401],
+  },
+})
+
+const dashboardRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Dashboard'],
+  summary: '仪表盘报表',
+  description: '按时间窗口 window（7d、30d、all）返回仪表盘统计数据。',
+  request: {
+    query: z.object({
+      window: z.enum(['7d', '30d', 'all']),
+    }),
+  },
+  responses: {
+    200: jsonSuccess(dashboardReportSchema, '仪表盘报表'),
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+  },
+})
+
+export function createSearchRoutes() {
+  const app = createOpenApiApp()
+
+  app.openapi(searchRoute, async (context) => {
+    const services = requireServices(context)
+    const query = context.req.valid('query')
+    return context.json(
+      await services.search.search(query.query ?? ''),
       200,
-    ),
-  )
+    )
+  })
+
+  return app
 }
 
-export function createDashboardRoutes(services: HonoServices) {
-  return new Hono<ApiEnv>().get(
-    '/',
-    zValidator('query', dashboardQuerySchema, (result) => {
-      if (!result.success) {
-        throw validationError('无效的仪表盘时间范围')
-      }
-    }),
-    async (context) => context.json(
-      await services.dashboard.getReport(context.req.valid('query').window),
+export function createDashboardRoutes() {
+  const app = createOpenApiApp()
+
+  app.openapi(dashboardRoute, async (context) => {
+    const services = requireServices(context)
+    const query = context.req.valid('query')
+    if (!['7d', '30d', 'all'].includes(query.window)) {
+      throw validationError('无效的仪表盘时间范围')
+    }
+    return context.json(
+      await services.dashboard.getReport(query.window),
       200,
-    ),
-  )
+    )
+  })
+
+  return app
 }
