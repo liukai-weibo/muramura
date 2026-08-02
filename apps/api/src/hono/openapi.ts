@@ -1,4 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { apiV1BasePath } from './paths'
 import type { ApiEnv } from './types'
 
 export const apiTags = [
@@ -22,7 +23,7 @@ export const ApiErrorBodySchema = z.object({
   error: z.object({
     code: z.string().openapi({ example: 'VALIDATION_FAILED' }),
     message: z.string(),
-    requestId: z.string().uuid(),
+    requestId: z.uuid(),
     businessCode: z.string().optional(),
   }),
 }).openapi('ApiErrorBody')
@@ -87,7 +88,7 @@ export const openApiInfo = {
     version: '1.0.0',
     description: [
       '本地单用户（按登录会话隔离）知识库 HTTP API。',
-      '除 `/health`、`/api/v1/auth/*`、`/openapi.json`、`/docs` 外，业务接口需要 Cookie `kb_session`。',
+      `除 \`/health\`、\`${apiV1BasePath}/auth/*\`、\`/openapi.json\`、\`/docs\` 外，业务接口需要 Cookie \`kb_session\`。`,
       '错误体统一为 `{ error: { code, message, requestId, businessCode? } }`；`businessCode` 仅白名单业务码对外透出。',
     ].join('\n\n'),
   },

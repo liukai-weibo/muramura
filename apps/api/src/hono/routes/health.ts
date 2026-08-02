@@ -31,23 +31,20 @@ export function createHealthRoutes(
   root: RootHonoServices,
   config: MySqlConnectionConfig,
 ) {
-  const app = createOpenApiApp()
-
-  app.openapi(healthRoute, async (context) => {
-    try {
-      const health = await getMySqlHealth(root.pool, config.database)
-      return context.json({
-        status: 'ready' as const,
-        database: health.database,
-        schemaVersion: health.schemaVersion,
-      }, 200)
-    } catch {
-      return context.json({
-        status: 'database-unavailable' as const,
-        message: '本地 MySQL 候选环境当前不可用',
-      }, 503)
-    }
-  })
-
-  return app
+  return createOpenApiApp()
+    .openapi(healthRoute, async (context) => {
+      try {
+        const health = await getMySqlHealth(root.pool, config.database)
+        return context.json({
+          status: 'ready' as const,
+          database: health.database,
+          schemaVersion: health.schemaVersion,
+        }, 200)
+      } catch {
+        return context.json({
+          status: 'database-unavailable' as const,
+          message: '本地 MySQL 候选环境当前不可用',
+        }, 503)
+      }
+    })
 }

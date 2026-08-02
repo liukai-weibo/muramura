@@ -3,6 +3,7 @@ import { ApiError } from '../errors'
 import { requireJson } from '../http'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
+import { completeReviewResultSchema, reviewSchema } from '../schemas'
 
 const idParamSchema = z.object({ id: z.string().min(1) })
 
@@ -29,11 +30,8 @@ const completeReviewSchema = z.object({
   }).optional(),
 }).openapi('CompleteReviewInput')
 
-const reviewSchema = z.unknown().openapi('Review')
-
-const completeReviewResultSchema = z.unknown().openapi('CompleteReviewResult')
-
 const completeReviewRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/complete',
   tags: ['Reviews'],
@@ -84,34 +82,30 @@ const getReviewRoute = createRoute({
 })
 
 export function createReviewRoutes() {
-  const app = createOpenApiApp()
-  app.use('/complete', requireJson)
+  return createOpenApiApp()
+    .openapi(completeReviewRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.reviews.completeReview(context.req.valid('json')),
+        201,
+      )
+    })
 
-  app.openapi(completeReviewRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.reviews.completeReview(context.req.valid('json')),
-      201,
-    )
-  })
+    .openapi(getReviewByItemRoute, async (context) => {
+      const services = requireServices(context)
+      const review = await services.reviews.getReviewForItem(
+        decodeURIComponent(context.req.valid('param').id),
+      )
+      if (!review) throw new ApiError(404, 'NOT_FOUND', '复盘不存在')
+      return context.json(review, 200)
+    })
 
-  app.openapi(getReviewByItemRoute, async (context) => {
-    const services = requireServices(context)
-    const review = await services.reviews.getReviewForItem(
-      decodeURIComponent(context.req.valid('param').id),
-    )
-    if (!review) throw new ApiError(404, 'NOT_FOUND', '复盘不存在')
-    return context.json(review, 200)
-  })
-
-  app.openapi(getReviewRoute, async (context) => {
-    const services = requireServices(context)
-    const review = await services.reviews.getReview(
-      decodeURIComponent(context.req.valid('param').id),
-    )
-    if (!review) throw new ApiError(404, 'NOT_FOUND', '复盘不存在')
-    return context.json(review, 200)
-  })
-
-  return app
+    .openapi(getReviewRoute, async (context) => {
+      const services = requireServices(context)
+      const review = await services.reviews.getReview(
+        decodeURIComponent(context.req.valid('param').id),
+      )
+      if (!review) throw new ApiError(404, 'NOT_FOUND', '复盘不存在')
+      return context.json(review, 200)
+    })
 }

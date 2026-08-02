@@ -30,7 +30,7 @@ const listUsersRoute = createRoute({
     query: z.object({
       page: z.string().optional().openapi({ example: '1' }),
       query: z.string().optional().openapi({ example: 'alice' }),
-    }).passthrough(),
+    }),
   },
   responses: {
     200: jsonSuccess(platformUserPageSchema, '用户分页'),
@@ -41,6 +41,7 @@ const listUsersRoute = createRoute({
 })
 
 const setRolesRoute = createRoute({
+  middleware: [requireJson],
   method: 'put',
   path: '/users/{userId}/roles',
   tags: ['Admin'],
@@ -54,7 +55,7 @@ const setRolesRoute = createRoute({
         'application/json': {
           schema: z.object({
             roles: z.array(z.string()),
-            operationId: z.string().uuid(),
+            operationId: z.uuid(),
           }).strict().openapi('AdminSetUserRolesRequest'),
         },
       },
@@ -72,6 +73,7 @@ const setRolesRoute = createRoute({
 })
 
 const revokeSessionsRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/users/{userId}/revoke-sessions',
   tags: ['Admin'],
@@ -84,7 +86,7 @@ const revokeSessionsRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            operationId: z.string().uuid(),
+            operationId: z.uuid(),
           }).strict().openapi('AdminRevokeUserSessionsRequest'),
         },
       },
@@ -146,36 +148,31 @@ function parseAdminTargetId(encoded: string): string {
 }
 
 export function createAdminRoutes(root: RootHonoServices) {
-  const app = createOpenApiApp()
-  app.use('/users/:userId/roles', requireJson)
-  app.use('/users/:userId/revoke-sessions', requireJson)
+  return createOpenApiApp()
+    .openapi(listUsersRoute, async (context) => {
+      const actor = requireActor(context)
+      const listQuery = parseAdminUserListQuery(new URL(context.req.url).searchParams)
+      return context.json(await root.platformAdministration.listUsers(actor, listQuery), 200)
+    })
 
-  app.openapi(listUsersRoute, async (context) => {
-    const actor = requireActor(context)
-    const listQuery = parseAdminUserListQuery(new URL(context.req.url).searchParams)
-    return context.json(await root.platformAdministration.listUsers(actor, listQuery), 200)
-  })
+    .openapi(setRolesRoute, async (context) => {
+      const actor = requireActor(context)
+      const { userId } = context.req.valid('param')
+      const body = context.req.valid('json')
+      return context.json(await root.platformAdministration.setUserRoles(actor, {
+        targetUserId: parseAdminTargetId(userId),
+        roles: parseAdminRoles(body.roles),
+        operationId: body.operationId,
+      }), 200)
+    })
 
-  app.openapi(setRolesRoute, async (context) => {
-    const actor = requireActor(context)
-    const { userId } = context.req.valid('param')
-    const body = context.req.valid('json')
-    return context.json(await root.platformAdministration.setUserRoles(actor, {
-      targetUserId: parseAdminTargetId(userId),
-      roles: parseAdminRoles(body.roles),
-      operationId: body.operationId,
-    }), 200)
-  })
-
-  app.openapi(revokeSessionsRoute, async (context) => {
-    const actor = requireActor(context)
-    const { userId } = context.req.valid('param')
-    const body = context.req.valid('json')
-    return context.json(await root.platformAdministration.revokeAllUserSessions(actor, {
-      targetUserId: parseAdminTargetId(userId),
-      operationId: body.operationId,
-    }), 200)
-  })
-
-  return app
+    .openapi(revokeSessionsRoute, async (context) => {
+      const actor = requireActor(context)
+      const { userId } = context.req.valid('param')
+      const body = context.req.valid('json')
+      return context.json(await root.platformAdministration.revokeAllUserSessions(actor, {
+        targetUserId: parseAdminTargetId(userId),
+        operationId: body.operationId,
+      }), 200)
+    })
 }

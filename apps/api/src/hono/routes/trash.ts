@@ -2,13 +2,9 @@ import { createRoute, z } from '@hono/zod-openapi'
 import { ApiError } from '../errors'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
+import { itemSchema, methodSchema, trashEntrySchema } from '../schemas'
 
 const trashFilterSchema = z.enum(['all', 'item', 'method', 'exploration-track'])
-
-const trashEntrySchema = z.object({
-  type: z.string(),
-  id: z.string(),
-}).passthrough().openapi('TrashEntry')
 
 const listTrashRoute = createRoute({
   method: 'get',
@@ -41,42 +37,39 @@ const restoreTrashRoute = createRoute({
     }),
   },
   responses: {
-    200: jsonSuccess(z.object({ id: z.string() }).passthrough().openapi('RestoredEntity'), '恢复后的实体'),
+    200: jsonSuccess(z.union([itemSchema, methodSchema]).openapi('RestoredEntity'), '恢复后的实体'),
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
   },
 })
 
 export function createTrashRoutes() {
-  const app = createOpenApiApp()
+  return createOpenApiApp()
+    .openapi(listTrashRoute, async (context) => {
+      const services = requireServices(context)
+      const query = context.req.valid('query')
+      return context.json(
+        await services.trash.listTrashEntries(query.filter),
+        200,
+      )
+    })
 
-  app.openapi(listTrashRoute, async (context) => {
-    const services = requireServices(context)
-    const query = context.req.valid('query')
-    return context.json(
-      await services.trash.listTrashEntries(query.filter),
-      200,
-    )
-  })
-
-  app.openapi(restoreTrashRoute, async (context) => {
-    const services = requireServices(context)
-    const parameters = context.req.valid('param')
-    const parsed = z.object({
-      type: z.enum(['item', 'method']),
-      id: z.string().min(1),
-    }).safeParse(parameters)
-    if (!parsed.success) {
-      throw new ApiError(404, 'NOT_FOUND_ROUTE', '路由不存在')
-    }
-    const id = decodeURIComponent(parsed.data.id)
-    return context.json(
-      parsed.data.type === 'item'
-        ? await services.items.restoreItem(id)
-        : await services.methods.restore(id),
-      200,
-    )
-  })
-
-  return app
+    .openapi(restoreTrashRoute, async (context) => {
+      const services = requireServices(context)
+      const parameters = context.req.valid('param')
+      const parsed = z.object({
+        type: z.enum(['item', 'method']),
+        id: z.string().min(1),
+      }).safeParse(parameters)
+      if (!parsed.success) {
+        throw new ApiError(404, 'NOT_FOUND_ROUTE', '路由不存在')
+      }
+      const id = decodeURIComponent(parsed.data.id)
+      return context.json(
+        parsed.data.type === 'item'
+          ? await services.items.restoreItem(id)
+          : await services.methods.restore(id),
+        200,
+      )
+    })
 }

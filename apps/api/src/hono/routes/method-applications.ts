@@ -3,6 +3,11 @@ import { validationError } from '../errors'
 import { requireJson } from '../http'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
+import {
+  itemMethodSourceDisplaySchema,
+  itemSchema,
+  methodApplicationContextSchema,
+} from '../schemas'
 
 const idParamSchema = z.object({ id: z.string().min(1) })
 
@@ -12,15 +17,10 @@ const createMethodApplicationSchema = z.object({
   content: z.string().optional(),
 }).openapi('CreateMethodApplicationInput')
 
-const methodApplicationSchema = z.unknown().openapi('MethodApplication')
-
-const methodApplicationContextSchema = z.unknown().openapi('MethodApplicationContext')
-
-const sourceDisplayListSchema = z.array(z.unknown()).openapi('MethodSourceDisplayList')
-
 const methodSourceDisplaysUrlLimit = 8 * 1024
 
 const createMethodApplicationRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/',
   tags: ['MethodApplications'],
@@ -30,7 +30,7 @@ const createMethodApplicationRoute = createRoute({
     body: { required: true, content: { 'application/json': { schema: createMethodApplicationSchema } } },
   },
   responses: {
-    201: jsonSuccess(methodApplicationSchema, '新建方法应用'),
+    201: jsonSuccess(itemSchema, '新建方法应用事项'),
     400: commonErrorResponses[400],
     401: commonErrorResponses[401],
     415: commonErrorResponses[415],
@@ -65,62 +65,55 @@ const listSourceDisplaysRoute = createRoute({
     }),
   },
   responses: {
-    200: jsonSuccess(sourceDisplayListSchema, '来源展示列表'),
+    200: jsonSuccess(z.array(itemMethodSourceDisplaySchema), '来源展示列表'),
     400: commonErrorResponses[400],
     401: commonErrorResponses[401],
   },
 })
 
 export function createMethodApplicationRoutes() {
-  const app = createOpenApiApp()
-  app.on('POST', '/', requireJson)
+  return createOpenApiApp()
+    .openapi(createMethodApplicationRoute, async (context) => {
+      const services = requireServices(context)
+      const input = context.req.valid('json')
+      return context.json(
+        await services.methodApplications.createItem(
+          input.methodId,
+          input.title,
+          input.content,
+        ),
+        201,
+      )
+    })
 
-  app.openapi(createMethodApplicationRoute, async (context) => {
-    const services = requireServices(context)
-    const input = context.req.valid('json')
-    return context.json(
-      await services.methodApplications.createItem(
-        input.methodId,
-        input.title,
-        input.content,
-      ),
-      201,
-    )
-  })
-
-  app.openapi(getMethodApplicationContextRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.methodApplications.getContextResultForItem(
-        decodeURIComponent(context.req.valid('param').id),
-      ),
-      200,
-    )
-  })
-
-  return app
+    .openapi(getMethodApplicationContextRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.methodApplications.getContextResultForItem(
+          decodeURIComponent(context.req.valid('param').id),
+        ),
+        200,
+      )
+    })
 }
 
 export function createMethodSourceDisplayRoutes() {
-  const app = createOpenApiApp()
-
-  app.openapi(listSourceDisplaysRoute, async (context) => {
-    const services = requireServices(context)
-    const raw = context.req.valid('query').itemIds ?? ''
-    const itemIds = raw ? raw.split(',') : []
-    const requestUrl = new URL(context.req.url)
-    if (
-      requestUrl.pathname.length + requestUrl.search.length > methodSourceDisplaysUrlLimit
-      || itemIds.length > 100
-      || itemIds.some((value) => !value)
-    ) {
-      throw validationError('itemIds 参数无效')
-    }
-    return context.json(
-      await services.methodApplications.listSourceDisplaysForItems(itemIds),
-      200,
-    )
-  })
-
-  return app
+  return createOpenApiApp()
+    .openapi(listSourceDisplaysRoute, async (context) => {
+      const services = requireServices(context)
+      const raw = context.req.valid('query').itemIds ?? ''
+      const itemIds = raw ? raw.split(',') : []
+      const requestUrl = new URL(context.req.url)
+      if (
+        requestUrl.pathname.length + requestUrl.search.length > methodSourceDisplaysUrlLimit
+        || itemIds.length > 100
+        || itemIds.some((value) => !value)
+      ) {
+        throw validationError('itemIds 参数无效')
+      }
+      return context.json(
+        await services.methodApplications.listSourceDisplaysForItems(itemIds),
+        200,
+      )
+    })
 }

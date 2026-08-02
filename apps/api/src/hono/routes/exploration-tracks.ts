@@ -3,15 +3,15 @@ import { ApiError, validationError } from '../errors'
 import { requireJson } from '../http'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
+import {
+  deletedExplorationTrackListEntrySchema,
+  explorationTrackHistorySchema,
+  explorationTrackListEntrySchema,
+  explorationTrackSchema,
+} from '../schemas'
 
 const idParamSchema = z.object({ id: z.string().min(1) })
 const nameSchema = z.object({ name: z.string() }).openapi('ExplorationTrackNameInput')
-
-const explorationTrackSchema = z.unknown().openapi('ExplorationTrack')
-
-const explorationTrackListSchema = z.array(z.unknown()).openapi('ExplorationTrackList')
-
-const explorationTrackHistorySchema = z.unknown().openapi('ExplorationTrackHistory')
 
 const listActiveRoute = createRoute({
   method: 'get',
@@ -20,7 +20,7 @@ const listActiveRoute = createRoute({
   summary: '列出活跃探索主线',
   description: '返回未软删的探索主线列表。',
   responses: {
-    200: jsonSuccess(explorationTrackListSchema, '活跃探索主线'),
+    200: jsonSuccess(z.array(explorationTrackListEntrySchema), '活跃探索主线'),
     401: commonErrorResponses[401],
   },
 })
@@ -32,7 +32,7 @@ const listSelectableRoute = createRoute({
   summary: '列出可选探索主线',
   description: '返回可用于关联事项的可选探索主线。',
   responses: {
-    200: jsonSuccess(explorationTrackListSchema, '可选探索主线'),
+    200: jsonSuccess(z.array(explorationTrackSchema), '可选探索主线'),
     401: commonErrorResponses[401],
   },
 })
@@ -44,12 +44,13 @@ const listDeletedRoute = createRoute({
   summary: '列出已删探索主线',
   description: '返回已软删、可恢复的探索主线列表。',
   responses: {
-    200: jsonSuccess(explorationTrackListSchema, '已删探索主线'),
+    200: jsonSuccess(z.array(deletedExplorationTrackListEntrySchema), '已删探索主线'),
     401: commonErrorResponses[401],
   },
 })
 
 const createTrackRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/',
   tags: ['ExplorationTracks'],
@@ -99,6 +100,7 @@ const restoreTrackRoute = createRoute({
 })
 
 const renameTrackRoute = createRoute({
+  middleware: [requireJson],
   method: 'patch',
   path: '/{id}',
   tags: ['ExplorationTracks'],
@@ -134,79 +136,74 @@ const deleteTrackRoute = createRoute({
 })
 
 export function createExplorationTrackRoutes() {
-  const app = createOpenApiApp()
-  app.on('POST', '/', requireJson)
-  app.on('PATCH', '/:id', requireJson)
+  return createOpenApiApp()
+    .openapi(listActiveRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.listActiveExplorationTracks(),
+        200,
+      )
+    })
 
-  app.openapi(listActiveRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.explorationTracks.listActiveExplorationTracks(),
-      200,
-    )
-  })
+    .openapi(listSelectableRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.listSelectableExplorationTracks(),
+        200,
+      )
+    })
 
-  app.openapi(listSelectableRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.explorationTracks.listSelectableExplorationTracks(),
-      200,
-    )
-  })
+    .openapi(listDeletedRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.listDeletedExplorationTracks(),
+        200,
+      )
+    })
 
-  app.openapi(listDeletedRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.explorationTracks.listDeletedExplorationTracks(),
-      200,
-    )
-  })
+    .openapi(createTrackRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.createExplorationTrack(context.req.valid('json').name),
+        201,
+      )
+    })
 
-  app.openapi(createTrackRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.explorationTracks.createExplorationTrack(context.req.valid('json').name),
-      201,
-    )
-  })
-
-  app.openapi(getHistoryRoute, async (context) => {
-    const services = requireServices(context)
-    const history = await services.explorationTracks.getExplorationTrackHistory(
-      decodeURIComponent(context.req.valid('param').id),
-    )
-    if (!history) throw new ApiError(404, 'NOT_FOUND', '探索主线不存在')
-    return context.json(history, 200)
-  })
-
-  app.openapi(restoreTrackRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.explorationTracks.restoreExplorationTrack(
+    .openapi(getHistoryRoute, async (context) => {
+      const services = requireServices(context)
+      const history = await services.explorationTracks.getExplorationTrackHistory(
         decodeURIComponent(context.req.valid('param').id),
-      ),
-      200,
-    )
-  })
+      )
+      if (!history) throw new ApiError(404, 'NOT_FOUND', '探索主线不存在')
+      return context.json(history, 200)
+    })
 
-  app.openapi(renameTrackRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.explorationTracks.renameExplorationTrack(
+    .openapi(restoreTrackRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.restoreExplorationTrack(
+          decodeURIComponent(context.req.valid('param').id),
+        ),
+        200,
+      )
+    })
+
+    .openapi(renameTrackRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.renameExplorationTrack(
+          decodeURIComponent(context.req.valid('param').id),
+          context.req.valid('json').name,
+        ),
+        200,
+      )
+    })
+
+    .openapi(deleteTrackRoute, async (context) => {
+      const services = requireServices(context)
+      await services.explorationTracks.deleteExplorationTrack(
         decodeURIComponent(context.req.valid('param').id),
-        context.req.valid('json').name,
-      ),
-      200,
-    )
-  })
-
-  app.openapi(deleteTrackRoute, async (context) => {
-    const services = requireServices(context)
-    await services.explorationTracks.deleteExplorationTrack(
-      decodeURIComponent(context.req.valid('param').id),
-    )
-    return context.body(null, 204)
-  })
-
-  return app
+      )
+      return context.body(null, 204)
+    })
 }

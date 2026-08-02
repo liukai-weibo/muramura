@@ -2,12 +2,12 @@ import crypto from 'node:crypto'
 import type { MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { ApiError, errorResponse } from './errors'
+import { adminPathPrefix, backupRestorePath } from './paths'
 import type { ApiEnv } from './types'
 
 const allowedApiOrigins = new Set(['http://127.0.0.1:10086'])
 const normalBodyLimit = 64 * 1024
 const backupBodyLimit = 16 * 1024 * 1024
-const backupRestorePath = '/api/v1/backup/restore'
 
 const normalLimiter = bodyLimit({
   maxSize: normalBodyLimit,
@@ -47,7 +47,7 @@ export const requestContext: MiddlewareHandler<ApiEnv> = async (context, next) =
  * 非管理路由提前做 body 上限；管理路由在鉴权后由 requirePlatformAdministrator 再拦 413。
  */
 export const enforceBodyLimit: MiddlewareHandler<ApiEnv> = async (context, next) => {
-  if (context.req.path.startsWith('/api/v1/admin/')) {
+  if (context.req.path.startsWith(adminPathPrefix)) {
     await next()
     return
   }

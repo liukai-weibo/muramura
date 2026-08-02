@@ -2,10 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import { validationError } from '../errors'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
-
-const searchResultSchema = z.array(z.unknown()).openapi('SearchResults')
-
-const dashboardReportSchema = z.unknown().openapi('DashboardReport')
+import { dashboardReportSchema, searchResultSchema } from '../schemas'
 
 const searchRoute = createRoute({
   method: 'get',
@@ -19,7 +16,7 @@ const searchRoute = createRoute({
     }),
   },
   responses: {
-    200: jsonSuccess(searchResultSchema, '搜索结果'),
+    200: jsonSuccess(z.array(searchResultSchema), '搜索结果'),
     401: commonErrorResponses[401],
   },
 })
@@ -43,34 +40,28 @@ const dashboardRoute = createRoute({
 })
 
 export function createSearchRoutes() {
-  const app = createOpenApiApp()
-
-  app.openapi(searchRoute, async (context) => {
-    const services = requireServices(context)
-    const query = context.req.valid('query')
-    return context.json(
-      await services.search.search(query.query ?? ''),
-      200,
-    )
-  })
-
-  return app
+  return createOpenApiApp()
+    .openapi(searchRoute, async (context) => {
+      const services = requireServices(context)
+      const query = context.req.valid('query')
+      return context.json(
+        await services.search.search(query.query ?? ''),
+        200,
+      )
+    })
 }
 
 export function createDashboardRoutes() {
-  const app = createOpenApiApp()
-
-  app.openapi(dashboardRoute, async (context) => {
-    const services = requireServices(context)
-    const query = context.req.valid('query')
-    if (!['7d', '30d', 'all'].includes(query.window)) {
-      throw validationError('无效的仪表盘时间范围')
-    }
-    return context.json(
-      await services.dashboard.getReport(query.window),
-      200,
-    )
-  })
-
-  return app
+  return createOpenApiApp()
+    .openapi(dashboardRoute, async (context) => {
+      const services = requireServices(context)
+      const query = context.req.valid('query')
+      if (!['7d', '30d', 'all'].includes(query.window)) {
+        throw validationError('无效的仪表盘时间范围')
+      }
+      return context.json(
+        await services.dashboard.getReport(query.window),
+        200,
+      )
+    })
 }

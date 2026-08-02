@@ -22,6 +22,7 @@ const authSessionSchema = z.object({
 }).openapi('AuthSession')
 
 const registerRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/register',
   tags: ['Auth'],
@@ -39,6 +40,7 @@ const registerRoute = createRoute({
 })
 
 const loginRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/login',
   tags: ['Auth'],
@@ -56,6 +58,7 @@ const loginRoute = createRoute({
 })
 
 const logoutRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/logout',
   tags: ['Auth'],
@@ -83,36 +86,30 @@ const sessionRoute = createRoute({
 })
 
 export function createAuthRoutes(root: RootHonoServices) {
-  const app = createOpenApiApp()
-  app.use('/register', requireJson)
-  app.use('/login', requireJson)
-  app.use('/logout', requireJson)
+  return createOpenApiApp()
+    .openapi(registerRoute, async (context) => {
+      const body = context.req.valid('json')
+      const result = await root.auth.register(body)
+      context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt))
+      return context.json(result.session, 201)
+    })
 
-  app.openapi(registerRoute, async (context) => {
-    const body = context.req.valid('json')
-    const result = await root.auth.register(body)
-    context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt))
-    return context.json(result.session, 201)
-  })
+    .openapi(loginRoute, async (context) => {
+      const body = context.req.valid('json')
+      const result = await root.auth.login(body)
+      context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt))
+      return context.json(result.session, 200)
+    })
 
-  app.openapi(loginRoute, async (context) => {
-    const body = context.req.valid('json')
-    const result = await root.auth.login(body)
-    context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt))
-    return context.json(result.session, 200)
-  })
+    .openapi(logoutRoute, async (context) => {
+      await root.auth.logout(parseSessionSecretFromCookie(context.req.header('cookie')))
+      context.header('set-cookie', buildExpiredSessionCookie())
+      return context.body(null, 204)
+    })
 
-  app.openapi(logoutRoute, async (context) => {
-    await root.auth.logout(parseSessionSecretFromCookie(context.req.header('cookie')))
-    context.header('set-cookie', buildExpiredSessionCookie())
-    return context.body(null, 204)
-  })
-
-  app.openapi(sessionRoute, async (context) => {
-    const session = await root.auth.current(parseSessionSecretFromCookie(context.req.header('cookie')))
-    if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
-    return context.json(session, 200)
-  })
-
-  return app
+    .openapi(sessionRoute, async (context) => {
+      const session = await root.auth.current(parseSessionSecretFromCookie(context.req.header('cookie')))
+      if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
+      return context.json(session, 200)
+    })
 }

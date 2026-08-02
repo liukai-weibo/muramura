@@ -61,9 +61,3 @@ export function createScopedHonoServices(pool: Pool, userId?: string) {
 
 export type RootHonoServices = ReturnType<typeof createRootHonoServices>
 export type ScopedHonoServices = ReturnType<typeof createScopedHonoServices>
-/** @deprecated 使用 RootHonoServices；保留别名避免旧 import 断裂 */
-export type HonoServices = RootHonoServices
-
-export function createHonoServices(config: MySqlConnectionConfig) {
-  return createRootHonoServices(config)
-}

@@ -4,6 +4,11 @@ import { ApiError, validationError } from '../errors'
 import { requireJson } from '../http'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
+import {
+  itemExplorationTrackContextSchema,
+  itemSchema,
+  itemStatusEventSchema,
+} from '../schemas'
 
 const currentAssociatedStatuses = ['doing', 'idea_to_try', 'idea_later', 'paused'] as const
 const statusSchema = z.enum(itemStatuses)
@@ -38,19 +43,6 @@ const startItemSchema = z.object({
 const changeStatusSchema = z.object({ status: statusSchema }).openapi('ChangeItemStatusInput')
 const assignExplorationTrackSchema = z.object({ trackId: z.string() }).openapi('AssignExplorationTrackInput')
 
-const itemSchema = z.object({
-  id: z.string(),
-  status: z.string(),
-}).passthrough().openapi('Item')
-
-const statusEventSchema = z.object({
-  id: z.string(),
-}).passthrough().openapi('ItemStatusEvent')
-
-const explorationTrackContextSchema = z.object({
-  itemId: z.string(),
-}).passthrough().openapi('ItemExplorationTrackContext')
-
 const listItemsRoute = createRoute({
   method: 'get',
   path: '/',
@@ -68,6 +60,7 @@ const listItemsRoute = createRoute({
 })
 
 const createItemRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/',
   tags: ['Items'],
@@ -106,13 +99,14 @@ const getItemExplorationTrackRoute = createRoute({
     params: idParamSchema,
   },
   responses: {
-    200: jsonSuccess(explorationTrackContextSchema, '探索主线上下文'),
+    200: jsonSuccess(itemExplorationTrackContextSchema, '探索主线上下文'),
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
   },
 })
 
 const assignItemExplorationTrackRoute = createRoute({
+  middleware: [requireJson],
   method: 'put',
   path: '/{id}/exploration-track',
   tags: ['Items'],
@@ -123,7 +117,7 @@ const assignItemExplorationTrackRoute = createRoute({
     body: { required: true, content: { 'application/json': { schema: assignExplorationTrackSchema } } },
   },
   responses: {
-    200: jsonSuccess(explorationTrackContextSchema, '更新后的探索主线上下文'),
+    200: jsonSuccess(itemExplorationTrackContextSchema, '更新后的探索主线上下文'),
     400: commonErrorResponses[400],
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
@@ -157,13 +151,14 @@ const listStatusEventsRoute = createRoute({
     params: idParamSchema,
   },
   responses: {
-    200: jsonSuccess(z.array(statusEventSchema), '状态事件列表'),
+    200: jsonSuccess(z.array(itemStatusEventSchema), '状态事件列表'),
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
   },
 })
 
 const updateItemContentRoute = createRoute({
+  middleware: [requireJson],
   method: 'patch',
   path: '/{id}/content',
   tags: ['Items'],
@@ -183,6 +178,7 @@ const updateItemContentRoute = createRoute({
 })
 
 const startItemRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/{id}/start',
   tags: ['Items'],
@@ -203,6 +199,7 @@ const startItemRoute = createRoute({
 })
 
 const changeItemStatusRoute = createRoute({
+  middleware: [requireJson],
   method: 'post',
   path: '/{id}/status',
   tags: ['Items'],
@@ -271,143 +268,135 @@ const deleteItemRoute = createRoute({
 })
 
 export function createItemRoutes() {
-  const app = createOpenApiApp()
-  app.on('POST', '/', requireJson)
-  app.on('PUT', '/:id/exploration-track', requireJson)
-  app.on('PATCH', '/:id/content', requireJson)
-  app.on('POST', '/:id/start', requireJson)
-  app.on('POST', '/:id/status', requireJson)
+  return createOpenApiApp()
+    .openapi(listItemsRoute, async (context) => {
+      const services = requireServices(context)
+      const statuses = context.req.queries('status') ?? []
+      const trackIds = context.req.queries('explorationTrackId') ?? []
+      if (statuses.length === 0 && trackIds.length === 0) {
+        return context.json(await services.items.listItems(), 200)
+      }
+      const query = context.req.valid('query')
+      if (
+        statuses.length !== 1
+        || trackIds.length !== 1
+        || query.status === undefined
+        || query.explorationTrackId === undefined
+      ) {
+        throw validationError('事项定位参数无效')
+      }
+      return context.json(
+        await services.explorationTracks.listItemsByExplorationTrackAndStatus(
+          query.explorationTrackId,
+          query.status,
+        ),
+        200,
+      )
+    })
 
-  app.openapi(listItemsRoute, async (context) => {
-    const services = requireServices(context)
-    const statuses = context.req.queries('status') ?? []
-    const trackIds = context.req.queries('explorationTrackId') ?? []
-    if (statuses.length === 0 && trackIds.length === 0) {
-      return context.json(await services.items.listItems(), 200)
-    }
-    const query = context.req.valid('query')
-    if (
-      statuses.length !== 1
-      || trackIds.length !== 1
-      || query.status === undefined
-      || query.explorationTrackId === undefined
-    ) {
-      throw validationError('事项定位参数无效')
-    }
-    return context.json(
-      await services.explorationTracks.listItemsByExplorationTrackAndStatus(
-        query.explorationTrackId,
-        query.status,
-      ),
-      200,
-    )
-  })
+    .openapi(createItemRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.items.createIdea(context.req.valid('json')),
+        201,
+      )
+    })
 
-  app.openapi(createItemRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.items.createIdea(context.req.valid('json')),
-      201,
-    )
-  })
+    .openapi(listItemTrashRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(await services.items.listTrash(), 200)
+    })
 
-  app.openapi(listItemTrashRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(await services.items.listTrash(), 200)
-  })
-
-  app.openapi(getItemExplorationTrackRoute, async (context) => {
-    const services = requireServices(context)
-    const trackContext = await services.explorationTracks.getItemExplorationTrackContext(
-      decodeURIComponent(context.req.valid('param').id),
-    )
-    if (!trackContext) throw new ApiError(404, 'NOT_FOUND', '事项不存在')
-    return context.json(trackContext, 200)
-  })
-
-  app.openapi(assignItemExplorationTrackRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.explorationTracks.assignItemToExplorationTrack(
+    .openapi(getItemExplorationTrackRoute, async (context) => {
+      const services = requireServices(context)
+      const trackContext = await services.explorationTracks.getItemExplorationTrackContext(
         decodeURIComponent(context.req.valid('param').id),
-        context.req.valid('json').trackId,
-      ),
-      200,
-    )
-  })
+      )
+      if (!trackContext) throw new ApiError(404, 'NOT_FOUND', '事项不存在')
+      return context.json(trackContext, 200)
+    })
 
-  app.openapi(removeItemExplorationTrackRoute, async (context) => {
-    const services = requireServices(context)
-    await services.explorationTracks.removeItemFromExplorationTrack(
-      decodeURIComponent(context.req.valid('param').id),
-    )
-    return context.body(null, 204)
-  })
+    .openapi(assignItemExplorationTrackRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.assignItemToExplorationTrack(
+          decodeURIComponent(context.req.valid('param').id),
+          context.req.valid('json').trackId,
+        ),
+        200,
+      )
+    })
 
-  app.openapi(listStatusEventsRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.items.listStatusEvents(decodeURIComponent(context.req.valid('param').id)),
-      200,
-    )
-  })
-
-  app.openapi(updateItemContentRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.items.updateItemContent(
+    .openapi(removeItemExplorationTrackRoute, async (context) => {
+      const services = requireServices(context)
+      await services.explorationTracks.removeItemFromExplorationTrack(
         decodeURIComponent(context.req.valid('param').id),
-        context.req.valid('json').content,
-      ),
-      200,
-    )
-  })
+      )
+      return context.body(null, 204)
+    })
 
-  app.openapi(startItemRoute, async (context) => {
-    const services = requireServices(context)
-    const input = context.req.valid('json')
-    return context.json(
-      await services.items.startExecution(
-        decodeURIComponent(context.req.valid('param').id),
-        input.startAction,
-        input.overwriteExistingStartAction,
-      ),
-      200,
-    )
-  })
+    .openapi(listStatusEventsRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.items.listStatusEvents(decodeURIComponent(context.req.valid('param').id)),
+        200,
+      )
+    })
 
-  app.openapi(changeItemStatusRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.items.changeStatus(
-        decodeURIComponent(context.req.valid('param').id),
-        context.req.valid('json').status,
-      ),
-      200,
-    )
-  })
+    .openapi(updateItemContentRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.items.updateItemContent(
+          decodeURIComponent(context.req.valid('param').id),
+          context.req.valid('json').content,
+        ),
+        200,
+      )
+    })
 
-  app.openapi(restoreItemRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.items.restoreItem(decodeURIComponent(context.req.valid('param').id)),
-      200,
-    )
-  })
+    .openapi(startItemRoute, async (context) => {
+      const services = requireServices(context)
+      const input = context.req.valid('json')
+      return context.json(
+        await services.items.startExecution(
+          decodeURIComponent(context.req.valid('param').id),
+          input.startAction,
+          input.overwriteExistingStartAction,
+        ),
+        200,
+      )
+    })
 
-  app.openapi(getItemRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.items.getItem(decodeURIComponent(context.req.valid('param').id)),
-      200,
-    )
-  })
+    .openapi(changeItemStatusRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.items.changeStatus(
+          decodeURIComponent(context.req.valid('param').id),
+          context.req.valid('json').status,
+        ),
+        200,
+      )
+    })
 
-  app.openapi(deleteItemRoute, async (context) => {
-    const services = requireServices(context)
-    await services.items.deleteItem(decodeURIComponent(context.req.valid('param').id))
-    return context.body(null, 204)
-  })
+    .openapi(restoreItemRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.items.restoreItem(decodeURIComponent(context.req.valid('param').id)),
+        200,
+      )
+    })
 
-  return app
+    .openapi(getItemRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.items.getItem(decodeURIComponent(context.req.valid('param').id)),
+        200,
+      )
+    })
+
+    .openapi(deleteItemRoute, async (context) => {
+      const services = requireServices(context)
+      await services.items.deleteItem(decodeURIComponent(context.req.valid('param').id))
+      return context.body(null, 204)
+    })
 }

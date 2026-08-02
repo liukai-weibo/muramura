@@ -3,9 +3,13 @@ import { createAdaptorServer } from '@hono/node-server'
 import { readMySqlConfig } from '@knowledge-base/storage-mysql'
 import { createHonoApi } from './hono/app'
 
+export { apiV1BasePath } from './hono/paths'
+export { buildHonoApp, buildRpcContractRoutes, createHonoApi } from './hono/app'
+export type { AppType } from './hono/app'
+
 /**
  * 兼容既有集成测试与 main 入口：返回由 Hono fetch 适配的 Node http.Server。
- * 业务路由唯一实现在 `hono/`，此处不再维护手写 route 分发。
+ * 业务路由实现在 `hono/routes/`，此处负责组装与 Node 适配。
  */
 export function createApiServer(config = readMySqlConfig(process.env, 'app')): http.Server {
   const { app, close } = createHonoApi(config)

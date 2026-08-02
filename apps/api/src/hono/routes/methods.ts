@@ -1,19 +1,9 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
+import { methodEvidenceDetailSchema, methodSchema, methodVersionSchema } from '../schemas'
 
 const idParamSchema = z.object({ id: z.string().min(1) })
-
-const methodSummarySchema = z.object({
-  id: z.string(),
-  title: z.string(),
-}).passthrough().openapi('MethodSummary')
-
-const methodVersionSchema = z.object({
-  id: z.string(),
-}).passthrough().openapi('MethodVersion')
-
-const methodEvidenceListSchema = z.array(z.unknown()).openapi('MethodEvidenceList')
 
 const listMethodsRoute = createRoute({
   method: 'get',
@@ -22,7 +12,7 @@ const listMethodsRoute = createRoute({
   summary: '列出方法',
   description: '返回方法库中所有可用方法的摘要列表。',
   responses: {
-    200: jsonSuccess(z.array(methodSummarySchema), '方法列表'),
+    200: jsonSuccess(z.array(methodSchema), '方法列表'),
     401: commonErrorResponses[401],
   },
 })
@@ -37,7 +27,7 @@ const listMethodsByReviewRoute = createRoute({
     params: idParamSchema,
   },
   responses: {
-    200: jsonSuccess(z.array(methodSummarySchema), '方法列表'),
+    200: jsonSuccess(z.array(methodSchema), '方法列表'),
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
   },
@@ -69,7 +59,7 @@ const listMethodEvidenceRoute = createRoute({
     params: idParamSchema,
   },
   responses: {
-    200: jsonSuccess(methodEvidenceListSchema, '方法证据列表'),
+    200: jsonSuccess(z.array(methodEvidenceDetailSchema), '方法证据列表'),
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
   },
@@ -85,7 +75,7 @@ const restoreMethodRoute = createRoute({
     params: idParamSchema,
   },
   responses: {
-    200: jsonSuccess(methodSummarySchema, '恢复后的方法'),
+    200: jsonSuccess(methodSchema, '恢复后的方法'),
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
   },
@@ -108,56 +98,53 @@ const deleteMethodRoute = createRoute({
 })
 
 export function createMethodRoutes() {
-  const app = createOpenApiApp()
+  return createOpenApiApp()
+    .openapi(listMethodsRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(await services.reviews.listMethods(), 200)
+    })
 
-  app.openapi(listMethodsRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(await services.reviews.listMethods(), 200)
-  })
+    .openapi(listMethodsByReviewRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.reviews.listMethodsFromReview(
+          decodeURIComponent(context.req.valid('param').id),
+        ),
+        200,
+      )
+    })
 
-  app.openapi(listMethodsByReviewRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.reviews.listMethodsFromReview(
-        decodeURIComponent(context.req.valid('param').id),
-      ),
-      200,
-    )
-  })
+    .openapi(listMethodVersionsRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.reviews.listMethodVersions(
+          decodeURIComponent(context.req.valid('param').id),
+        ),
+        200,
+      )
+    })
 
-  app.openapi(listMethodVersionsRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.reviews.listMethodVersions(
-        decodeURIComponent(context.req.valid('param').id),
-      ),
-      200,
-    )
-  })
+    .openapi(listMethodEvidenceRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.reviews.listMethodEvidenceDetails(
+          decodeURIComponent(context.req.valid('param').id),
+        ),
+        200,
+      )
+    })
 
-  app.openapi(listMethodEvidenceRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.reviews.listMethodEvidenceDetails(
-        decodeURIComponent(context.req.valid('param').id),
-      ),
-      200,
-    )
-  })
+    .openapi(restoreMethodRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.methods.restore(decodeURIComponent(context.req.valid('param').id)),
+        200,
+      )
+    })
 
-  app.openapi(restoreMethodRoute, async (context) => {
-    const services = requireServices(context)
-    return context.json(
-      await services.methods.restore(decodeURIComponent(context.req.valid('param').id)),
-      200,
-    )
-  })
-
-  app.openapi(deleteMethodRoute, async (context) => {
-    const services = requireServices(context)
-    await services.methods.moveToTrash(decodeURIComponent(context.req.valid('param').id))
-    return context.body(null, 204)
-  })
-
-  return app
+    .openapi(deleteMethodRoute, async (context) => {
+      const services = requireServices(context)
+      await services.methods.moveToTrash(decodeURIComponent(context.req.valid('param').id))
+      return context.body(null, 204)
+    })
 }

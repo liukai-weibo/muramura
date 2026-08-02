@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MySqlConnectionConfig } from '@knowledge-base/storage-mysql'
-import { buildHonoApp } from '../apps/api/src/hono/app'
+import { buildHonoApp, buildRpcContractRoutes } from '../apps/api/src/index'
 import type { RootHonoServices } from '../apps/api/src/hono/services'
 
 const config = { database: 'unused' } as MySqlConnectionConfig
@@ -19,13 +19,6 @@ const expectedRouteTable = [
   'ALL /*',
   'ALL /api/v1/*',
   'ALL /api/v1/admin/*',
-  'ALL /api/v1/admin/users/:userId/revoke-sessions',
-  'ALL /api/v1/admin/users/:userId/roles',
-  'ALL /api/v1/auth/login',
-  'ALL /api/v1/auth/logout',
-  'ALL /api/v1/auth/register',
-  'ALL /api/v1/backup/restore',
-  'ALL /api/v1/reviews/complete',
   'DELETE /api/v1/exploration-tracks/:id',
   'DELETE /api/v1/items/:id',
   'DELETE /api/v1/items/:id/exploration-track',
@@ -83,5 +76,84 @@ describe('hono route table', () => {
     const app = buildHonoApp(root, config)
     const table = [...new Set(app.routes.map((route) => `${route.method} ${route.path}`))].sort()
     expect(table).toEqual(expectedRouteTable)
+  })
+
+  it('keeps the RPC contract endpoints aligned with the runtime route tree', () => {
+    const runtimeEndpoints = buildHonoApp(root, config).routes
+      .map((route) => `${route.method} ${route.path}`)
+      .filter((route) => !route.startsWith('ALL ')
+        && !route.startsWith('OPTIONS ')
+        && route !== 'GET /docs'
+        && route !== 'GET /openapi.json')
+      .sort()
+    const rpcEndpoints = buildRpcContractRoutes(root, config).routes
+      .map((route) => `${route.method} ${route.path}`)
+      .sort()
+
+    expect(rpcEndpoints).toEqual(runtimeEndpoints)
+  })
+
+  it('keeps authentication and administrator authorization in the runtime wrapper', async () => {
+    const unauthenticatedRoot = {
+      ...root,
+      auth: { current: async () => null },
+    } as unknown as RootHonoServices
+    const unauthenticated = await buildHonoApp(unauthenticatedRoot, config)
+      .request('/api/v1/items')
+    expect(unauthenticated.status).toBe(401)
+
+    const memberRoot = {
+      ...root,
+      auth: {
+        current: async () => ({
+          user: {
+            id: 'member-1',
+            username: 'member',
+            roles: ['member'],
+            createdAt: '2026-08-03T00:00:00.000Z',
+          },
+        }),
+      },
+    } as unknown as RootHonoServices
+    const forbidden = await buildHonoApp(memberRoot, config)
+      .request('/api/v1/admin/users')
+    expect(forbidden.status).toBe(403)
+  })
+
+  it('publishes concrete OpenAPI schemas for RPC response models', async () => {
+    const response = await buildHonoApp(root, config).request('/openapi.json')
+    expect(response.status).toBe(200)
+    const document = await response.json() as {
+      components: { schemas: Record<string, { properties?: Record<string, unknown>; required?: string[] }> }
+    }
+
+    expect(document.components.schemas.Item?.properties).toMatchObject({
+      id: { type: 'string' },
+      title: { type: 'string' },
+      content: { type: 'string' },
+      status: { type: 'string' },
+    })
+    expect(document.components.schemas.Item?.required).toEqual(expect.arrayContaining([
+      'id', 'title', 'content', 'status', 'createdAt', 'updatedAt',
+    ]))
+    expect(document.components.schemas.Review?.properties).toHaveProperty('actualAction')
+    expect(document.components.schemas.DashboardReport?.properties).toHaveProperty('metricRecords')
+    expect(document.components.schemas.BackupDocument?.properties).toBeUndefined()
+    expect(document.components.schemas.BackupDocument).toHaveProperty('oneOf')
+  })
+
+  it('derives 405 vs 404 from registered routes instead of a hardcoded path list', async () => {
+    const app = buildHonoApp(root, config)
+    // 用公开路由验证：错误方法走 405，未知路径走 404（不依赖鉴权中间件）
+    const methodNotAllowed = await app.request('/health', { method: 'PUT' })
+    expect(methodNotAllowed.status).toBe(405)
+    expect(await methodNotAllowed.json()).toMatchObject({
+      error: { code: 'METHOD_NOT_ALLOWED' },
+    })
+    const missing = await app.request('/does-not-exist')
+    expect(missing.status).toBe(404)
+    expect(await missing.json()).toMatchObject({
+      error: { code: 'NOT_FOUND_ROUTE' },
+    })
   })
 })

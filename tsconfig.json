@@ -13,6 +13,7 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
+      "@knowledge-base/api/rpc": ["apps/api/src/rpc.ts"],
       "@knowledge-base/application": ["packages/application/src/index.ts"],
       "@knowledge-base/contracts": ["packages/contracts/src/index.ts"],
       "@knowledge-base/domain": ["packages/domain/src/index.ts"],
