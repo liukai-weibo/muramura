@@ -98,6 +98,15 @@ export function assertItemTitleLength(value: string): void {
   }
 }
 
+/** 探索主线名称的唯一规范化规则，供所有创建与选择流程复用。 */
+export function normalizeExplorationTrackName(value: string): { name: string; normalizedName: string } {
+  const name = value.normalize('NFKC').trim()
+  const length = [...name].length
+  if (length === 0) fail('EXPLORATION_TRACK_NAME_REQUIRED', '主线名称不能为空')
+  if (length > 80) fail('EXPLORATION_TRACK_NAME_TOO_LONG', '主线名称最多 80 个字符')
+  return { name, normalizedName: name.toLowerCase() }
+}
+
 const transitions: Record<ItemStatus, readonly ItemStatus[]> = {
   idea_to_try: ['idea_later', 'doing', 'abandoned'],
   idea_later: ['idea_to_try', 'abandoned'],
