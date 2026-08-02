@@ -1,4 +1,5 @@
 import type { BackupData, BackupDataV3, BackupExplorationTrack, BackupRepository, CurrentUserScope, Item, ItemLink, ItemStatusEvent, Method, MethodApplication, MethodEvidence, MethodTombstone, MethodVersion, Review } from '@knowledge-base/contracts'
+import { fail } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
 
@@ -9,10 +10,6 @@ const iso = (value: DateValue) => value instanceof Date ? value.toISOString() : 
 export interface MySqlBackupRepositoryTestHooks {
   beforeItemStatusEventInsert?: () => Promise<void> | void
   afterCommit?: () => Promise<void> | void
-}
-
-export class BackupOwnershipConflictError extends Error {
-  constructor() { super('backup contains IDs owned by another user') }
 }
 
 export class MySqlBackupRepository implements BackupRepository {
@@ -126,7 +123,7 @@ async function assertNoForeignOwnedIds(connection: PoolConnection, data: BackupD
     for (let offset = 0; offset < sorted.length; offset += 500) {
       const chunk = sorted.slice(offset, offset + 500)
       const [rows] = await connection.query<Array<RowDataPacket & { owner_user_id: string | null }>>(`SELECT owner_user_id FROM ${table} WHERE ${key} IN (${chunk.map(() => '?').join(',')}) ORDER BY ${key} FOR UPDATE`, chunk)
-      if (rows.some(row => row.owner_user_id !== null && row.owner_user_id !== owner)) throw new BackupOwnershipConflictError()
+      if (rows.some(row => row.owner_user_id !== null && row.owner_user_id !== owner)) fail('BACKUP_OWNERSHIP_CONFLICT', '备份包含属于其他用户的数据 ID')
     }
   }
 }

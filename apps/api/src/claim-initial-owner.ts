@@ -1,7 +1,8 @@
 import { pathToFileURL } from 'node:url'
 import { InitialOwnerClaimApplicationService } from '@knowledge-base/application'
-import { createMySqlPool, InitialOwnerClaimError, MySqlInitialOwnerClaimRepository, readMySqlConfig } from '@knowledge-base/storage-mysql'
-import type { InitialOwnerClaimRepository, InitialOwnerClaimResult } from '@knowledge-base/contracts'
+import type { InitialOwnerClaimErrorDetails, InitialOwnerClaimRepository, InitialOwnerClaimResult } from '@knowledge-base/contracts'
+import { BusinessError } from '@knowledge-base/domain'
+import { createMySqlPool, MySqlInitialOwnerClaimRepository, readMySqlConfig } from '@knowledge-base/storage-mysql'
 
 export function parseInitialOwnerClaimTarget(args: string[]): string {
   const values = args.flatMap((value, index) => value === '--user-id' ? [args[index + 1] ?? ''] : value.startsWith('--user-id=') ? [value.slice('--user-id='.length)] : [])
@@ -20,8 +21,13 @@ async function main(): Promise<void> {
     const result = await executeInitialOwnerClaim(process.argv.slice(2), new MySqlInitialOwnerClaimRepository(pool))
     process.stdout.write(`${JSON.stringify(result)}\n`)
   } catch (error) {
-    const body = error instanceof InitialOwnerClaimError
-      ? { error: { code: error.code, userId: error.userId, ...(error.before ? { before: error.before } : {}) } }
+    const body = error instanceof BusinessError
+      ? {
+          error: {
+            code: error.code,
+            ...((error.details ?? {}) as InitialOwnerClaimErrorDetails),
+          },
+        }
       : { error: { code: 'claim-failed' } }
     process.stderr.write(`${JSON.stringify(body)}\n`)
     process.exitCode = 1

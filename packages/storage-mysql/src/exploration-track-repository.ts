@@ -59,10 +59,10 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
     return runInMySqlTransaction(this.pool, async connection => {
       const track = await this.lockTrack(connection, id)
       if (!track) {
-        throw businessError('EXPLORATION_TRACK_NOT_FOUND', 'not-found', '探索主线不存在')
+        throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
       }
       if (track.deletedAt) {
-        throw businessError('EXPLORATION_TRACK_DELETED', 'not-found', '探索主线已删除')
+        throw businessError('EXPLORATION_TRACK_DELETED', '探索主线已删除')
       }
       try { await connection.execute(this.scope ? 'UPDATE exploration_tracks SET name=?,normalized_name=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET name=?,normalized_name=?,updated_at=? WHERE id=?', this.scope ? [input.name, input.normalizedName, mysqlDateTime(input.updatedAt), id, this.scope.userId] : [input.name, input.normalizedName, mysqlDateTime(input.updatedAt), id]) }
       catch (error) { this.rethrowNameConflict(error) }
@@ -74,7 +74,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
     await runInMySqlTransaction(this.pool, async connection => {
       const track = await this.lockTrack(connection, id)
       if (!track || track.deletedAt) {
-        throw businessError('EXPLORATION_TRACK_NOT_FOUND', 'not-found', '探索主线不存在')
+        throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
       }
       await connection.execute(this.scope ? 'UPDATE exploration_tracks SET deleted_at=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET deleted_at=?,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(deletedAt), mysqlDateTime(deletedAt), id, this.scope.userId] : [mysqlDateTime(deletedAt), mysqlDateTime(deletedAt), id])
     })
@@ -84,7 +84,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
     return runInMySqlTransaction(this.pool, async connection => {
       const track = await this.lockTrack(connection, id)
       if (!track || !track.deletedAt) {
-        throw businessError('EXPLORATION_TRACK_NOT_FOUND', 'not-found', '探索主线不存在')
+        throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
       }
       await connection.execute(this.scope ? 'UPDATE exploration_tracks SET deleted_at=NULL,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET deleted_at=NULL,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(updatedAt), id, this.scope.userId] : [mysqlDateTime(updatedAt), id])
       const { deletedAt: _deletedAt, ...active } = track
@@ -162,11 +162,10 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
     if (!currentStatuses.includes(status)) {
       throw businessError(
         'EXPLORATION_TRACK_STATUS_INVALID',
-        'validation',
         '受限状态参数无效',
       )
     }
-    if (this.scope && !(await this.getById(trackId))) throw businessError('EXPLORATION_TRACK_NOT_FOUND', 'not-found', '探索主线不存在')
+    if (this.scope && !(await this.getById(trackId))) throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
     const [rows] = await this.pool.query<ItemRow[]>(this.scope ? `SELECT ${itemColumns} FROM items WHERE exploration_track_id=? AND status=? AND deleted_at IS NULL AND owner_user_id=? ORDER BY updated_at DESC,id ASC` : `SELECT ${itemColumns} FROM items WHERE exploration_track_id=? AND status=? AND deleted_at IS NULL ORDER BY updated_at DESC,id ASC`, this.scope ? [trackId, status, this.scope.userId] : [trackId, status])
     return rows.map(mapItem)
   }
@@ -174,7 +173,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   async createItemWithExplorationTrack(input: CreateItemInput & { id: string; createdAt: string }, selection: PreparedExplorationTrackSelection): Promise<Item> {
     return runInMySqlTransaction(this.pool, async connection => {
       const title = normalizeItemTitle(input.title)
-      if (!title) throw businessError('ITEM_TITLE_REQUIRED', 'validation', '标题不能为空')
+      if (!title) throw businessError('ITEM_TITLE_REQUIRED', '标题不能为空')
       assertItemTitleLength(title)
       let trackId: string
       if (selection.type === 'existing') {
@@ -182,7 +181,6 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         if (!track) {
           throw businessError(
             'EXPLORATION_TRACK_NOT_FOUND',
-            'not-found',
             '探索主线不存在或已删除',
           )
         }
@@ -192,7 +190,6 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         if (!normalizedName) {
           throw businessError(
             'EXPLORATION_TRACK_NORMALIZED_NAME_MISSING',
-            'internal',
             '缺少主线规范名',
           )
         }
@@ -216,11 +213,10 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   async assignItemToExplorationTrack(itemId: string, trackId: string): Promise<ItemExplorationTrackContext> {
     return runInMySqlTransaction(this.pool, async connection => {
       const item = await this.lockActiveItem(connection, itemId)
-      if (!item) throw businessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+      if (!item) throw businessError('ITEM_NOT_FOUND', '事项不存在')
       if (item.status === 'abandoned') {
         throw businessError(
           'EXPLORATION_TRACK_ASSOCIATION_READ_ONLY',
-          'validation',
           '已放弃事项的探索关联只读',
         )
       }
@@ -229,14 +225,12 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
       if (item.exploration_track_id && !currentTrack) {
         throw businessError(
           'EXPLORATION_TRACK_ASSOCIATION_UNAVAILABLE',
-          'validation',
           '关联不可用',
         )
       }
       if (currentTrack?.deletedAt) {
         throw businessError(
           'EXPLORATION_TRACK_DELETED',
-          'not-found',
           '原关联探索主线已删除',
         )
       }
@@ -244,14 +238,12 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
       if (!track) {
         throw businessError(
           'EXPLORATION_TRACK_NOT_FOUND',
-          'not-found',
           '目标探索主线不存在',
         )
       }
       if (track.deletedAt) {
         throw businessError(
           'EXPLORATION_TRACK_DELETED',
-          'not-found',
           '目标探索主线已删除',
         )
       }
@@ -264,11 +256,10 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   async removeItemFromExplorationTrack(itemId: string): Promise<void> {
     await runInMySqlTransaction(this.pool, async connection => {
       const item = await this.lockActiveItem(connection, itemId)
-      if (!item) throw businessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+      if (!item) throw businessError('ITEM_NOT_FOUND', '事项不存在')
       if (item.status === 'abandoned') {
         throw businessError(
           'EXPLORATION_TRACK_ASSOCIATION_READ_ONLY',
-          'validation',
           '已放弃事项的探索关联只读',
         )
       }
@@ -277,14 +268,12 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         if (!track) {
           throw businessError(
             'EXPLORATION_TRACK_ASSOCIATION_UNAVAILABLE',
-            'validation',
             '关联不可用',
           )
         }
         if (track.deletedAt) {
           throw businessError(
             'EXPLORATION_TRACK_DELETED',
-            'not-found',
             '原关联探索主线已删除',
           )
         }

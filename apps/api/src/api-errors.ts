@@ -1,11 +1,11 @@
-import { AuthenticationError, PlatformAdministrationApplicationError } from '@knowledge-base/application'
 import type {
   ApiErrorCode,
   ApiErrorStatus,
-  BusinessErrorCode,
+  PublicBusinessErrorCode,
 } from '@knowledge-base/contracts'
+import { isPublicBusinessErrorCode } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
-import { BackupOwnershipConflictError, MySqlSchemaNotReadyError, PlatformAdministrationRepositoryError } from '@knowledge-base/storage-mysql'
+import { MySqlSchemaNotReadyError } from '@knowledge-base/storage-mysql'
 
 export type {
   ApiErrorBody,
@@ -18,7 +18,7 @@ export type ApiFailure = {
   status: ApiErrorStatus
   code: ApiErrorCode
   message: string
-  businessCode?: BusinessErrorCode
+  businessCode?: PublicBusinessErrorCode
 }
 
 export class ApiError extends Error {
@@ -53,20 +53,29 @@ const failure = (
   status: ApiErrorStatus,
   code: ApiErrorCode,
   message: string,
-  businessCode?: BusinessErrorCode,
+  businessCode?: PublicBusinessErrorCode,
 ): ApiFailure => ({ status, code, message, ...(businessCode ? { businessCode } : {}) })
 
+function exposedBusinessCode(code: BusinessError['code']): PublicBusinessErrorCode | undefined {
+  return isPublicBusinessErrorCode(code) ? code : undefined
+}
+
 /**
- * internal 分类按未分类故障对外呈现，因此既不透出原始 message 也不透出 businessCode。
+ * 统一业务失败只走这一处映射：category → HTTP；白名单决定是否带 businessCode。
  */
 function mapBusinessFailure(error: BusinessError): ApiFailure {
+  const businessCode = exposedBusinessCode(error.code)
   switch (error.category) {
     case 'validation':
-      return failure(400, 'VALIDATION_FAILED', error.message, error.code)
+      return failure(400, 'VALIDATION_FAILED', error.message, businessCode)
     case 'not-found':
-      return failure(404, 'NOT_FOUND', error.message, error.code)
+      return failure(404, 'NOT_FOUND', error.message, businessCode)
     case 'conflict':
-      return failure(409, 'CONFLICT', error.message, error.code)
+      return failure(409, 'CONFLICT', error.message, businessCode)
+    case 'unauthorized':
+      return failure(401, 'UNAUTHORIZED', error.message, businessCode)
+    case 'forbidden':
+      return failure(403, 'FORBIDDEN', error.message, businessCode)
     case 'internal':
       return failure(500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误')
   }
@@ -79,6 +88,8 @@ function shouldReportBusinessFailure(error: BusinessError): boolean {
     case 'validation':
     case 'not-found':
     case 'conflict':
+    case 'unauthorized':
+    case 'forbidden':
       return false
     case 'internal':
       return true
@@ -89,32 +100,6 @@ function shouldReportBusinessFailure(error: BusinessError): boolean {
 
 export function mapFailure(value: unknown): ApiFailure {
   if (value instanceof ApiError) return failure(value.status, value.code, value.message)
-  if (value instanceof AuthenticationError) {
-    return value.code === 'username-taken'
-      ? failure(409, 'CONFLICT', 'username already exists')
-      : failure(401, 'UNAUTHORIZED', 'invalid username or password')
-  }
-  if (value instanceof BackupOwnershipConflictError) {
-    return failure(409, 'CONFLICT', '备份包含属于其他用户的数据 ID')
-  }
-  if (value instanceof PlatformAdministrationApplicationError) {
-    if (value.code === 'forbidden') return failure(403, 'FORBIDDEN', '无权执行平台管理操作')
-    if (value.code === 'validation-failed') return failure(400, 'VALIDATION_FAILED', '平台管理请求参数无效')
-    return failure(500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误')
-  }
-  if (value instanceof PlatformAdministrationRepositoryError) {
-    if (value.code === 'actor-not-platform-admin') return failure(403, 'FORBIDDEN', '无权执行平台管理操作')
-    if (value.code === 'self-role-change') return failure(403, 'FORBIDDEN', '不允许调整自己的平台角色')
-    if (value.code === 'self-session-revoke') return failure(403, 'FORBIDDEN', '不允许通过管理接口撤销自己的会话')
-    if (value.code === 'user-not-found') return failure(404, 'NOT_FOUND', '目标用户不存在')
-    if (value.code === 'invalid-page') return failure(400, 'VALIDATION_FAILED', '页码无效')
-    if (value.code === 'operation-conflict') return failure(409, 'CONFLICT', 'operationId 已被使用，不能推断本次成功')
-    if (value.code === 'target-not-member') return failure(409, 'CONFLICT', '目标账号角色状态不可操作')
-    return failure(500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误')
-  }
-  if (value instanceof Error && value.message === 'invalid authentication credentials') {
-    return failure(400, 'VALIDATION_FAILED', value.message)
-  }
   if (value instanceof BusinessError) return mapBusinessFailure(value)
   if (value instanceof MySqlSchemaNotReadyError) {
     return failure(503, 'MYSQL_SCHEMA_NOT_READY', '本地 MySQL 候选环境当前不可用')
@@ -122,16 +107,11 @@ export function mapFailure(value: unknown): ApiFailure {
   if (isMySqlUnavailable(value)) {
     return failure(503, 'MYSQL_UNAVAILABLE', '本地 MySQL 候选环境当前不可用')
   }
-  if (typeof value === 'object' && value !== null && 'code' in value && value.code === 'ER_DUP_ENTRY') {
-    return failure(409, 'CONFLICT', 'username already exists')
-  }
   return failure(500, 'INTERNAL_ERROR', '本地服务当前发生未分类错误')
 }
 
 function shouldReportFailure(value: unknown): boolean {
   if (value instanceof ApiError) return value.status === 500
-  if (value instanceof AuthenticationError || value instanceof BackupOwnershipConflictError || value instanceof PlatformAdministrationApplicationError || value instanceof PlatformAdministrationRepositoryError) return false
-  if (value instanceof Error && value.message === 'invalid authentication credentials') return false
   if (value instanceof BusinessError) return shouldReportBusinessFailure(value)
   if (value instanceof MySqlSchemaNotReadyError) return false
   if (isMySqlUnavailable(value)) return false

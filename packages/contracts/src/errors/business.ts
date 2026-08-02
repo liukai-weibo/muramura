@@ -1,4 +1,18 @@
-export type BusinessErrorCategory = 'validation' | 'not-found' | 'conflict' | 'internal'
+/**
+ * 统一业务失败码。
+ *
+ * 原则：同一失败原因全项目只有一个码；仓储 / Application 直接抛该码，
+ * API 只按 category 映射 HTTP，并用白名单决定是否写入 businessCode。
+ * 禁止再维护平行短码表与手动翻译层。
+ */
+
+export type BusinessErrorCategory =
+  | 'validation'
+  | 'not-found'
+  | 'conflict'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'internal'
 
 export type ItemErrorCode =
   | 'INVALID_ITEM_STATUS_TRANSITION'
@@ -38,11 +52,134 @@ export type ReviewErrorCode =
   | 'REVIEW_HAS_METHOD_RELATION'
   | 'REVIEW_METHOD_MODE_CONFLICT'
 
-export type BackupErrorCode = 'INVALID_BACKUP'
+export type BackupErrorCode = 'INVALID_BACKUP' | 'BACKUP_OWNERSHIP_CONFLICT'
+
+export type AuthErrorCode =
+  | 'AUTH_CREDENTIALS_FORMAT_INVALID'
+  | 'AUTH_INVALID_CREDENTIALS'
+  | 'AUTH_USERNAME_TAKEN'
+
+export type InitialOwnerClaimErrorCode =
+  | 'INITIAL_OWNER_INVALID_TARGET'
+  | 'INITIAL_OWNER_TARGET_USER_NOT_FOUND'
+  | 'INITIAL_OWNER_MIXED_OWNERSHIP'
+
+export type PlatformAdministrationErrorCode =
+  | 'PLATFORM_ADMIN_FORBIDDEN'
+  | 'PLATFORM_ADMIN_VALIDATION_FAILED'
+  | 'PLATFORM_ADMIN_INVALID_PAGE'
+  | 'PLATFORM_ADMIN_USER_NOT_FOUND'
+  | 'PLATFORM_ADMIN_SELF_ROLE_CHANGE'
+  | 'PLATFORM_ADMIN_SELF_SESSION_REVOKE'
+  | 'PLATFORM_ADMIN_OPERATION_CONFLICT'
+  | 'PLATFORM_ADMIN_TARGET_NOT_MEMBER'
+  | 'PLATFORM_ADMIN_ALREADY_INITIALIZED'
+  | 'PLATFORM_ADMIN_USER_READ_FAILED'
 
 export type BusinessErrorCode =
+  | AuthErrorCode
   | BackupErrorCode
   | ExplorationTrackErrorCode
+  | InitialOwnerClaimErrorCode
   | ItemErrorCode
   | MethodErrorCode
+  | PlatformAdministrationErrorCode
   | ReviewErrorCode
+
+/** 每个统一码对应唯一 category，供抛错与 HTTP 映射共用。 */
+export const businessErrorCategoryByCode = {
+  INVALID_ITEM_STATUS_TRANSITION: 'conflict',
+  ITEM_NOT_FOUND: 'not-found',
+  ITEM_NOT_IN_TRASH: 'not-found',
+  ITEM_TITLE_REQUIRED: 'validation',
+  ITEM_TITLE_TOO_LONG: 'validation',
+  ITEM_START_ACTION_ALREADY_EXISTS: 'conflict',
+  ITEM_METHOD_ALREADY_ASSOCIATED: 'conflict',
+  ITEM_NOT_REVIEWABLE: 'conflict',
+  EXPLORATION_TRACK_NAME_REQUIRED: 'validation',
+  EXPLORATION_TRACK_NAME_TOO_LONG: 'validation',
+  EXPLORATION_TRACK_NOT_FOUND: 'not-found',
+  EXPLORATION_TRACK_DELETED: 'not-found',
+  EXPLORATION_TRACK_NAME_CONFLICT: 'conflict',
+  EXPLORATION_TRACK_ASSOCIATION_READ_ONLY: 'validation',
+  EXPLORATION_TRACK_ASSOCIATION_UNAVAILABLE: 'validation',
+  EXPLORATION_TRACK_STATUS_INVALID: 'validation',
+  EXPLORATION_TRACK_NORMALIZED_NAME_MISSING: 'internal',
+  EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE: 'internal',
+  METHOD_REQUIRED_FIELDS_MISSING: 'validation',
+  METHOD_NOT_FOUND: 'not-found',
+  METHOD_NOT_IN_TRASH: 'not-found',
+  METHOD_ALREADY_IN_TRASH: 'conflict',
+  METHOD_TOMBSTONE_ALREADY_EXISTS: 'conflict',
+  METHOD_VERSION_HISTORY_UNPROVABLE: 'internal',
+  METHOD_ALREADY_VALIDATED_BY_REVIEW: 'conflict',
+  REVIEW_NOT_FOUND: 'not-found',
+  REVIEW_REQUIRED_FIELDS_MISSING: 'validation',
+  REVIEW_ALREADY_COMPLETED: 'conflict',
+  REVIEW_HAS_METHOD_RELATION: 'conflict',
+  REVIEW_METHOD_MODE_CONFLICT: 'validation',
+  INVALID_BACKUP: 'validation',
+  BACKUP_OWNERSHIP_CONFLICT: 'conflict',
+  AUTH_CREDENTIALS_FORMAT_INVALID: 'validation',
+  AUTH_INVALID_CREDENTIALS: 'unauthorized',
+  AUTH_USERNAME_TAKEN: 'conflict',
+  INITIAL_OWNER_INVALID_TARGET: 'validation',
+  INITIAL_OWNER_TARGET_USER_NOT_FOUND: 'not-found',
+  INITIAL_OWNER_MIXED_OWNERSHIP: 'conflict',
+  PLATFORM_ADMIN_FORBIDDEN: 'forbidden',
+  PLATFORM_ADMIN_VALIDATION_FAILED: 'validation',
+  PLATFORM_ADMIN_INVALID_PAGE: 'validation',
+  PLATFORM_ADMIN_USER_NOT_FOUND: 'not-found',
+  PLATFORM_ADMIN_SELF_ROLE_CHANGE: 'forbidden',
+  PLATFORM_ADMIN_SELF_SESSION_REVOKE: 'forbidden',
+  PLATFORM_ADMIN_OPERATION_CONFLICT: 'conflict',
+  PLATFORM_ADMIN_TARGET_NOT_MEMBER: 'conflict',
+  PLATFORM_ADMIN_ALREADY_INITIALIZED: 'internal',
+  PLATFORM_ADMIN_USER_READ_FAILED: 'internal',
+} as const satisfies Record<BusinessErrorCode, BusinessErrorCategory>
+
+/**
+ * 允许写入 API 响应 businessCode 的子集。
+ * 认证登录失败码与平台管理内部码默认不外泄。
+ */
+export const publicBusinessErrorCodes = [
+  'INVALID_ITEM_STATUS_TRANSITION',
+  'ITEM_NOT_FOUND',
+  'ITEM_NOT_IN_TRASH',
+  'ITEM_TITLE_REQUIRED',
+  'ITEM_TITLE_TOO_LONG',
+  'ITEM_START_ACTION_ALREADY_EXISTS',
+  'ITEM_METHOD_ALREADY_ASSOCIATED',
+  'ITEM_NOT_REVIEWABLE',
+  'EXPLORATION_TRACK_NAME_REQUIRED',
+  'EXPLORATION_TRACK_NAME_TOO_LONG',
+  'EXPLORATION_TRACK_NOT_FOUND',
+  'EXPLORATION_TRACK_DELETED',
+  'EXPLORATION_TRACK_NAME_CONFLICT',
+  'EXPLORATION_TRACK_ASSOCIATION_READ_ONLY',
+  'EXPLORATION_TRACK_ASSOCIATION_UNAVAILABLE',
+  'EXPLORATION_TRACK_STATUS_INVALID',
+  'EXPLORATION_TRACK_NORMALIZED_NAME_MISSING',
+  'EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE',
+  'METHOD_REQUIRED_FIELDS_MISSING',
+  'METHOD_NOT_FOUND',
+  'METHOD_NOT_IN_TRASH',
+  'METHOD_ALREADY_IN_TRASH',
+  'METHOD_TOMBSTONE_ALREADY_EXISTS',
+  'METHOD_VERSION_HISTORY_UNPROVABLE',
+  'METHOD_ALREADY_VALIDATED_BY_REVIEW',
+  'REVIEW_NOT_FOUND',
+  'REVIEW_REQUIRED_FIELDS_MISSING',
+  'REVIEW_ALREADY_COMPLETED',
+  'REVIEW_HAS_METHOD_RELATION',
+  'REVIEW_METHOD_MODE_CONFLICT',
+  'INVALID_BACKUP',
+] as const satisfies readonly BusinessErrorCode[]
+
+export type PublicBusinessErrorCode = (typeof publicBusinessErrorCodes)[number]
+
+const publicBusinessErrorCodeSet = new Set<string>(publicBusinessErrorCodes)
+
+export function isPublicBusinessErrorCode(code: BusinessErrorCode): code is PublicBusinessErrorCode {
+  return publicBusinessErrorCodeSet.has(code)
+}

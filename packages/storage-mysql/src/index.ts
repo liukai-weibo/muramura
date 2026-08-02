@@ -5,10 +5,9 @@ import mysql, { type Pool, type PoolConnection, type PoolOptions, type RowDataPa
 export { MySqlAuthRepository } from './account-repository'
 export {
   MySqlPlatformAdministrationRepository,
-  PlatformAdministrationRepositoryError,
   type MySqlPlatformAdministrationRepositoryTestHooks,
 } from './platform-administration-repository'
-export { InitialOwnerClaimError, MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
+export { MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
 
 export const MYSQL_REQUIRED_SCHEMA_VERSION = 6
 
@@ -175,7 +174,7 @@ export { MySqlReviewRepository } from './review-repository'
 export { MySqlReviewWorkflowRepository, type MySqlReviewWorkflowRepositoryTestHooks } from './review-workflow-repository'
 export { MySqlMethodRepository, type MySqlMethodRepositoryTestHooks } from './method-repository'
 export { MySqlMethodApplicationRepository, type MySqlMethodApplicationRepositoryTestHooks } from './method-application-repository'
-export { BackupOwnershipConflictError, MySqlBackupRepository, type MySqlBackupRepositoryTestHooks } from './backup-repository'
+export { MySqlBackupRepository, type MySqlBackupRepositoryTestHooks } from './backup-repository'
 export { MySqlDashboardRepository, MySqlSearchRepository, type MySqlSearchRepositoryTestHooks } from './read-model-repositories'
 export {
   MySqlExplorationTrackRepository,

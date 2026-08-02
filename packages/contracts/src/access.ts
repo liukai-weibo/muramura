@@ -3,6 +3,7 @@
  *
  * 这些类型围绕“谁在使用系统、数据属于谁、谁可以执行平台管理”组织在
  * 同一模块中；具体认证编排仍属于 Application，持久化实现仍属于 Repository。
+ * 失败一律使用 errors 中的统一 BusinessErrorCode，本文件不维护平行错误码。
  */
 
 // --- Authentication / 认证与会话 ---
@@ -35,6 +36,11 @@ export interface InitialOwnerClaimResult {
   userId: string
   before: OwnerClaimSummary
   after: OwnerClaimSummary
+}
+
+export interface InitialOwnerClaimErrorDetails {
+  userId: string
+  before?: OwnerClaimSummary
 }
 
 export interface InitialOwnerClaimRepository {
@@ -100,16 +106,6 @@ export interface SecurityAuditEvent {
   operationId: string
   createdAt: string
 }
-
-export type PlatformAdministrationRepositoryErrorCode =
-  | 'invalid-page'
-  | 'actor-not-platform-admin'
-  | 'user-not-found'
-  | 'self-role-change'
-  | 'self-session-revoke'
-  | 'operation-conflict'
-  | 'target-not-member'
-  | 'platform-admin-already-initialized'
 
 export interface PlatformAdministrationRepository {
   listUsers(input: { page: number; query?: string }): Promise<PlatformUserPage>

@@ -1,5 +1,5 @@
-import type { InitialOwnerClaimRepository, InitialOwnerClaimResult, OwnedBusinessCollection, OwnerClaimCollectionSummary, OwnerClaimSummary } from '@knowledge-base/contracts'
-import { createId } from '@knowledge-base/domain'
+import type { InitialOwnerClaimErrorDetails, InitialOwnerClaimRepository, InitialOwnerClaimResult, OwnedBusinessCollection, OwnerClaimCollectionSummary, OwnerClaimSummary } from '@knowledge-base/contracts'
+import { businessFailure, createId } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
 
@@ -16,12 +16,6 @@ const collections: ReadonlyArray<{ collection: OwnedBusinessCollection; table: s
   { collection: 'explorationTracks', table: 'exploration_tracks' },
 ]
 
-export class InitialOwnerClaimError extends Error {
-  constructor(readonly code: 'target-user-not-found' | 'mixed-ownership', readonly userId: string, readonly before?: OwnerClaimSummary) {
-    super(code)
-  }
-}
-
 export interface MySqlInitialOwnerClaimRepositoryTestHooks {
   beforeCommit?: () => Promise<void> | void
   afterCommit?: () => Promise<void> | void
@@ -33,7 +27,7 @@ export class MySqlInitialOwnerClaimRepository implements InitialOwnerClaimReposi
   async claimInitialOwner(userId: string): Promise<InitialOwnerClaimResult> {
     const result = await runInMySqlTransaction(this.pool, async connection => {
       const [users] = await connection.query<Array<RowDataPacket & { id: string }>>('SELECT id FROM users WHERE id=? FOR UPDATE', [userId])
-      if (!users[0]) throw new InitialOwnerClaimError('target-user-not-found', userId)
+      if (!users[0]) throw businessFailure<InitialOwnerClaimErrorDetails>('INITIAL_OWNER_TARGET_USER_NOT_FOUND', '目标用户不存在', { userId })
 
       const [claims] = await connection.query<Array<RowDataPacket & { user_id: string }>>('SELECT user_id FROM initial_owner_claims ORDER BY id FOR UPDATE')
       const rows = new Map<OwnedBusinessCollection, Array<string | null>>()
@@ -49,7 +43,7 @@ export class MySqlInitialOwnerClaimRepository implements InitialOwnerClaimReposi
       const targetClaimExists = claims.some(claim => claim.user_id === userId)
       const otherClaimExists = claims.some(claim => claim.user_id !== userId)
       if (otherClaimExists || hasOtherOwned || (hasUnowned && hasTargetOwned) || (targetClaimExists && hasUnowned)) {
-        throw new InitialOwnerClaimError('mixed-ownership', userId, before)
+        throw businessFailure<InitialOwnerClaimErrorDetails>('INITIAL_OWNER_MIXED_OWNERSHIP', '当前数据归属状态不允许初始认领', { userId, before })
       }
       if (targetClaimExists) return { status: 'already-claimed' as const, userId, before, after: before }
 

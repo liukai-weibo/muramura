@@ -1,26 +1,38 @@
 import crypto from 'node:crypto'
 import { promisify } from 'node:util'
-import type {
-  BusinessErrorCategory,
-  BusinessErrorCode,
-  ItemStatus,
+import {
+  businessErrorCategoryByCode,
+  type BusinessErrorCategory,
+  type BusinessErrorCode,
+  type ItemStatus,
 } from '@knowledge-base/contracts'
 
 export type {
+  AuthErrorCode,
   BackupErrorCode,
   BusinessErrorCategory,
   BusinessErrorCode,
   ExplorationTrackErrorCode,
+  InitialOwnerClaimErrorCode,
   ItemErrorCode,
   MethodErrorCode,
+  PlatformAdministrationErrorCode,
+  PublicBusinessErrorCode,
   ReviewErrorCode,
+} from '@knowledge-base/contracts'
+export {
+  businessErrorCategoryByCode,
+  isPublicBusinessErrorCode,
+  publicBusinessErrorCodes,
 } from '@knowledge-base/contracts'
 
 const scrypt = promisify(crypto.scrypt) as unknown as (password: crypto.BinaryLike, salt: crypto.BinaryLike, keylen: number, options: crypto.ScryptOptions) => Promise<Buffer>
 const SCRYPT_N = 32768; const SCRYPT_R = 8; const SCRYPT_P = 1; const SCRYPT_KEY_LENGTH = 64
 export function normalizeUsername(value: string): string { return value.trim() }
 export function assertAuthCredentials(username: string, password: string): void {
-  if (!username || username.length > 80 || password.length < 8) throw new Error('invalid authentication credentials')
+  if (!username || username.length > 80 || password.length < 8) {
+    fail('AUTH_CREDENTIALS_FORMAT_INVALID', 'invalid authentication credentials')
+  }
 }
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16); const key = await scrypt(password, salt, SCRYPT_KEY_LENGTH, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, maxmem: 64 * 1024 * 1024 }) as Buffer
@@ -33,16 +45,30 @@ export async function verifyPassword(password: string, encoded: string): Promise
 export function createSessionSecret(): Buffer { return crypto.randomBytes(32) }
 export function hashSessionSecret(secret: Uint8Array): Buffer { return crypto.createHash('sha256').update(secret).digest() }
 
-export class BusinessError extends Error {
+export class BusinessError<Details = undefined> extends Error {
   override readonly name = 'BusinessError'
+  readonly category: BusinessErrorCategory
 
   constructor(
     readonly code: BusinessErrorCode,
-    readonly category: BusinessErrorCategory,
     message: string,
+    readonly details?: Details,
   ) {
     super(message)
+    this.category = businessErrorCategoryByCode[code]
   }
+}
+
+export function businessFailure<Details = undefined>(
+  code: BusinessErrorCode,
+  message: string,
+  details?: Details,
+): BusinessError<Details> {
+  return new BusinessError(code, message, details)
+}
+
+export function fail(code: BusinessErrorCode, message: string): never {
+  throw businessFailure(code, message)
 }
 
 export function createId(): string {
@@ -68,7 +94,7 @@ export function normalizeItemTitle(value: string): string {
 
 export function assertItemTitleLength(value: string): void {
   if (Array.from(itemTitleSegmenter.segment(value)).length > 20) {
-    throw new BusinessError('ITEM_TITLE_TOO_LONG', 'validation', '标题最多 20 个字符')
+    throw new BusinessError('ITEM_TITLE_TOO_LONG', '标题最多 20 个字符')
   }
 }
 
@@ -95,7 +121,6 @@ export function assertTransition(from: ItemStatus, to: ItemStatus): void {
   if (!canTransition(from, to)) {
     throw new BusinessError(
       'INVALID_ITEM_STATUS_TRANSITION',
-      'conflict',
       `不允许从 ${from} 变更为 ${to}`,
     )
   }

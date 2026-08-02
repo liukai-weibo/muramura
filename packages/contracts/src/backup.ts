@@ -12,10 +12,10 @@ import type {
   MethodVersion,
   Review,
 } from './reviews-and-methods'
-
 /**
  * 备份文档是跨版本的持久化契约。旧版本继续保留原始形状，新增版本只能通过
  * 新的判别值扩展，恢复方不得根据展示文本推断缺失的可信字段。
+ * 失败使用统一 BusinessErrorCode（如 BACKUP_OWNERSHIP_CONFLICT）。
  */
 
 export interface BackupData {

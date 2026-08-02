@@ -36,7 +36,7 @@ export class MySqlItemRepository implements ItemRepository {
   async create(input: CreateItemInput): Promise<Item> {
     const createdAt = now()
     const item: Item = { id: createId(), title: normalizeItemTitle(input.title), content: input.content?.trim() ?? '', status: input.status ?? 'idea_to_try', createdAt, updatedAt: createdAt }
-    if (!item.title) throw businessError('ITEM_TITLE_REQUIRED', 'validation', '标题不能为空')
+    if (!item.title) throw businessError('ITEM_TITLE_REQUIRED', '标题不能为空')
     await runInMySqlTransaction(this.pool, async connection => {
       assertItemTitleLength(item.title)
       await connection.execute(
@@ -89,7 +89,6 @@ export class MySqlItemRepository implements ItemRepository {
       if (current.startAction !== undefined && (!overwrite || input?.overwriteExistingStartAction !== true)) {
         throw businessError(
           'ITEM_START_ACTION_ALREADY_EXISTS',
-          'conflict',
           '启动动作已存在，不能重写',
         )
       }
@@ -124,7 +123,7 @@ export class MySqlItemRepository implements ItemRepository {
     return runInMySqlTransaction(this.pool, async connection => {
       const current = await this.lock(connection, id)
       if (!current?.deletedAt) {
-        throw businessError('ITEM_NOT_IN_TRASH', 'not-found', '回收站中不存在该事项')
+        throw businessError('ITEM_NOT_IN_TRASH', '回收站中不存在该事项')
       }
       const updatedAt = now()
       await connection.execute(this.owner ? 'UPDATE items SET deleted_at=NULL,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE items SET deleted_at=NULL,updated_at=? WHERE id=?', this.owner ? [mysqlDateTime(updatedAt),id,this.owner] : [mysqlDateTime(updatedAt),id])
@@ -202,7 +201,7 @@ export class MySqlItemRepository implements ItemRepository {
   private async lockActive(connection: PoolConnection, id: string): Promise<Item> {
     const item = await this.lock(connection, id)
     if (!item || item.deletedAt) {
-      throw businessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+      throw businessError('ITEM_NOT_FOUND', '事项不存在')
     }
     return item
   }

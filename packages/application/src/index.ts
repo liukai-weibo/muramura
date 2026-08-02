@@ -50,25 +50,25 @@ import type {
   SearchRepository,
   SearchResult,
 } from '@knowledge-base/contracts'
-import { allowedTransitions, assertAuthCredentials, assertItemTitleLength, BusinessError, createId, createSessionSecret, hashPassword, hashSessionSecret, normalizeItemTitle, normalizeUsername, verifyPassword } from '@knowledge-base/domain'
+import { allowedTransitions, assertAuthCredentials, assertItemTitleLength, BusinessError, createId, createSessionSecret, fail, hashPassword, hashSessionSecret, normalizeItemTitle, normalizeUsername, verifyPassword } from '@knowledge-base/domain'
 import { itemStatuses } from '@knowledge-base/contracts'
 
 export const TRASH_RETENTION_DAYS = 30
 export const AUTH_SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000
 
-export class AuthenticationError extends Error { constructor(readonly code: 'invalid-credentials' | 'username-taken') { super(code) } }
 export class AuthenticationApplicationService {
   constructor(private readonly repository: AuthRepository, private readonly now: () => Date = () => new Date()) {}
   async register(input: RegisterInput): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> {
     const username = normalizeUsername(input.username); assertAuthCredentials(username, input.password)
-    if (await this.repository.findUserByUsername(username)) throw new AuthenticationError('username-taken')
-    const createdAt = this.now().toISOString(); const user = await this.repository.createUser({ id: createId(), username, passwordHash: await hashPassword(input.password), createdAt })
+    if (await this.repository.findUserByUsername(username)) fail('AUTH_USERNAME_TAKEN', 'username already exists')
+    const createdAt = this.now().toISOString()
+    const user = await this.repository.createUser({ id: createId(), username, passwordHash: await hashPassword(input.password), createdAt })
     return this.startSession(user)
   }
   async login(input: LoginInput): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> {
     const username = normalizeUsername(input.username); assertAuthCredentials(username, input.password)
     const record = await this.repository.findUserByUsername(username)
-    if (!record || !(await verifyPassword(input.password, record.passwordHash))) throw new AuthenticationError('invalid-credentials')
+    if (!record || !(await verifyPassword(input.password, record.passwordHash))) fail('AUTH_INVALID_CREDENTIALS', 'invalid username or password')
     return this.startSession(record.user)
   }
   async current(secret: Uint8Array | undefined): Promise<AuthSession | undefined> { if (!secret) return undefined; const user = await this.repository.getSessionBySecretHash(hashSessionSecret(secret), this.now().toISOString()); return user ? { user } : undefined }
@@ -85,7 +85,7 @@ export class InitialPlatformAdminApplicationService {
 
   async initialize(targetUserId: string): Promise<{ targetUserId: string; status: InitialPlatformAdminGrantResult; operationId?: string }> {
     const target = targetUserId.trim()
-    if (!target || target.length > 128) throw new Error('invalid-target-user-id')
+    if (!target || target.length > 128) fail('PLATFORM_ADMIN_VALIDATION_FAILED', '平台管理请求参数无效')
     const operationId = this.newId()
     const status = await this.repository.initializePlatformAdmin({
       targetUserId: target,
@@ -94,13 +94,6 @@ export class InitialPlatformAdminApplicationService {
       createdAt: this.now().toISOString(),
     })
     return status === 'granted' ? { targetUserId: target, status, operationId } : { targetUserId: target, status }
-  }
-}
-
-export class PlatformAdministrationApplicationError extends Error {
-  constructor(readonly code: 'forbidden' | 'validation-failed' | 'user-read-failed') {
-    super(code)
-    this.name = 'PlatformAdministrationApplicationError'
   }
 }
 
@@ -119,7 +112,7 @@ export class PlatformAdministrationApplicationService {
   async setUserRoles(actor: AuthUser, input: { targetUserId: string; roles: PlatformRole[]; operationId: string }): Promise<PlatformUserSummary> {
     this.assertAdministrator(actor)
     assertCanonicalOperationId(input.operationId)
-    if (!isCanonicalRoleRequest(input.roles)) throw new PlatformAdministrationApplicationError('validation-failed')
+    if (!isCanonicalRoleRequest(input.roles)) fail('PLATFORM_ADMIN_VALIDATION_FAILED', '平台管理请求参数无效')
     const createdAt = this.now().toISOString()
     const change = {
       actorUserId: actor.id,
@@ -131,7 +124,7 @@ export class PlatformAdministrationApplicationService {
     if (input.roles.length === 2) await this.repository.grantPlatformAdmin(change)
     else await this.repository.revokePlatformAdmin(change)
     const user = await this.repository.getUserById(input.targetUserId)
-    if (!user) throw new PlatformAdministrationApplicationError('user-read-failed')
+    if (!user) fail('PLATFORM_ADMIN_USER_READ_FAILED', '读取目标用户失败')
     return user
   }
 
@@ -150,13 +143,13 @@ export class PlatformAdministrationApplicationService {
   }
 
   private assertAdministrator(actor: AuthUser): void {
-    if (!actor.roles.includes('platform_admin')) throw new PlatformAdministrationApplicationError('forbidden')
+    if (!actor.roles.includes('platform_admin')) fail('PLATFORM_ADMIN_FORBIDDEN', '无权执行平台管理操作')
   }
 }
 
 function assertCanonicalOperationId(value: string): void {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)) {
-    throw new PlatformAdministrationApplicationError('validation-failed')
+    fail('PLATFORM_ADMIN_VALIDATION_FAILED', '平台管理请求参数无效')
   }
 }
 
@@ -169,7 +162,7 @@ export class InitialOwnerClaimApplicationService {
   constructor(private readonly repository: InitialOwnerClaimRepository) {}
   claim(userId: string): Promise<InitialOwnerClaimResult> {
     const target = userId.trim()
-    if (!target) throw new Error('target user id is required')
+    if (!target) fail('INITIAL_OWNER_INVALID_TARGET', 'target user id is required')
     return this.repository.claimInitialOwner(target)
   }
 }
@@ -222,7 +215,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function invalidBackup(message: string): BusinessError {
-  return new BusinessError('INVALID_BACKUP', 'validation', message)
+  return new BusinessError('INVALID_BACKUP', message)
 }
 
 function requireUniqueIds(entries: Array<{ id: string }>, label: string): void {
@@ -401,9 +394,9 @@ export class BackupApplicationService {
     return document
   }
 
-  restoreBackup(document: BackupDocument): Promise<void> {
+  async restoreBackup(document: BackupDocument): Promise<void> {
     const data = { ...document.data, methodTombstones: document.data.methodTombstones ?? [] }
-    return this.repository.replaceData(data)
+    await this.repository.replaceData(data)
   }
 
   async restoreBackupSafely(document: BackupDocument, preserveCurrent: (backup: BackupDocument) => void | Promise<void>): Promise<void> {
@@ -626,14 +619,12 @@ export class ExplorationTrackApplicationService {
     if (length === 0) {
       throw new BusinessError(
         'EXPLORATION_TRACK_NAME_REQUIRED',
-        'validation',
         '主线名称不能为空',
       )
     }
     if (length > 80) {
       throw new BusinessError(
         'EXPLORATION_TRACK_NAME_TOO_LONG',
-        'validation',
         '主线名称最多 80 个字符',
       )
     }
@@ -669,7 +660,7 @@ export class ExplorationTrackApplicationService {
   createItemWithExplorationTrack(input: CreateItemInput, selection: ExplorationTrackSelection): Promise<Item> {
     const title = normalizeItemTitle(input.title)
     if (!title) {
-      throw new BusinessError('ITEM_TITLE_REQUIRED', 'validation', '标题不能为空')
+      throw new BusinessError('ITEM_TITLE_REQUIRED', '标题不能为空')
     }
     assertItemTitleLength(title)
     const prepared = this.prepareSelection(selection)
@@ -690,14 +681,12 @@ export class ItemApplicationService {
     if (length === 0) {
       throw new BusinessError(
         'EXPLORATION_TRACK_NAME_REQUIRED',
-        'validation',
         '主线名称不能为空',
       )
     }
     if (length > 80) {
       throw new BusinessError(
         'EXPLORATION_TRACK_NAME_TOO_LONG',
-        'validation',
         '主线名称最多 80 个字符',
       )
     }
@@ -714,7 +703,6 @@ export class ItemApplicationService {
     if (!this.explorationWorkflow) {
       throw new BusinessError(
         'EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE',
-        'internal',
         '探索主线工作流不可用',
       )
     }
@@ -735,14 +723,14 @@ export class ItemApplicationService {
 
   async listStatusEvents(itemId: string): Promise<ItemStatusEvent[]> {
     const item = await this.repository.getById(itemId)
-    if (!item) throw new BusinessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+    if (!item) throw new BusinessError('ITEM_NOT_FOUND', '事项不存在')
     return this.repository.listStatusEvents(itemId)
   }
 
   async getItem(id: string): Promise<Item> {
     const item = await this.repository.getById(id)
     if (!item || item.deletedAt) {
-      throw new BusinessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+      throw new BusinessError('ITEM_NOT_FOUND', '事项不存在')
     }
     return item
   }

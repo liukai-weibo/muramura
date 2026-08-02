@@ -38,16 +38,16 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
 
   async createItem(input: CreateMethodApplicationInput): Promise<Item> {
     const title = normalizeItemTitle(input.title)
-    if (!title) throw businessError('ITEM_TITLE_REQUIRED', 'validation', '标题不能为空')
+    if (!title) throw businessError('ITEM_TITLE_REQUIRED', '标题不能为空')
     return runInMySqlTransaction(this.pool, async connection => {
       assertItemTitleLength(title)
       const method = await this.lockMethod(connection, input.methodId)
       if (!method || method.deleted_at) {
-        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+        throw businessError('METHOD_NOT_FOUND', '选择的方法不存在')
       }
       const [versions] = await connection.query<VersionRow[]>(this.scope ? 'SELECT * FROM method_versions WHERE method_id=? AND version=? AND owner_user_id=? FOR UPDATE' : 'SELECT * FROM method_versions WHERE method_id=? AND version=? FOR UPDATE', this.scope ? [method.id, method.version, this.scope.userId] : [method.id, method.version])
       if (!versions[0]) {
-        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+        throw businessError('METHOD_NOT_FOUND', '选择的方法不存在')
       }
       const createdAt = new Date().toISOString()
       const item: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: 'idea_to_try', createdAt, updatedAt: createdAt }

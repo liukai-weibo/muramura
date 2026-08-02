@@ -30,7 +30,6 @@ function normalizeMethodInput(input: CreateMethodInput): NormalizedMethodInput {
   if (!normalized.title || !normalized.applicable || !normalized.steps) {
     throw businessError(
       'METHOD_REQUIRED_FIELDS_MISSING',
-      'validation',
       '请完成方法标题、适用情况和具体步骤',
     )
   }
@@ -57,7 +56,6 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
     if (input.method && input.existingMethod) {
       throw businessError(
         'REVIEW_METHOD_MODE_CONFLICT',
-        'validation',
         '不能同时形成新方法和验证已有方法',
       )
     }
@@ -67,29 +65,27 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
     return runInMySqlTransaction(this.pool, async connection => {
       const item = await this.lockItem(connection, input.itemId)
       if (!item || item.deleted_at) {
-        throw businessError('ITEM_NOT_FOUND', 'not-found', '事项不存在')
+        throw businessError('ITEM_NOT_FOUND', '事项不存在')
       }
       if (item.status !== 'doing' && item.status !== 'waiting_review') {
         throw businessError(
           'ITEM_NOT_REVIEWABLE',
-          'conflict',
           '只有已开始或待复盘事项可以完成复盘',
         )
       }
       const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE item_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE item_id=? FOR UPDATE', this.scope ? [input.itemId, this.scope.userId] : [input.itemId])
       if (existing[0]) {
-        throw businessError('REVIEW_ALREADY_COMPLETED', 'conflict', '该事项已经完成复盘')
+        throw businessError('REVIEW_ALREADY_COMPLETED', '该事项已经完成复盘')
       }
       const existingMethod = input.existingMethod ? await this.lockActiveMethod(connection, input.existingMethod.methodId) : undefined
       if (input.existingMethod && !existingMethod) {
-        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+        throw businessError('METHOD_NOT_FOUND', '选择的方法不存在')
       }
       if (existingMethod) {
         const [evidence] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM method_evidence WHERE method_id=? AND review_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM method_evidence WHERE method_id=? AND review_id=? FOR UPDATE', this.scope ? [existingMethod.id, review.id, this.scope.userId] : [existingMethod.id, review.id])
         if (evidence[0]) {
           throw businessError(
             'METHOD_ALREADY_VALIDATED_BY_REVIEW',
-            'conflict',
             '该复盘已经验证过这个方法',
           )
         }
@@ -212,7 +208,6 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
     if (required.length) {
       throw businessError(
         'REVIEW_REQUIRED_FIELDS_MISSING',
-        'validation',
         `请填写：${required.join('、')}`,
       )
     }

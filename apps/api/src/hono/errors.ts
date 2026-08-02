@@ -1,4 +1,4 @@
-import type { BusinessErrorCode } from '@knowledge-base/contracts'
+import type { PublicBusinessErrorCode } from '@knowledge-base/contracts'
 import type { Context } from 'hono'
 import { ApiError } from '../api-errors'
 import type { ApiEnv, ApiErrorBody, ApiErrorCode, ApiErrorStatus } from './types'
@@ -15,7 +15,7 @@ export function errorResponse(
   status: ApiErrorStatus,
   code: ApiErrorCode,
   message: string,
-  businessCode?: BusinessErrorCode,
+  businessCode?: PublicBusinessErrorCode,
 ) {
   const body: ApiErrorBody = {
     error: {

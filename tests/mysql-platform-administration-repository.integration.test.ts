@@ -103,7 +103,7 @@ describe.runIf(enabled)('platform administration repository', () => {
     expect((await repository.listUsers({ page: 1, query: '  %_=  ' })).items.map(item => item.id)).toEqual(['u-07'])
     expect(await repository.getUserById('u-20')).toEqual(first.items[0])
     expect(await repository.getUserById('missing')).toBeUndefined()
-    await expect(repository.listUsers({ page: 0 })).rejects.toMatchObject({ code: 'invalid-page' })
+    await expect(repository.listUsers({ page: 0 })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_INVALID_PAGE' })
   })
 
   it('fails list and single-user reads closed for missing member or unknown role facts', async () => {
@@ -131,10 +131,10 @@ describe.runIf(enabled)('platform administration repository', () => {
     await app.query("DELETE FROM user_roles WHERE user_id='outsider' AND role_code='member'")
     const repository = new MySqlPlatformAdministrationRepository(app)
     const baseline = await securitySnapshot()
-    await expect(repository.grantPlatformAdmin(change('outsider', 'target'))).rejects.toMatchObject({ code: 'actor-not-platform-admin' })
-    await expect(repository.grantPlatformAdmin(change('actor', 'missing'))).rejects.toMatchObject({ code: 'user-not-found' })
-    await expect(repository.grantPlatformAdmin(change('actor', 'actor'))).rejects.toMatchObject({ code: 'self-role-change' })
-    await expect(repository.grantPlatformAdmin(change('actor', 'outsider'))).rejects.toMatchObject({ code: 'target-not-member' })
+    await expect(repository.grantPlatformAdmin(change('outsider', 'target'))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
+    await expect(repository.grantPlatformAdmin(change('actor', 'missing'))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_USER_NOT_FOUND' })
+    await expect(repository.grantPlatformAdmin(change('actor', 'actor'))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_SELF_ROLE_CHANGE' })
+    await expect(repository.grantPlatformAdmin(change('actor', 'outsider'))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_TARGET_NOT_MEMBER' })
     expect(await securitySnapshot()).toEqual(baseline)
 
     const granted = change('actor', 'target')
@@ -143,7 +143,7 @@ describe.runIf(enabled)('platform administration repository', () => {
     const afterGrant = await securitySnapshot()
     expect(await repository.grantPlatformAdmin(change('actor', 'target'))).toBe('already-granted')
     expect(await securitySnapshot()).toEqual(afterGrant)
-    await expect(repository.revokePlatformAdmin({ ...change('actor', 'target'), operationId: granted.operationId })).rejects.toMatchObject({ code: 'operation-conflict' })
+    await expect(repository.revokePlatformAdmin({ ...change('actor', 'target'), operationId: granted.operationId })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_OPERATION_CONFLICT' })
     expect(await securitySnapshot()).toEqual(afterGrant)
 
     const revoked = change('actor', 'target')
@@ -160,7 +160,7 @@ describe.runIf(enabled)('platform administration repository', () => {
   it('serializes concurrent reciprocal revokes and never removes the final administrator', async () => {
     await admin('only-admin')
     const repository = new MySqlPlatformAdministrationRepository(app)
-    await expect(repository.revokePlatformAdmin(change('only-admin', 'only-admin'))).rejects.toMatchObject({ code: 'self-role-change' })
+    await expect(repository.revokePlatformAdmin(change('only-admin', 'only-admin'))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_SELF_ROLE_CHANGE' })
     expect((await app.query("SELECT user_id FROM user_roles WHERE role_code='platform_admin'"))[0]).toEqual([{ user_id: 'only-admin' }])
 
     await app.query('DELETE FROM user_roles')
@@ -176,7 +176,7 @@ describe.runIf(enabled)('platform administration repository', () => {
     expect(fulfilled).toHaveLength(1)
     expect(fulfilled[0]).toMatchObject({ value: 'revoked' })
     expect(rejected).toHaveLength(1)
-    expect(rejected[0]).toMatchObject({ reason: { code: 'actor-not-platform-admin' } })
+    expect(rejected[0]).toMatchObject({ reason: { code: 'PLATFORM_ADMIN_FORBIDDEN' } })
     const [admins] = await app.query<RowDataPacket[]>("SELECT user_id FROM user_roles WHERE role_code='platform_admin'")
     expect(admins.length).toBeGreaterThanOrEqual(1)
     expect((await app.query("SELECT id FROM security_audit_events WHERE action_code='platform_admin_revoked'"))[0]).toHaveLength(1)
@@ -190,7 +190,7 @@ describe.runIf(enabled)('platform administration repository', () => {
       'active', 'target', crypto.randomBytes(32), new Date('2030-01-01T00:00:00Z'), new Date(at),
     ])
     const repository = new MySqlPlatformAdministrationRepository(app)
-    await expect(repository.revokeAllSessions({ ...change('actor', 'actor'), revokedAt: at })).rejects.toMatchObject({ code: 'self-session-revoke' })
+    await expect(repository.revokeAllSessions({ ...change('actor', 'actor'), revokedAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_SELF_SESSION_REVOKE' })
     const first = change('actor', 'target')
     expect(await repository.revokeAllSessions({ ...first, revokedAt: at })).toEqual({ revokedSessionCount: 2 })
     expect(await repository.revokeAllSessions({ ...change('actor', 'target'), revokedAt: at })).toEqual({ revokedSessionCount: 0 })
@@ -214,7 +214,7 @@ describe.runIf(enabled)('platform administration repository', () => {
     expect(afterCommitCalls).toBe(1)
     expect(await unknownRepository.findAuditEventByOperationId(unknown.operationId)).toMatchObject({ action: 'platform_admin_granted', targetUserId: 'target' })
     expect((await app.query("SELECT role_code FROM user_roles WHERE user_id='target' ORDER BY role_code"))[0]).toEqual([{ role_code: 'member' }, { role_code: 'platform_admin' }])
-    await expect(unknownRepository.grantPlatformAdmin(unknown)).rejects.toMatchObject({ code: 'operation-conflict' })
+    await expect(unknownRepository.grantPlatformAdmin(unknown)).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_OPERATION_CONFLICT' })
     expect(afterCommitCalls).toBe(1)
   })
 
@@ -244,12 +244,12 @@ describe.runIf(enabled)('platform administration repository', () => {
     await user('target-b')
     await app.query("INSERT INTO users(id,username,password_hash,created_at) VALUES ('no-member','no-member','scrypt$redacted',?)", [new Date(at)])
     const repository = new MySqlPlatformAdministrationRepository(app)
-    await expect(repository.initializePlatformAdmin({ targetUserId: 'missing', auditEventId: 'missing-audit', operationId: 'missing-op', createdAt: at })).rejects.toMatchObject({ code: 'user-not-found' })
-    await expect(repository.initializePlatformAdmin({ targetUserId: 'no-member', auditEventId: 'member-audit', operationId: 'member-op', createdAt: at })).rejects.toMatchObject({ code: 'target-not-member' })
+    await expect(repository.initializePlatformAdmin({ targetUserId: 'missing', auditEventId: 'missing-audit', operationId: 'missing-op', createdAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_USER_NOT_FOUND' })
+    await expect(repository.initializePlatformAdmin({ targetUserId: 'no-member', auditEventId: 'member-audit', operationId: 'member-op', createdAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_TARGET_NOT_MEMBER' })
     const input = { targetUserId: 'target-a', auditEventId: 'bootstrap-audit', operationId: 'bootstrap-op', createdAt: at }
     expect(await repository.initializePlatformAdmin(input)).toBe('granted')
     expect(await repository.initializePlatformAdmin({ ...input, auditEventId: 'unused-audit', operationId: 'unused-op' })).toBe('already-initialized')
-    await expect(repository.initializePlatformAdmin({ targetUserId: 'target-b', auditEventId: 'other-audit', operationId: 'other-op', createdAt: at })).rejects.toMatchObject({ code: 'platform-admin-already-initialized' })
+    await expect(repository.initializePlatformAdmin({ targetUserId: 'target-b', auditEventId: 'other-audit', operationId: 'other-op', createdAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_ALREADY_INITIALIZED' })
     expect((await app.query("SELECT user_id,role_code,granted_by_user_id FROM user_roles WHERE role_code='platform_admin'"))[0]).toEqual([{ user_id: 'target-a', role_code: 'platform_admin', granted_by_user_id: null }])
     expect((await app.query('SELECT id,actor_user_id,target_user_id,action_code,operation_id FROM security_audit_events'))[0]).toEqual([{ id: 'bootstrap-audit', actor_user_id: null, target_user_id: 'target-a', action_code: 'platform_admin_granted', operation_id: 'bootstrap-op' }])
   })
@@ -263,7 +263,7 @@ describe.runIf(enabled)('platform administration repository', () => {
       repository.initializePlatformAdmin({ targetUserId: 'target-b', auditEventId: 'audit-b', operationId: 'op-b', createdAt: at }),
     ])
     expect(different.filter(result => result.status === 'fulfilled')).toHaveLength(1)
-    expect(different.filter(result => result.status === 'rejected')).toEqual([expect.objectContaining({ reason: expect.objectContaining({ code: 'platform-admin-already-initialized' }) })])
+    expect(different.filter(result => result.status === 'rejected')).toEqual([expect.objectContaining({ reason: expect.objectContaining({ code: 'PLATFORM_ADMIN_ALREADY_INITIALIZED' }) })])
     expect((await app.query("SELECT user_id FROM user_roles WHERE role_code='platform_admin'"))[0]).toHaveLength(1)
     expect((await app.query('SELECT id FROM security_audit_events'))[0]).toHaveLength(1)
 

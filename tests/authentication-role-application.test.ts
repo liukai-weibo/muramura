@@ -47,6 +47,20 @@ describe('authentication role application boundary', () => {
     expect(await service.initialize(' target-user ')).toEqual({ targetUserId: 'target-user', status: 'granted', operationId: 'operation-1' })
     expect(initializePlatformAdmin).toHaveBeenCalledWith({ targetUserId: 'target-user', operationId: 'operation-1', auditEventId: 'audit-1', createdAt: '2026-07-30T01:02:03.000Z' })
     expect(initializePlatformAdmin).toHaveBeenCalledTimes(1)
-    await expect(service.initialize(' '.repeat(2))).rejects.toThrow('invalid-target-user-id')
+    await expect(service.initialize(' '.repeat(2))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_VALIDATION_FAILED' })
+  })
+
+  it('uses the same BusinessError contract for authentication failures', async () => {
+    const service = new AuthenticationApplicationService(repository())
+    await expect(service.login({ username: 'alice', password: 'password-123' })).rejects.toMatchObject({
+      name: 'BusinessError',
+      code: 'AUTH_INVALID_CREDENTIALS',
+      category: 'unauthorized',
+    })
+    await expect(service.register({ username: '', password: 'password-123' })).rejects.toMatchObject({
+      name: 'BusinessError',
+      code: 'AUTH_CREDENTIALS_FORMAT_INVALID',
+      category: 'validation',
+    })
   })
 })

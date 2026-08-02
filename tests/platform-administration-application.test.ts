@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  PlatformAdministrationApplicationError,
+  InitialPlatformAdminApplicationService,
   PlatformAdministrationApplicationService,
 } from '../packages/application/src/index'
-import type { AuthUser, PlatformAdministrationRepository, PlatformUserSummary } from '../packages/contracts/src/index'
+import { mapFailure } from '../apps/api/src/api-errors'
+import type { AuthUser, InitialPlatformAdminRepository, PlatformAdministrationRepository, PlatformUserSummary } from '../packages/contracts/src/index'
+import { BusinessError, fail } from '../packages/domain/src/index'
 
 const at = '2026-07-30T08:00:00.000Z'
 const actor = (roles: AuthUser['roles']): AuthUser => ({ id: 'actor', username: 'actor', roles, createdAt: at })
@@ -24,9 +26,9 @@ describe('platform administration application', () => {
   it('rejects members before any repository call', async () => {
     const repo = repository()
     const service = new PlatformAdministrationApplicationService(repo)
-    await expect(service.listUsers(actor(['member']), { page: 1 })).rejects.toMatchObject({ code: 'forbidden' })
-    await expect(service.setUserRoles(actor(['member']), { targetUserId: 'target', roles: ['member'], operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'forbidden' })
-    await expect(service.revokeAllUserSessions(actor(['member']), { targetUserId: 'target', operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(service.listUsers(actor(['member']), { page: 1 })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
+    await expect(service.setUserRoles(actor(['member']), { targetUserId: 'target', roles: ['member'], operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
+    await expect(service.revokeAllUserSessions(actor(['member']), { targetUserId: 'target', operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
     expect(Object.values(repo).every(method => !vi.mocked(method).mock.calls.length)).toBe(true)
   })
 
@@ -34,9 +36,9 @@ describe('platform administration application', () => {
     const repo = repository()
     const service = new PlatformAdministrationApplicationService(repo)
     for (const roles of [[], ['platform_admin'], ['platform_admin', 'member'], ['member', 'member']] as AuthUser['roles'][]) {
-      await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'target', roles, operationId: crypto.randomUUID() })).rejects.toBeInstanceOf(PlatformAdministrationApplicationError)
+      await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'target', roles, operationId: crypto.randomUUID() })).rejects.toBeInstanceOf(BusinessError)
     }
-    await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'target', roles: ['member'], operationId: 'not-a-uuid' })).rejects.toMatchObject({ code: 'validation-failed' })
+    await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'target', roles: ['member'], operationId: 'not-a-uuid' })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_VALIDATION_FAILED' })
     expect(repo.grantPlatformAdmin).not.toHaveBeenCalled()
     expect(repo.revokePlatformAdmin).not.toHaveBeenCalled()
   })
@@ -64,6 +66,53 @@ describe('platform administration application', () => {
     const repo = repository()
     vi.mocked(repo.getUserById).mockResolvedValue(undefined)
     const service = new PlatformAdministrationApplicationService(repo)
-    await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'missing', roles: ['member'], operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'user-read-failed' })
+    await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'missing', roles: ['member'], operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_USER_READ_FAILED' })
+  })
+
+  it('propagates repository BusinessError unchanged and preserves unknown infrastructure failures', async () => {
+    const repo = repository()
+    const service = new PlatformAdministrationApplicationService(repo)
+    const admin = actor(['member', 'platform_admin'])
+
+    vi.mocked(repo.listUsers).mockImplementationOnce(() => fail('PLATFORM_ADMIN_INVALID_PAGE', '页码无效'))
+    await expect(service.listUsers(admin, { page: 0 })).rejects.toMatchObject({
+      name: 'BusinessError',
+      code: 'PLATFORM_ADMIN_INVALID_PAGE',
+    })
+
+    vi.mocked(repo.revokePlatformAdmin).mockImplementationOnce(() => fail('PLATFORM_ADMIN_FORBIDDEN', '无权执行平台管理操作'))
+    await expect(service.setUserRoles(admin, {
+      targetUserId: 'target',
+      roles: ['member'],
+      operationId: crypto.randomUUID(),
+    })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
+
+    const unavailable = Object.assign(new Error('connection unavailable'), { code: 'ECONNREFUSED' })
+    vi.mocked(repo.revokeAllSessions).mockRejectedValueOnce(unavailable)
+    await expect(service.revokeAllUserSessions(admin, {
+      targetUserId: 'target',
+      operationId: crypto.randomUUID(),
+    })).rejects.toBe(unavailable)
+  })
+
+  it('lets the API map unified BusinessError by category', () => {
+    expect(mapFailure(new BusinessError('PLATFORM_ADMIN_FORBIDDEN', '无权执行平台管理操作'))).toMatchObject({ status: 403, code: 'FORBIDDEN' })
+    expect(mapFailure(new BusinessError('PLATFORM_ADMIN_INVALID_PAGE', '页码无效'))).toMatchObject({ status: 400, code: 'VALIDATION_FAILED', message: '页码无效' })
+    expect(mapFailure(new BusinessError('PLATFORM_ADMIN_USER_NOT_FOUND', '目标用户不存在'))).toMatchObject({ status: 404, code: 'NOT_FOUND' })
+    expect(mapFailure(new BusinessError('PLATFORM_ADMIN_OPERATION_CONFLICT', 'operationId 已被使用，不能推断本次成功'))).toMatchObject({ status: 409, code: 'CONFLICT' })
+    expect(mapFailure(new BusinessError('PLATFORM_ADMIN_USER_READ_FAILED', '读取目标用户失败'))).toMatchObject({ status: 500, code: 'INTERNAL_ERROR' })
+  })
+
+  it('propagates bootstrap BusinessError to the CLI without translation', async () => {
+    const repo: InitialPlatformAdminRepository = {
+      initializePlatformAdmin: vi.fn(async () => {
+        fail('PLATFORM_ADMIN_ALREADY_INITIALIZED', '平台管理员已经初始化')
+      }),
+    }
+    const service = new InitialPlatformAdminApplicationService(repo)
+    await expect(service.initialize('target')).rejects.toMatchObject({
+      name: 'BusinessError',
+      code: 'PLATFORM_ADMIN_ALREADY_INITIALIZED',
+    })
   })
 })

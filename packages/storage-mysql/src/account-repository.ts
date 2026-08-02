@@ -1,7 +1,9 @@
 import { platformRoles, type AuthCredentialRecord, type AuthRepository, type AuthUser, type CreateAuthUserInput, type PlatformRole } from '@knowledge-base/contracts'
+import { fail } from '@knowledge-base/domain'
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 
 type UserRoleRow = RowDataPacket & { id: string; username: string; password_hash?: string; created_at: Date | string; role_code: string | null }
+
 export class MySqlAuthRepository implements AuthRepository {
   constructor(private readonly pool: Pool) {}
   async createUser(input: CreateAuthUserInput): Promise<AuthUser> {
@@ -14,6 +16,7 @@ export class MySqlAuthRepository implements AuthRepository {
       return { id: input.id, username: input.username, roles: ['member'], createdAt: input.createdAt }
     } catch (error) {
       await rollback(connection)
+      if (isDuplicateEntry(error)) fail('AUTH_USERNAME_TAKEN', 'username already exists')
       throw error
     } finally {
       connection.release()
@@ -31,6 +34,10 @@ export class MySqlAuthRepository implements AuthRepository {
     return rows.length === 0 ? undefined : authUser(rows[0]!, rows.map(row => row.role_code))
   }
   async revokeSessionBySecretHash(secretHash: Uint8Array, revokedAt: string): Promise<void> { await this.pool.query('UPDATE user_sessions SET revoked_at=? WHERE session_secret_hash=? AND revoked_at IS NULL', [new Date(revokedAt),Buffer.from(secretHash)]) }
+}
+
+function isDuplicateEntry(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY'
 }
 
 function authUser(row: UserRoleRow, values: Array<string | null>): AuthUser {

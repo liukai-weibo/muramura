@@ -85,8 +85,8 @@ describe.runIf(enabled)('initial platform administrator CLI', () => {
   })
 
   it('rejects missing or non-member targets, grants once, and returns same-target initialization without a new audit', async () => {
-    expect(await invoke(args('missing'))).toMatchObject({ code: 1, stdout: [], stderr: ['USER_NOT_FOUND'] })
-    expect(await invoke(args('no-member'))).toMatchObject({ code: 1, stdout: [], stderr: ['TARGET_NOT_MEMBER'] })
+    expect(await invoke(args('missing'))).toMatchObject({ code: 1, stdout: [], stderr: ['PLATFORM_ADMIN_USER_NOT_FOUND'] })
+    expect(await invoke(args('no-member'))).toMatchObject({ code: 1, stdout: [], stderr: ['PLATFORM_ADMIN_TARGET_NOT_MEMBER'] })
     const granted = await invoke(args('target-a'))
     expect(granted.code).toBe(0)
     expect(granted.stderr).toEqual([])

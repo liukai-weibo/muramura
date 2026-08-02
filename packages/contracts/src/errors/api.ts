@@ -1,4 +1,4 @@
-import type { BusinessErrorCode } from './business'
+import type { PublicBusinessErrorCode } from './business'
 
 export type ApiErrorCode =
   | 'VALIDATION_FAILED'
@@ -17,13 +17,14 @@ export type ApiErrorCode =
 export type ApiErrorStatus = 400 | 401 | 403 | 404 | 405 | 409 | 413 | 415 | 500 | 503
 
 /**
- * businessCode 只在失败来源于领域业务规则时出现；传输层与基础设施故障没有业务语义，不带该字段。
+ * businessCode 只允许白名单内的统一业务码；
+ * 传输层、基础设施故障，以及未入白名单的内部码（如 AUTH_INVALID_CREDENTIALS）不得出现。
  */
 export interface ApiErrorPayload {
   code: ApiErrorCode
   message: string
   requestId: string
-  businessCode?: BusinessErrorCode
+  businessCode?: PublicBusinessErrorCode
 }
 
 export interface ApiErrorBody {

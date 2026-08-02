@@ -6,7 +6,7 @@ import type { BackupDataV3, BackupDocument, InitialOwnerClaimResult } from '@kno
 import { BackupApplicationService } from '../packages/application/src/index'
 import { parseInitialOwnerClaimTarget } from '../apps/api/src/claim-initial-owner'
 import { createApiServer } from '../apps/api/src/index'
-import { createMySqlPool, InitialOwnerClaimError, MySqlBackupRepository, MySqlInitialOwnerClaimRepository, runMySqlMigrations, type MySqlConnectionConfig } from '../packages/storage-mysql/src/index'
+import { createMySqlPool, MySqlBackupRepository, MySqlInitialOwnerClaimRepository, runMySqlMigrations, type MySqlConnectionConfig } from '../packages/storage-mysql/src/index'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const enabled = ['MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_ROOT_PASSWORD'].every(name => Boolean(process.env[name]))
@@ -89,7 +89,7 @@ describe.runIf(enabled)('initial owner claim and user-scoped Backup', () => {
     await new MySqlBackupRepository(app).replaceData(data('mixed'))
     await app.query('UPDATE items SET owner_user_id=? WHERE id=?', [userB, 'mixed-i1'])
     const mixedBefore = await snapshot()
-    await expect(new MySqlInitialOwnerClaimRepository(app).claimInitialOwner(userA)).rejects.toMatchObject({ code: 'mixed-ownership', userId: userA } satisfies Partial<InitialOwnerClaimError>)
+    await expect(new MySqlInitialOwnerClaimRepository(app).claimInitialOwner(userA)).rejects.toMatchObject({ code: 'INITIAL_OWNER_MIXED_OWNERSHIP', details: { userId: userA } })
     expect(await snapshot()).toEqual(mixedBefore); expect((await app.query('SELECT * FROM initial_owner_claims'))[0]).toEqual([])
 
     await new MySqlBackupRepository(app).replaceData(emptyData()); await new MySqlBackupRepository(app).replaceData(data('failed'))

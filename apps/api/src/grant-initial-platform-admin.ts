@@ -1,10 +1,10 @@
 import { pathToFileURL } from 'node:url'
 import { InitialPlatformAdminApplicationService } from '@knowledge-base/application'
+import { BusinessError } from '@knowledge-base/domain'
 import {
   assertMySqlPlatformSchemaReady,
   createMySqlPool,
   MySqlPlatformAdministrationRepository,
-  PlatformAdministrationRepositoryError,
   readMySqlConfig,
 } from '@knowledge-base/storage-mysql'
 import type { RowDataPacket } from 'mysql2/promise'
@@ -57,7 +57,7 @@ export async function runInitialPlatformAdminCli(
     output.stdout(JSON.stringify({ status: result.status, database: parsed.expectedDatabase, userId: result.targetUserId, ...(result.operationId ? { operationId: result.operationId } : {}) }))
     return 0
   } catch (error) {
-    if (error instanceof PlatformAdministrationRepositoryError) output.stderr(error.code.toUpperCase().replaceAll('-', '_'))
+    if (error instanceof BusinessError) output.stderr(error.code)
     else output.stderr('INITIAL_PLATFORM_ADMIN_FAILED')
     return 1
   } finally { await pool?.end() }

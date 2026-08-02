@@ -3,7 +3,6 @@ import http from 'node:http'
 import {
   BackupApplicationService,
   AuthenticationApplicationService,
-  AuthenticationError,
   DashboardApplicationService,
   ExplorationTrackApplicationService,
   ItemApplicationService,
@@ -14,7 +13,7 @@ import {
   SearchApplicationService,
   TrashApplicationService,
 } from '@knowledge-base/application'
-import { itemStatuses, type ApiErrorBody, type AuthUser, type BackupDocument, type BusinessErrorCode, type CompleteReviewInput, type CurrentAssociatedStatus, type ExplorationTrackSelection, type ItemStatus, type PlatformRole, type TrashFilter } from '@knowledge-base/contracts'
+import { itemStatuses, type ApiErrorBody, type AuthUser, type BackupDocument, type CompleteReviewInput, type CurrentAssociatedStatus, type ExplorationTrackSelection, type ItemStatus, type PlatformRole, type PublicBusinessErrorCode, type TrashFilter } from '@knowledge-base/contracts'
 import {
   createMySqlPool,
   getMySqlHealth,
@@ -59,7 +58,7 @@ function empty(response: http.ServerResponse, status: number, id: string) {
   response.writeHead(status, { 'cache-control': 'no-store', 'x-request-id': id })
   response.end()
 }
-function error(response: http.ServerResponse, status: number, code: ApiErrorCode, message: string, id: string, businessCode?: BusinessErrorCode) {
+function error(response: http.ServerResponse, status: number, code: ApiErrorCode, message: string, id: string, businessCode?: PublicBusinessErrorCode) {
   const body: ApiErrorBody = { error: { code, message, requestId: id, ...(businessCode ? { businessCode } : {}) } }
   json(response, status, body, id)
 }

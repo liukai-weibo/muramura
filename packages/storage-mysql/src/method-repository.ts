@@ -49,7 +49,6 @@ function normalizeInput(input: CreateMethodInput) {
   if (!normalized.title || !normalized.applicable || !normalized.steps) {
     throw businessError(
       'METHOD_REQUIRED_FIELDS_MISSING',
-      'validation',
       '请完成方法标题、适用情况和具体步骤',
     )
   }
@@ -143,9 +142,9 @@ export class MySqlMethodRepository implements MethodRepository {
   async moveToTrash(methodId: string): Promise<void> {
     await runInMySqlTransaction(this.pool, async connection => {
       const method = await this.lockMethod(connection, methodId)
-      if (!method) throw businessError('METHOD_NOT_FOUND', 'not-found', '方法不存在')
+      if (!method) throw businessError('METHOD_NOT_FOUND', '方法不存在')
       if (method.deleted_at) {
-        throw businessError('METHOD_ALREADY_IN_TRASH', 'conflict', '方法已在回收站')
+        throw businessError('METHOD_ALREADY_IN_TRASH', '方法已在回收站')
       }
       const now = new Date().toISOString()
       await connection.execute(this.scope ? 'UPDATE methods SET deleted_at=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE methods SET deleted_at=?,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(now), mysqlDateTime(now), methodId,this.scope.userId] : [mysqlDateTime(now), mysqlDateTime(now), methodId])
@@ -156,7 +155,7 @@ export class MySqlMethodRepository implements MethodRepository {
     return runInMySqlTransaction(this.pool, async connection => {
       const method = await this.lockMethod(connection, methodId)
       if (!method?.deleted_at) {
-        throw businessError('METHOD_NOT_IN_TRASH', 'not-found', '回收站中不存在该方法')
+        throw businessError('METHOD_NOT_IN_TRASH', '回收站中不存在该方法')
       }
       const now = new Date().toISOString()
       await connection.execute(this.scope ? 'UPDATE methods SET deleted_at=NULL,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE methods SET deleted_at=NULL,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(now), methodId,this.scope.userId] : [mysqlDateTime(now), methodId])
@@ -177,7 +176,6 @@ export class MySqlMethodRepository implements MethodRepository {
         if (tombstones[0]) {
           throw businessError(
             'METHOD_TOMBSTONE_ALREADY_EXISTS',
-            'conflict',
             '方法永久清理记录已存在',
           )
         }
@@ -185,7 +183,6 @@ export class MySqlMethodRepository implements MethodRepository {
         if (applications.some(application => !versionNumbers.some(version => version.version === application.method_version))) {
           throw businessError(
             'METHOD_VERSION_HISTORY_UNPROVABLE',
-            'internal',
             '方法应用引用了无法证明的历史版本',
           )
         }
@@ -203,7 +200,7 @@ export class MySqlMethodRepository implements MethodRepository {
     return runInMySqlTransaction(this.pool, async connection => {
       const methodRow = await this.lockMethod(connection, methodId)
       if (!methodRow || methodRow.deleted_at) {
-        throw businessError('METHOD_NOT_FOUND', 'not-found', '选择的方法不存在')
+        throw businessError('METHOD_NOT_FOUND', '选择的方法不存在')
       }
       await this.lockReview(connection, reviewId)
       const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>(
@@ -212,7 +209,6 @@ export class MySqlMethodRepository implements MethodRepository {
       if (existing[0]) {
         throw businessError(
           'METHOD_ALREADY_VALIDATED_BY_REVIEW',
-          'conflict',
           '该复盘已经验证过这个方法',
         )
       }
@@ -252,7 +248,7 @@ export class MySqlMethodRepository implements MethodRepository {
 
   private async lockReview(connection: PoolConnection, reviewId: string): Promise<void> {
     const [reviews] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE id=? FOR UPDATE', this.scope ? [reviewId,this.scope.userId] : [reviewId])
-    if (!reviews[0]) throw businessError('REVIEW_NOT_FOUND', 'not-found', '关联复盘不存在')
+    if (!reviews[0]) throw businessError('REVIEW_NOT_FOUND', '关联复盘不存在')
   }
 
   private async lockMethod(connection: PoolConnection, methodId: string): Promise<MethodRow | undefined> {
