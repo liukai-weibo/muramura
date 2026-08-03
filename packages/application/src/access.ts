@@ -62,7 +62,8 @@ export class AuthenticationApplicationService {
     const secret = createSessionSecret()
     const now = this.now()
     const expiresAt = new Date(now.getTime() + AUTH_SESSION_DURATION_MS).toISOString()
-    await this.repository.createSession({ id: createId(), userId: user.id, secretHash: hashSessionSecret(secret), expiresAt, createdAt: now.toISOString() })
+    const result = await this.repository.createSession({ id: createId(), userId: user.id, secretHash: hashSessionSecret(secret), expiresAt, createdAt: now.toISOString() })
+    if (result === 'account-unavailable') fail('AUTH_INVALID_CREDENTIALS', 'invalid username or password')
     return { session: { user }, secret, expiresAt }
   }
 }
@@ -100,6 +101,13 @@ export class PlatformAdministrationApplicationService {
     return this.repository.listUsers(input)
   }
 
+  async getUser(actor: AuthUser, targetUserId: string): Promise<PlatformUserSummary> {
+    this.assertAdministrator(actor)
+    const user = await this.repository.getUserById(targetUserId)
+    if (!user) fail('PLATFORM_ADMIN_USER_NOT_FOUND', '目标用户不存在')
+    return user
+  }
+
   async setUserRoles(actor: AuthUser, input: { targetUserId: string; roles: PlatformRole[]; operationId: string }): Promise<PlatformUserSummary> {
     this.assertAdministrator(actor)
     assertCanonicalOperationId(input.operationId)
@@ -130,6 +138,32 @@ export class PlatformAdministrationApplicationService {
       operationId: input.operationId,
       createdAt,
       revokedAt: createdAt,
+    })
+  }
+
+  async softDeleteUser(actor: AuthUser, input: { targetUserId: string; operationId: string }): Promise<PlatformUserSummary> {
+    this.assertAdministrator(actor)
+    assertCanonicalOperationId(input.operationId)
+    const createdAt = this.now().toISOString()
+    return this.repository.softDeleteUser({
+      actorUserId: actor.id,
+      targetUserId: input.targetUserId,
+      auditEventId: this.newId(),
+      operationId: input.operationId,
+      createdAt,
+    })
+  }
+
+  async restoreUser(actor: AuthUser, input: { targetUserId: string; operationId: string }): Promise<PlatformUserSummary> {
+    this.assertAdministrator(actor)
+    assertCanonicalOperationId(input.operationId)
+    const createdAt = this.now().toISOString()
+    return this.repository.restoreUser({
+      actorUserId: actor.id,
+      targetUserId: input.targetUserId,
+      auditEventId: this.newId(),
+      operationId: input.operationId,
+      createdAt,
     })
   }
 

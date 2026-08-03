@@ -19,7 +19,7 @@ export interface AuthCredentialRecord { user: AuthUser; passwordHash: string }
 export interface AuthRepository {
   createUser(input: CreateAuthUserInput): Promise<AuthUser>
   findUserByUsername(username: string): Promise<AuthCredentialRecord | undefined>
-  createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<void>
+  createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<'created' | 'account-unavailable'>
   getSessionBySecretHash(secretHash: Uint8Array, now: string): Promise<AuthUser | undefined>
   revokeSessionBySecretHash(secretHash: Uint8Array, revokedAt: string): Promise<void>
 }
@@ -56,6 +56,8 @@ export const securityAuditActions = [
   'platform_admin_granted',
   'platform_admin_revoked',
   'user_sessions_revoked',
+  'user_soft_deleted',
+  'user_restored',
 ] as const
 export type SecurityAuditAction = (typeof securityAuditActions)[number]
 
@@ -64,6 +66,7 @@ export interface PlatformUserSummary {
   username: string
   roles: PlatformRole[]
   createdAt: string
+  deletedAt: string | null
 }
 
 export interface PlatformUserPage {
@@ -84,6 +87,10 @@ export interface AdminRevokeUserSessionsRequest {
 
 export interface AdminRevokeUserSessionsResponse {
   revokedSessionCount: number
+}
+
+export interface AdminChangeUserAccountStateRequest {
+  operationId: string
 }
 
 export interface PlatformRoleChangeInput {
@@ -113,6 +120,8 @@ export interface PlatformAdministrationRepository {
   grantPlatformAdmin(input: PlatformRoleChangeInput): Promise<'granted' | 'already-granted'>
   revokePlatformAdmin(input: PlatformRoleChangeInput): Promise<'revoked' | 'already-revoked'>
   revokeAllSessions(input: RevokeAllUserSessionsInput): Promise<{ revokedSessionCount: number }>
+  softDeleteUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary>
+  restoreUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary>
   findAuditEventByOperationId(operationId: string): Promise<SecurityAuditEvent | undefined>
 }
 

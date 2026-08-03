@@ -9,7 +9,7 @@ function repository(overrides: Partial<AuthRepository> = {}): AuthRepository {
   return {
     createUser: vi.fn(async input => ({ id: input.id, username: input.username, roles: ['member'], createdAt: input.createdAt } as AuthUser)),
     findUserByUsername: vi.fn(async () => undefined),
-    createSession: vi.fn(async () => undefined),
+    createSession: vi.fn(async () => 'created' as const),
     getSessionBySecretHash: vi.fn(async () => undefined),
     revokeSessionBySecretHash: vi.fn(async () => undefined),
     ...overrides,
@@ -62,5 +62,15 @@ describe('authentication role application boundary', () => {
       code: 'AUTH_CREDENTIALS_FORMAT_INVALID',
       category: 'validation',
     })
+  })
+
+  it('fails login without returning a session when the account is deleted during login', async () => {
+    const passwordHash = await hashPassword('password-123')
+    const auth = repository({
+      findUserByUsername: vi.fn(async () => ({ user: member, passwordHash })),
+      createSession: vi.fn(async () => 'account-unavailable' as const),
+    })
+    await expect(new AuthenticationApplicationService(auth).login({ username: 'alice', password: 'password-123' }))
+      .rejects.toMatchObject({ code: 'AUTH_INVALID_CREDENTIALS' })
   })
 })

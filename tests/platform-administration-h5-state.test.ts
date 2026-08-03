@@ -17,7 +17,7 @@ import {
   type PlatformAdministrationConfirmation,
 } from '../apps/client/src/pages/index/platform-administration-state'
 
-const target: PlatformUserSummary = { id: 'target-1', username: 'target', roles: ['member'], createdAt: '2026-07-30T00:00:00.000Z' }
+const target: PlatformUserSummary = { id: 'target-1', username: 'target', roles: ['member'], createdAt: '2026-07-30T00:00:00.000Z', deletedAt: null }
 const snapshot: PlatformUserPage = { items: [target], page: 1, pageSize: 20, total: 1 }
 
 describe('platform administration H5 state boundary', () => {
@@ -31,11 +31,14 @@ describe('platform administration H5 state boundary', () => {
   })
 
   it('revalidates the frozen target, current user and expected roles before writing', () => {
-    const confirmation: PlatformAdministrationConfirmation = { targetId: target.id, targetUsername: target.username, expectedRoles: ['member'], action: 'grant-role' }
+    const confirmation: PlatformAdministrationConfirmation = { targetId: target.id, targetUsername: target.username, expectedRoles: ['member'], expectedDeletedAt: null, action: 'grant-role' }
     expect(isConfirmationCompatible(confirmation, snapshot, 'actor-1')).toBe(true)
     expect(isConfirmationCompatible(confirmation, snapshot, target.id)).toBe(false)
     expect(isConfirmationCompatible({ ...confirmation, targetUsername: 'changed' }, snapshot, 'actor-1')).toBe(false)
     expect(isConfirmationCompatible({ ...confirmation, expectedRoles: ['member', 'platform_admin'] }, snapshot, 'actor-1')).toBe(false)
+    expect(isConfirmationCompatible({ ...confirmation, action: 'soft-delete' }, snapshot, 'actor-1')).toBe(true)
+    const deleted = { ...target, deletedAt: '2026-07-30T01:00:00.000Z' }
+    expect(isConfirmationCompatible({ ...confirmation, action: 'restore', expectedDeletedAt: deleted.deletedAt }, { ...snapshot, items: [deleted] }, 'actor-1')).toBe(true)
   })
 
   it('uses response summaries rather than the requested role to replace a row', () => {
@@ -63,6 +66,8 @@ describe('platform administration H5 state boundary', () => {
     expect(unknownTargetState('grant-role')).toBe('role-unknown')
     expect(unknownTargetState('revoke-role')).toBe('role-unknown')
     expect(unknownTargetState('revoke-sessions')).toBe('sessions-unknown')
+    expect(unknownTargetState('soft-delete')).toBe('account-unknown')
+    expect(unknownTargetState('restore')).toBe('account-unknown')
   })
 
   it('rejects aborted, stale-fact, stale-generation and stale-auth reads and only unlocks a matching post-unknown target', () => {

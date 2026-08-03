@@ -11,6 +11,7 @@ const platformUserSchema = z.object({
   username: z.string(),
   roles: z.array(z.enum(['member', 'platform_admin'])),
   createdAt: z.string(),
+  deletedAt: z.string().nullable(),
 }).openapi('PlatformUserSummary')
 
 const platformUserPageSchema = z.object({
@@ -37,6 +38,22 @@ const listUsersRoute = createRoute({
     400: commonErrorResponses[400],
     401: commonErrorResponses[401],
     403: commonErrorResponses[403],
+  },
+})
+
+const getUserRoute = createRoute({
+  method: 'get',
+  path: '/users/{userId}',
+  tags: ['Admin'],
+  summary: '读取单个用户',
+  description: '仅平台管理员。返回目标用户当前角色和软删除状态，可用于写入结果未知后的人工确认。',
+  request: { params: z.object({ userId: z.string().min(1) }) },
+  responses: {
+    200: jsonSuccess(platformUserSchema, '用户摘要'),
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+    403: commonErrorResponses[403],
+    404: commonErrorResponses[404],
   },
 })
 
@@ -101,6 +118,44 @@ const revokeSessionsRoute = createRoute({
   },
 })
 
+function accountStateRoute(kind: 'soft-delete' | 'restore') {
+  return createRoute({
+    middleware: [requireJson],
+    method: 'post',
+    path: `/users/{userId}/${kind}`,
+    tags: ['Admin'],
+    summary: kind === 'soft-delete' ? '软删除目标用户' : '恢复目标用户',
+    description: kind === 'soft-delete'
+      ? '仅平台管理员。禁止删除自己；删除会撤销目标用户全部会话并移除其平台管理员角色，但保留账号和业务数据。'
+      : '仅平台管理员。禁止恢复自己；恢复不会恢复旧会话或平台管理员角色。',
+    request: {
+      params: z.object({ userId: z.string().min(1) }),
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: z.object({ operationId: z.uuid() }).strict().openapi(
+              kind === 'soft-delete' ? 'AdminSoftDeleteUserRequest' : 'AdminRestoreUserRequest',
+            ),
+          },
+        },
+      },
+    },
+    responses: {
+      200: jsonSuccess(platformUserSchema, kind === 'soft-delete' ? '软删除后的用户摘要' : '恢复后的用户摘要'),
+      400: commonErrorResponses[400],
+      401: commonErrorResponses[401],
+      403: commonErrorResponses[403],
+      404: commonErrorResponses[404],
+      409: commonErrorResponses[409],
+      415: commonErrorResponses[415],
+    },
+  })
+}
+
+const softDeleteUserRoute = accountStateRoute('soft-delete')
+const restoreUserRoute = accountStateRoute('restore')
+
 function requireActor(context: { get: (key: 'actor') => ApiEnv['Variables']['actor'] }) {
   const actor = context.get('actor')
   if (!actor) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
@@ -155,6 +210,12 @@ export function createAdminRoutes(root: RootHonoServices) {
       return context.json(await root.platformAdministration.listUsers(actor, listQuery), 200)
     })
 
+    .openapi(getUserRoute, async (context) => {
+      const actor = requireActor(context)
+      const { userId } = context.req.valid('param')
+      return context.json(await root.platformAdministration.getUser(actor, parseAdminTargetId(userId)), 200)
+    })
+
     .openapi(setRolesRoute, async (context) => {
       const actor = requireActor(context)
       const { userId } = context.req.valid('param')
@@ -171,6 +232,26 @@ export function createAdminRoutes(root: RootHonoServices) {
       const { userId } = context.req.valid('param')
       const body = context.req.valid('json')
       return context.json(await root.platformAdministration.revokeAllUserSessions(actor, {
+        targetUserId: parseAdminTargetId(userId),
+        operationId: body.operationId,
+      }), 200)
+    })
+
+    .openapi(softDeleteUserRoute, async (context) => {
+      const actor = requireActor(context)
+      const { userId } = context.req.valid('param')
+      const body = context.req.valid('json')
+      return context.json(await root.platformAdministration.softDeleteUser(actor, {
+        targetUserId: parseAdminTargetId(userId),
+        operationId: body.operationId,
+      }), 200)
+    })
+
+    .openapi(restoreUserRoute, async (context) => {
+      const actor = requireActor(context)
+      const { userId } = context.req.valid('param')
+      const body = context.req.valid('json')
+      return context.json(await root.platformAdministration.restoreUser(actor, {
         targetUserId: parseAdminTargetId(userId),
         operationId: body.operationId,
       }), 200)

@@ -4,14 +4,15 @@ import type { ApiClientError } from './api-client'
 export const PLATFORM_USERS_PAGE_SIZE = 20
 export const PLATFORM_USER_QUERY_LIMIT = 80
 
-export type PlatformAdministrationAction = 'grant-role' | 'revoke-role' | 'revoke-sessions'
-export type PlatformTargetWriteState = 'idle' | 'submitting-role' | 'submitting-sessions' | 'role-unknown' | 'sessions-unknown'
+export type PlatformAdministrationAction = 'grant-role' | 'revoke-role' | 'revoke-sessions' | 'soft-delete' | 'restore'
+export type PlatformTargetWriteState = 'idle' | 'submitting-role' | 'submitting-sessions' | 'submitting-account' | 'role-unknown' | 'sessions-unknown' | 'account-unknown'
 
 export interface PlatformAdministrationConfirmation {
   targetId: string
   targetUsername: string
   action: PlatformAdministrationAction
   expectedRoles: PlatformRole[]
+  expectedDeletedAt: string | null
   returnToSessionsUnknown?: boolean
 }
 
@@ -127,7 +128,8 @@ export function createRoleUnknownFact(
   }
 }
 
-export function platformRoleLabel(user: PlatformUserSummary): '成员' | '平台管理员' {
+export function platformRoleLabel(user: PlatformUserSummary): '成员' | '平台管理员' | '已删除' {
+  if (user.deletedAt !== null) return '已删除'
   return user.roles.length === 2 ? '平台管理员' : '成员'
 }
 
@@ -144,11 +146,14 @@ export function isConfirmationCompatible(
 ): boolean {
   const target = snapshot?.items.find((item) => item.id === confirmation.targetId)
   if (!target || target.id === currentUserId || target.username !== confirmation.targetUsername) return false
+  if (target.deletedAt !== confirmation.expectedDeletedAt) return false
   if (target.roles.length !== confirmation.expectedRoles.length
     || target.roles.some((role, index) => role !== confirmation.expectedRoles[index])) return false
-  return confirmation.action === 'grant-role' ? target.roles.length === 1
-    : confirmation.action === 'revoke-role' ? target.roles.length === 2
-      : true
+  return confirmation.action === 'restore' ? target.deletedAt !== null
+    : confirmation.action === 'soft-delete' ? target.deletedAt === null
+      : target.deletedAt === null && (confirmation.action === 'grant-role' ? target.roles.length === 1
+        : confirmation.action === 'revoke-role' ? target.roles.length === 2
+          : true)
 }
 
 export function replacePlatformUser(snapshot: PlatformUserPage, replacement: PlatformUserSummary): PlatformUserPage {
@@ -190,5 +195,7 @@ export function isUnknownWriteError(error: unknown): boolean {
 }
 
 export function unknownTargetState(action: PlatformAdministrationAction): PlatformTargetWriteState {
-  return action === 'revoke-sessions' ? 'sessions-unknown' : 'role-unknown'
+  return action === 'revoke-sessions' ? 'sessions-unknown'
+    : action === 'soft-delete' || action === 'restore' ? 'account-unknown'
+      : 'role-unknown'
 }

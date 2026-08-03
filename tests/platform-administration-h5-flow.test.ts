@@ -67,6 +67,16 @@ describe('platform administration H5 flow', () => {
     expect(component).not.toContain('localStorage')
   })
 
+  it('shows mutually exclusive delete/restore actions and confirms unknown account state with one factual read', () => {
+    expect(component).toContain("user.deletedAt !== null ? <Button onClick={() => openConfirmation(user, 'restore')}>恢复账号</Button>")
+    expect(component).toContain("openConfirmation(user, 'soft-delete')")
+    expect(component).toContain("lock === 'account-unknown'")
+    expect(component).toContain('apiClient.getPlatformUser(targetId)')
+    expect(component).toContain('replacePlatformUser(currentSnapshot, result)')
+    expect(component).not.toMatch(/softDeletePlatformUser[\s\S]{0,300}(?:retry|setTimeout|setInterval)/)
+    expect(state).toContain("action === 'soft-delete' || action === 'restore' ? 'account-unknown'")
+  })
+
   it('exposes each unlocked management control as a named button', () => {
     expect(component).toContain("{!locked && <Button {...{ role: 'button' }} className='platform-more-button' aria-label={`管理${user.username}`}")
   })

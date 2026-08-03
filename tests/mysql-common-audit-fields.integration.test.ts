@@ -99,9 +99,19 @@ describe.runIf(enabled)('MySQL common audit fields', () => {
     expect(tombstone!.updated_at).toEqual(tombstone!.permanently_deleted_at)
   })
 
-  it('records Schema 7 as the sole latest migration', async () => {
+  it('finishes Migration 008 safely after its non-transactional DDL was only partially applied', async () => {
+    await migrator.query('DELETE FROM schema_migrations WHERE version=8')
+    await migrator.query('ALTER TABLE security_audit_events DROP CHECK security_audit_events_action_code_check')
+    await runMySqlMigrations(migrator, migrationsRoot)
+    const [[column]] = await migrator.query<RowDataPacket[]>('SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?', ['users', 'deleted_at'])
+    const [[constraint]] = await migrator.query<RowDataPacket[]>('SELECT 1 FROM information_schema.table_constraints WHERE table_schema=DATABASE() AND table_name=? AND constraint_name=? AND constraint_type=?', ['security_audit_events', 'security_audit_events_action_code_check', 'CHECK'])
+    expect(column).toBeDefined()
+    expect(constraint).toBeDefined()
+  })
+
+  it('keeps the audit fields intact through the latest Schema migration', async () => {
     const [[row]] = await migrator.query<Array<RowDataPacket & { version: number }>>('SELECT MAX(version) AS version FROM schema_migrations')
-    expect(row!.version).toBe(7)
-    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBe(7)
+    expect(row!.version).toBe(8)
+    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBe(8)
   })
 })

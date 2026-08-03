@@ -19,7 +19,7 @@ export interface MySqlPlatformAdministrationRepositoryTestHooks {
   afterCommit?: () => void | Promise<void>
 }
 
-type UserRow = RowDataPacket & { id: string; username: string; created_at: Date | string }
+type UserRow = RowDataPacket & { id: string; username: string; created_at: Date | string; deleted_at: Date | string | null }
 type RoleRow = RowDataPacket & { user_id: string; role_code: PlatformRole }
 type AuditRow = RowDataPacket & {
   id: string
@@ -48,7 +48,7 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
       await connection.beginTransaction()
       const [countRows] = await connection.query<Array<RowDataPacket & { total: number | string }>>(`SELECT COUNT(*) AS total FROM users${where}`, parameters)
       const [users] = await connection.query<UserRow[]>(
-        `SELECT id,username,created_at FROM users${where} ORDER BY created_at DESC,id ASC LIMIT 20 OFFSET ?`,
+        `SELECT id,username,created_at,deleted_at FROM users${where} ORDER BY created_at DESC,id ASC LIMIT 20 OFFSET ?`,
         [...parameters, (input.page - 1) * 20],
       )
       const items = await this.readSummaries(connection, users)
@@ -66,7 +66,7 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
     const connection = await this.pool.getConnection()
     try {
       await connection.beginTransaction()
-      const [users] = await connection.query<UserRow[]>('SELECT id,username,created_at FROM users WHERE id=?', [userId])
+      const [users] = await connection.query<UserRow[]>('SELECT id,username,created_at,deleted_at FROM users WHERE id=?', [userId])
       const items = await this.readSummaries(connection, users)
       await connection.commit()
       return items[0]
@@ -82,6 +82,7 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
     return this.write(async connection => {
       const context = await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_ROLE_CHANGE')
       if (!context.targetIsMember) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
+      if (context.targetDeletedAt !== null) fail('PLATFORM_ADMIN_TARGET_DELETED', '已删除账号不可调整平台角色')
       if (context.adminUserIds.has(input.targetUserId)) return { value: 'already-granted', changed: false }
       await connection.query(
         "INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'platform_admin',?,?,?)",
@@ -96,6 +97,7 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
     return this.write(async connection => {
       const context = await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_ROLE_CHANGE')
       if (!context.targetIsMember) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
+      if (context.targetDeletedAt !== null) fail('PLATFORM_ADMIN_TARGET_DELETED', '已删除账号不可调整平台角色')
       if (!context.adminUserIds.has(input.targetUserId)) return { value: 'already-revoked', changed: false }
       await connection.query("DELETE FROM user_roles WHERE user_id=? AND role_code='platform_admin'", [input.targetUserId])
       await this.insertAudit(connection, input, 'platform_admin_revoked')
@@ -105,7 +107,8 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
 
   revokeAllSessions(input: RevokeAllUserSessionsInput): Promise<{ revokedSessionCount: number }> {
     return this.write(async connection => {
-      await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_SESSION_REVOKE')
+      const context = await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_SESSION_REVOKE')
+      if (context.targetDeletedAt !== null) fail('PLATFORM_ADMIN_TARGET_DELETED', '已删除账号不可撤销会话')
       const [result] = await connection.query<ResultSetHeader>(
         'UPDATE user_sessions SET revoked_at=?,updated_at=? WHERE user_id=? AND revoked_at IS NULL',
         [new Date(input.revokedAt), new Date(input.revokedAt), input.targetUserId],
@@ -115,13 +118,46 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
     })
   }
 
+  softDeleteUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary> {
+    return this.write(async connection => {
+      const context = await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE')
+      if (!context.targetIsMember) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
+      if (context.targetDeletedAt !== null) {
+        return { value: await this.requireUserSummary(connection, input.targetUserId), changed: false }
+      }
+      const changedAt = new Date(input.createdAt)
+      await connection.query('UPDATE users SET deleted_at=?,updated_at=? WHERE id=?', [changedAt, changedAt, input.targetUserId])
+      await connection.query(
+        'UPDATE user_sessions SET revoked_at=?,updated_at=? WHERE user_id=? AND revoked_at IS NULL',
+        [changedAt, changedAt, input.targetUserId],
+      )
+      await connection.query("DELETE FROM user_roles WHERE user_id=? AND role_code='platform_admin'", [input.targetUserId])
+      await this.insertAudit(connection, input, 'user_soft_deleted')
+      return { value: await this.requireUserSummary(connection, input.targetUserId), changed: true }
+    })
+  }
+
+  restoreUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary> {
+    return this.write(async connection => {
+      const context = await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE')
+      if (!context.targetIsMember) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
+      if (context.targetDeletedAt === null) {
+        return { value: await this.requireUserSummary(connection, input.targetUserId), changed: false }
+      }
+      await connection.query('UPDATE users SET deleted_at=NULL,updated_at=? WHERE id=?', [new Date(input.createdAt), input.targetUserId])
+      await this.insertAudit(connection, input, 'user_restored')
+      return { value: await this.requireUserSummary(connection, input.targetUserId), changed: true }
+    })
+  }
+
   initializePlatformAdmin(input: InitialPlatformAdminGrantInput): Promise<InitialPlatformAdminGrantResult> {
     return this.write(async connection => {
       const [admins] = await connection.query<Array<RowDataPacket & { user_id: string }>>(
         "SELECT user_id FROM user_roles FORCE INDEX (user_roles_role_user_idx) WHERE role_code='platform_admin' ORDER BY user_id FOR UPDATE",
       )
-      const [users] = await connection.query<RowDataPacket[]>('SELECT id FROM users WHERE id=? FOR UPDATE', [input.targetUserId])
+      const [users] = await connection.query<Array<RowDataPacket & { deleted_at: Date | string | null }>>('SELECT id,deleted_at FROM users WHERE id=? FOR UPDATE', [input.targetUserId])
       if (users.length === 0) fail('PLATFORM_ADMIN_USER_NOT_FOUND', '目标用户不存在')
+      if (users[0]!.deleted_at !== null) fail('PLATFORM_ADMIN_TARGET_DELETED', '已删除账号不可初始化为平台管理员')
       const [roles] = await connection.query<Array<RowDataPacket & { role_code: string }>>('SELECT role_code FROM user_roles WHERE user_id=? ORDER BY role_code FOR UPDATE', [input.targetUserId])
       if (!roles.some(row => row.role_code === 'member')) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
       if (admins.length > 0) {
@@ -151,20 +187,27 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
   private async lockContext(
     connection: PoolConnection,
     input: PlatformRoleChangeInput,
-    selfError: 'PLATFORM_ADMIN_SELF_ROLE_CHANGE' | 'PLATFORM_ADMIN_SELF_SESSION_REVOKE',
-  ): Promise<{ adminUserIds: Set<string>; targetIsMember: boolean }> {
+    selfError: 'PLATFORM_ADMIN_SELF_ROLE_CHANGE' | 'PLATFORM_ADMIN_SELF_SESSION_REVOKE' | 'PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE',
+  ): Promise<{ adminUserIds: Set<string>; targetIsMember: boolean; targetDeletedAt: Date | string | null }> {
     const [admins] = await connection.query<Array<RowDataPacket & { user_id: string }>>(
-      "SELECT user_id FROM user_roles FORCE INDEX (user_roles_role_user_idx) WHERE role_code='platform_admin' ORDER BY user_id FOR UPDATE",
+      "SELECT r.user_id FROM user_roles r FORCE INDEX (user_roles_role_user_idx) JOIN users u ON u.id=r.user_id WHERE r.role_code='platform_admin' AND u.deleted_at IS NULL ORDER BY r.user_id FOR UPDATE",
     )
     const ids = [...new Set([input.actorUserId, input.targetUserId])].sort()
-    const [users] = await connection.query<Array<RowDataPacket & { id: string }>>(
-      `SELECT id FROM users WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY id FOR UPDATE`,
+    const [users] = await connection.query<Array<RowDataPacket & { id: string; deleted_at: Date | string | null }>>(
+      `SELECT id,deleted_at FROM users WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY id FOR UPDATE`,
       ids,
     )
     if (users.length !== ids.length) fail('PLATFORM_ADMIN_USER_NOT_FOUND', '目标用户不存在')
     const adminUserIds = new Set(admins.map(row => row.user_id))
     if (!adminUserIds.has(input.actorUserId)) fail('PLATFORM_ADMIN_FORBIDDEN', '无权执行平台管理操作')
-    if (input.actorUserId === input.targetUserId) fail(selfError, selfError === 'PLATFORM_ADMIN_SELF_ROLE_CHANGE' ? '不允许调整自己的平台角色' : '不允许通过管理接口撤销自己的会话')
+    if (input.actorUserId === input.targetUserId) {
+      const messages = {
+        PLATFORM_ADMIN_SELF_ROLE_CHANGE: '不允许调整自己的平台角色',
+        PLATFORM_ADMIN_SELF_SESSION_REVOKE: '不允许通过管理接口撤销自己的会话',
+        PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE: '不允许删除或恢复自己的账号',
+      } as const
+      fail(selfError, messages[selfError])
+    }
     const [operations] = await connection.query<RowDataPacket[]>(
       'SELECT operation_id FROM security_audit_events WHERE operation_id=? FOR UPDATE',
       [input.operationId],
@@ -174,7 +217,8 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
       'SELECT role_code FROM user_roles WHERE user_id=? ORDER BY role_code FOR UPDATE',
       [input.targetUserId],
     )
-    return { adminUserIds, targetIsMember: targetRoles.some(row => row.role_code === 'member') }
+    const target = users.find(row => row.id === input.targetUserId)!
+    return { adminUserIds, targetIsMember: targetRoles.some(row => row.role_code === 'member'), targetDeletedAt: target.deleted_at }
   }
 
   private insertAudit(connection: PoolConnection, input: PlatformRoleChangeInput, action: SecurityAuditAction): Promise<unknown> {
@@ -201,7 +245,16 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
       username: row.username,
       roles: orderedRoles(rolesByUser.get(row.id)),
       createdAt: new Date(row.created_at).toISOString(),
+      deletedAt: row.deleted_at === null ? null : new Date(row.deleted_at).toISOString(),
     }))
+  }
+
+  private async requireUserSummary(connection: PoolConnection, userId: string): Promise<PlatformUserSummary> {
+    const [users] = await connection.query<UserRow[]>('SELECT id,username,created_at,deleted_at FROM users WHERE id=?', [userId])
+    const summaries = await this.readSummaries(connection, users)
+    const summary = summaries[0]
+    if (!summary) fail('PLATFORM_ADMIN_USER_READ_FAILED', '读取目标用户失败')
+    return summary
   }
 
   private async write<T>(work: (connection: PoolConnection) => Promise<TransactionResult<T>>, serializeBootstrap = false): Promise<T> {

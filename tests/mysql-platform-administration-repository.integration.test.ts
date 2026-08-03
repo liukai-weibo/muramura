@@ -71,10 +71,11 @@ describe.runIf(enabled)('platform administration repository', () => {
   }
 
   async function securitySnapshot(): Promise<unknown> {
+    const [users] = await app.query('SELECT id,deleted_at,updated_at FROM users ORDER BY id')
     const [roles] = await app.query('SELECT * FROM user_roles ORDER BY user_id,role_code')
     const [sessions] = await app.query('SELECT * FROM user_sessions ORDER BY id')
     const [audit] = await app.query('SELECT * FROM security_audit_events ORDER BY id')
-    return { roles, sessions, audit }
+    return { users, roles, sessions, audit }
   }
 
   it('creates users and member atomically, rolling the user back when member insertion fails', async () => {
@@ -98,7 +99,7 @@ describe.runIf(enabled)('platform administration repository', () => {
     expect(first.total).toBe(21)
     expect(first.items).toHaveLength(20)
     expect(first.items[0]).toMatchObject({ id: 'u-20', roles: ['member', 'platform_admin'] })
-    expect(Object.keys(first.items[0]!).sort()).toEqual(['createdAt', 'id', 'roles', 'username'])
+    expect(Object.keys(first.items[0]!).sort()).toEqual(['createdAt', 'deletedAt', 'id', 'roles', 'username'])
     expect((await repository.listUsers({ page: 2 })).items.map(item => item.id)).toEqual(['u-00'])
     expect((await repository.listUsers({ page: 1, query: '  %_=  ' })).items.map(item => item.id)).toEqual(['u-07'])
     expect(await repository.getUserById('u-20')).toEqual(first.items[0])
@@ -195,6 +196,74 @@ describe.runIf(enabled)('platform administration repository', () => {
     expect(await repository.revokeAllSessions({ ...first, revokedAt: at })).toEqual({ revokedSessionCount: 2 })
     expect(await repository.revokeAllSessions({ ...change('actor', 'target'), revokedAt: at })).toEqual({ revokedSessionCount: 0 })
     expect((await app.query("SELECT id FROM security_audit_events WHERE action_code='user_sessions_revoked'"))[0]).toHaveLength(2)
+  })
+
+  it('soft-deletes and restores accounts atomically without restoring sessions or administrator roles', async () => {
+    await admin('actor')
+    await admin('target')
+    const auth = new MySqlAuthRepository(app)
+    expect(await auth.createSession({ id: 'target-session', userId: 'target', secretHash: Buffer.alloc(32, 8), expiresAt: '2030-01-01T00:00:00.000Z', createdAt: at })).toBe('created')
+    const repository = new MySqlPlatformAdministrationRepository(app)
+
+    await expect(repository.softDeleteUser(change('actor', 'actor'))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE' })
+    const deletion = change('actor', 'target')
+    const deleted = await repository.softDeleteUser(deletion)
+    expect(deleted).toMatchObject({ id: 'target', roles: ['member'], deletedAt: at })
+    expect(await auth.findUserByUsername('target')).toBeUndefined()
+    expect(await auth.getSessionBySecretHash(Buffer.alloc(32, 8), at)).toBeUndefined()
+    expect(await auth.createSession({ id: 'late-session', userId: 'target', secretHash: Buffer.alloc(32, 9), expiresAt: '2030-01-01T00:00:00.000Z', createdAt: at })).toBe('account-unavailable')
+    expect((await app.query("SELECT role_code FROM user_roles WHERE user_id='target' ORDER BY role_code"))[0]).toEqual([{ role_code: 'member' }])
+    expect(await repository.findAuditEventByOperationId(deletion.operationId)).toMatchObject({ action: 'user_soft_deleted' })
+    await expect(repository.grantPlatformAdmin(change('actor', 'target'))).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_TARGET_DELETED' })
+    await expect(repository.revokeAllSessions({ ...change('actor', 'target'), revokedAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_TARGET_DELETED' })
+
+    const deleteNoOp = change('actor', 'target')
+    expect((await repository.softDeleteUser(deleteNoOp)).deletedAt).toBe(at)
+    expect(await repository.findAuditEventByOperationId(deleteNoOp.operationId)).toBeUndefined()
+    await expect(repository.softDeleteUser(deletion)).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_OPERATION_CONFLICT' })
+
+    const restoration = { ...change('actor', 'target'), createdAt: '2026-07-30T09:00:00.000Z' }
+    expect((await repository.restoreUser(restoration)).deletedAt).toBeNull()
+    expect(await auth.findUserByUsername('target')).toBeDefined()
+    expect(await auth.getSessionBySecretHash(Buffer.alloc(32, 8), '2026-07-30T09:00:00.000Z')).toBeUndefined()
+    expect((await app.query("SELECT role_code FROM user_roles WHERE user_id='target' ORDER BY role_code"))[0]).toEqual([{ role_code: 'member' }])
+    expect(await repository.findAuditEventByOperationId(restoration.operationId)).toMatchObject({ action: 'user_restored' })
+    const restoreNoOp = change('actor', 'target')
+    expect((await repository.restoreUser(restoreNoOp)).deletedAt).toBeNull()
+    expect(await repository.findAuditEventByOperationId(restoreNoOp.operationId)).toBeUndefined()
+  })
+
+  it('rolls back the account marker, sessions, role and audit together when deletion fails before commit', async () => {
+    await admin('actor')
+    await admin('target')
+    const auth = new MySqlAuthRepository(app)
+    await auth.createSession({ id: 'target-session', userId: 'target', secretHash: Buffer.alloc(32, 6), expiresAt: '2030-01-01T00:00:00.000Z', createdAt: at })
+    const before = await securitySnapshot()
+    const repository = new MySqlPlatformAdministrationRepository(app, { beforeCommit: () => { throw new Error('before account deletion commit') } })
+    await expect(repository.softDeleteUser(change('actor', 'target'))).rejects.toThrow('before account deletion commit')
+    expect(await securitySnapshot()).toEqual(before)
+  })
+
+  it('does not create a session when deletion wins the password-check to session-create race', async () => {
+    await admin('actor')
+    await user('target')
+    const auth = new MySqlAuthRepository(app)
+    let markDeletionReady!: () => void
+    let allowCommit!: () => void
+    const deletionReady = new Promise<void>(resolve => { markDeletionReady = resolve })
+    const commitAllowed = new Promise<void>(resolve => { allowCommit = resolve })
+    const repository = new MySqlPlatformAdministrationRepository(app, {
+      beforeCommit: async () => { markDeletionReady(); await commitAllowed },
+    })
+
+    const deletion = repository.softDeleteUser(change('actor', 'target'))
+    await deletionReady
+    const session = auth.createSession({ id: 'racing-session', userId: 'target', secretHash: Buffer.alloc(32, 5), expiresAt: '2030-01-01T00:00:00.000Z', createdAt: at })
+    allowCommit()
+
+    expect((await deletion).deletedAt).toBe(at)
+    expect(await session).toBe('account-unavailable')
+    expect((await app.query("SELECT id FROM user_sessions WHERE id='racing-session'"))[0]).toEqual([])
   })
 
   it('rolls back before commit and exposes committed unknown outcomes only through explicit audit reads', async () => {

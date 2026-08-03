@@ -1,6 +1,6 @@
 import { platformRoles, type AuthCredentialRecord, type AuthRepository, type AuthUser, type CreateAuthUserInput, type PlatformRole } from '@knowledge-base/contracts'
 import { fail } from '@knowledge-base/domain'
-import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
 type UserRoleRow = RowDataPacket & { id: string; username: string; password_hash?: string; created_at: Date | string; role_code: string | null }
 
@@ -23,14 +23,20 @@ export class MySqlAuthRepository implements AuthRepository {
     }
   }
   async findUserByUsername(username: string): Promise<AuthCredentialRecord | undefined> {
-    const [rows] = await this.pool.query<UserRoleRow[]>('SELECT u.id,u.username,u.password_hash,u.created_at,r.role_code FROM users u LEFT JOIN user_roles r ON r.user_id=u.id WHERE u.username=?', [username])
+    const [rows] = await this.pool.query<UserRoleRow[]>('SELECT u.id,u.username,u.password_hash,u.created_at,r.role_code FROM users u LEFT JOIN user_roles r ON r.user_id=u.id WHERE u.username=? AND u.deleted_at IS NULL', [username])
     if (rows.length === 0) return undefined
     const first = rows[0]!
     return { user: authUser(first, rows.map(row => row.role_code)), passwordHash: first.password_hash! }
   }
-  async createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<void> { await this.pool.query('INSERT INTO user_sessions(id,user_id,session_secret_hash,expires_at,revoked_at,created_at,updated_at) VALUES (?,?,?,?,NULL,?,?)', [input.id,input.userId,Buffer.from(input.secretHash),new Date(input.expiresAt),new Date(input.createdAt),new Date(input.createdAt)]) }
+  async createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<'created' | 'account-unavailable'> {
+    const [result] = await this.pool.query<ResultSetHeader>(
+      'INSERT INTO user_sessions(id,user_id,session_secret_hash,expires_at,revoked_at,created_at,updated_at) SELECT ?,u.id,?,?,NULL,?,? FROM users u WHERE u.id=? AND u.deleted_at IS NULL',
+      [input.id, Buffer.from(input.secretHash), new Date(input.expiresAt), new Date(input.createdAt), new Date(input.createdAt), input.userId],
+    )
+    return result.affectedRows === 1 ? 'created' : 'account-unavailable'
+  }
   async getSessionBySecretHash(secretHash: Uint8Array, now: string): Promise<AuthUser | undefined> {
-    const [rows] = await this.pool.query<UserRoleRow[]>('SELECT u.id,u.username,u.created_at,r.role_code FROM user_sessions s JOIN users u ON u.id=s.user_id LEFT JOIN user_roles r ON r.user_id=u.id WHERE s.session_secret_hash=? AND s.revoked_at IS NULL AND s.expires_at>?', [Buffer.from(secretHash),new Date(now)])
+    const [rows] = await this.pool.query<UserRoleRow[]>('SELECT u.id,u.username,u.created_at,r.role_code FROM user_sessions s JOIN users u ON u.id=s.user_id LEFT JOIN user_roles r ON r.user_id=u.id WHERE s.session_secret_hash=? AND s.revoked_at IS NULL AND s.expires_at>? AND u.deleted_at IS NULL', [Buffer.from(secretHash),new Date(now)])
     return rows.length === 0 ? undefined : authUser(rows[0]!, rows.map(row => row.role_code))
   }
   async revokeSessionBySecretHash(secretHash: Uint8Array, revokedAt: string): Promise<void> { await this.pool.query('UPDATE user_sessions SET revoked_at=?,updated_at=? WHERE session_secret_hash=? AND revoked_at IS NULL', [new Date(revokedAt),new Date(revokedAt),Buffer.from(secretHash)]) }

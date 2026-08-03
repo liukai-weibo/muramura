@@ -71,8 +71,8 @@ describe.runIf(enabled)('initial platform administrator CLI', () => {
       expect(result).toMatchObject({ code: 1, stdout: [], stderr: [expect.stringMatching(/^USAGE:/)] })
     }
     expect(await invoke(args('target-a', `${database}_wrong`))).toMatchObject({ code: 1, stdout: [], stderr: ['DATABASE_MISMATCH'] })
-    const [versionRows] = await app.query<Array<RowDataPacket & { version: number; name: string; checksum: string; applied_at: Date }>>('SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version=7')
-    await app.query('DELETE FROM schema_migrations WHERE version=7')
+    const [versionRows] = await app.query<Array<RowDataPacket & { version: number; name: string; checksum: string; applied_at: Date }>>('SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version=8')
+    await app.query('DELETE FROM schema_migrations WHERE version=8')
     try { expect(await invoke(args('target-a'))).toMatchObject({ code: 1, stdout: [], stderr: ['SCHEMA_NOT_READY'] }) }
     finally {
       const row = versionRows[0]!

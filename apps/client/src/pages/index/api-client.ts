@@ -20,6 +20,7 @@ import type {
   MethodApplicationContextResult,
   MethodEvidenceDetail,
   MethodVersion,
+  AdminChangeUserAccountStateRequest,
   AdminRevokeUserSessionsRequest,
   AdminRevokeUserSessionsResponse,
   AdminSetUserRolesRequest,
@@ -115,16 +116,17 @@ function hasExactKeys(value: Record<string, unknown>, expected: string[]): boole
 }
 
 function parsePlatformUserSummary(value: unknown): PlatformUserSummary {
-  if (!isRecord(value) || !hasExactKeys(value, ['id', 'username', 'roles', 'createdAt'])
+  if (!isRecord(value) || !hasExactKeys(value, ['id', 'username', 'roles', 'createdAt', 'deletedAt'])
     || typeof value.id !== 'string' || value.id.length === 0
     || typeof value.username !== 'string' || value.username.length === 0
     || typeof value.createdAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value.createdAt) || !Number.isFinite(Date.parse(value.createdAt))
+    || !(value.deletedAt === null || typeof value.deletedAt === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value.deletedAt) && Number.isFinite(Date.parse(value.deletedAt)))
     || !Array.isArray(value.roles)
     || !(value.roles.length === 1 && value.roles[0] === 'member')
       && !(value.roles.length === 2 && value.roles[0] === 'member' && value.roles[1] === 'platform_admin')) {
     throw new Error('用户管理响应结构无效。')
   }
-  return { id: value.id, username: value.username, roles: [...value.roles], createdAt: value.createdAt } as PlatformUserSummary
+  return { id: value.id, username: value.username, roles: [...value.roles], createdAt: value.createdAt, deletedAt: value.deletedAt } as PlatformUserSummary
 }
 
 function parsePlatformUserPage(value: unknown, expectedPage: number): PlatformUserPage {
@@ -149,10 +151,10 @@ function parseRevokeSessionsResponse(value: unknown): AdminRevokeUserSessionsRes
   return { revokedSessionCount: value.revokedSessionCount as number }
 }
 
-async function parseUnknownRoleWrite(promise: Promise<unknown>, targetUserId: string): Promise<PlatformUserSummary> {
+async function parseUnknownUserWrite(promise: Promise<unknown>, targetUserId: string, mismatchMessage: string): Promise<PlatformUserSummary> {
   try {
     const summary = parsePlatformUserSummary(await promise)
-    if (summary.id !== targetUserId) throw new Error('角色响应目标不匹配。')
+    if (summary.id !== targetUserId) throw new Error(mismatchMessage)
     return summary
   } catch (error) {
     if (error instanceof ApiClientUnknownOutcomeError || (error as ApiClientError).status !== undefined) throw error
@@ -213,15 +215,38 @@ export const apiClient = {
   },
   setPlatformUserRoles: (targetUserId: string, input: AdminSetUserRolesRequest) => {
     if (!validAdminTargetId(targetUserId) || !validPlatformRoles(input.roles) || !validOperationId(input.operationId)) return Promise.reject(new Error('用户角色请求参数无效。'))
-    return parseUnknownRoleWrite(
+    return parseUnknownUserWrite(
       request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/roles`, { method: 'PUT', body: json({ roles: input.roles, operationId: input.operationId }) }),
       targetUserId,
+      '角色响应目标不匹配。',
     )
   },
   revokePlatformUserSessions: (targetUserId: string, input: AdminRevokeUserSessionsRequest) => {
     if (!validAdminTargetId(targetUserId) || !validOperationId(input.operationId)) return Promise.reject(new Error('会话撤销请求参数无效。'))
     return parseUnknownSessionsWrite(
       request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/revoke-sessions`, { method: 'POST', body: json({ operationId: input.operationId }) }),
+    )
+  },
+  getPlatformUser: async (targetUserId: string, signal?: AbortSignal) => {
+    if (!validAdminTargetId(targetUserId)) throw new Error('用户读取请求参数无效。')
+    const result = parsePlatformUserSummary(await request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}`, { signal }))
+    if (result.id !== targetUserId) throw new Error('用户响应目标不匹配。')
+    return result
+  },
+  softDeletePlatformUser: (targetUserId: string, input: AdminChangeUserAccountStateRequest) => {
+    if (!validAdminTargetId(targetUserId) || !validOperationId(input.operationId)) return Promise.reject(new Error('账号删除请求参数无效。'))
+    return parseUnknownUserWrite(
+      request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/soft-delete`, { method: 'POST', body: json(input) }),
+      targetUserId,
+      '账号删除响应目标不匹配。',
+    )
+  },
+  restorePlatformUser: (targetUserId: string, input: AdminChangeUserAccountStateRequest) => {
+    if (!validAdminTargetId(targetUserId) || !validOperationId(input.operationId)) return Promise.reject(new Error('账号恢复请求参数无效。'))
+    return parseUnknownUserWrite(
+      request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/restore`, { method: 'POST', body: json(input) }),
+      targetUserId,
+      '账号恢复响应目标不匹配。',
     )
   },
   listItems: (signal?: AbortSignal) => request<Item[]>('/items', { signal }),

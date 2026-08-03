@@ -49,6 +49,18 @@ function confirmationCopy(confirmation: PlatformAdministrationConfirmation): { t
     confirm: '撤销管理员',
     dangerous: true,
   }
+  if (confirmation.action === 'soft-delete') return {
+    title: `删除“${confirmation.targetUsername}”的账号？`,
+    description: '账号和业务数据会保留，但该用户将无法登录，现有会话会立即失效，平台管理员权限也会移除。之后可以恢复账号。',
+    confirm: '确认删除账号',
+    dangerous: true,
+  }
+  if (confirmation.action === 'restore') return {
+    title: `恢复“${confirmation.targetUsername}”的账号？`,
+    description: '恢复后该用户可以重新登录，但旧会话和原有平台管理员权限不会自动恢复。',
+    confirm: '确认恢复账号',
+    dangerous: false,
+  }
   return {
     title: `撤销“${confirmation.targetUsername}”的全部登录会话？`,
     description: '该用户当前所有有效登录会话都会失效，需要重新登录。角色、账号和业务数据不会改变。',
@@ -177,7 +189,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       const lock = targetLocksRef.current[confirmation.targetId]
-      if (lock === 'submitting-role' || lock === 'submitting-sessions') return
+      if (lock?.startsWith('submitting')) return
       if (confirmation.returnToSessionsUnknown) updateLock(confirmation.targetId, 'sessions-unknown')
       clearConfirmation()
     }
@@ -199,6 +211,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
       targetId: target.id,
       targetUsername: target.username,
       expectedRoles: [...target.roles],
+      expectedDeletedAt: target.deletedAt,
       action,
       returnToSessionsUnknown,
     }
@@ -211,7 +224,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
     const current = confirmationRef.current
     if (!current) return
     const lock = targetLocksRef.current[current.targetId]
-    if (lock === 'submitting-role' || lock === 'submitting-sessions') return
+    if (lock?.startsWith('submitting')) return
     if (current.returnToSessionsUnknown) updateLock(current.targetId, 'sessions-unknown')
     clearConfirmation()
   }
@@ -239,8 +252,9 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
       setListState(snapshotRef.current ? 'ready' : 'initial-loading')
       setListNotice(undefined)
     }
-    const roleAction = current.action !== 'revoke-sessions'
-    updateLock(current.targetId, roleAction ? 'submitting-role' : 'submitting-sessions')
+    const roleAction = current.action === 'grant-role' || current.action === 'revoke-role'
+    const sessionsAction = current.action === 'revoke-sessions'
+    updateLock(current.targetId, roleAction ? 'submitting-role' : sessionsAction ? 'submitting-sessions' : 'submitting-account')
     updateTargetNotice(current.targetId)
     try {
       if (roleAction) {
@@ -251,11 +265,20 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
         if (currentSnapshot) updateSnapshot(replacePlatformUser(currentSnapshot, result))
         updateLock(current.targetId, 'idle')
         updateTargetNotice(current.targetId, { kind: 'success', message: current.action === 'grant-role' ? '已授予平台管理员权限。' : '已撤销平台管理员权限。' })
-      } else {
+      } else if (sessionsAction) {
         const result = await apiClient.revokePlatformUserSessions(current.targetId, { operationId })
         if (!mountedRef.current || authenticationContextRef.current !== authenticationContext || writeAttemptsRef.current.get(current.targetId) !== attempt) return
         updateLock(current.targetId, 'idle')
         updateTargetNotice(current.targetId, { kind: 'success', message: result.revokedSessionCount > 0 ? `已撤销 ${result.revokedSessionCount} 个登录会话。` : '当前没有需要撤销的有效会话。' })
+      } else {
+        const result = current.action === 'soft-delete'
+          ? await apiClient.softDeletePlatformUser(current.targetId, { operationId })
+          : await apiClient.restorePlatformUser(current.targetId, { operationId })
+        if (!mountedRef.current || authenticationContextRef.current !== authenticationContext || writeAttemptsRef.current.get(current.targetId) !== attempt) return
+        const currentSnapshot = snapshotRef.current
+        if (currentSnapshot) updateSnapshot(replacePlatformUser(currentSnapshot, result))
+        updateLock(current.targetId, 'idle')
+        updateTargetNotice(current.targetId, { kind: 'success', message: current.action === 'soft-delete' ? '账号已删除。' : '账号已恢复，可以重新登录。' })
       }
       clearConfirmation()
     } catch (error) {
@@ -266,7 +289,9 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
         const unknownState = unknownTargetState(current.action)
         updateLock(current.targetId, unknownState)
         if (roleAction) roleUnknownFactsRef.current.set(current.targetId, createRoleUnknownFact(lastConfirmedSummary, factGenerationRef.current))
-        updateTargetNotice(current.targetId, { kind: 'unknown', message: roleAction ? '操作结果尚未确认。请显式刷新用户列表确认真实角色。' : '无法确认会话撤销是否完成。', requestId: apiError.requestId })
+        updateTargetNotice(current.targetId, { kind: 'unknown', message: roleAction
+          ? '操作结果尚未确认。请显式刷新用户列表确认真实角色。'
+          : sessionsAction ? '无法确认会话撤销是否完成。' : '无法确认账号状态是否已改变，请读取该用户的真实状态。', requestId: apiError.requestId })
       } else {
         updateLock(current.targetId, 'idle')
         updateTargetNotice(current.targetId, platformErrorNotice(error, '管理操作失败。', apiError.status === 404 || apiError.status === 409))
@@ -275,6 +300,31 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
     } finally {
       if (writeAttemptsRef.current.get(current.targetId) === attempt) writeAttemptsRef.current.delete(current.targetId)
       occupiedTargetsRef.current.delete(current.targetId)
+    }
+  }
+
+  const confirmAccountState = async (targetId: string) => {
+    if (occupiedTargetsRef.current.has(targetId) || targetLocksRef.current[targetId] !== 'account-unknown') return
+    occupiedTargetsRef.current.add(targetId)
+    factGenerationRef.current += 1
+    if (readCoordinatorRef.current.supersedeByWrite(authenticationContextRef.current, factGenerationRef.current)) {
+      setListState(snapshotRef.current ? 'ready' : 'initial-loading')
+      setListNotice(undefined)
+    }
+    try {
+      const result = await apiClient.getPlatformUser(targetId)
+      if (!mountedRef.current || authenticationContextRef.current !== authenticationContext) return
+      const currentSnapshot = snapshotRef.current
+      if (currentSnapshot) updateSnapshot(replacePlatformUser(currentSnapshot, result))
+      updateLock(targetId, 'idle')
+      updateTargetNotice(targetId, { kind: 'success', message: result.deletedAt === null ? '已确认：账号当前可用。' : '已确认：账号当前已删除。' })
+    } catch (error) {
+      if (!mountedRef.current || authenticationContextRef.current !== authenticationContext) return
+      const apiError = error as ApiClientError
+      if (apiError.status === 401 || apiError.status === 403) return
+      updateTargetNotice(targetId, platformErrorNotice(error, '无法读取账号真实状态。', apiError.status === 404))
+    } finally {
+      occupiedTargetsRef.current.delete(targetId)
     }
   }
 
@@ -305,7 +355,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
 
   return <View className={`platform-administration ${visible ? '' : 'platform-administration-hidden'}`}>
     <View className='platform-administration-header'>
-      <View><Text className='platform-administration-title'>用户管理</Text><Text className='platform-administration-description'>管理平台管理员角色与用户登录会话</Text></View>
+      <View><Text className='platform-administration-title'>用户管理</Text><Text className='platform-administration-description'>管理账号状态、平台管理员角色与用户登录会话</Text></View>
       <Button className='platform-administration-refresh' disabled={refreshing || listState === 'initial-loading'} onClick={() => void readUsers(page, appliedQuery)}>刷新</Button>
     </View>
 
@@ -344,17 +394,21 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
               const notice = targetNotices[user.id]
               return <View className='platform-user-row' key={user.id}>
                 <Text className='platform-user-name'>{user.username}</Text>
-                <Text className={`platform-role-badge ${user.roles.length === 2 ? 'administrator' : 'member'}`}>{platformRoleLabel(user)}</Text>
+                <Text className={`platform-role-badge ${user.deletedAt !== null ? 'deleted' : user.roles.length === 2 ? 'administrator' : 'member'}`}>{platformRoleLabel(user)}</Text>
                 <Text className='platform-user-created'>注册于 {formatRegistrationTime(user.createdAt)}</Text>
                 <View className='platform-user-actions'>
                   {current ? <Text className='platform-current-user'>当前账号</Text> : <>
                     {lock === 'role-unknown' && <Button className='platform-inline-action' onClick={() => void readUsers(page, appliedQuery)}>刷新用户列表</Button>}
                     {lock === 'sessions-unknown' && <Button className='platform-inline-action danger' onClick={() => openConfirmation(user, 'revoke-sessions', true)}>再次撤销会话</Button>}
+                    {lock === 'account-unknown' && <Button className='platform-inline-action' onClick={() => void confirmAccountState(user.id)}>确认账号状态</Button>}
                     {!locked && <Button {...{ role: 'button' }} className='platform-more-button' aria-label={`管理${user.username}`} onClick={() => setOpenMenuId((value) => value === user.id ? undefined : user.id)}>更多</Button>}
                     {openMenuId === user.id && !locked && <><View className='platform-menu-dismiss-layer' onClick={() => setOpenMenuId(undefined)} /><View className='platform-user-menu' onClick={(event) => event.stopPropagation()}>
-                      <Button onClick={() => openConfirmation(user, user.roles.length === 2 ? 'revoke-role' : 'grant-role')}>{user.roles.length === 2 ? '撤销管理员' : '授予管理员'}</Button>
-                      <View className='platform-user-menu-divider' />
-                      <Button className='danger' onClick={() => openConfirmation(user, 'revoke-sessions')}>撤销全部会话</Button>
+                      {user.deletedAt !== null ? <Button onClick={() => openConfirmation(user, 'restore')}>恢复账号</Button> : <>
+                        <Button onClick={() => openConfirmation(user, user.roles.length === 2 ? 'revoke-role' : 'grant-role')}>{user.roles.length === 2 ? '撤销管理员' : '授予管理员'}</Button>
+                        <Button onClick={() => openConfirmation(user, 'revoke-sessions')}>撤销全部会话</Button>
+                        <View className='platform-user-menu-divider' />
+                        <Button className='danger' onClick={() => openConfirmation(user, 'soft-delete')}>删除账号</Button>
+                      </>}
                     </View></>}
                   </>}
                 </View>
@@ -373,8 +427,8 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
         <Text className='platform-confirmation-title'>{confirmationContent.title}</Text>
         <Text className='platform-confirmation-description'>{confirmationContent.description}</Text>
         <View className='platform-confirmation-actions'>
-          <Button disabled={targetLocks[confirmation.targetId] === 'submitting-role' || targetLocks[confirmation.targetId] === 'submitting-sessions'} onClick={closeConfirmation}>取消</Button>
-          <Button className={confirmationContent.dangerous ? 'danger' : 'primary'} disabled={targetLocks[confirmation.targetId] === 'submitting-role' || targetLocks[confirmation.targetId] === 'submitting-sessions'} onClick={() => void submitConfirmation()}>{targetLocks[confirmation.targetId]?.startsWith('submitting') ? '正在提交…' : confirmationContent.confirm}</Button>
+          <Button disabled={targetLocks[confirmation.targetId]?.startsWith('submitting')} onClick={closeConfirmation}>取消</Button>
+          <Button className={confirmationContent.dangerous ? 'danger' : 'primary'} disabled={targetLocks[confirmation.targetId]?.startsWith('submitting')} onClick={() => void submitConfirmation()}>{targetLocks[confirmation.targetId]?.startsWith('submitting') ? '正在提交…' : confirmationContent.confirm}</Button>
         </View>
       </View>
     </View>}

@@ -33,6 +33,7 @@ describe.runIf(enabled)('account ownership schema', () => {
       { column_name: 'password_hash', column_type: 'varchar(255)', is_nullable: 'NO', column_default: null },
       { column_name: 'created_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
       { column_name: 'updated_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
+      { column_name: 'deleted_at', column_type: 'datetime(3)', is_nullable: 'YES', column_default: null },
     ])
     expect(accountColumns('user_sessions')).toEqual([
       { column_name: 'id', column_type: 'varchar(128)', is_nullable: 'NO', column_default: null },

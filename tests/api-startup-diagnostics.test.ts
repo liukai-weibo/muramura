@@ -30,25 +30,25 @@ describe('API startup diagnostics', () => {
       reason: 'migration-table-missing' as const,
       error: schemaError({
         reason: 'migration-table-missing', database: 'knowledge_base', actualSchemaVersion: 0,
-        requiredSchemaVersion: 7, requiredTable: 'schema_migrations',
+        requiredSchemaVersion: 8, requiredTable: 'schema_migrations',
       }),
-      expected: 'API_STARTUP_FAILED code=MYSQL_SCHEMA_NOT_READY reason=migration-table-missing database="knowledge_base" actualSchemaVersion=0 requiredSchemaVersion=7 requiredTable=schema_migrations action="corepack pnpm db:migrate"',
+      expected: 'API_STARTUP_FAILED code=MYSQL_SCHEMA_NOT_READY reason=migration-table-missing database="knowledge_base" actualSchemaVersion=0 requiredSchemaVersion=8 requiredTable=schema_migrations action="corepack pnpm db:migrate"',
     },
     {
       reason: 'schema-version-behind' as const,
       error: schemaError({
-        reason: 'schema-version-behind', database: 'knowledge_base', actualSchemaVersion: 6,
-        requiredSchemaVersion: 7,
+        reason: 'schema-version-behind', database: 'knowledge_base', actualSchemaVersion: 7,
+        requiredSchemaVersion: 8,
       }),
-      expected: 'API_STARTUP_FAILED code=MYSQL_SCHEMA_NOT_READY reason=schema-version-behind database="knowledge_base" actualSchemaVersion=6 requiredSchemaVersion=7 action="corepack pnpm db:migrate"',
+      expected: 'API_STARTUP_FAILED code=MYSQL_SCHEMA_NOT_READY reason=schema-version-behind database="knowledge_base" actualSchemaVersion=7 requiredSchemaVersion=8 action="corepack pnpm db:migrate"',
     },
     {
       reason: 'required-table-missing' as const,
       error: schemaError({
-        reason: 'required-table-missing', database: 'knowledge_base', actualSchemaVersion: 7,
-        requiredSchemaVersion: 7, requiredTable: 'user_roles',
+        reason: 'required-table-missing', database: 'knowledge_base', actualSchemaVersion: 8,
+        requiredSchemaVersion: 8, requiredTable: 'user_roles',
       }),
-      expected: 'API_STARTUP_FAILED code=MYSQL_SCHEMA_NOT_READY reason=required-table-missing database="knowledge_base" actualSchemaVersion=7 requiredSchemaVersion=7 requiredTable=user_roles action="停止启动并检查 migration 状态，禁止手工修表"',
+      expected: 'API_STARTUP_FAILED code=MYSQL_SCHEMA_NOT_READY reason=required-table-missing database="knowledge_base" actualSchemaVersion=8 requiredSchemaVersion=8 requiredTable=user_roles action="停止启动并检查 migration 状态，禁止手工修表"',
     },
   ])('formats $reason without leaking raw error fields', ({ error, expected }) => {
     const output = formatApiStartupFailure(error)
@@ -82,20 +82,20 @@ describe('API startup diagnostics', () => {
     await expect(getMySqlHealth(missingTablePool, 'knowledge_base')).rejects.toMatchObject({
       details: {
         reason: 'migration-table-missing', database: 'knowledge_base', actualSchemaVersion: 0,
-        requiredSchemaVersion: 7, requiredTable: 'schema_migrations',
+        requiredSchemaVersion: 8, requiredTable: 'schema_migrations',
       },
     })
 
     const behindPool = fakePool(async sql => {
       if (sql === 'SELECT 1') return [[]]
       if (sql.includes('SELECT DATABASE()')) return [[{ current_database: 'knowledge_base' }]]
-      if (sql.includes('SELECT MAX(version)')) return [[{ version: 6 }]]
+      if (sql.includes('SELECT MAX(version)')) return [[{ version: 7 }]]
       throw new Error('unexpected query')
     })
     await expect(getMySqlHealth(behindPool, 'knowledge_base')).rejects.toMatchObject({
       details: {
-        reason: 'schema-version-behind', database: 'knowledge_base', actualSchemaVersion: 6,
-        requiredSchemaVersion: 7,
+        reason: 'schema-version-behind', database: 'knowledge_base', actualSchemaVersion: 7,
+        requiredSchemaVersion: 8,
       },
     })
   })
@@ -104,7 +104,7 @@ describe('API startup diagnostics', () => {
     const pool = fakePool(async sql => {
       if (sql === 'SELECT 1') return [[]]
       if (sql.includes('SELECT DATABASE()')) return [[{ current_database: 'knowledge_base' }]]
-      if (sql.includes('SELECT MAX(version)')) return [[{ version: 7 }]]
+      if (sql.includes('SELECT MAX(version)')) return [[{ version: 8 }]]
       if (sql.includes(`FROM ${missingTable}`)) throw { code: 'ER_NO_SUCH_TABLE' }
       if (sql.includes('FROM user_roles') || sql.includes('FROM security_audit_events')) return [[]]
       throw new Error('unexpected query')
@@ -112,8 +112,8 @@ describe('API startup diagnostics', () => {
 
     await expect(assertMySqlPlatformSchemaReady(pool, 'knowledge_base')).rejects.toMatchObject({
       details: {
-        reason: 'required-table-missing', database: 'knowledge_base', actualSchemaVersion: 7,
-        requiredSchemaVersion: 7, requiredTable: missingTable,
+        reason: 'required-table-missing', database: 'knowledge_base', actualSchemaVersion: 8,
+        requiredSchemaVersion: 8, requiredTable: missingTable,
       },
     })
   })
