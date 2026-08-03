@@ -11,6 +11,19 @@ export { MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepository
 
 export const MYSQL_REQUIRED_SCHEMA_VERSION = 6
 
+export type MySqlSchemaNotReadyReason =
+  | 'migration-table-missing'
+  | 'schema-version-behind'
+  | 'required-table-missing'
+
+export interface MySqlSchemaNotReadyDetails {
+  reason: MySqlSchemaNotReadyReason
+  database: string
+  requiredSchemaVersion: number
+  actualSchemaVersion?: number
+  requiredTable?: 'schema_migrations' | 'user_roles' | 'security_audit_events'
+}
+
 export interface MySqlConnectionConfig {
   host: string
   port: number
@@ -141,11 +154,26 @@ export async function getMySqlHealth(pool: Pool, expectedDatabase: string): Prom
     try {
       ;[versions] = await connection.query<Array<RowDataPacket & { version: number | null }>>('SELECT MAX(version) AS version FROM schema_migrations')
     } catch (error) {
-      if (isMissingSchemaMigrationsTable(error)) throw new MySqlSchemaNotReadyError()
+      if (isMissingMySqlTable(error)) {
+        throw new MySqlSchemaNotReadyError({
+          reason: 'migration-table-missing',
+          database: expectedDatabase,
+          actualSchemaVersion: 0,
+          requiredSchemaVersion: MYSQL_REQUIRED_SCHEMA_VERSION,
+          requiredTable: 'schema_migrations',
+        })
+      }
       throw error
     }
     const schemaVersion = versions[0]?.version ?? 0
-    if (schemaVersion < MYSQL_REQUIRED_SCHEMA_VERSION) throw new MySqlSchemaNotReadyError()
+    if (schemaVersion < MYSQL_REQUIRED_SCHEMA_VERSION) {
+      throw new MySqlSchemaNotReadyError({
+        reason: 'schema-version-behind',
+        database: expectedDatabase,
+        actualSchemaVersion: schemaVersion,
+        requiredSchemaVersion: MYSQL_REQUIRED_SCHEMA_VERSION,
+      })
+    }
     return { database: expectedDatabase, schemaVersion }
   } finally { connection.release() }
 }
@@ -154,20 +182,40 @@ export async function assertMySqlPlatformSchemaReady(pool: Pool, expectedDatabas
   const health = await getMySqlHealth(pool, expectedDatabase)
   const connection = await pool.getConnection()
   try {
-    await connection.query('SELECT 1 FROM user_roles LIMIT 0')
-    await connection.query('SELECT 1 FROM security_audit_events LIMIT 0')
+    const requiredTables = ['user_roles', 'security_audit_events'] as const
+    for (const requiredTable of requiredTables) {
+      try {
+        await connection.query(`SELECT 1 FROM ${requiredTable} LIMIT 0`)
+      } catch (error) {
+        if (isMissingMySqlTable(error)) {
+          throw new MySqlSchemaNotReadyError({
+            reason: 'required-table-missing',
+            database: expectedDatabase,
+            actualSchemaVersion: health.schemaVersion,
+            requiredSchemaVersion: MYSQL_REQUIRED_SCHEMA_VERSION,
+            requiredTable,
+          })
+        }
+        throw error
+      }
+    }
     return health
   } finally { connection.release() }
 }
 
-function isMissingSchemaMigrationsTable(error: unknown): boolean {
+function isMissingMySqlTable(error: unknown): boolean {
   return typeof error === 'object'
     && error !== null
     && 'code' in error
     && error.code === 'ER_NO_SUCH_TABLE'
 }
 
-export class MySqlSchemaNotReadyError extends Error { constructor() { super('MySQL Schema 未达到最低版本'); this.name = 'MySqlSchemaNotReadyError' } }
+export class MySqlSchemaNotReadyError extends Error {
+  constructor(readonly details: Readonly<MySqlSchemaNotReadyDetails>) {
+    super('MySQL Schema 未达到最低版本')
+    this.name = 'MySqlSchemaNotReadyError'
+  }
+}
 
 export { MySqlItemRepository, type MySqlItemRepositoryTestHooks } from './item-repository'
 export { MySqlReviewRepository } from './review-repository'

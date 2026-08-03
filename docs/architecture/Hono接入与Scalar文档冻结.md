@@ -48,7 +48,7 @@ H5 → /api 代理 → 127.0.0.1:32146
 - `buildRpcContractRoutes` 是纯路由契约，只负责从同一批 route handler 推导客户端端点；它不是第二套 API 实现
 - 业务路由清单只有一个组合入口；运行时安全外壳和 RPC 契约共同挂载该路由树，避免维护两份路由表
 - 为保留 RPC schema，业务路由以链式 `.openapi` / `.route` 组装；`requireJson` 放在对应 `createRoute.middleware`
-- `apps/api/src/rpc.typecheck.ts` 对事项、探索主线、复盘、方法上下文、搜索、Dashboard、备份、回收站、动态参数、平台管理与会话响应做具体端点编译期守卫，不能只检查 `api` 顶级键
+- `apps/api/test/hono-rpc.typecheck.ts` 对事项、探索主线、复盘、方法上下文、搜索、Dashboard、备份、回收站、动态参数、平台管理与会话响应做具体端点编译期守卫，不能只检查 `api` 顶级键
 - Hono 的全局中间件与 `onError` 响应不会自动进入 RPC 推导；客户端仍须按统一错误契约处理非成功响应
 - **不**替代现有 H5 `api-client` + `@knowledge-base/contracts`（本切片仅导出类型）
 
@@ -62,5 +62,5 @@ H5 → /api 代理 → 127.0.0.1:32146
 ## 回归锚
 
 - `tests/hono-route-table.test.ts`：完整挂载路由表、RPC/运行时端点一致性、认证与管理员授权外壳、OpenAPI 具体 DTO 字段
-- `apps/api/src/rpc.typecheck.ts`：具体 RPC 路径、请求参数与响应类型
+- `apps/api/test/hono-rpc.typecheck.ts`：由根级 typecheck 执行的具体 RPC 路径、请求参数与响应类型断言
 - 定向：`tests/api-auth.integration.test.ts`、`tests/api-owner-isolation.integration.test.ts`、`tests/api-platform-administration.integration.test.ts`

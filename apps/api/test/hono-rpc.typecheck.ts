@@ -1,4 +1,9 @@
-/** 编译期守卫：具体业务端点一旦从 AppType 丢失，根级 typecheck 必须失败。 */
+/**
+ * Hono RPC 编译期契约测试。
+ *
+ * 本文件由根级 `pnpm typecheck` 执行，不属于 Vitest 运行时测试；具体业务端点
+ * 或响应字段一旦从 AppType 退化，下面的类型约束就会让 TypeScript 编译失败。
+ */
 import { hc, type InferRequestType, type InferResponseType } from 'hono/client'
 import type { AppType } from '@knowledge-base/api/rpc'
 

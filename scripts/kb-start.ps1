@@ -6,6 +6,8 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $TempRoot = Join-Path ([IO.Path]::GetTempPath()) 'knowledge-base-local-start'
 $StatePath = Join-Path $TempRoot 'state.json'
 $LogPath = Join-Path $TempRoot 'launcher.log'
+$ApiStdoutPath = Join-Path $TempRoot 'api.stdout.log'
+$ApiStderrPath = Join-Path $TempRoot 'api.stderr.log'
 $ApiPort = 32146
 $H5Port = 10086
 
@@ -58,13 +60,33 @@ $command
 exit `$LASTEXITCODE
 "@
   $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($child))
-  $process = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-EncodedCommand', $encoded) -WindowStyle Hidden -PassThru
+  $options = @{ FilePath = 'powershell.exe'; ArgumentList = @('-NoProfile', '-EncodedCommand', $encoded); WindowStyle = 'Hidden'; PassThru = $true }
+  if ($Kind -eq 'api') {
+    Ensure-TempRoot
+    Remove-Item -LiteralPath $ApiStdoutPath, $ApiStderrPath -Force -ErrorAction SilentlyContinue
+    $options['RedirectStandardOutput'] = $ApiStdoutPath
+    $options['RedirectStandardError'] = $ApiStderrPath
+  }
+  $process = Start-Process @options
   return [int]$process.Id
+}
+function Get-ApiStartupFailure {
+  foreach ($path in @($ApiStderrPath, $ApiStdoutPath)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+    $line = Get-Content -LiteralPath $path -Encoding UTF8 | Where-Object { $_ -match '^API_STARTUP_FAILED code=(MYSQL_SCHEMA_NOT_READY|MYSQL_UNAVAILABLE|API_PORT_IN_USE|INTERNAL_ERROR)( .*)?$' } | Select-Object -Last 1
+    if ($null -ne $line) { return [string]$line }
+  }
+  return $null
 }
 function Get-Health {
   try { $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:32146/health' -TimeoutSec 3; return [pscustomobject]@{ code = [int]$response.StatusCode; body = ($response.Content | ConvertFrom-Json) } } catch { return $null }
 }
-function Test-DailyReady { $health = Get-Health; return $null -ne $health -and $health.code -eq 200 -and $health.body.status -eq 'ready' -and $health.body.database -eq 'knowledge_base' -and [int]$health.body.schemaVersion -eq 5 }
+function Test-DailyReady {
+  param($Health)
+  if ($null -eq $Health -or $Health.code -ne 200 -or $Health.body.status -ne 'ready' -or $Health.body.database -ne 'knowledge_base') { return $false }
+  $schemaVersion = 0
+  return [int]::TryParse([string]$Health.body.schemaVersion, [ref]$schemaVersion) -and $schemaVersion -gt 0
+}
 
 try {
   Read-Environment | Out-Null
@@ -77,17 +99,28 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'docker compose mysql start failed' }
   Write-Log 'starting daily API child'
   $apiLauncherPid = Start-Child 'api'
-  for ($i = 0; $i -lt 60; $i++) { if (Test-DailyReady) { break }; Start-Sleep -Milliseconds 500 }
-  if (-not (Test-DailyReady)) { throw 'daily API did not become ready' }
+  $dailyHealth = $null
+  for ($i = 0; $i -lt 60; $i++) {
+    $dailyHealth = Get-Health
+    if (Test-DailyReady -Health $dailyHealth) { break }
+    if ($null -eq (Get-Process -Id $apiLauncherPid -ErrorAction SilentlyContinue)) { break }
+    Start-Sleep -Milliseconds 500
+  }
+  if (-not (Test-DailyReady -Health $dailyHealth)) {
+    $apiStartupFailure = Get-ApiStartupFailure
+    if ($null -ne $apiStartupFailure) { [Console]::Error.WriteLine($apiStartupFailure) }
+    throw 'daily API did not become ready'
+  }
   Write-Log 'starting H5 child'
   $h5LauncherPid = Start-Child 'h5'
   $apiPid = $null; $h5Pid = $null
   for ($i = 0; $i -lt 60; $i++) { $apiPid = Get-ListenerPid $ApiPort; $h5Pid = Get-ListenerPid $H5Port; if ($null -ne $apiPid -and $null -ne $h5Pid) { break }; Start-Sleep -Milliseconds 500 }
-  if ($null -eq $apiPid -or $null -eq $h5Pid -or -not (Test-DailyReady)) { throw 'daily services did not become ready' }
+  $dailyHealth = Get-Health
+  if ($null -eq $apiPid -or $null -eq $h5Pid -or -not (Test-DailyReady -Health $dailyHealth)) { throw 'daily services did not become ready' }
   $apiRootPid = Get-ManagedRootPid $apiPid $apiLauncherPid
   $h5RootPid = Get-ManagedRootPid $h5Pid $h5LauncherPid
   Ensure-TempRoot
   [ordered]@{ apiRootPid = $apiRootPid; h5RootPid = $h5RootPid; apiListenerPid = $apiPid; h5ListenerPid = $h5Pid; apiPort = $ApiPort; h5Port = $H5Port; startedAt = [DateTime]::UtcNow.ToString('o'); projectRoot = $ProjectRoot } | ConvertTo-Json -Compress | Set-Content -LiteralPath $StatePath -Encoding UTF8
   Write-Log 'daily services ready'
-  [ordered]@{ status = 'ready'; database = 'knowledge_base'; schemaVersion = 5 } | ConvertTo-Json -Compress
+  [ordered]@{ status = 'ready'; database = 'knowledge_base'; schemaVersion = [int]$dailyHealth.body.schemaVersion } | ConvertTo-Json -Compress
 } catch { Write-Log 'start failed'; Fail $_.Exception.Message }
