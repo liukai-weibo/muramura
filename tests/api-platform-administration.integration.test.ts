@@ -47,7 +47,7 @@ describe.runIf(enabled)('platform administration API', () => {
     const admin = await json('/api/v1/auth/register', { username: 'api-admin', password: 'password-admin' }); adminCookie = cookieOf(admin); adminId = admin.body.user.id
     const member = await json('/api/v1/auth/register', { username: 'api-member', password: 'password-member' }); memberCookie = cookieOf(member)
     const target = await json('/api/v1/auth/register', { username: 'literal%_=target', password: 'password-target' }); targetCookie = cookieOf(target); targetId = target.body.user.id
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'platform_admin',NULL,UTC_TIMESTAMP(3))", [adminId])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'platform_admin',NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))", [adminId])
     const auth = new MySqlAuthRepository(app)
     for (let index = 0; index < 21; index++) {
       await auth.createUser({ id: `page-user-${String(index).padStart(2, '0')}`, username: `page-user-${String(index).padStart(2, '0')}`, passwordHash: 'scrypt$redacted', createdAt: `2026-07-${String(index + 1).padStart(2, '0')}T08:00:00.000Z` })
@@ -115,7 +115,7 @@ describe.runIf(enabled)('platform administration API', () => {
   })
 
   it('rejects a write when the authenticated actor is downgraded before the repository lock', async () => {
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'platform_admin',?,UTC_TIMESTAMP(3))", [targetId, adminId])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'platform_admin',?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))", [targetId, adminId])
     const connection = await app.getConnection()
     try {
       await connection.beginTransaction()

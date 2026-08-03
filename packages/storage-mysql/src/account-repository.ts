@@ -10,8 +10,8 @@ export class MySqlAuthRepository implements AuthRepository {
     const connection = await this.pool.getConnection()
     try {
       await connection.beginTransaction()
-      await connection.query('INSERT INTO users(id,username,password_hash,created_at) VALUES (?,?,?,?)', [input.id, input.username, input.passwordHash, new Date(input.createdAt)])
-      await connection.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'member',NULL,?)", [input.id, new Date(input.createdAt)])
+      await connection.query('INSERT INTO users(id,username,password_hash,created_at,updated_at) VALUES (?,?,?,?,?)', [input.id, input.username, input.passwordHash, new Date(input.createdAt), new Date(input.createdAt)])
+      await connection.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'member',NULL,?,?)", [input.id, new Date(input.createdAt), new Date(input.createdAt)])
       await connection.commit()
       return { id: input.id, username: input.username, roles: ['member'], createdAt: input.createdAt }
     } catch (error) {
@@ -28,12 +28,12 @@ export class MySqlAuthRepository implements AuthRepository {
     const first = rows[0]!
     return { user: authUser(first, rows.map(row => row.role_code)), passwordHash: first.password_hash! }
   }
-  async createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<void> { await this.pool.query('INSERT INTO user_sessions(id,user_id,session_secret_hash,expires_at,revoked_at,created_at) VALUES (?,?,?,?,NULL,?)', [input.id,input.userId,Buffer.from(input.secretHash),new Date(input.expiresAt),new Date(input.createdAt)]) }
+  async createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<void> { await this.pool.query('INSERT INTO user_sessions(id,user_id,session_secret_hash,expires_at,revoked_at,created_at,updated_at) VALUES (?,?,?,?,NULL,?,?)', [input.id,input.userId,Buffer.from(input.secretHash),new Date(input.expiresAt),new Date(input.createdAt),new Date(input.createdAt)]) }
   async getSessionBySecretHash(secretHash: Uint8Array, now: string): Promise<AuthUser | undefined> {
     const [rows] = await this.pool.query<UserRoleRow[]>('SELECT u.id,u.username,u.created_at,r.role_code FROM user_sessions s JOIN users u ON u.id=s.user_id LEFT JOIN user_roles r ON r.user_id=u.id WHERE s.session_secret_hash=? AND s.revoked_at IS NULL AND s.expires_at>?', [Buffer.from(secretHash),new Date(now)])
     return rows.length === 0 ? undefined : authUser(rows[0]!, rows.map(row => row.role_code))
   }
-  async revokeSessionBySecretHash(secretHash: Uint8Array, revokedAt: string): Promise<void> { await this.pool.query('UPDATE user_sessions SET revoked_at=? WHERE session_secret_hash=? AND revoked_at IS NULL', [new Date(revokedAt),Buffer.from(secretHash)]) }
+  async revokeSessionBySecretHash(secretHash: Uint8Array, revokedAt: string): Promise<void> { await this.pool.query('UPDATE user_sessions SET revoked_at=?,updated_at=? WHERE session_secret_hash=? AND revoked_at IS NULL', [new Date(revokedAt),new Date(revokedAt),Buffer.from(secretHash)]) }
 }
 
 function isDuplicateEntry(error: unknown): boolean {

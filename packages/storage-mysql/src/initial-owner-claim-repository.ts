@@ -48,9 +48,9 @@ export class MySqlInitialOwnerClaimRepository implements InitialOwnerClaimReposi
       if (targetClaimExists) return { status: 'already-claimed' as const, userId, before, after: before }
 
       if (hasUnowned) {
-        for (const { table } of collections) await connection.execute(`UPDATE ${table} SET owner_user_id=? WHERE owner_user_id IS NULL`, [userId])
+        for (const { table } of collections) await connection.execute(`UPDATE ${table} SET owner_user_id=?,updated_at=UTC_TIMESTAMP(3) WHERE owner_user_id IS NULL`, [userId])
       }
-      await connection.execute('INSERT INTO initial_owner_claims(id,user_id,created_at) VALUES(?,?,UTC_TIMESTAMP(3))', [createId(), userId])
+      await connection.execute('INSERT INTO initial_owner_claims(id,user_id,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [createId(), userId])
       await this.hooks?.beforeCommit?.()
       const after = await readSummary(connection, userId)
       return { status: 'claimed' as const, userId, before, after }

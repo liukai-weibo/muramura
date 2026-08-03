@@ -84,8 +84,8 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
       if (!context.targetIsMember) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
       if (context.adminUserIds.has(input.targetUserId)) return { value: 'already-granted', changed: false }
       await connection.query(
-        "INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'platform_admin',?,?)",
-        [input.targetUserId, input.actorUserId, new Date(input.createdAt)],
+        "INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'platform_admin',?,?,?)",
+        [input.targetUserId, input.actorUserId, new Date(input.createdAt), new Date(input.createdAt)],
       )
       await this.insertAudit(connection, input, 'platform_admin_granted')
       return { value: 'granted', changed: true }
@@ -107,8 +107,8 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
     return this.write(async connection => {
       await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_SESSION_REVOKE')
       const [result] = await connection.query<ResultSetHeader>(
-        'UPDATE user_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL',
-        [new Date(input.revokedAt), input.targetUserId],
+        'UPDATE user_sessions SET revoked_at=?,updated_at=? WHERE user_id=? AND revoked_at IS NULL',
+        [new Date(input.revokedAt), new Date(input.revokedAt), input.targetUserId],
       )
       await this.insertAudit(connection, input, 'user_sessions_revoked')
       return { value: { revokedSessionCount: result.affectedRows }, changed: true }
@@ -130,10 +130,10 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
       }
       const [operations] = await connection.query<RowDataPacket[]>('SELECT operation_id FROM security_audit_events WHERE operation_id=? FOR UPDATE', [input.operationId])
       if (operations.length > 0) fail('PLATFORM_ADMIN_OPERATION_CONFLICT', 'operationId 已被使用，不能推断本次成功')
-      await connection.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'platform_admin',NULL,?)", [input.targetUserId, new Date(input.createdAt)])
+      await connection.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'platform_admin',NULL,?,?)", [input.targetUserId, new Date(input.createdAt), new Date(input.createdAt)])
       await connection.query(
-        "INSERT INTO security_audit_events(id,actor_user_id,target_user_id,action_code,operation_id,created_at) VALUES (?,NULL,?,'platform_admin_granted',?,?)",
-        [input.auditEventId, input.targetUserId, input.operationId, new Date(input.createdAt)],
+        "INSERT INTO security_audit_events(id,actor_user_id,target_user_id,action_code,operation_id,created_at,updated_at) VALUES (?,NULL,?,'platform_admin_granted',?,?,?)",
+        [input.auditEventId, input.targetUserId, input.operationId, new Date(input.createdAt), new Date(input.createdAt)],
       )
       return { value: 'granted', changed: true }
     }, true)
@@ -179,8 +179,8 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
 
   private insertAudit(connection: PoolConnection, input: PlatformRoleChangeInput, action: SecurityAuditAction): Promise<unknown> {
     return connection.query(
-      'INSERT INTO security_audit_events(id,actor_user_id,target_user_id,action_code,operation_id,created_at) VALUES (?,?,?,?,?,?)',
-      [input.auditEventId, input.actorUserId, input.targetUserId, action, input.operationId, new Date(input.createdAt)],
+      'INSERT INTO security_audit_events(id,actor_user_id,target_user_id,action_code,operation_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
+      [input.auditEventId, input.actorUserId, input.targetUserId, action, input.operationId, new Date(input.createdAt), new Date(input.createdAt)],
     )
   }
 

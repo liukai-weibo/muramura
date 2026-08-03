@@ -56,7 +56,7 @@ describe.runIf(enabled)('initial owner claim and user-scoped Backup', () => {
     const suffix = crypto.randomUUID().replaceAll('-', ''); database = `kb_claim_${suffix}`; appUser = `kb_claim_app_${suffix.slice(0, 16)}`; migratorUser = `kb_claim_mig_${suffix.slice(0, 16)}`; appPassword = crypto.randomUUID(); migratorPassword = crypto.randomUUID()
     root = createMySqlPool({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database: 'mysql', user: 'root', password: process.env.MYSQL_ROOT_PASSWORD!, connectionLimit: 1 })
     await root.query(`CREATE DATABASE \`${database}\``); await root.query(`CREATE USER '${appUser}'@'%' IDENTIFIED BY ?`, [appPassword]); await root.query(`CREATE USER '${migratorUser}'@'%' IDENTIFIED BY ?`, [migratorPassword])
-    await root.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON \`${database}\`.* TO '${appUser}'@'%'`); await root.query(`GRANT SELECT,INSERT,CREATE,ALTER,INDEX,REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`)
+    await root.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON \`${database}\`.* TO '${appUser}'@'%'`); await root.query(`GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX,REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`)
     const migrator = createMySqlPool(config(migratorUser, migratorPassword)); await runMySqlMigrations(migrator, `${process.cwd()}/migrations`); await migrator.end()
     app = createMySqlPool(config(appUser, appPassword)); server = createApiServer(config(appUser, appPassword)); await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const a = await json('/api/v1/auth/register', { username: `claim_a_${suffix}`, password: crypto.randomUUID() }); userA = a.body.user.id; cookieA = cookieOf(a)
@@ -110,7 +110,7 @@ describe.runIf(enabled)('initial owner claim and user-scoped Backup', () => {
     const aData = data('alpha'); const bData = data('bravo')
     const aRepository = new MySqlBackupRepository(app, undefined, { userId: userA }); const bRepository = new MySqlBackupRepository(app, undefined, { userId: userB })
     const aService = new BackupApplicationService(aRepository); const bService = new BackupApplicationService(bRepository)
-    await aRepository.replaceData(aData); await bRepository.replaceData(bData); await app.query("INSERT INTO system_metadata(`key`,value,updated_at) VALUES('slice3-test','kept',UTC_TIMESTAMP(3))")
+    await aRepository.replaceData(aData); await bRepository.replaceData(bData); await app.query("INSERT INTO system_metadata(`key`,value,created_at,updated_at) VALUES('slice3-test','kept',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))")
     const bBefore = await bRepository.exportData(); const allBeforePreview = await snapshot(); const v3 = await aService.createBackup()
     const withoutTracks = { ...v3.data, items: v3.data.items.map(({ explorationTrackId: _track, ...item }) => item) }; delete (withoutTracks as Partial<BackupDataV3>).explorationTracks
     const v2 = { ...v3, version: 2, data: withoutTracks } as BackupDocument

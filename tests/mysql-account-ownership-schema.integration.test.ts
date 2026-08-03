@@ -15,7 +15,7 @@ describe.runIf(enabled)('account ownership schema', () => {
     root = createMySqlPool({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database: 'mysql', user: 'root', password: process.env.MYSQL_ROOT_PASSWORD!, connectionLimit: 1 })
     await root.query(`CREATE DATABASE \`${database}\``)
     await root.query(`CREATE USER '${appUser}'@'%' IDENTIFIED BY ?`, [appPassword]); await root.query(`CREATE USER '${migratorUser}'@'%' IDENTIFIED BY ?`, [migratorPassword])
-    await root.query(`GRANT SELECT ON \`${database}\`.* TO '${appUser}'@'%'`); await root.query(`GRANT SELECT, INSERT, CREATE, ALTER, INDEX, REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`); await root.query('FLUSH PRIVILEGES')
+    await root.query(`GRANT SELECT ON \`${database}\`.* TO '${appUser}'@'%'`); await root.query(`GRANT SELECT, INSERT, UPDATE, CREATE, ALTER, INDEX, REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`); await root.query('FLUSH PRIVILEGES')
     app = createMySqlPool({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user: appUser, password: appPassword, connectionLimit: 1 } as MySqlConnectionConfig)
     migrator = createMySqlPool({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user: migratorUser, password: migratorPassword, connectionLimit: 1 } as MySqlConnectionConfig)
     await runMySqlMigrations(migrator, `${process.cwd()}/migrations`)
@@ -32,6 +32,7 @@ describe.runIf(enabled)('account ownership schema', () => {
       { column_name: 'username', column_type: 'varchar(80)', is_nullable: 'NO', column_default: null },
       { column_name: 'password_hash', column_type: 'varchar(255)', is_nullable: 'NO', column_default: null },
       { column_name: 'created_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
+      { column_name: 'updated_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
     ])
     expect(accountColumns('user_sessions')).toEqual([
       { column_name: 'id', column_type: 'varchar(128)', is_nullable: 'NO', column_default: null },
@@ -40,11 +41,13 @@ describe.runIf(enabled)('account ownership schema', () => {
       { column_name: 'expires_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
       { column_name: 'revoked_at', column_type: 'datetime(3)', is_nullable: 'YES', column_default: null },
       { column_name: 'created_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
+      { column_name: 'updated_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
     ])
     expect(accountColumns('initial_owner_claims')).toEqual([
       { column_name: 'id', column_type: 'varchar(128)', is_nullable: 'NO', column_default: null },
       { column_name: 'user_id', column_type: 'varchar(128)', is_nullable: 'NO', column_default: null },
       { column_name: 'created_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
+      { column_name: 'updated_at', column_type: 'datetime(3)', is_nullable: 'NO', column_default: null },
     ])
     expect(columns.some(value => /password|secret|token/i.test(value.column_name) && !/hash/i.test(value.column_name))).toBe(false)
     for (const table of tables) expect(columns).toContainEqual(expect.objectContaining({ table_name: table, column_name: 'owner_user_id', is_nullable: 'YES', column_default: null }))

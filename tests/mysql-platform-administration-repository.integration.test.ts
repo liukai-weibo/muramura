@@ -67,7 +67,7 @@ describe.runIf(enabled)('platform administration repository', () => {
 
   async function admin(id: string, username = id, createdAt = at): Promise<void> {
     await user(id, username, createdAt)
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'platform_admin',NULL,?)", [id, new Date(createdAt)])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'platform_admin',NULL,?,?)", [id, new Date(createdAt), new Date(createdAt)])
   }
 
   async function securitySnapshot(): Promise<unknown> {
@@ -91,7 +91,7 @@ describe.runIf(enabled)('platform administration repository', () => {
 
   it('lists fixed pages with literal search, stable ordering, ordered roles, and no secret fields', async () => {
     for (let index = 0; index < 21; index++) await user(`u-${String(index).padStart(2, '0')}`, index === 7 ? 'literal%_=name' : `user-${index}`, `2026-07-${String(index + 1).padStart(2, '0')}T08:00:00.000Z`)
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES ('u-20','platform_admin',NULL,?)", [new Date(at)])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES ('u-20','platform_admin',NULL,?,?)", [new Date(at), new Date(at)])
     const repository = new MySqlPlatformAdministrationRepository(app)
     const first = await repository.listUsers({ page: 1 })
     expect(first.pageSize).toBe(20)
@@ -112,10 +112,10 @@ describe.runIf(enabled)('platform administration repository', () => {
     await app.query("DELETE FROM user_roles WHERE user_id='role-user' AND role_code='member'")
     await expect(repository.listUsers({ page: 1 })).rejects.toThrow('platform-role-invariant-violated')
     await expect(repository.getUserById('role-user')).rejects.toThrow('platform-role-invariant-violated')
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES ('role-user','member',NULL,?)", [new Date(at)])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES ('role-user','member',NULL,?,?)", [new Date(at), new Date(at)])
     await migrator.query('ALTER TABLE user_roles DROP CHECK user_roles_role_code_check')
     try {
-      await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES ('role-user','unknown-role',NULL,?)", [new Date(at)])
+      await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES ('role-user','unknown-role',NULL,?,?)", [new Date(at), new Date(at)])
       await expect(repository.listUsers({ page: 1 })).rejects.toThrow('platform-role-invariant-violated')
       await expect(repository.getUserById('role-user')).rejects.toThrow('platform-role-invariant-violated')
     } finally {
@@ -185,9 +185,9 @@ describe.runIf(enabled)('platform administration repository', () => {
   it('revokes every unrevoked session, audits zero-count changes, and rejects self-session revocation', async () => {
     await admin('actor')
     await user('target')
-    await app.query('INSERT INTO user_sessions(id,user_id,session_secret_hash,expires_at,revoked_at,created_at) VALUES (?,?,?,?,NULL,?),(?,?,?,?,NULL,?)', [
-      'expired', 'target', crypto.randomBytes(32), new Date('2020-01-01T00:00:00Z'), new Date('2019-01-01T00:00:00Z'),
-      'active', 'target', crypto.randomBytes(32), new Date('2030-01-01T00:00:00Z'), new Date(at),
+    await app.query('INSERT INTO user_sessions(id,user_id,session_secret_hash,expires_at,revoked_at,created_at,updated_at) VALUES (?,?,?,?,NULL,?,?),(?,?,?,?,NULL,?,?)', [
+      'expired', 'target', crypto.randomBytes(32), new Date('2020-01-01T00:00:00Z'), new Date('2019-01-01T00:00:00Z'), new Date('2019-01-01T00:00:00Z'),
+      'active', 'target', crypto.randomBytes(32), new Date('2030-01-01T00:00:00Z'), new Date(at), new Date(at),
     ])
     const repository = new MySqlPlatformAdministrationRepository(app)
     await expect(repository.revokeAllSessions({ ...change('actor', 'actor'), revokedAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_SELF_SESSION_REVOKE' })
@@ -223,14 +223,14 @@ describe.runIf(enabled)('platform administration repository', () => {
     const auth = new MySqlAuthRepository(app)
     await auth.createSession({ id: 'role-session', userId: 'role-user', secretHash: Buffer.alloc(32, 7), expiresAt: '2030-01-01T00:00:00.000Z', createdAt: at })
     await app.query("DELETE FROM user_roles WHERE user_id='role-user' AND role_code='member'")
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES ('role-user','platform_admin',NULL,?)", [new Date(at)])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES ('role-user','platform_admin',NULL,?,?)", [new Date(at), new Date(at)])
     await expect(auth.findUserByUsername('role-user')).rejects.toThrow('auth-role-invariant-violated')
     await expect(auth.getSessionBySecretHash(Buffer.alloc(32, 7), at)).rejects.toThrow('auth-role-invariant-violated')
     await app.query("DELETE FROM user_roles WHERE user_id='role-user' AND role_code='platform_admin'")
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES ('role-user','member',NULL,?)", [new Date(at)])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES ('role-user','member',NULL,?,?)", [new Date(at), new Date(at)])
     await migrator.query('ALTER TABLE user_roles DROP CHECK user_roles_role_code_check')
     try {
-      await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES ('role-user','unknown-role',NULL,?)", [new Date(at)])
+      await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES ('role-user','unknown-role',NULL,?,?)", [new Date(at), new Date(at)])
       await expect(auth.findUserByUsername('role-user')).rejects.toThrow('auth-role-invariant-violated')
       await expect(auth.getSessionBySecretHash(Buffer.alloc(32, 7), at)).rejects.toThrow('auth-role-invariant-violated')
     } finally {
@@ -242,7 +242,7 @@ describe.runIf(enabled)('platform administration repository', () => {
   it('initializes exactly one explicit member as bootstrap administrator and is idempotent only for that target', async () => {
     await user('target-a')
     await user('target-b')
-    await app.query("INSERT INTO users(id,username,password_hash,created_at) VALUES ('no-member','no-member','scrypt$redacted',?)", [new Date(at)])
+    await app.query("INSERT INTO users(id,username,password_hash,created_at,updated_at) VALUES ('no-member','no-member','scrypt$redacted',?,?)", [new Date(at), new Date(at)])
     const repository = new MySqlPlatformAdministrationRepository(app)
     await expect(repository.initializePlatformAdmin({ targetUserId: 'missing', auditEventId: 'missing-audit', operationId: 'missing-op', createdAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_USER_NOT_FOUND' })
     await expect(repository.initializePlatformAdmin({ targetUserId: 'no-member', auditEventId: 'member-audit', operationId: 'member-op', createdAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_TARGET_NOT_MEMBER' })

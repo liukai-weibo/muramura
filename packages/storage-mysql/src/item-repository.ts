@@ -175,7 +175,7 @@ export class MySqlItemRepository implements ItemRepository {
         await connection.execute(this.owner ? 'DELETE FROM method_versions WHERE method_id=? AND owner_user_id=?' : 'DELETE FROM method_versions WHERE method_id=?', this.owner ? [methodId, this.owner] : [methodId])
         await connection.execute(this.owner ? 'DELETE FROM methods WHERE id=? AND owner_user_id=?' : 'DELETE FROM methods WHERE id=?', this.owner ? [methodId, this.owner] : [methodId])
       } else if (reviewIds.length) {
-        await connection.query(`UPDATE method_versions SET source_review_id=NULL WHERE source_review_id IN (${reviewIds.map(() => '?').join(',')}) AND method_id=?${this.owner ? ' AND owner_user_id=?' : ''}`, this.owner ? [...reviewIds, methodId, this.owner] : [...reviewIds, methodId])
+        await connection.query(`UPDATE method_versions SET source_review_id=NULL,updated_at=UTC_TIMESTAMP(3) WHERE source_review_id IN (${reviewIds.map(() => '?').join(',')}) AND method_id=?${this.owner ? ' AND owner_user_id=?' : ''}`, this.owner ? [...reviewIds, methodId, this.owner] : [...reviewIds, methodId])
       }
     }
 
@@ -214,8 +214,8 @@ export class MySqlItemRepository implements ItemRepository {
   private async insertEvent(connection: PoolConnection, itemId: string, fromStatus: ItemStatus | undefined, toStatus: ItemStatus, createdAt: string): Promise<void> {
     await this.hooks?.beforeStatusEventInsert?.()
     await connection.execute(
-      this.owner ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,owner_user_id) VALUES(?,?,?,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at) VALUES(?,?,?,?,?)',
-      this.owner ? [createId(), itemId, fromStatus ?? null, toStatus, mysqlDateTime(createdAt), this.owner] : [createId(), itemId, fromStatus ?? null, toStatus, mysqlDateTime(createdAt)],
+      this.owner ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at) VALUES(?,?,?,?,?,?)',
+      this.owner ? [createId(), itemId, fromStatus ?? null, toStatus, mysqlDateTime(createdAt), mysqlDateTime(createdAt), this.owner] : [createId(), itemId, fromStatus ?? null, toStatus, mysqlDateTime(createdAt), mysqlDateTime(createdAt)],
     )
   }
 }

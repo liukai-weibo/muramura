@@ -37,7 +37,7 @@ describe.runIf(enabled)('initial platform administrator CLI', () => {
     const auth = new MySqlAuthRepository(app)
     await auth.createUser({ id: 'target-a', username: 'target-a', passwordHash: 'scrypt$redacted', createdAt: '2026-07-30T00:00:00.000Z' })
     await auth.createUser({ id: 'target-b', username: 'target-b', passwordHash: 'scrypt$redacted', createdAt: '2026-07-30T00:00:00.000Z' })
-    await app.query("INSERT INTO users(id,username,password_hash,created_at) VALUES ('no-member','no-member','scrypt$redacted',UTC_TIMESTAMP(3))")
+    await app.query("INSERT INTO users(id,username,password_hash,created_at,updated_at) VALUES ('no-member','no-member','scrypt$redacted',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))")
   })
 
   afterAll(async () => {
@@ -71,8 +71,8 @@ describe.runIf(enabled)('initial platform administrator CLI', () => {
       expect(result).toMatchObject({ code: 1, stdout: [], stderr: [expect.stringMatching(/^USAGE:/)] })
     }
     expect(await invoke(args('target-a', `${database}_wrong`))).toMatchObject({ code: 1, stdout: [], stderr: ['DATABASE_MISMATCH'] })
-    const [versionRows] = await app.query<Array<RowDataPacket & { version: number; name: string; checksum: string; applied_at: Date }>>('SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version=6')
-    await app.query('DELETE FROM schema_migrations WHERE version=6')
+    const [versionRows] = await app.query<Array<RowDataPacket & { version: number; name: string; checksum: string; applied_at: Date }>>('SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version=7')
+    await app.query('DELETE FROM schema_migrations WHERE version=7')
     try { expect(await invoke(args('target-a'))).toMatchObject({ code: 1, stdout: [], stderr: ['SCHEMA_NOT_READY'] }) }
     finally {
       const row = versionRows[0]!

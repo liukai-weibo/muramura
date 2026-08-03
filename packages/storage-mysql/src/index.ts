@@ -9,7 +9,9 @@ export {
 } from './platform-administration-repository'
 export { MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
 
-export const MYSQL_REQUIRED_SCHEMA_VERSION = 6
+export const MYSQL_REQUIRED_SCHEMA_VERSION = 7
+
+export const MYSQL_SCHEMA_AUDIT_EXCLUDED_TABLES = ['schema_migrations'] as const
 
 export type MySqlSchemaNotReadyReason =
   | 'migration-table-missing'
@@ -108,6 +110,21 @@ async function preflightMigration004(connection: PoolConnection): Promise<void> 
   }
 }
 
+async function runMigration007Statement(connection: PoolConnection, statement: string): Promise<void> {
+  const addColumn = statement.match(/^ALTER TABLE ([a-z0-9_]+) ADD COLUMN ([a-z0-9_]+)\b/i)
+  if (addColumn) {
+    const [, tableName, columnName] = addColumn
+    const [columns] = await connection.query<RowDataPacket[]>(`
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?
+      LIMIT 1
+    `, [tableName, columnName])
+    if (columns[0]) return
+  }
+  await connection.query(statement)
+}
+
 export async function runMySqlMigrations(pool: Pool, directory: string): Promise<void> {
   const connection = await pool.getConnection()
   try {
@@ -135,7 +152,10 @@ export async function runMySqlMigrations(pool: Pool, directory: string): Promise
         }
       }
       if (migration.version === 4) await preflightMigration004(connection)
-      for (const statement of splitStatements(migration.sql)) await connection.query(statement)
+      for (const statement of splitStatements(migration.sql)) {
+        if (migration.version === 7) await runMigration007Statement(connection, statement)
+        else await connection.query(statement)
+      }
       await connection.query('INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))', [migration.version, migration.name, migration.checksum])
     }
   } finally {

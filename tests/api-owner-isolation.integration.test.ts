@@ -31,7 +31,7 @@ describe.runIf(enabled)('all business owner isolation', () => {
     root = createMySqlPool({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database: 'mysql', user: 'root', password: process.env.MYSQL_ROOT_PASSWORD!, connectionLimit: 1 })
     await root.query(`CREATE DATABASE \`${database}\``)
     await root.query(`CREATE USER '${appUser}'@'%' IDENTIFIED BY ?`, [appPassword]); await root.query(`CREATE USER '${migratorUser}'@'%' IDENTIFIED BY ?`, [migratorPassword])
-    await root.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON \`${database}\`.* TO '${appUser}'@'%'`); await root.query(`GRANT SELECT,INSERT,CREATE,ALTER,INDEX,REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`)
+    await root.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON \`${database}\`.* TO '${appUser}'@'%'`); await root.query(`GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX,REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`)
     const config = (user: string, password: string): MySqlConnectionConfig => ({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user, password, connectionLimit: 2 })
     const migrator = createMySqlPool(config(migratorUser, migratorPassword)); await runMySqlMigrations(migrator, `${process.cwd()}/migrations`); await migrator.end()
     app = createMySqlPool(config(appUser, appPassword)); server = createApiServer(config(appUser, appPassword)); await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -49,7 +49,7 @@ describe.runIf(enabled)('all business owner isolation', () => {
   it('isolates full read/write workflows and maps cross-user IDs to 404', async () => {
     const aRegister = await json('/api/v1/auth/register', { username: `owner_a_${crypto.randomUUID()}`, password: 'password-a' }); const a = cookieOf(aRegister); const aId = aRegister.body.user.id as string
     const bRegister = await json('/api/v1/auth/register', { username: `owner_b_${crypto.randomUUID()}`, password: 'password-b' }); const b = cookieOf(bRegister); const bId = bRegister.body.user.id as string
-    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at) VALUES (?,'platform_admin',NULL,UTC_TIMESTAMP(3))", [bId])
+    await app.query("INSERT INTO user_roles(user_id,role_code,granted_by_user_id,created_at,updated_at) VALUES (?,'platform_admin',NULL,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))", [bId])
     expect((await get('/api/v1/auth/session', b)).body.user.roles).toEqual(['member', 'platform_admin'])
 
     const track = await json('/api/v1/exploration-tracks', { name: `track-${crypto.randomUUID()}` }, a); const trackId = track.body.id as string

@@ -73,7 +73,7 @@ describe.runIf(enabled)('MySQL M3-C complete lifecycle BackupData', () => {
 
   it('round trips complete v2 Method lifecycle data in deterministic BackupData order without exporting metadata', async () => {
     const repository = new MySqlBackupRepository(app); const service = new BackupApplicationService(repository); const value = data(); const key = id()
-    await app.execute('INSERT INTO system_metadata(`key`,value,updated_at) VALUES(?,?,UTC_TIMESTAMP(3))', [key, 'private'])
+    await app.execute('INSERT INTO system_metadata(`key`,value,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [key, 'private'])
     await service.restoreBackup(service.parseAndValidate(document(value)))
     expect(await repository.exportData()).toEqual(normalized(value)); expect(await metadata(key)).toEqual([{ value: 'private' }]); expect(JSON.stringify(await service.createBackup())).not.toContain(key)
   })
@@ -87,7 +87,7 @@ describe.runIf(enabled)('MySQL M3-C complete lifecycle BackupData', () => {
   })
 
   it('rejects lifecycle reference violations before replaceData and leaves business data and metadata unchanged', async () => {
-    const repository = new MySqlBackupRepository(app); const service = new BackupApplicationService(repository); const baseline = data(); const key = id(); await repository.replaceData(baseline); await app.execute('INSERT INTO system_metadata(`key`,value,updated_at) VALUES(?,?,UTC_TIMESTAMP(3))', [key, 'stable'])
+    const repository = new MySqlBackupRepository(app); const service = new BackupApplicationService(repository); const baseline = data(); const key = id(); await repository.replaceData(baseline); await app.execute('INSERT INTO system_metadata(`key`,value,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [key, 'stable'])
     const cases: Array<[string, BackupData, string]> = [
       ['broken Review', { ...baseline, methodEvidence: [{ ...baseline.methodEvidence[0]!, reviewId: id() }] }, '方法证据引用了不存在的方法或复盘'],
       ['duplicate Application Item', { ...baseline, methodApplications: [...baseline.methodApplications, { ...baseline.methodApplications[0]!, id: id() }] }, '同一事项不能关联多个方法应用'],
@@ -102,7 +102,7 @@ describe.runIf(enabled)('MySQL M3-C complete lifecycle BackupData', () => {
   })
 
   it('rolls every lifecycle collection and metadata back when final event insertion fails', async () => {
-    const baseline = data(); const repository = new MySqlBackupRepository(app); const key = id(); await repository.replaceData(baseline); await app.execute('INSERT INTO system_metadata(`key`,value,updated_at) VALUES(?,?,UTC_TIMESTAMP(3))', [key, 'stable']); const before = await businessSnapshot()
+    const baseline = data(); const repository = new MySqlBackupRepository(app); const key = id(); await repository.replaceData(baseline); await app.execute('INSERT INTO system_metadata(`key`,value,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [key, 'stable']); const before = await businessSnapshot()
     const failing = new MySqlBackupRepository(app, { beforeItemStatusEventInsert: () => { throw new Error('injected final event failure') } })
     await expect(failing.replaceData(data())).rejects.toThrow('injected final event failure')
     expect(await businessSnapshot()).toEqual(before); expect(await metadata(key)).toEqual([{ value: 'stable' }])

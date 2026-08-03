@@ -81,7 +81,7 @@ async function createTemporaryDatabase() {
   appPool = createMySqlPool(config(appUser, appPassword))
   migratorPool = createMySqlPool(config(migratorUser, migratorPassword))
   migrationDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'knowledge-base-s2-'))
-  for (const name of ['001_initial_schema.sql', '002_add_system_metadata.sql', '003_method_lifecycle_constraints.sql', '004_add_exploration_tracks.sql']) {
+  for (const name of fs.readdirSync(path.join(root, 'migrations')).filter(name => /^\d{3}_[a-z0-9_]+\.sql$/.test(name)).sort()) {
     fs.copyFileSync(path.join(root, 'migrations', name), path.join(migrationDirectory, name))
   }
   await runMySqlMigrations(migratorPool, migrationDirectory)

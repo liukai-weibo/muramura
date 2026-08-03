@@ -110,7 +110,7 @@ describe.runIf(enabled)('online account isolation V0 slice 5 temporary-database 
     await root.query(`CREATE USER '${appUser}'@'%' IDENTIFIED BY ?`, [appPassword])
     await root.query(`CREATE USER '${migratorUser}'@'%' IDENTIFIED BY ?`, [migratorPassword])
     await root.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON \`${database}\`.* TO '${appUser}'@'%'`)
-    await root.query(`GRANT SELECT,INSERT,CREATE,ALTER,INDEX,REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`)
+    await root.query(`GRANT SELECT,INSERT,UPDATE,CREATE,ALTER,INDEX,REFERENCES ON \`${database}\`.* TO '${migratorUser}'@'%'`)
     const config = (user: string, password: string): MySqlConnectionConfig => ({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user, password, connectionLimit: 2 })
     const migrator = createMySqlPool(config(migratorUser, migratorPassword))
     await runMySqlMigrations(migrator, `${process.cwd()}/migrations`)

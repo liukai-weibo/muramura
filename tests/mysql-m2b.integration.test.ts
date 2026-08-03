@@ -127,7 +127,7 @@ describe.runIf(enabled)('MySQL M2-B Review and Backup repositories', () => {
     const reviews = new MySqlReviewRepository(appPool!)
     const item = await items.create({ title: id() })
     const review = await reviews.create({ itemId: item.id, actualAction: 'action', result: 'result', effective: '', incompatible: '', reason: '', adjustment: '' })
-    await appPool!.execute('INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at) VALUES(?,?,?,"formation",1,UTC_TIMESTAMP(3))', [id(), id(), review.id])
+    await appPool!.execute('INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at) VALUES(?,?,?,"formation",1,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [id(), id(), review.id])
     const before = await reviewRelationSnapshot(review.id)
     await expect(reviews.delete(review.id)).rejects.toThrow('复盘存在方法关联，暂不能删除')
     expect(await reviewRelationSnapshot(review.id)).toEqual(before)
@@ -138,7 +138,7 @@ describe.runIf(enabled)('MySQL M2-B Review and Backup repositories', () => {
     const reviews = new MySqlReviewRepository(appPool!)
     const item = await items.create({ title: id() })
     const review = await reviews.create({ itemId: item.id, actualAction: 'action', result: 'result', effective: '', incompatible: '', reason: '', adjustment: '' })
-    await appPool!.execute('INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at) VALUES(?,?,1,"method","","","",?,UTC_TIMESTAMP(3))', [id(), id(), review.id])
+    await appPool!.execute('INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at) VALUES(?,?,1,"method","","","",?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [id(), id(), review.id])
     const before = await reviewRelationSnapshot(review.id)
     await expect(reviews.delete(review.id)).rejects.toThrow('复盘存在方法关联，暂不能删除')
     expect(await reviewRelationSnapshot(review.id)).toEqual(before)
@@ -146,7 +146,7 @@ describe.runIf(enabled)('MySQL M2-B Review and Backup repositories', () => {
 
   it('round trips v2 BackupData through parse, replace and export without changing system metadata', async () => {
     const repository = new MySqlBackupRepository(appPool!); const service = new BackupApplicationService(repository); const value = data(); const metadataKey = id()
-    await appPool!.execute('INSERT INTO system_metadata(`key`,value,updated_at) VALUES(?,?,UTC_TIMESTAMP(3))', [metadataKey, 'private-value'])
+    await appPool!.execute('INSERT INTO system_metadata(`key`,value,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [metadataKey, 'private-value'])
     await service.restoreBackup(service.parseAndValidate(document(value)))
     expect(await repository.exportData()).toEqual(normalized(value))
     const [metadata] = await appPool!.query('SELECT value FROM system_metadata WHERE `key`=?', [metadataKey])
@@ -164,7 +164,7 @@ describe.runIf(enabled)('MySQL M2-B Review and Backup repositories', () => {
 
   it('round trips V3 tracks, deletedAt and exact Item associations without exporting system metadata', async () => {
     const repository = new MySqlBackupRepository(appPool!); const service = new BackupApplicationService(repository); const value = v3Data(); const metadataKey = id()
-    await appPool!.execute('INSERT INTO system_metadata(`key`,value,updated_at) VALUES(?,?,UTC_TIMESTAMP(3))', [metadataKey, 'private-value'])
+    await appPool!.execute('INSERT INTO system_metadata(`key`,value,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))', [metadataKey, 'private-value'])
     const parsed = service.parseAndValidate(document(value, 3))
     expect(parsed.version).toBe(3)
     await service.restoreBackup(parsed)

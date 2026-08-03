@@ -74,13 +74,13 @@ export class MySqlMethodRepository implements MethodRepository {
       )
       await this.testHooks?.beforeWrite?.('create-version')
       await connection.execute(
-        this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-        this.scope ? [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, reviewId, mysqlDateTime(now), this.scope.userId] : [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, reviewId, mysqlDateTime(now)],
+        this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+        this.scope ? [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, reviewId, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, reviewId, mysqlDateTime(now), mysqlDateTime(now)],
       )
       await this.testHooks?.beforeWrite?.('create-evidence')
       await connection.execute(
-        this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at) VALUES(?,?,?,?,?,?)',
-        this.scope ? [createId(), method.id, reviewId, 'formation', 1, mysqlDateTime(now), this.scope.userId] : [createId(), method.id, reviewId, 'formation', 1, mysqlDateTime(now)],
+        this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+        this.scope ? [createId(), method.id, reviewId, 'formation', 1, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), method.id, reviewId, 'formation', 1, mysqlDateTime(now), mysqlDateTime(now)],
       )
       return method
     })
@@ -187,7 +187,7 @@ export class MySqlMethodRepository implements MethodRepository {
           )
         }
         const permanentlyDeletedAt = new Date().toISOString()
-        await connection.execute(this.scope ? 'INSERT INTO method_tombstones(method_id,title,permanently_deleted_at,versions,owner_user_id) VALUES(?,?,?,?,?)' : 'INSERT INTO method_tombstones(method_id,title,permanently_deleted_at,versions) VALUES(?,?,?,?)', this.scope ? [method.id, method.title, mysqlDateTime(permanentlyDeletedAt), JSON.stringify(versionNumbers), this.scope.userId] : [method.id, method.title, mysqlDateTime(permanentlyDeletedAt), JSON.stringify(versionNumbers)])
+        await connection.execute(this.scope ? 'INSERT INTO method_tombstones(method_id,title,permanently_deleted_at,created_at,updated_at,versions,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO method_tombstones(method_id,title,permanently_deleted_at,created_at,updated_at,versions) VALUES(?,?,?,?,?,?)', this.scope ? [method.id, method.title, mysqlDateTime(permanentlyDeletedAt), mysqlDateTime(permanentlyDeletedAt), mysqlDateTime(permanentlyDeletedAt), JSON.stringify(versionNumbers), this.scope.userId] : [method.id, method.title, mysqlDateTime(permanentlyDeletedAt), mysqlDateTime(permanentlyDeletedAt), mysqlDateTime(permanentlyDeletedAt), JSON.stringify(versionNumbers)])
         await connection.execute(this.scope ? 'DELETE FROM method_versions WHERE method_id=? AND owner_user_id=?' : 'DELETE FROM method_versions WHERE method_id=?', this.scope ? [method.id, this.scope.userId] : [method.id])
         await this.testHooks?.beforeWrite?.('purge-delete-method')
         await connection.execute(this.scope ? 'DELETE FROM methods WHERE id=? AND owner_user_id=?' : 'DELETE FROM methods WHERE id=?', this.scope ? [method.id, this.scope.userId] : [method.id])
@@ -225,15 +225,15 @@ export class MySqlMethodRepository implements MethodRepository {
       if (revisionData) {
         await this.testHooks?.beforeWrite?.('validate-version')
         await connection.execute(
-          this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-          this.scope ? [createId(), methodId, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, reviewId, mysqlDateTime(now), this.scope.userId] : [createId(), methodId, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, reviewId, mysqlDateTime(now)],
+          this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+          this.scope ? [createId(), methodId, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, reviewId, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), methodId, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, reviewId, mysqlDateTime(now), mysqlDateTime(now)],
         )
       }
       await this.testHooks?.beforeWrite?.('validate-evidence')
       try {
         await connection.execute(
-          this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at) VALUES(?,?,?,?,?,?)',
-          this.scope ? [createId(), methodId, reviewId, revisionData ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), this.scope.userId] : [createId(), methodId, reviewId, revisionData ? 'revision' : 'validation', nextVersion, mysqlDateTime(now)],
+          this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+          this.scope ? [createId(), methodId, reviewId, revisionData ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), methodId, reviewId, revisionData ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), mysqlDateTime(now)],
         )
       } catch (error) {
         rethrowDuplicateAsBusinessError(

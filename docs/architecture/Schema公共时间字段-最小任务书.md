@@ -2,11 +2,11 @@
 
 > 日期：2026-08-03
 >
-> 状态：架构范围已冻结；待产品经理书面评审并按本文件范围单独授权编码与 Migration 执行窗口。
+> 状态：架构范围已冻结；原子代码切片已获授权并完成实施，待独立 QA；运行库 Migration 007 执行窗口仍未授权。
 >
 > 依据：`docs/product/Schema公共时间字段-产品立项与架构评审授权.md`；运行事实以 `docs/product/当前运行事实.md` 为准。
 >
-> 本文件**不授权编码**；架构师未实施任何业务代码或 Migration。
+> 本文件本身**不授权编码或运行库 Migration**；代码授权以 `docs/product/Schema公共时间字段-原子切片产品编码授权.md` 为准。
 
 ## 【技术结论：有条件可行】
 
@@ -31,7 +31,9 @@
 
 ## 【表级盘点（基于 migrations 001–006；实施前须用 information_schema 对日常库复核）】
 
-共 17 张业务相关 base table + 基础设施表 `schema_migrations`（**排除**：非业务表，不纳入本项字段对齐）。
+当前共 17 张 base table：16 张业务表 + 基础设施表 `schema_migrations`（**排除**：非业务表，不纳入本项字段对齐）。
+
+MySQL 不支持将 `id / created_at / updated_at` 定义为一个可在建表时自动展开的复合标量，也不应以 JSON 列替代三个可索引字段。冻结方案为：DDL 显式声明真实列；Repository 复用既有日期转换；随机临时库结构守卫扫描除显式基础设施排除项外的所有 base table，使未来新业务表缺任一字段或稳定主键时直接失败。
 
 | 表 | 主键形态 | created_at | updated_at | 删除相关 | 分类 |
 |---|---|---|---|---|---|
@@ -97,7 +99,7 @@
 ## 【实施方案】
 
 1. 编码授权后先对目标库做只读列盘点，确认与上表一致再写 007。
-2. 007 在单连接迁移锁内执行；失败不得留下半套 NOT NULL 列（语句顺序：加可空列 → 回填 → 改 NOT NULL）。
+2. 007 在单连接迁移锁内执行；MySQL DDL 会隐式提交，因此仍按“加可空列 → 回填 → 改 NOT NULL”排序，只有全部成功后才写 migration record。执行器在 007 重跑时依据 `information_schema.columns` 跳过已存在的新增列，使部分 DDL 已提交的失败可安全继续。
 3. 应用层刷新优先；不引入跨表触发器。
 4. 切片 1 合并后 API 在未迁移库上应稳定 `schema-version-behind` / required=7；迁移后再 ready。
 5. 切片 2 以 Repository 单测 + 既有 MySQL 集成回归证明写路径；Backup 往返用临时库。
@@ -111,6 +113,7 @@
 ## 【运行库隔离与风险保护策略】
 
 - 自动化测试只用随机临时 database / 临时账号；`finally` 清理。
+- 007 包含历史数据回填，migrator 必须具备目标库 `UPDATE` 权限；app 账号权限不因此扩大。当前 Docker 账号收敛脚本已包含该 migrator 权限。
 - 对日常 `knowledge_base` 与 UAT `knowledge_base_uat` 执行 007 前：产品单独打开迁移窗口；前后只读深度快照；显式加载对应 `.env` / `.env.uat`；先 `/health` 记录 database 与 schemaVersion。
 - 禁止删 `mysql-data`、禁止 `compose down -v`、禁止手工改 `schema_migrations`。
 - 开发空库可在窗口内一次跑齐 001–007；已有 Schema 6 库只跑 007。

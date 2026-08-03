@@ -102,7 +102,7 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
       await this.hooks?.beforeItemUpdate?.()
       await connection.execute(this.scope ? 'UPDATE items SET status=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE items SET status=?,updated_at=? WHERE id=?', this.scope ? ['reviewed', mysqlDateTime(updatedAt), item.id, this.scope.userId] : ['reviewed', mysqlDateTime(updatedAt), item.id])
       await this.hooks?.beforeStatusEventInsert?.()
-      await connection.execute(this.scope ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,owner_user_id) VALUES(?,?,?,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at) VALUES(?,?,?,?,?)', this.scope ? [createId(), item.id, item.status, 'reviewed', mysqlDateTime(updatedAt), this.scope.userId] : [createId(), item.id, item.status, 'reviewed', mysqlDateTime(updatedAt)])
+      await connection.execute(this.scope ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at) VALUES(?,?,?,?,?,?)', this.scope ? [createId(), item.id, item.status, 'reviewed', mysqlDateTime(updatedAt), mysqlDateTime(updatedAt), this.scope.userId] : [createId(), item.id, item.status, 'reviewed', mysqlDateTime(updatedAt), mysqlDateTime(updatedAt)])
       await this.hooks?.beforeCommit?.(connection)
       return { item: { ...mapItem(item), status: 'reviewed', updatedAt }, review, ...(method ? { method } : {}), ...(createdIdea ? { createdIdea } : {}) }
     })
@@ -133,13 +133,13 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
     )
     await this.hooks?.beforeVersionInsert?.()
     await connection.execute(
-      this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-      this.scope ? [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, review.id, mysqlDateTime(now), this.scope.userId] : [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, review.id, mysqlDateTime(now)],
+      this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      this.scope ? [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, review.id, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), method.id, 1, method.title, method.applicable, method.unsuitable, method.steps, review.id, mysqlDateTime(now), mysqlDateTime(now)],
     )
     await this.hooks?.beforeEvidenceInsert?.()
     await connection.execute(
-      this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at) VALUES(?,?,?,?,?,?)',
-      this.scope ? [createId(), method.id, review.id, 'formation', 1, mysqlDateTime(now), this.scope.userId] : [createId(), method.id, review.id, 'formation', 1, mysqlDateTime(now)],
+      this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+      this.scope ? [createId(), method.id, review.id, 'formation', 1, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), method.id, review.id, 'formation', 1, mysqlDateTime(now), mysqlDateTime(now)],
     )
     return method
   }
@@ -159,15 +159,15 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
     if (revision) {
       await this.hooks?.beforeVersionInsert?.()
       await connection.execute(
-        this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-        this.scope ? [createId(), updated.id, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, review.id, mysqlDateTime(now), this.scope.userId] : [createId(), updated.id, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, review.id, mysqlDateTime(now)],
+        this.scope ? 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)' : 'INSERT INTO method_versions(id,method_id,version,title,applicable,unsuitable,steps,source_review_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+        this.scope ? [createId(), updated.id, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, review.id, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), updated.id, nextVersion, updated.title, updated.applicable, updated.unsuitable, updated.steps, review.id, mysqlDateTime(now), mysqlDateTime(now)],
       )
     }
     await this.hooks?.beforeEvidenceInsert?.()
     try {
       await connection.execute(
-        this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at) VALUES(?,?,?,?,?,?)',
-        this.scope ? [createId(), updated.id, review.id, revision ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), this.scope.userId] : [createId(), updated.id, review.id, revision ? 'revision' : 'validation', nextVersion, mysqlDateTime(now)],
+        this.scope ? 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?,?)' : 'INSERT INTO method_evidence(id,method_id,review_id,relation,method_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+        this.scope ? [createId(), updated.id, review.id, revision ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), updated.id, review.id, revision ? 'revision' : 'validation', nextVersion, mysqlDateTime(now), mysqlDateTime(now)],
       )
     } catch (error) {
       rethrowDuplicateAsBusinessError(
@@ -193,9 +193,9 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
     await this.hooks?.beforeDerivedItemInsert?.()
     await connection.execute(this.scope ? 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,?,?,NULL,?,?,NULL,?)' : 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at) VALUES(?,?,?,?,NULL,?,?,NULL)', this.scope ? [item.id, item.title, item.content, item.status, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [item.id, item.title, item.content, item.status, mysqlDateTime(now), mysqlDateTime(now)])
     await this.hooks?.beforeDerivedStatusEventInsert?.()
-    await connection.execute(this.scope ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,owner_user_id) VALUES(?,?,?,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at) VALUES(?,?,?,?,?)', this.scope ? [createId(), item.id, null, item.status, mysqlDateTime(now), this.scope.userId] : [createId(), item.id, null, item.status, mysqlDateTime(now)])
+    await connection.execute(this.scope ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at) VALUES(?,?,?,?,?,?)', this.scope ? [createId(), item.id, null, item.status, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), item.id, null, item.status, mysqlDateTime(now), mysqlDateTime(now)])
     await this.hooks?.beforeItemLinkInsert?.()
-    await connection.execute(this.scope ? 'INSERT INTO item_links(id,source_review_id,target_item_id,type,created_at,owner_user_id) VALUES(?,?,?,?,?,?)' : 'INSERT INTO item_links(id,source_review_id,target_item_id,type,created_at) VALUES(?,?,?,?,?)', this.scope ? [createId(), review.id, item.id, 'derived_from_review', mysqlDateTime(now), this.scope.userId] : [createId(), review.id, item.id, 'derived_from_review', mysqlDateTime(now)])
+    await connection.execute(this.scope ? 'INSERT INTO item_links(id,source_review_id,target_item_id,type,created_at,updated_at,owner_user_id) VALUES(?,?,?,?,?,?,?)' : 'INSERT INTO item_links(id,source_review_id,target_item_id,type,created_at,updated_at) VALUES(?,?,?,?,?,?)', this.scope ? [createId(), review.id, item.id, 'derived_from_review', mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [createId(), review.id, item.id, 'derived_from_review', mysqlDateTime(now), mysqlDateTime(now)])
     return item
   }
 
