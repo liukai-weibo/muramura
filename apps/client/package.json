@@ -12,7 +12,6 @@
     "@knowledge-base/application": "workspace:*",
     "@knowledge-base/contracts": "workspace:*",
     "@knowledge-base/domain": "workspace:*",
-    "@knowledge-base/storage-indexeddb": "workspace:*",
     "@nutui/icons-react-taro": "1.0.5",
     "@nutui/nutui-react-taro": "3.0.20",
     "@tarojs/components": "4.2.1",

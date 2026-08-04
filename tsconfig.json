@@ -17,10 +17,10 @@
       "@knowledge-base/application": ["packages/application/src/index.ts"],
       "@knowledge-base/contracts": ["packages/contracts/src/index.ts"],
       "@knowledge-base/domain": ["packages/domain/src/index.ts"],
-      "@knowledge-base/storage-indexeddb": ["packages/storage-indexeddb/src/index.ts"],
+      "@knowledge-base/storage-indexeddb": ["archive/packages/storage-indexeddb/src/index.ts"],
       "@knowledge-base/storage-sqlite": ["packages/storage-sqlite/src/index.ts"],
       "@knowledge-base/storage-mysql": ["packages/storage-mysql/src/index.ts"]
     }
   },
-  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "archive/packages/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
 }

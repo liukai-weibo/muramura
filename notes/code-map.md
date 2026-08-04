@@ -184,18 +184,18 @@ migrations/005_add_accounts_sessions_and_owner_columns.sql
 这部分**不参与运行**，读代码时可以直接跳过。它们仍在仓库里是因为清理需要走产品授权流程。
 
 ```text
-packages/storage-indexeddb/src/index.ts     931 行   浏览器时代的存储实现
-packages/storage-sqlite/src/*               680 行   SQLite 路线的存储实现
-apps/local-api/src/*                        152 行   SQLite 路线的 API 服务
+archive/packages/storage-indexeddb/src/index.ts   931 行   浏览器时代的存储实现（已归档）
+packages/storage-sqlite/src/*                     680 行   SQLite 路线的存储实现
+apps/local-api/src/*                              152 行   SQLite 路线的 API 服务
 ```
 
 合计 **1763 行**。三条判定依据：
 
-- `storage-indexeddb` 仍在 `apps/client/package.json` 声明为依赖，但客户端源码**零引用**（幽灵依赖）
+- `storage-indexeddb` 已移至 `archive/packages/`，不参与生产装配；仍被历史测试通过路径别名引用
 - `storage-sqlite` 只被 `apps/local-api` 和测试引用
 - `apps/local-api` 没有任何启动脚本引用它（`package.json`、`docker-compose.yml`、`Dockerfile` 均无）
 
-`storage-indexeddb/src/index.ts` 是全项目第二大文件，容易被误认为核心模块，实际已完全停用。
+`archive/packages/storage-indexeddb/src/index.ts` 是全项目第二大文件之一，容易被误认为核心模块，实际已完全停用。
 
 测试里也有大量历史遗留：70 个测试文件中 **28 个**依赖上述废弃存储，而 `pnpm test` 默认全量执行。
 

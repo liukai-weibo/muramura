@@ -74,9 +74,6 @@ importers:
       '@knowledge-base/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@knowledge-base/storage-indexeddb':
-        specifier: workspace:*
-        version: link:../../packages/storage-indexeddb
       '@nutui/icons-react-taro':
         specifier: 1.0.5
         version: 1.0.5
@@ -172,6 +169,18 @@ importers:
         specifier: ^4.21.0
         version: 4.23.1
 
+  archive/packages/storage-indexeddb:
+    dependencies:
+      '@knowledge-base/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@knowledge-base/domain':
+        specifier: workspace:*
+        version: link:../../../packages/domain
+      dexie:
+        specifier: ^4.4.4
+        version: 4.4.4
+
   packages/application:
     dependencies:
       '@knowledge-base/contracts':
@@ -188,18 +197,6 @@ importers:
       '@knowledge-base/contracts':
         specifier: workspace:*
         version: link:../contracts
-
-  packages/storage-indexeddb:
-    dependencies:
-      '@knowledge-base/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@knowledge-base/domain':
-        specifier: workspace:*
-        version: link:../domain
-      dexie:
-        specifier: ^4.4.4
-        version: 4.4.4
 
   packages/storage-mysql:
     dependencies:
