@@ -184,6 +184,7 @@ export const publicBusinessErrorCodes = [
   'REVIEW_HAS_METHOD_RELATION',
   'REVIEW_METHOD_MODE_CONFLICT',
   'INVALID_BACKUP',
+  'AUTH_CURRENT_PASSWORD_INVALID',
 ] as const satisfies readonly BusinessErrorCode[]
 
 export type PublicBusinessErrorCode = (typeof publicBusinessErrorCodes)[number]

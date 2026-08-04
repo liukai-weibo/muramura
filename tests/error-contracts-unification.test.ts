@@ -15,12 +15,13 @@ describe('统一错误契约', () => {
     expect(publicBusinessErrorCodes).toContain('EXPLORATION_TRACK_NOT_FOUND')
   })
 
-  it('认证与平台管理统一码进入 BusinessErrorCode，但不默认对外透出', () => {
+  it('认证与平台管理统一码默认不外泄，仅公开当前密码错误', () => {
     const authCode: BusinessErrorCode = 'AUTH_INVALID_CREDENTIALS'
     const adminCode: BusinessErrorCode = 'PLATFORM_ADMIN_SELF_ROLE_CHANGE'
     expect(isPublicBusinessErrorCode(authCode)).toBe(false)
     expect(isPublicBusinessErrorCode(adminCode)).toBe(false)
     expect(isPublicBusinessErrorCode('AUTH_USERNAME_TAKEN')).toBe(false)
+    expect(isPublicBusinessErrorCode('AUTH_CURRENT_PASSWORD_INVALID')).toBe(true)
     expect(isPublicBusinessErrorCode('BACKUP_OWNERSHIP_CONFLICT')).toBe(false)
   })
 

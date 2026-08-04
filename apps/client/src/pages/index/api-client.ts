@@ -1,6 +1,12 @@
 import type {
+  AdminResetPasswordRequest,
+  AdminResetPasswordResponse,
+  AdminUpdateUsernameRequest,
   AuthSession,
+  AuthUser,
   BackupDocument,
+  ChangeOwnPasswordInput,
+  ChangeOwnUsernameInput,
   CompleteReviewInput,
   CompleteReviewResult,
   DashboardReport,
@@ -35,6 +41,7 @@ import type {
 export interface ApiClientError extends Error {
   status?: number
   code?: string
+  businessCode?: string
   requestId?: string
 }
 
@@ -94,12 +101,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
   }
-  const body = await response.json().catch(() => undefined) as { error?: { code?: string; message?: string; requestId?: string } } | undefined
+  const body = await response.json().catch(() => undefined) as { error?: { code?: string; businessCode?: string; message?: string; requestId?: string } } | undefined
   const error = new Error(body?.error?.message ?? '本地数据服务请求失败。') as ApiClientError
   error.status = response.status
   error.code = body?.error?.code
+  error.businessCode = body?.error?.businessCode
   error.requestId = body?.error?.requestId
-  if (response.status === 401 && !path.startsWith('/auth/') && requestAuthenticationContext === authenticationContextVersion) unauthorizedHandler?.()
+  const rejectedCurrentPassword = path === '/account/password' && error.businessCode === 'AUTH_CURRENT_PASSWORD_INVALID'
+  if (response.status === 401 && !path.startsWith('/auth/') && !rejectedCurrentPassword && requestAuthenticationContext === authenticationContextVersion) unauthorizedHandler?.()
   if (response.status === 403 && path.startsWith('/admin/') && requestAuthenticationContext === authenticationContextVersion) adminForbiddenHandler?.(error)
   throw error
 }
@@ -113,6 +122,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasExactKeys(value: Record<string, unknown>, expected: string[]): boolean {
   const keys = Object.keys(value).sort()
   return keys.length === expected.length && keys.every((key, index) => key === [...expected].sort()[index])
+}
+
+function parseAuthUser(value: unknown): AuthUser {
+  if (!isRecord(value) || !hasExactKeys(value, ['id', 'username', 'roles', 'createdAt'])
+    || typeof value.id !== 'string' || value.id.length === 0
+    || typeof value.username !== 'string' || value.username.length === 0
+    || typeof value.createdAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value.createdAt) || !Number.isFinite(Date.parse(value.createdAt))
+    || !Array.isArray(value.roles)
+    || !(value.roles.length === 1 && value.roles[0] === 'member')
+      && !(value.roles.length === 2 && value.roles[0] === 'member' && value.roles[1] === 'platform_admin')) {
+    throw new Error('账户响应结构无效。')
+  }
+  return { id: value.id, username: value.username, roles: [...value.roles], createdAt: value.createdAt } as AuthUser
 }
 
 function parsePlatformUserSummary(value: unknown): PlatformUserSummary {
@@ -149,6 +171,24 @@ function parseRevokeSessionsResponse(value: unknown): AdminRevokeUserSessionsRes
     throw new Error('会话撤销响应结构无效。')
   }
   return { revokedSessionCount: value.revokedSessionCount as number }
+}
+
+async function parseUnknownAuthUserWrite(promise: Promise<unknown>): Promise<AuthUser> {
+  try {
+    return parseAuthUser(await promise)
+  } catch (error) {
+    if (error instanceof ApiClientUnknownOutcomeError || (error as ApiClientError).status !== undefined) throw error
+    throw new ApiClientUnknownOutcomeError()
+  }
+}
+
+async function parseUnknownVoidWrite(promise: Promise<unknown>): Promise<void> {
+  try {
+    if (await promise !== undefined) throw new Error('写入响应结构无效。')
+  } catch (error) {
+    if (error instanceof ApiClientUnknownOutcomeError || (error as ApiClientError).status !== undefined) throw error
+    throw new ApiClientUnknownOutcomeError()
+  }
 }
 
 async function parseUnknownUserWrite(promise: Promise<unknown>, targetUserId: string, mismatchMessage: string): Promise<PlatformUserSummary> {
@@ -206,6 +246,12 @@ export const apiClient = {
   login: (input: { username: string; password: string }) => request<AuthSession>('/auth/login', { method: 'POST', body: json(input) }),
   logout: () => request<void>('/auth/logout', { method: 'POST', body: json({}) }),
   getCurrentSession: (signal?: AbortSignal) => request<AuthSession>('/auth/session', { signal }),
+  changeOwnUsername: (input: ChangeOwnUsernameInput) => parseUnknownAuthUserWrite(
+    request<unknown>('/account/username', { method: 'PATCH', body: json(input) }),
+  ),
+  changeOwnPassword: (input: ChangeOwnPasswordInput) => parseUnknownVoidWrite(
+    request<unknown>('/account/password', { method: 'POST', body: json(input) }),
+  ),
   listPlatformUsers: async (input: { page: number; query?: string }, signal?: AbortSignal) => {
     const query = input.query?.trim()
     if (!Number.isSafeInteger(input.page) || input.page < 1 || (query?.length ?? 0) > 80) throw new Error('用户列表请求参数无效。')
@@ -225,6 +271,20 @@ export const apiClient = {
     if (!validAdminTargetId(targetUserId) || !validOperationId(input.operationId)) return Promise.reject(new Error('会话撤销请求参数无效。'))
     return parseUnknownSessionsWrite(
       request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/revoke-sessions`, { method: 'POST', body: json({ operationId: input.operationId }) }),
+    )
+  },
+  updatePlatformUsername: (targetUserId: string, input: AdminUpdateUsernameRequest) => {
+    if (!validAdminTargetId(targetUserId) || !validOperationId(input.operationId)) return Promise.reject(new Error('用户名修改请求参数无效。'))
+    return parseUnknownUserWrite(
+      request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/username`, { method: 'PATCH', body: json(input) }),
+      targetUserId,
+      '用户名修改响应目标不匹配。',
+    )
+  },
+  resetPlatformUserPassword: (targetUserId: string, input: AdminResetPasswordRequest): Promise<AdminResetPasswordResponse> => {
+    if (!validAdminTargetId(targetUserId) || !validOperationId(input.operationId)) return Promise.reject(new Error('密码重置请求参数无效。'))
+    return parseUnknownSessionsWrite(
+      request<unknown>(`/admin/users/${encodeURIComponent(targetUserId)}/reset-password`, { method: 'POST', body: json(input) }),
     )
   },
   getPlatformUser: async (targetUserId: string, signal?: AbortSignal) => {

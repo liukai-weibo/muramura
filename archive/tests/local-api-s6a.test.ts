@@ -3,8 +3,8 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SqliteStorageOpenError } from '../packages/storage-sqlite/src/errors'
-import { createSqliteS4Repository } from '../packages/storage-sqlite/src/index'
+import { SqliteStorageOpenError } from '../../packages/storage-sqlite/src/errors'
+import { createSqliteS4Repository } from '../../packages/storage-sqlite/src/index'
 import { createLocalApi, DATABASE_UNAVAILABLE, LOCAL_API_HOST, LOCAL_API_PORT } from '../apps/local-api/src/index'
 
 const resources: Array<{ directory: string; stop: () => Promise<void> }> = []

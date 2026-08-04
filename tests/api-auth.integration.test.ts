@@ -54,6 +54,7 @@ describe.runIf(enabled)('authentication API', () => {
 
     const wrong = await json('/api/v1/account/password', { currentPassword: 'wrong-password', newPassword: 'password-456' }, cookie)
     expect(wrong.status).toBe(401)
+    expect(wrong.body).toMatchObject({ error: { code: 'UNAUTHORIZED', businessCode: 'AUTH_CURRENT_PASSWORD_INVALID', requestId: expect.any(String) } })
 
     const changed = await json('/api/v1/account/password', { currentPassword: 'password-123', newPassword: 'password-456' }, cookie)
     expect(changed.status).toBe(204)
