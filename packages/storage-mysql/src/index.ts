@@ -9,7 +9,7 @@ export {
 } from './platform-administration-repository'
 export { MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
 
-export const MYSQL_REQUIRED_SCHEMA_VERSION = 8
+export const MYSQL_REQUIRED_SCHEMA_VERSION = 9
 
 export const MYSQL_SCHEMA_AUDIT_EXCLUDED_TABLES = ['schema_migrations'] as const
 
@@ -35,16 +35,34 @@ export interface MySqlConnectionConfig {
   connectionLimit: number
 }
 
+export type MySqlConfigInvalidReason = 'missing-env' | 'invalid-env'
+
+export interface MySqlConfigInvalidDetails {
+  reason: MySqlConfigInvalidReason
+  envVar: string
+}
+
+export class MySqlConfigError extends Error {
+  constructor(readonly details: Readonly<MySqlConfigInvalidDetails>) {
+    super('MySQL 启动配置无效')
+    this.name = 'MySqlConfigError'
+  }
+}
+
 export function readMySqlConfig(environment: NodeJS.ProcessEnv, identity: 'app' | 'migrator'): MySqlConnectionConfig {
   const required = (name: string) => {
     const value = environment[name]
-    if (!value) throw new Error(`缺少 MySQL 环境变量：${name}`)
+    if (!value) throw new MySqlConfigError({ reason: 'missing-env', envVar: name })
     return value
   }
   const port = Number(required('MYSQL_PORT'))
   const connectionLimit = Number(environment.MYSQL_POOL_CONNECTION_LIMIT ?? '10')
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('MYSQL_PORT 无效')
-  if (!Number.isInteger(connectionLimit) || connectionLimit < 1) throw new Error('MYSQL_POOL_CONNECTION_LIMIT 无效')
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new MySqlConfigError({ reason: 'invalid-env', envVar: 'MYSQL_PORT' })
+  }
+  if (!Number.isInteger(connectionLimit) || connectionLimit < 1) {
+    throw new MySqlConfigError({ reason: 'invalid-env', envVar: 'MYSQL_POOL_CONNECTION_LIMIT' })
+  }
   return {
     host: required('MYSQL_HOST'), port, database: required('MYSQL_DATABASE'),
     user: identity === 'app' ? required('MYSQL_APP_USER') : required('MYSQL_MIGRATOR_USER'),
@@ -125,6 +143,23 @@ async function runMigration007Statement(connection: PoolConnection, statement: s
   await connection.query(statement)
 }
 
+async function runCheckConstraintMigrationStatement(connection: PoolConnection, statement: string): Promise<boolean> {
+  const checkConstraint = statement.match(/^ALTER TABLE ([a-z0-9_]+) (DROP CHECK|ADD CONSTRAINT) ([a-z0-9_]+)\b/i)
+  if (!checkConstraint) return false
+  const tableName = checkConstraint[1]!
+  const operation = checkConstraint[2]!
+  const constraintName = checkConstraint[3]!
+  const [constraints] = await connection.query<RowDataPacket[]>(`
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE() AND table_name = ? AND constraint_name = ? AND constraint_type = 'CHECK'
+    LIMIT 1
+  `, [tableName, constraintName])
+  if (operation.toUpperCase() === 'DROP CHECK' && !constraints[0]) return true
+  if (operation.toUpperCase() === 'ADD CONSTRAINT' && constraints[0]) return true
+  await connection.query(statement)
+  return true
+}
+
 async function runMigration008Statement(connection: PoolConnection, statement: string): Promise<void> {
   const addColumn = statement.match(/^ALTER TABLE ([a-z0-9_]+) ADD COLUMN ([a-z0-9_]+)\b/i)
   if (addColumn) {
@@ -136,19 +171,12 @@ async function runMigration008Statement(connection: PoolConnection, statement: s
     `, [tableName, columnName])
     if (columns[0]) return
   }
-  const checkConstraint = statement.match(/^ALTER TABLE ([a-z0-9_]+) (DROP CHECK|ADD CONSTRAINT) ([a-z0-9_]+)\b/i)
-  if (checkConstraint) {
-    const tableName = checkConstraint[1]!
-    const operation = checkConstraint[2]!
-    const constraintName = checkConstraint[3]!
-    const [constraints] = await connection.query<RowDataPacket[]>(`
-      SELECT 1 FROM information_schema.table_constraints
-      WHERE table_schema = DATABASE() AND table_name = ? AND constraint_name = ? AND constraint_type = 'CHECK'
-      LIMIT 1
-    `, [tableName, constraintName])
-    if (operation.toUpperCase() === 'DROP CHECK' && !constraints[0]) return
-    if (operation.toUpperCase() === 'ADD CONSTRAINT' && constraints[0]) return
-  }
+  if (await runCheckConstraintMigrationStatement(connection, statement)) return
+  await connection.query(statement)
+}
+
+async function runMigration009Statement(connection: PoolConnection, statement: string): Promise<void> {
+  if (await runCheckConstraintMigrationStatement(connection, statement)) return
   await connection.query(statement)
 }
 
@@ -182,6 +210,7 @@ export async function runMySqlMigrations(pool: Pool, directory: string): Promise
       for (const statement of splitStatements(migration.sql)) {
         if (migration.version === 7) await runMigration007Statement(connection, statement)
         else if (migration.version === 8) await runMigration008Statement(connection, statement)
+        else if (migration.version === 9) await runMigration009Statement(connection, statement)
         else await connection.query(statement)
       }
       await connection.query('INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))', [migration.version, migration.name, migration.checksum])

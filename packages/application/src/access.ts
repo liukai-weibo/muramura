@@ -1,4 +1,5 @@
 import type {
+  AdminResetPasswordResponse,
   AdminRevokeUserSessionsResponse,
   AuthRepository,
   AuthSession,
@@ -16,6 +17,8 @@ import type {
 } from '@knowledge-base/contracts'
 import {
   assertAuthCredentials,
+  assertPassword,
+  assertUsername,
   createId,
   createSessionSecret,
   fail,
@@ -56,6 +59,33 @@ export class AuthenticationApplicationService {
 
   async logout(secret: Uint8Array | undefined): Promise<void> {
     if (secret) await this.repository.revokeSessionBySecretHash(hashSessionSecret(secret), this.now().toISOString())
+  }
+
+  async changeUsername(actor: AuthUser, username: string): Promise<AuthUser> {
+    const normalized = normalizeUsername(username)
+    assertUsername(normalized)
+    return this.repository.updateUsername({
+      userId: actor.id,
+      username: normalized,
+      updatedAt: this.now().toISOString(),
+    })
+  }
+
+  async changePassword(actor: AuthUser, input: { currentPassword: string; newPassword: string }): Promise<void> {
+    assertPassword(input.currentPassword)
+    assertPassword(input.newPassword)
+    const record = await this.repository.findCredentialByUserId(actor.id)
+    if (!record) fail('AUTH_ACCOUNT_UNAVAILABLE', 'account unavailable')
+    if (!(await verifyPassword(input.currentPassword, record.passwordHash))) {
+      fail('AUTH_CURRENT_PASSWORD_INVALID', 'current password is invalid')
+    }
+    const revokedAt = this.now().toISOString()
+    await this.repository.updatePasswordHashAndRevokeSessions({
+      userId: actor.id,
+      expectedPasswordHash: record.passwordHash,
+      passwordHash: await hashPassword(input.newPassword),
+      revokedAt,
+    })
   }
 
   private async startSession(user: AuthUser): Promise<{ session: AuthSession; secret: Buffer; expiresAt: string }> {
@@ -164,6 +194,38 @@ export class PlatformAdministrationApplicationService {
       auditEventId: this.newId(),
       operationId: input.operationId,
       createdAt,
+    })
+  }
+
+  async updateUsername(actor: AuthUser, input: { targetUserId: string; username: string; operationId: string }): Promise<PlatformUserSummary> {
+    this.assertAdministrator(actor)
+    assertCanonicalOperationId(input.operationId)
+    const username = normalizeUsername(input.username)
+    assertUsername(username)
+    const createdAt = this.now().toISOString()
+    return this.repository.updateUsername({
+      actorUserId: actor.id,
+      targetUserId: input.targetUserId,
+      username,
+      auditEventId: this.newId(),
+      operationId: input.operationId,
+      createdAt,
+    })
+  }
+
+  async resetPassword(actor: AuthUser, input: { targetUserId: string; newPassword: string; operationId: string }): Promise<AdminResetPasswordResponse> {
+    this.assertAdministrator(actor)
+    assertCanonicalOperationId(input.operationId)
+    assertPassword(input.newPassword)
+    const createdAt = this.now().toISOString()
+    return this.repository.resetPassword({
+      actorUserId: actor.id,
+      targetUserId: input.targetUserId,
+      passwordHash: await hashPassword(input.newPassword),
+      auditEventId: this.newId(),
+      operationId: input.operationId,
+      createdAt,
+      revokedAt: createdAt,
     })
   }
 

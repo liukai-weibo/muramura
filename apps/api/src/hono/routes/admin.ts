@@ -156,6 +156,70 @@ function accountStateRoute(kind: 'soft-delete' | 'restore') {
 const softDeleteUserRoute = accountStateRoute('soft-delete')
 const restoreUserRoute = accountStateRoute('restore')
 
+const updateUsernameRoute = createRoute({
+  middleware: [requireJson],
+  method: 'patch',
+  path: '/users/{userId}/username',
+  tags: ['Admin'],
+  summary: '修改目标用户用户名',
+  description: '仅平台管理员。operationId 必须为 UUID。禁止修改自己的用户名；已删除账号不可修改。',
+  request: {
+    params: z.object({ userId: z.string().min(1) }),
+    body: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: z.object({
+            username: z.string(),
+            operationId: z.uuid(),
+          }).strict().openapi('AdminUpdateUsernameRequest'),
+        },
+      },
+    },
+  },
+  responses: {
+    200: jsonSuccess(platformUserSchema, '更新后的用户摘要'),
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+    403: commonErrorResponses[403],
+    404: commonErrorResponses[404],
+    409: commonErrorResponses[409],
+    415: commonErrorResponses[415],
+  },
+})
+
+const resetPasswordRoute = createRoute({
+  middleware: [requireJson],
+  method: 'post',
+  path: '/users/{userId}/reset-password',
+  tags: ['Admin'],
+  summary: '重置目标用户密码',
+  description: '仅平台管理员。operationId 必须为 UUID。禁止重置自己的密码；已删除账号不可重置；成功后撤销目标用户全部会话。',
+  request: {
+    params: z.object({ userId: z.string().min(1) }),
+    body: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: z.object({
+            newPassword: z.string().min(1),
+            operationId: z.uuid(),
+          }).strict().openapi('AdminResetPasswordRequest'),
+        },
+      },
+    },
+  },
+  responses: {
+    200: jsonSuccess(z.object({ revokedSessionCount: z.number().int() }).openapi('AdminResetPasswordResponse'), '重置结果'),
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+    403: commonErrorResponses[403],
+    404: commonErrorResponses[404],
+    409: commonErrorResponses[409],
+    415: commonErrorResponses[415],
+  },
+})
+
 function requireActor(context: { get: (key: 'actor') => ApiEnv['Variables']['actor'] }) {
   const actor = context.get('actor')
   if (!actor) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
@@ -253,6 +317,28 @@ export function createAdminRoutes(root: RootHonoServices) {
       const body = context.req.valid('json')
       return context.json(await root.platformAdministration.restoreUser(actor, {
         targetUserId: parseAdminTargetId(userId),
+        operationId: body.operationId,
+      }), 200)
+    })
+
+    .openapi(updateUsernameRoute, async (context) => {
+      const actor = requireActor(context)
+      const { userId } = context.req.valid('param')
+      const body = context.req.valid('json')
+      return context.json(await root.platformAdministration.updateUsername(actor, {
+        targetUserId: parseAdminTargetId(userId),
+        username: body.username,
+        operationId: body.operationId,
+      }), 200)
+    })
+
+    .openapi(resetPasswordRoute, async (context) => {
+      const actor = requireActor(context)
+      const { userId } = context.req.valid('param')
+      const body = context.req.valid('json')
+      return context.json(await root.platformAdministration.resetPassword(actor, {
+        targetUserId: parseAdminTargetId(userId),
+        newPassword: body.newPassword,
         operationId: body.operationId,
       }), 200)
     })

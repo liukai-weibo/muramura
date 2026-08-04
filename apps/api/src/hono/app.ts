@@ -9,6 +9,7 @@ import { errorResponse, mapFailure } from './errors'
 import { enforceBodyLimit, requestContext } from './http'
 import { createOpenApiApp, openApiInfo } from './openapi'
 import { apiV1BasePath } from './paths'
+import { createAccountRoutes } from './routes/account'
 import { createAdminRoutes } from './routes/admin'
 import { createAuthRoutes } from './routes/auth'
 import { createBackupRoutes } from './routes/backup'
@@ -33,6 +34,7 @@ import { createRootHonoServices, type RootHonoServices } from './services'
  */
 function buildBusinessApiV1Routes(root: RootHonoServices) {
   return createOpenApiApp()
+    .route('/account', createAccountRoutes(root))
     .route('/admin', createAdminRoutes(root))
     .route('/items', createItemRoutes())
     .route('/exploration-tracks', createExplorationTrackRoutes())

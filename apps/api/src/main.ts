@@ -1,9 +1,10 @@
-import { createApiServer, readApiListenConfig } from './index'
+import { ApiListenConfigError, createApiServer, readApiListenConfig } from './index'
 import { pathToFileURL } from 'node:url'
 import type { Server } from 'node:http'
 import {
   assertMySqlPlatformSchemaReady,
   createMySqlPool,
+  MySqlConfigError,
   MySqlSchemaNotReadyError,
   readMySqlConfig,
 } from '@knowledge-base/storage-mysql'
@@ -50,6 +51,21 @@ export function formatApiStartupFailure(value: unknown): string {
         : 'corepack pnpm db:migrate')}`,
     ]
     return fields.join(' ')
+  }
+
+  if (value instanceof MySqlConfigError) {
+    const { details } = value
+    return [
+      'API_STARTUP_FAILED',
+      'code=MYSQL_CONFIG_INVALID',
+      `reason=${details.reason}`,
+      `envVar=${details.envVar}`,
+      'action="在当前 shell 执行 set -a && source .env && set +a 后再启动；UAT 使用 .env.uat"',
+    ].join(' ')
+  }
+
+  if (value instanceof ApiListenConfigError) {
+    return 'API_STARTUP_FAILED code=API_CONFIG_INVALID reason=listen-not-allowed action="API 仅允许监听 127.0.0.1:32146"'
   }
 
   const code = readErrorCode(value)

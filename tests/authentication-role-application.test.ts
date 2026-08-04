@@ -9,6 +9,9 @@ function repository(overrides: Partial<AuthRepository> = {}): AuthRepository {
   return {
     createUser: vi.fn(async input => ({ id: input.id, username: input.username, roles: ['member'], createdAt: input.createdAt } as AuthUser)),
     findUserByUsername: vi.fn(async () => undefined),
+    findCredentialByUserId: vi.fn(async () => undefined),
+    updateUsername: vi.fn(async input => ({ id: input.userId, username: input.username, roles: ['member'], createdAt: member.createdAt } as AuthUser)),
+    updatePasswordHashAndRevokeSessions: vi.fn(async () => ({ revokedSessionCount: 1 })),
     createSession: vi.fn(async () => 'created' as const),
     getSessionBySecretHash: vi.fn(async () => undefined),
     revokeSessionBySecretHash: vi.fn(async () => undefined),
@@ -72,5 +75,46 @@ describe('authentication role application boundary', () => {
     })
     await expect(new AuthenticationApplicationService(auth).login({ username: 'alice', password: 'password-123' }))
       .rejects.toMatchObject({ code: 'AUTH_INVALID_CREDENTIALS' })
+  })
+
+  it('changes own username after normalization and rejects blank names', async () => {
+    const auth = repository()
+    const service = new AuthenticationApplicationService(auth, () => new Date('2026-07-30T00:00:00.000Z'))
+    expect(await service.changeUsername(member, ' bob ')).toEqual({
+      id: 'user-1',
+      username: 'bob',
+      roles: ['member'],
+      createdAt: member.createdAt,
+    })
+    expect(auth.updateUsername).toHaveBeenCalledWith({
+      userId: 'user-1',
+      username: 'bob',
+      updatedAt: '2026-07-30T00:00:00.000Z',
+    })
+    await expect(service.changeUsername(member, '   ')).rejects.toMatchObject({ code: 'AUTH_CREDENTIALS_FORMAT_INVALID' })
+  })
+
+  it('rejects invalid current passwords and revokes sessions after a successful change', async () => {
+    const passwordHash = await hashPassword('password-123')
+    const auth = repository({
+      findCredentialByUserId: vi.fn(async () => ({ user: member, passwordHash })),
+    })
+    const service = new AuthenticationApplicationService(auth, () => new Date('2026-07-30T00:00:00.000Z'))
+    await expect(service.changePassword(member, {
+      currentPassword: 'wrong-password',
+      newPassword: 'password-456',
+    })).rejects.toMatchObject({ code: 'AUTH_CURRENT_PASSWORD_INVALID' })
+    expect(auth.updatePasswordHashAndRevokeSessions).not.toHaveBeenCalled()
+
+    await service.changePassword(member, {
+      currentPassword: 'password-123',
+      newPassword: 'password-456',
+    })
+    expect(auth.updatePasswordHashAndRevokeSessions).toHaveBeenCalledWith({
+      userId: 'user-1',
+      expectedPasswordHash: passwordHash,
+      passwordHash: expect.stringMatching(/^scrypt\$/),
+      revokedAt: '2026-07-30T00:00:00.000Z',
+    })
   })
 })

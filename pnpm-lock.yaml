@@ -120,6 +120,12 @@ importers:
       '@babel/core':
         specifier: ^7.29.0
         version: 7.29.7
+      '@babel/plugin-proposal-decorators':
+        specifier: ^7.24.1
+        version: 7.29.7(@babel/core@7.29.7)
+      '@babel/plugin-transform-class-properties':
+        specifier: ^7.24.1
+        version: 7.29.7(@babel/core@7.29.7)
       '@babel/preset-react':
         specifier: ^7.29.7
         version: 7.29.7(@babel/core@7.29.7)

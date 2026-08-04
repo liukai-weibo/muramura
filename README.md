@@ -1,6 +1,6 @@
 # MaruMaru｜圈圈
 
-MaruMaru 是一个本地优先的个人行动闭环系统，帮助用户把想法推进为行动，通过复盘形成、验证和修订方法，再用方法发起新的行动。
+MaruMaru（圈圈）将下面这条个人运行闭环落在一个本地优先的系统中，帮助用户把想法推进为行动，通过复盘形成、验证和修订方法，再用方法发起新的行动。
 
 ```text
 想法
@@ -61,38 +61,63 @@ Taro + React + TypeScript H5
 - Docker 与 Docker Compose v2
 - MySQL 8.4
 
-## 安装依赖
+## 安装依赖与首次配置
+
+当前源码开发入口以 WSL/Linux 为准。首次在一台机器上准备项目：
 
 ```bash
-corepack pnpm install
+corepack enable
+pnpm install
+pnpm setup
 ```
 
-## 源码开发
+`corepack enable` 只需在机器上执行一次，之后直接使用 `pnpm`。第一次执行 `pnpm setup` 时，如果 `.env` 不存在，脚本只会从 `.env.example` 创建它并退出，不会启动服务、迁移数据库或覆盖已有配置。
 
-源码开发要求当前 `.env` 已配置完成，目标数据库已经应用 Migration 001–006，并且 app / migrator 数据库账号权限符合项目约束。
+打开新生成的 `.env`，至少确认并修改所有密码占位值，尤其是：
 
-启动 API 前显式加载 `.env`：
+```text
+MYSQL_ROOT_PASSWORD
+MYSQL_APP_PASSWORD
+MYSQL_MIGRATOR_PASSWORD
+UAT_MYSQL_APP_PASSWORD
+UAT_MYSQL_MIGRATOR_PASSWORD
+```
+
+不同身份应使用不同的强密码，不要保留 `replace-*`、`change-me` 等示例值，也不要把密码写入命令、README 或日志。`.env` 和 `.env.uat` 必须保持私有，禁止提交 Git、复制到镜像或与他人共享。填写完成后再次执行：
 
 ```bash
-set -a
-. ./.env
-set +a
-corepack pnpm api
+pnpm setup
 ```
 
-另开终端启动 H5：
+第二次执行只校验日常配置必须指向 `127.0.0.1 / knowledge_base / 127.0.0.1:32146`，并确认既有 MySQL 可达；它不会自动创建、迁移、清空或重建数据库。日常与 UAT 的内部数据库标识继续固定为 `knowledge_base / knowledge_base_uat`。数据库创建与 Migration 继续使用既有受控流程，执行前必须根据 [`docs/product/当前运行事实.md`](<docs/product/当前运行事实.md>) 和 `/health` 确认实际数据库与 Schema，不能根据 Compose 名称或端口猜测目标。
+
+## 日常源码启动
+
+保持日常 MySQL 运行后，只需一个终端：
 
 ```bash
-corepack pnpm dev:h5
+pnpm dev
 ```
+
+`pnpm dev` 会固定读取 `.env` 和 `knowledge_base`，确认 MySQL 可达及 `32146`、`10086` 未被占用，前台启动 API，等待 `/health` 确认为 `ready / knowledge_base / 有效 Schema` 后再启动 H5。API/H5 日志直接显示在当前终端；按 `Ctrl+C` 只停止本次创建的 API 和 H5，不停止 MySQL，也不会接管 UAT 或未知进程。
 
 默认入口：
 
 - H5：`http://127.0.0.1:10086`
 - API：`http://127.0.0.1:32146`
+- API 文档：`http://127.0.0.1:32146/docs`
 - MySQL：`127.0.0.1:3306`
 
-H5 通过 `/api` 和 `/health` 同源代理访问 loopback API；浏览器不直接连接 MySQL。
+H5 通过 `/api` 和 `/health` 同源代理访问 loopback API，浏览器不直接连接 MySQL。原生 Windows 前台编排暂未支持，请在 WSL/Linux 中运行；旧 `kb-init/start/stop.ps1` 已移入 `archive/scripts/windows-local-launcher/`，只作为历史实现保留，不再是活动启动入口。
+
+常见拒绝原因：
+
+- `ENV_MISSING` / `ENV_INVALID`：先执行 `pnpm setup` 并检查 `.env`，不要保留示例密码。
+- `PORT_UNAVAILABLE`：已有 API、H5、UAT 或未知进程占用端口；启动器不会替换它。
+- `MYSQL_UNAVAILABLE`：先根据当前运行事实确认并启动正确的日常 MySQL。
+- `MYSQL_SCHEMA_NOT_READY`：停止启动，确认真实目标库后再走受控 Migration，不能手工修改 `schema_migrations`。
+
+需要单独调试服务时，WSL/Linux Shell 可先加载 `.env` 后运行 `pnpm dev:api`，并在另一个终端运行 `pnpm dev:h5`。详细边界见 [`docs/development/本机迁移与一键启动.md`](<docs/development/本机迁移与一键启动.md>)。
 
 ## Docker Compose 启动与更新
 

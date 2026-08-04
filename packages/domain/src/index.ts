@@ -29,10 +29,19 @@ export {
 const scrypt = promisify(crypto.scrypt) as unknown as (password: crypto.BinaryLike, salt: crypto.BinaryLike, keylen: number, options: crypto.ScryptOptions) => Promise<Buffer>
 const SCRYPT_N = 32768; const SCRYPT_R = 8; const SCRYPT_P = 1; const SCRYPT_KEY_LENGTH = 64
 export function normalizeUsername(value: string): string { return value.trim() }
-export function assertAuthCredentials(username: string, password: string): void {
-  if (!username || username.length > 80 || password.length < 8) {
+export function assertUsername(username: string): void {
+  if (!username || username.length > 80) {
     fail('AUTH_CREDENTIALS_FORMAT_INVALID', 'invalid authentication credentials')
   }
+}
+export function assertPassword(password: string): void {
+  if (password.length < 8) {
+    fail('AUTH_CREDENTIALS_FORMAT_INVALID', 'invalid authentication credentials')
+  }
+}
+export function assertAuthCredentials(username: string, password: string): void {
+  assertUsername(username)
+  assertPassword(password)
 }
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16); const key = await scrypt(password, salt, SCRYPT_KEY_LENGTH, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, maxmem: 64 * 1024 * 1024 }) as Buffer

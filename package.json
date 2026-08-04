@@ -4,8 +4,11 @@
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "dev:h5": "npm --prefix apps/client run dev:h5",
-    "api": "corepack pnpm --filter @knowledge-base/api start",
+    "setup": "node scripts/local-setup.mjs",
+    "dev": "node scripts/local-dev.mjs",
+    "dev:api": "pnpm --filter @knowledge-base/api start",
+    "dev:h5": "pnpm --filter @knowledge-base/client dev:h5",
+    "api": "pnpm dev:api",
     "db:migrate": "corepack pnpm --filter @knowledge-base/api migrate",
     "db:up": "docker compose up -d mysql",
     "db:down": "docker compose down",

@@ -16,9 +16,15 @@ export interface CurrentUserScope { userId: string }
 export interface CreateAuthUserInput { id: string; username: string; passwordHash: string; createdAt: string }
 export interface AuthCredentialRecord { user: AuthUser; passwordHash: string }
 
+export interface ChangeOwnUsernameInput { username: string }
+export interface ChangeOwnPasswordInput { currentPassword: string; newPassword: string }
+
 export interface AuthRepository {
   createUser(input: CreateAuthUserInput): Promise<AuthUser>
   findUserByUsername(username: string): Promise<AuthCredentialRecord | undefined>
+  findCredentialByUserId(userId: string): Promise<AuthCredentialRecord | undefined>
+  updateUsername(input: { userId: string; username: string; updatedAt: string }): Promise<AuthUser>
+  updatePasswordHashAndRevokeSessions(input: { userId: string; expectedPasswordHash: string; passwordHash: string; revokedAt: string }): Promise<{ revokedSessionCount: number }>
   createSession(input: { id: string; userId: string; secretHash: Uint8Array; expiresAt: string; createdAt: string }): Promise<'created' | 'account-unavailable'>
   getSessionBySecretHash(secretHash: Uint8Array, now: string): Promise<AuthUser | undefined>
   revokeSessionBySecretHash(secretHash: Uint8Array, revokedAt: string): Promise<void>
@@ -58,6 +64,8 @@ export const securityAuditActions = [
   'user_sessions_revoked',
   'user_soft_deleted',
   'user_restored',
+  'user_username_changed',
+  'user_password_reset',
 ] as const
 export type SecurityAuditAction = (typeof securityAuditActions)[number]
 
@@ -93,6 +101,20 @@ export interface AdminChangeUserAccountStateRequest {
   operationId: string
 }
 
+export interface AdminUpdateUsernameRequest {
+  username: string
+  operationId: string
+}
+
+export interface AdminResetPasswordRequest {
+  newPassword: string
+  operationId: string
+}
+
+export interface AdminResetPasswordResponse {
+  revokedSessionCount: number
+}
+
 export interface PlatformRoleChangeInput {
   actorUserId: string
   targetUserId: string
@@ -102,6 +124,15 @@ export interface PlatformRoleChangeInput {
 }
 
 export interface RevokeAllUserSessionsInput extends PlatformRoleChangeInput {
+  revokedAt: string
+}
+
+export interface AdminUpdateUsernameInput extends PlatformRoleChangeInput {
+  username: string
+}
+
+export interface AdminResetPasswordInput extends PlatformRoleChangeInput {
+  passwordHash: string
   revokedAt: string
 }
 
@@ -122,6 +153,8 @@ export interface PlatformAdministrationRepository {
   revokeAllSessions(input: RevokeAllUserSessionsInput): Promise<{ revokedSessionCount: number }>
   softDeleteUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary>
   restoreUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary>
+  updateUsername(input: AdminUpdateUsernameInput): Promise<PlatformUserSummary>
+  resetPassword(input: AdminResetPasswordInput): Promise<AdminResetPasswordResponse>
   findAuditEventByOperationId(operationId: string): Promise<SecurityAuditEvent | undefined>
 }
 

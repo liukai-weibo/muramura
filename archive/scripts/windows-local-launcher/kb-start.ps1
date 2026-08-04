@@ -73,7 +73,7 @@ exit `$LASTEXITCODE
 function Get-ApiStartupFailure {
   foreach ($path in @($ApiStderrPath, $ApiStdoutPath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-    $line = Get-Content -LiteralPath $path -Encoding UTF8 | Where-Object { $_ -match '^API_STARTUP_FAILED code=(MYSQL_SCHEMA_NOT_READY|MYSQL_UNAVAILABLE|API_PORT_IN_USE|INTERNAL_ERROR)( .*)?$' } | Select-Object -Last 1
+    $line = Get-Content -LiteralPath $path -Encoding UTF8 | Where-Object { $_ -match '^API_STARTUP_FAILED code=(MYSQL_SCHEMA_NOT_READY|MYSQL_CONFIG_INVALID|MYSQL_UNAVAILABLE|API_PORT_IN_USE|API_CONFIG_INVALID|INTERNAL_ERROR)( .*)?$' } | Select-Object -Last 1
     if ($null -ne $line) { return [string]$line }
   }
   return $null

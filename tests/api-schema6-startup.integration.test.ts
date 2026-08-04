@@ -14,7 +14,7 @@ let appPassword = ''
 let root: Pool
 let app: Pool
 
-describe.runIf(enabled)('API Schema 8 startup gate', () => {
+describe.runIf(enabled)('API Schema 9 startup gate', () => {
   beforeAll(async () => {
     const suffix = crypto.randomUUID().replaceAll('-', '')
     database = `kb_platform_start_${suffix}`
@@ -39,25 +39,25 @@ describe.runIf(enabled)('API Schema 8 startup gate', () => {
     MYSQL_APP_USER: appUser, MYSQL_APP_PASSWORD: appPassword, MYSQL_POOL_CONNECTION_LIMIT: '1', API_HOST: '127.0.0.1', API_PORT: '32146',
   })
 
-  it('does not create or listen on Schema 7 and allows the listen step only on Schema 8', async () => {
-    const [rows] = await app.query<Array<RowDataPacket & { version: number; name: string; checksum: string; applied_at: Date }>>('SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version=8')
-    await app.query('DELETE FROM schema_migrations WHERE version=8')
+  it('does not create or listen on Schema 8 and allows the listen step only on Schema 9', async () => {
+    const [rows] = await app.query<Array<RowDataPacket & { version: number; name: string; checksum: string; applied_at: Date }>>('SELECT version,name,checksum,applied_at FROM schema_migrations WHERE version=9')
+    await app.query('DELETE FROM schema_migrations WHERE version=9')
     const createServer = vi.fn(() => ({} as Server)); const listen = vi.fn(async () => undefined); const log = vi.fn()
     await expect(startApiMain(environment(), { createServer, listen, log })).rejects.toMatchObject({
       details: {
-        reason: 'schema-version-behind', database, actualSchemaVersion: 7, requiredSchemaVersion: 8,
+        reason: 'schema-version-behind', database, actualSchemaVersion: 8, requiredSchemaVersion: 9,
       },
     })
     expect(createServer).not.toHaveBeenCalled(); expect(listen).not.toHaveBeenCalled(); expect(log).not.toHaveBeenCalled()
-    const schema7Server = createApiServer({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user: appUser, password: appPassword, connectionLimit: 1 })
-    await new Promise<void>(resolve => schema7Server.listen(0, '127.0.0.1', resolve))
+    const schema8Server = createApiServer({ host: process.env.MYSQL_HOST!, port: Number(process.env.MYSQL_PORT!), database, user: appUser, password: appPassword, connectionLimit: 1 })
+    await new Promise<void>(resolve => schema8Server.listen(0, '127.0.0.1', resolve))
     const health = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-      const request = http.get({ host: '127.0.0.1', port: (schema7Server.address() as { port: number }).port, path: '/health' }, response => {
+      const request = http.get({ host: '127.0.0.1', port: (schema8Server.address() as { port: number }).port, path: '/health' }, response => {
         const chunks: Buffer[] = []; response.on('data', chunk => chunks.push(Buffer.from(chunk))); response.on('end', () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString() }))
       }); request.on('error', reject)
     })
     expect(health.status).toBe(503); expect(health.body).not.toContain(appPassword)
-    await new Promise<void>(resolve => schema7Server.close(() => resolve()))
+    await new Promise<void>(resolve => schema8Server.close(() => resolve()))
     const row = rows[0]!
     await app.query('INSERT INTO schema_migrations(version,name,checksum,applied_at) VALUES (?,?,?,?)', [row.version, row.name, row.checksum, row.applied_at])
     await expect(startApiMain(environment(), { createServer, listen, log })).resolves.toBeDefined()

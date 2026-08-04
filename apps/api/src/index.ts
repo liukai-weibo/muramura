@@ -20,9 +20,16 @@ export function createApiServer(config = readMySqlConfig(process.env, 'app')): h
   return server
 }
 
+export class ApiListenConfigError extends Error {
+  constructor() {
+    super('API 仅允许监听 127.0.0.1:32146')
+    this.name = 'ApiListenConfigError'
+  }
+}
+
 export function readApiListenConfig(environment: NodeJS.ProcessEnv): { host: '127.0.0.1'; port: 32146 } {
   const host = environment.API_HOST ?? '127.0.0.1'
   const port = Number(environment.API_PORT ?? '32146')
-  if (host !== '127.0.0.1' || port !== 32146) throw new Error('API 仅允许监听 127.0.0.1:32146')
+  if (host !== '127.0.0.1' || port !== 32146) throw new ApiListenConfigError()
   return { host, port }
 }

@@ -1,4 +1,7 @@
 import type {
+  AdminResetPasswordInput,
+  AdminResetPasswordResponse,
+  AdminUpdateUsernameInput,
   PlatformAdministrationRepository,
   PlatformRole,
   PlatformRoleChangeInput,
@@ -150,6 +153,49 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
     })
   }
 
+  updateUsername(input: AdminUpdateUsernameInput): Promise<PlatformUserSummary> {
+    return this.write(async connection => {
+      const context = await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_CREDENTIAL_CHANGE')
+      if (!context.targetIsMember) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
+      if (context.targetDeletedAt !== null) fail('PLATFORM_ADMIN_TARGET_DELETED', '已删除账号不可修改用户名')
+      const current = await this.requireUserSummary(connection, input.targetUserId)
+      if (current.username === input.username) return { value: current, changed: false }
+      const changedAt = new Date(input.createdAt)
+      try {
+        const [result] = await connection.query<ResultSetHeader>(
+          'UPDATE users SET username=?,updated_at=? WHERE id=? AND deleted_at IS NULL',
+          [input.username, changedAt, input.targetUserId],
+        )
+        if (result.affectedRows !== 1) fail('PLATFORM_ADMIN_USER_NOT_FOUND', '目标用户不存在')
+      } catch (error) {
+        if (isDuplicateEntry(error)) fail('AUTH_USERNAME_TAKEN', 'username already exists')
+        throw error
+      }
+      await this.insertAudit(connection, input, 'user_username_changed')
+      return { value: await this.requireUserSummary(connection, input.targetUserId), changed: true }
+    })
+  }
+
+  resetPassword(input: AdminResetPasswordInput): Promise<AdminResetPasswordResponse> {
+    return this.write(async connection => {
+      const context = await this.lockContext(connection, input, 'PLATFORM_ADMIN_SELF_CREDENTIAL_CHANGE')
+      if (!context.targetIsMember) fail('PLATFORM_ADMIN_TARGET_NOT_MEMBER', '目标账号角色状态不可操作')
+      if (context.targetDeletedAt !== null) fail('PLATFORM_ADMIN_TARGET_DELETED', '已删除账号不可重置密码')
+      const changedAt = new Date(input.revokedAt)
+      const [userResult] = await connection.query<ResultSetHeader>(
+        'UPDATE users SET password_hash=?,updated_at=? WHERE id=? AND deleted_at IS NULL',
+        [input.passwordHash, changedAt, input.targetUserId],
+      )
+      if (userResult.affectedRows !== 1) fail('PLATFORM_ADMIN_USER_NOT_FOUND', '目标用户不存在')
+      const [sessionResult] = await connection.query<ResultSetHeader>(
+        'UPDATE user_sessions SET revoked_at=?,updated_at=? WHERE user_id=? AND revoked_at IS NULL',
+        [changedAt, changedAt, input.targetUserId],
+      )
+      await this.insertAudit(connection, input, 'user_password_reset')
+      return { value: { revokedSessionCount: sessionResult.affectedRows }, changed: true }
+    })
+  }
+
   initializePlatformAdmin(input: InitialPlatformAdminGrantInput): Promise<InitialPlatformAdminGrantResult> {
     return this.write(async connection => {
       const [admins] = await connection.query<Array<RowDataPacket & { user_id: string }>>(
@@ -187,7 +233,7 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
   private async lockContext(
     connection: PoolConnection,
     input: PlatformRoleChangeInput,
-    selfError: 'PLATFORM_ADMIN_SELF_ROLE_CHANGE' | 'PLATFORM_ADMIN_SELF_SESSION_REVOKE' | 'PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE',
+    selfError: 'PLATFORM_ADMIN_SELF_ROLE_CHANGE' | 'PLATFORM_ADMIN_SELF_SESSION_REVOKE' | 'PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE' | 'PLATFORM_ADMIN_SELF_CREDENTIAL_CHANGE',
   ): Promise<{ adminUserIds: Set<string>; targetIsMember: boolean; targetDeletedAt: Date | string | null }> {
     const [admins] = await connection.query<Array<RowDataPacket & { user_id: string }>>(
       "SELECT r.user_id FROM user_roles r FORCE INDEX (user_roles_role_user_idx) JOIN users u ON u.id=r.user_id WHERE r.role_code='platform_admin' AND u.deleted_at IS NULL ORDER BY r.user_id FOR UPDATE",
@@ -205,6 +251,7 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
         PLATFORM_ADMIN_SELF_ROLE_CHANGE: '不允许调整自己的平台角色',
         PLATFORM_ADMIN_SELF_SESSION_REVOKE: '不允许通过管理接口撤销自己的会话',
         PLATFORM_ADMIN_SELF_ACCOUNT_STATE_CHANGE: '不允许删除或恢复自己的账号',
+        PLATFORM_ADMIN_SELF_CREDENTIAL_CHANGE: '不允许通过管理接口修改自己的用户名或密码',
       } as const
       fail(selfError, messages[selfError])
     }
@@ -284,6 +331,10 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
       connection.release()
     }
   }
+}
+
+function isDuplicateEntry(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY'
 }
 
 function escapeLikeLiteral(value: string): string {

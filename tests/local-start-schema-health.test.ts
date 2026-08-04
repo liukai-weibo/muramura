@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-describe('local daily launcher schema gate', () => {
+const archivedLauncher = (name: string) => new URL(`../archive/scripts/windows-local-launcher/${name}`, import.meta.url)
+
+describe('archived Windows local launcher', () => {
   it('trusts the API startup gate and reports the validated health schema version', () => {
-    const source = readFileSync(new URL('../scripts/kb-start.ps1', import.meta.url), 'utf8')
+    const source = readFileSync(archivedLauncher('kb-start.ps1'), 'utf8')
 
     expect(source).toContain("$Health.body.database -ne 'knowledge_base'")
     expect(source).toContain('[int]::TryParse([string]$Health.body.schemaVersion, [ref]$schemaVersion)')
@@ -15,21 +17,21 @@ describe('local daily launcher schema gate', () => {
   })
 
   it('returns only allowlisted API startup diagnostics from the hidden child', () => {
-    const source = readFileSync(new URL('../scripts/kb-start.ps1', import.meta.url), 'utf8')
+    const source = readFileSync(archivedLauncher('kb-start.ps1'), 'utf8')
 
     expect(source).toContain("$ApiStdoutPath = Join-Path $TempRoot 'api.stdout.log'")
     expect(source).toContain("$ApiStderrPath = Join-Path $TempRoot 'api.stderr.log'")
     expect(source).toContain("$options['RedirectStandardOutput'] = $ApiStdoutPath")
     expect(source).toContain("$options['RedirectStandardError'] = $ApiStderrPath")
-    expect(source).toContain('^API_STARTUP_FAILED code=(MYSQL_SCHEMA_NOT_READY|MYSQL_UNAVAILABLE|API_PORT_IN_USE|INTERNAL_ERROR)')
+    expect(source).toContain('^API_STARTUP_FAILED code=(MYSQL_SCHEMA_NOT_READY|MYSQL_CONFIG_INVALID|MYSQL_UNAVAILABLE|API_PORT_IN_USE|API_CONFIG_INVALID|INTERNAL_ERROR)')
     expect(source).toContain('[Console]::Error.WriteLine($apiStartupFailure)')
     expect(source).toContain('Get-Process -Id $apiLauncherPid -ErrorAction SilentlyContinue')
     expect(source).not.toContain('[Console]::Error.WriteLine((Get-Content')
   })
 
   it('records launcher processes and stops their validated process trees', () => {
-    const start = readFileSync(new URL('../scripts/kb-start.ps1', import.meta.url), 'utf8')
-    const stop = readFileSync(new URL('../scripts/kb-stop.ps1', import.meta.url), 'utf8')
+    const start = readFileSync(archivedLauncher('kb-start.ps1'), 'utf8')
+    const stop = readFileSync(archivedLauncher('kb-stop.ps1'), 'utf8')
 
     expect(start).toContain("WindowStyle = 'Hidden'; PassThru = $true")
     expect(start).toContain('$process = Start-Process @options')

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import type { Pool, RowDataPacket } from 'mysql2/promise'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { hashPassword, verifyPassword } from '../packages/domain/src/index'
 import {
   createMySqlPool,
   MySqlAuthRepository,
@@ -306,6 +307,64 @@ describe.runIf(enabled)('platform administration repository', () => {
       await app.query("DELETE FROM user_roles WHERE role_code='unknown-role'")
       await migrator.query("ALTER TABLE user_roles ADD CONSTRAINT user_roles_role_code_check CHECK (role_code IN ('member', 'platform_admin'))")
     }
+  })
+
+  it('updates usernames and resets passwords with audit, rejecting self and deleted targets', async () => {
+    await admin('actor')
+    const passwordHash = await hashPassword('password-old')
+    await new MySqlAuthRepository(app).createUser({ id: 'target', username: 'target', passwordHash, createdAt: at })
+    await new MySqlAuthRepository(app).createUser({ id: 'other', username: 'other', passwordHash: 'scrypt$redacted', createdAt: at })
+    const auth = new MySqlAuthRepository(app)
+    expect(await auth.createSession({ id: 'target-session', userId: 'target', secretHash: Buffer.alloc(32, 3), expiresAt: '2030-01-01T00:00:00.000Z', createdAt: at })).toBe('created')
+    const repository = new MySqlPlatformAdministrationRepository(app)
+
+    await expect(repository.updateUsername({ ...change('actor', 'actor'), username: 'self' })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_SELF_CREDENTIAL_CHANGE' })
+    await expect(repository.resetPassword({ ...change('actor', 'actor'), passwordHash: 'x', revokedAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_SELF_CREDENTIAL_CHANGE' })
+
+    const rename = { ...change('actor', 'target'), username: 'renamed-target' }
+    expect(await repository.updateUsername(rename)).toMatchObject({ id: 'target', username: 'renamed-target', deletedAt: null })
+    expect(await repository.findAuditEventByOperationId(rename.operationId)).toMatchObject({ action: 'user_username_changed' })
+    await expect(repository.updateUsername({ ...change('actor', 'target'), username: 'other' })).rejects.toMatchObject({ code: 'AUTH_USERNAME_TAKEN' })
+
+    const reset = { ...change('actor', 'target'), passwordHash: await hashPassword('password-new'), revokedAt: at }
+    expect(await repository.resetPassword(reset)).toEqual({ revokedSessionCount: 1 })
+    expect(await auth.getSessionBySecretHash(Buffer.alloc(32, 3), at)).toBeUndefined()
+    expect(await repository.findAuditEventByOperationId(reset.operationId)).toMatchObject({ action: 'user_password_reset' })
+    const credential = await auth.findCredentialByUserId('target')
+    expect(credential).toBeDefined()
+    expect(await verifyPassword('password-new', credential!.passwordHash)).toBe(true)
+
+    await repository.softDeleteUser(change('actor', 'target'))
+    await expect(repository.updateUsername({ ...change('actor', 'target'), username: 'again' })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_TARGET_DELETED' })
+    await expect(repository.resetPassword({ ...change('actor', 'target'), passwordHash: 'x', revokedAt: at })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_TARGET_DELETED' })
+  })
+
+  it('lets an account rename itself and rotate its password while revoking sessions', async () => {
+    const passwordHash = await hashPassword('password-old')
+    await new MySqlAuthRepository(app).createUser({ id: 'self', username: 'self', passwordHash, createdAt: at })
+    await new MySqlAuthRepository(app).createUser({ id: 'taken', username: 'taken', passwordHash: 'scrypt$redacted', createdAt: at })
+    const auth = new MySqlAuthRepository(app)
+    expect(await auth.createSession({ id: 'self-session', userId: 'self', secretHash: Buffer.alloc(32, 4), expiresAt: '2030-01-01T00:00:00.000Z', createdAt: at })).toBe('created')
+
+    expect(await auth.updateUsername({ userId: 'self', username: 'self-renamed', updatedAt: at })).toMatchObject({ id: 'self', username: 'self-renamed' })
+    await expect(auth.updateUsername({ userId: 'self', username: 'taken', updatedAt: at })).rejects.toMatchObject({ code: 'AUTH_USERNAME_TAKEN' })
+
+    const newPasswordHash = await hashPassword('password-new')
+    expect(await auth.updatePasswordHashAndRevokeSessions({
+      userId: 'self',
+      expectedPasswordHash: passwordHash,
+      passwordHash: newPasswordHash,
+      revokedAt: at,
+    })).toEqual({ revokedSessionCount: 1 })
+    await expect(auth.updatePasswordHashAndRevokeSessions({
+      userId: 'self',
+      expectedPasswordHash: passwordHash,
+      passwordHash: await hashPassword('password-stale'),
+      revokedAt: at,
+    })).rejects.toMatchObject({ code: 'AUTH_CURRENT_PASSWORD_INVALID' })
+    expect(await auth.getSessionBySecretHash(Buffer.alloc(32, 4), at)).toBeUndefined()
+    const credential = await auth.findCredentialByUserId('self')
+    expect(await verifyPassword('password-new', credential!.passwordHash)).toBe(true)
   })
 
   it('initializes exactly one explicit member as bootstrap administrator and is idempotent only for that target', async () => {

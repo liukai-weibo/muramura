@@ -99,19 +99,25 @@ describe.runIf(enabled)('MySQL common audit fields', () => {
     expect(tombstone!.updated_at).toEqual(tombstone!.permanently_deleted_at)
   })
 
-  it('finishes Migration 008 safely after its non-transactional DDL was only partially applied', async () => {
-    await migrator.query('DELETE FROM schema_migrations WHERE version=8')
+  it('finishes Migration 008/009 safely after non-transactional CHECK DDL was only partially applied', async () => {
+    await migrator.query('DELETE FROM schema_migrations WHERE version IN (8, 9)')
     await migrator.query('ALTER TABLE security_audit_events DROP CHECK security_audit_events_action_code_check')
     await runMySqlMigrations(migrator, migrationsRoot)
     const [[column]] = await migrator.query<RowDataPacket[]>('SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?', ['users', 'deleted_at'])
     const [[constraint]] = await migrator.query<RowDataPacket[]>('SELECT 1 FROM information_schema.table_constraints WHERE table_schema=DATABASE() AND table_name=? AND constraint_name=? AND constraint_type=?', ['security_audit_events', 'security_audit_events_action_code_check', 'CHECK'])
     expect(column).toBeDefined()
     expect(constraint).toBeDefined()
+    await migrator.query(
+      "INSERT INTO security_audit_events(id,actor_user_id,target_user_id,action_code,operation_id,created_at,updated_at) VALUES ('audit-username',NULL,'legacy-user','user_username_changed','op-username',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))",
+    )
+    await migrator.query(
+      "INSERT INTO security_audit_events(id,actor_user_id,target_user_id,action_code,operation_id,created_at,updated_at) VALUES ('audit-password',NULL,'legacy-user','user_password_reset','op-password',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))",
+    )
   })
 
   it('keeps the audit fields intact through the latest Schema migration', async () => {
     const [[row]] = await migrator.query<Array<RowDataPacket & { version: number }>>('SELECT MAX(version) AS version FROM schema_migrations')
-    expect(row!.version).toBe(8)
-    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBe(8)
+    expect(row!.version).toBe(9)
+    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBe(9)
   })
 })

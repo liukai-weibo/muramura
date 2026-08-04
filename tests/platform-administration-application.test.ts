@@ -20,6 +20,8 @@ function repository(): PlatformAdministrationRepository {
     revokeAllSessions: vi.fn(async () => ({ revokedSessionCount: 2 })),
     softDeleteUser: vi.fn(async () => ({ ...target, deletedAt: at })),
     restoreUser: vi.fn(async () => target),
+    updateUsername: vi.fn(async input => ({ ...target, username: input.username })),
+    resetPassword: vi.fn(async () => ({ revokedSessionCount: 3 })),
     findAuditEventByOperationId: vi.fn(async () => undefined),
   }
 }
@@ -32,6 +34,8 @@ describe('platform administration application', () => {
     await expect(service.setUserRoles(actor(['member']), { targetUserId: 'target', roles: ['member'], operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
     await expect(service.revokeAllUserSessions(actor(['member']), { targetUserId: 'target', operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
     await expect(service.softDeleteUser(actor(['member']), { targetUserId: 'target', operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
+    await expect(service.updateUsername(actor(['member']), { targetUserId: 'target', username: 'renamed', operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
+    await expect(service.resetPassword(actor(['member']), { targetUserId: 'target', newPassword: 'password-456', operationId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_FORBIDDEN' })
     expect(Object.values(repo).every(method => !vi.mocked(method).mock.calls.length)).toBe(true)
   })
 
@@ -48,7 +52,7 @@ describe('platform administration application', () => {
 
   it('uses the actor, one clock value and server IDs, then returns a real repository reread', async () => {
     const repo = repository()
-    const ids = ['audit-grant', 'audit-revoke', 'audit-sessions', 'audit-delete', 'audit-restore']
+    const ids = ['audit-grant', 'audit-revoke', 'audit-sessions', 'audit-delete', 'audit-restore', 'audit-rename', 'audit-reset']
     const service = new PlatformAdministrationApplicationService(repo, () => new Date(at), () => ids.shift()!)
     const admin = actor(['member', 'platform_admin'])
     const grantOperation = crypto.randomUUID()
@@ -71,6 +75,29 @@ describe('platform administration application', () => {
     const restoreOperation = crypto.randomUUID()
     expect(await service.restoreUser(admin, { targetUserId: 'target', operationId: restoreOperation })).toBe(target)
     expect(repo.restoreUser).toHaveBeenCalledWith({ actorUserId: 'actor', targetUserId: 'target', auditEventId: 'audit-restore', operationId: restoreOperation, createdAt: at })
+
+    const renameOperation = crypto.randomUUID()
+    expect(await service.updateUsername(admin, { targetUserId: 'target', username: ' renamed ', operationId: renameOperation })).toEqual({ ...target, username: 'renamed' })
+    expect(repo.updateUsername).toHaveBeenCalledWith({
+      actorUserId: 'actor',
+      targetUserId: 'target',
+      username: 'renamed',
+      auditEventId: 'audit-rename',
+      operationId: renameOperation,
+      createdAt: at,
+    })
+
+    const resetOperation = crypto.randomUUID()
+    expect(await service.resetPassword(admin, { targetUserId: 'target', newPassword: 'password-456', operationId: resetOperation })).toEqual({ revokedSessionCount: 3 })
+    expect(repo.resetPassword).toHaveBeenCalledWith({
+      actorUserId: 'actor',
+      targetUserId: 'target',
+      passwordHash: expect.stringMatching(/^scrypt\$/),
+      auditEventId: 'audit-reset',
+      operationId: resetOperation,
+      createdAt: at,
+      revokedAt: at,
+    })
   })
 
   it('fails closed when the post-write user reread is unavailable', async () => {

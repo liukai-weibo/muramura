@@ -7,7 +7,8 @@ import { createMySqlPool, runMySqlMigrations, type MySqlConnectionConfig } from 
 const enabled = ['MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_ROOT_PASSWORD'].every(name => Boolean(process.env[name]))
 let database = ''; let appUser = ''; let migratorUser = ''; let root: ReturnType<typeof createMySqlPool>; let app: ReturnType<typeof createMySqlPool>; let server: http.Server
 const request = (path: string, init: http.RequestOptions = {}, body?: string) => new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: unknown }>((resolve, reject) => { const req = http.request({ host: '127.0.0.1', port: (server.address() as { port: number }).port, path, ...init }, response => { const chunks: Buffer[] = []; response.on('data', chunk => chunks.push(Buffer.from(chunk))); response.on('end', () => { const raw = Buffer.concat(chunks).toString(); resolve({ status: response.statusCode ?? 0, headers: response.headers, body: raw ? JSON.parse(raw) : undefined }) }); }); req.on('error', reject); if (body) req.write(body); req.end() })
-const json = (path: string, value: unknown, cookie?: string) => request(path, { method: 'POST', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) } }, JSON.stringify(value))
+const json = (path: string, value: unknown, cookie?: string, method = 'POST') => request(path, { method, headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) } }, JSON.stringify(value))
+const cookieOf = (response: { headers: http.IncomingHttpHeaders }) => String(response.headers['set-cookie']).split(';')[0]!
 
 describe.runIf(enabled)('authentication API', () => {
   beforeAll(async () => {
@@ -35,5 +36,33 @@ describe.runIf(enabled)('authentication API', () => {
     expect((await request('/api/v1/auth/session', { headers: { cookie: loginCookie } })).status).toBe(401)
     const missing = await request('/api/v1/auth/session'); expect(missing.status).toBe(401); expect(missing.headers['cache-control']).toBe('no-store')
     const forbidden = await request('/health', { headers: { origin: 'http://invalid.example' } }); expect(forbidden.status).toBe(403); expect(forbidden.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', requestId: expect.any(String) } })
+  })
+
+  it('changes own username and password through account routes', async () => {
+    const registered = await json('/api/v1/auth/register', { username: 'account-user', password: 'password-123' })
+    expect(registered.status).toBe(201)
+    const cookie = cookieOf(registered)
+
+    const renamed = await json('/api/v1/account/username', { username: ' account-renamed ' }, cookie, 'PATCH')
+    expect(renamed.status).toBe(200)
+    expect(renamed.body).toMatchObject({ username: 'account-renamed', roles: ['member'] })
+    expect((await request('/api/v1/auth/session', { headers: { cookie } })).body).toMatchObject({ user: { username: 'account-renamed' } })
+
+    await json('/api/v1/auth/register', { username: 'taken-name', password: 'password-123' })
+    const conflict = await json('/api/v1/account/username', { username: 'taken-name' }, cookie, 'PATCH')
+    expect(conflict.status).toBe(409)
+
+    const wrong = await json('/api/v1/account/password', { currentPassword: 'wrong-password', newPassword: 'password-456' }, cookie)
+    expect(wrong.status).toBe(401)
+
+    const changed = await json('/api/v1/account/password', { currentPassword: 'password-123', newPassword: 'password-456' }, cookie)
+    expect(changed.status).toBe(204)
+    expect(String(changed.headers['set-cookie'])).toMatch(/Expires=Thu, 01 Jan 1970/)
+    expect((await request('/api/v1/auth/session', { headers: { cookie } })).status).toBe(401)
+
+    const oldLogin = await json('/api/v1/auth/login', { username: 'account-renamed', password: 'password-123' })
+    expect(oldLogin.status).toBe(401)
+    const newLogin = await json('/api/v1/auth/login', { username: 'account-renamed', password: 'password-456' })
+    expect(newLogin.status).toBe(200)
   })
 })

@@ -144,6 +144,34 @@ describe.runIf(enabled)('platform administration API', () => {
     expect((await get('/api/v1/admin/users', adminCookie)).status).toBe(200)
   })
 
+  it('renames and resets another account credentials without allowing self changes', async () => {
+    const loggedIn = await json('/api/v1/auth/login', { username: 'literal%_=target', password: 'password-target' })
+    const oldCookie = cookieOf(loggedIn)
+
+    expectError(await json(`/api/v1/admin/users/${adminId}/username`, { username: 'nope', operationId: crypto.randomUUID() }, adminCookie, 'PATCH'), 403, 'FORBIDDEN')
+    expectError(await json(`/api/v1/admin/users/${adminId}/reset-password`, { newPassword: 'password-456', operationId: crypto.randomUUID() }, adminCookie), 403, 'FORBIDDEN')
+
+    const renameOperation = crypto.randomUUID()
+    const renamed = await json(`/api/v1/admin/users/${targetId}/username`, { username: 'admin-renamed-target', operationId: renameOperation }, adminCookie, 'PATCH')
+    expect(renamed.status).toBe(200)
+    expect(renamed.body).toMatchObject({ id: targetId, username: 'admin-renamed-target', deletedAt: null })
+    expectError(await json(`/api/v1/admin/users/${targetId}/username`, { username: 'again', operationId: renameOperation }, adminCookie, 'PATCH'), 409, 'CONFLICT')
+
+    const resetOperation = crypto.randomUUID()
+    const reset = await json(`/api/v1/admin/users/${targetId}/reset-password`, { newPassword: 'password-reset', operationId: resetOperation }, adminCookie)
+    expect(reset.status).toBe(200)
+    expect(reset.body.revokedSessionCount).toBeGreaterThanOrEqual(1)
+    expectError(await get('/api/v1/auth/session', oldCookie), 401, 'UNAUTHORIZED')
+    expectError(await json('/api/v1/auth/login', { username: 'admin-renamed-target', password: 'password-target' }), 401, 'UNAUTHORIZED')
+    const fresh = await json('/api/v1/auth/login', { username: 'admin-renamed-target', password: 'password-reset' })
+    expect(fresh.status).toBe(200)
+    targetCookie = cookieOf(fresh)
+
+    await json(`/api/v1/admin/users/${targetId}/username`, { username: 'literal%_=target', operationId: crypto.randomUUID() }, adminCookie, 'PATCH')
+    await json(`/api/v1/admin/users/${targetId}/reset-password`, { newPassword: 'password-target', operationId: crypto.randomUUID() }, adminCookie)
+    targetCookie = cookieOf(await json('/api/v1/auth/login', { username: 'literal%_=target', password: 'password-target' }))
+  })
+
   it('soft-deletes, reads and restores another account without reviving old access', async () => {
     const loggedIn = await json('/api/v1/auth/login', { username: 'literal%_=target', password: 'password-target' })
     const oldCookie = cookieOf(loggedIn)
