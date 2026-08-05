@@ -5,7 +5,17 @@ import { ApiError, errorResponse } from './errors'
 import { adminPathPrefix, backupRestorePath } from './paths'
 import type { ApiEnv } from './types'
 
-const allowedApiOrigins = new Set(['http://127.0.0.1:10086'])
+const allowedApiOrigins = new Set(['http://127.0.0.1:10086', 'http://localhost:10086', 'http://[::1]:10086'])
+function isAllowedApiOrigin(origin: string): boolean {
+  if (allowedApiOrigins.has(origin)) return true
+  try {
+    const url = new URL(origin)
+    const localHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
+    return url.protocol === 'http:' && localHost && (url.port === '10086' || url.port === '32146')
+  } catch {
+    return false
+  }
+}
 const normalBodyLimit = 64 * 1024
 const backupBodyLimit = 16 * 1024 * 1024
 
@@ -30,7 +40,7 @@ export const requestContext: MiddlewareHandler<ApiEnv> = async (context, next) =
 
   const origin = context.req.header('origin')
   if (origin) {
-    if (!allowedApiOrigins.has(origin)) {
+    if (!isAllowedApiOrigin(origin)) {
       return errorResponse(context, 403, 'VALIDATION_FAILED', '不允许的请求来源')
     }
     context.header('access-control-allow-origin', origin)

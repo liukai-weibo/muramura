@@ -27,6 +27,7 @@ export { buildDashboardReport, DashboardApplicationService, SearchApplicationSer
 export { sortTrashEntries, TRASH_RETENTION_DAYS, TrashApplicationService } from './trash'
 export {
   AiChatApplicationService,
+  AiConfigError,
   AiConfigManager,
   AiConversationApplicationService,
   buildAiSystemMessage,

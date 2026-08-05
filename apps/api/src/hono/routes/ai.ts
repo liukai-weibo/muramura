@@ -1,4 +1,5 @@
 import type { AiChatMessage, AiConversationMessageStatus } from '@knowledge-base/contracts'
+import { AiConfigError } from '@knowledge-base/application'
 import { requireServices } from '../auth-middleware'
 import { ApiError } from '../errors'
 import { createOpenApiApp } from '../openapi'
@@ -31,13 +32,23 @@ function sse(event: unknown): string { return `data: ${JSON.stringify(event)}\n\
 
 const activeStreams = new ConversationActiveStreams()
 
+function mapAiConfigFailure(error: unknown): never {
+  if (error instanceof AiConfigError) {
+    if (error.code === 'invalid') throw new ApiError(400, 'VALIDATION_FAILED', 'AI 配置参数无效，请检查服务名称、模型名称、Base URL、API Key 和采样参数。')
+    if (error.code === 'write-failed') throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI 配置无法写入本机安全存储，请重启 API 后重试。')
+    throw new ApiError(503, 'MYSQL_UNAVAILABLE', '本机安全存储当前不可用，请重启 API 后重试。')
+  }
+  throw error
+}
+
 export function createAiRoutes() {
   return createOpenApiApp()
     .get('/admin/experimental/ai-config', async (context: any) => {
       const actor = context.get('actor')
       if (!actor?.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', 'administrator required')
       const services = requireServices(context)
-      const metadata = await services.aiConfig?.load()
+      let metadata
+      try { metadata = await services.aiConfig?.load() } catch (error) { mapAiConfigFailure(error) }
       if (!metadata) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI configuration unavailable')
       return context.json(metadata, 200)
     })
@@ -53,7 +64,8 @@ export function createAiRoutes() {
         ...(body.presencePenalty !== undefined ? { presencePenalty: Number(body.presencePenalty) } : {}),
         ...(body.frequencyPenalty !== undefined ? { frequencyPenalty: Number(body.frequencyPenalty) } : {}),
       }
-      const metadata = await services.aiConfig?.replace(input)
+      let metadata
+      try { metadata = await services.aiConfig?.replace(input) } catch (error) { mapAiConfigFailure(error) }
       if (!metadata) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI configuration unavailable')
       return context.json(metadata, 200)
     })
@@ -61,7 +73,7 @@ export function createAiRoutes() {
       const actor = context.get('actor')
       if (!actor?.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', 'administrator required')
       const services = requireServices(context)
-      await services.aiConfig?.clear()
+      try { await services.aiConfig?.clear() } catch (error) { mapAiConfigFailure(error) }
       return context.body(null, 204)
     })
     .get('/ai/preferences', async (context: any) => {

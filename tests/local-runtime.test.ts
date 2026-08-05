@@ -84,8 +84,8 @@ describe('cross-platform local runtime', () => {
     })).toThrowError(/127\.0\.0\.1:32146/)
   })
 
-  it('fails closed on native Windows until reliable tree cleanup exists', () => {
-    expect(() => assertSupportedDevelopmentPlatform('win32')).toThrowError(/WSL\/Linux/)
+  it('supports native Windows and POSIX development platforms', () => {
+    expect(() => assertSupportedDevelopmentPlatform('win32')).not.toThrow()
     expect(() => assertSupportedDevelopmentPlatform('linux')).not.toThrow()
   })
 
@@ -120,6 +120,19 @@ describe('cross-platform local runtime', () => {
     )
 
     expect(signals).toEqual([[-2468, 'SIGINT'], [-2468, 'SIGKILL']])
+  })
+
+  it('cleans the owned Windows process tree with taskkill', async () => {
+    const kill = vi.fn()
+    const execFileImpl = vi.fn(async () => undefined)
+
+    await terminateOwnedChild(
+      { pid: 2468, exitCode: null, signalCode: null, kill },
+      { platform: 'win32', graceMs: 0, execFileImpl },
+    )
+
+    expect(kill).toHaveBeenCalledWith('SIGINT')
+    expect(execFileImpl).toHaveBeenCalledWith('taskkill.exe', ['/PID', '2468', '/T', '/F'])
   })
 
 

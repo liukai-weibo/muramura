@@ -33,14 +33,19 @@ import {
   MySqlAiPreferenceRepository,
   type MySqlConnectionConfig,
 } from '@knowledge-base/storage-mysql'
-import { createProtectedSecretStore, SecretStoreUnavailableError, type SecretStore } from '../../../../packages/storage-secrets/src/index'
+import { createFileSecretStore, createProtectedSecretStore, SecretStoreUnavailableError, type SecretStore } from '../../../../packages/storage-secrets/src/index'
 import { LoopbackProviderAdapter } from '../experimental-ai/provider'
 import type { Pool } from 'mysql2/promise'
 
 export function createRootHonoServices(config: MySqlConnectionConfig) {
   const pool = createMySqlPool(config)
   let secretStore: SecretStore
-  try { secretStore = createProtectedSecretStore('kb_ai_00000000-0000-4000-8000-000000000001') }
+  try {
+    const mode = process.env.AI_SECRET_STORE ?? 'keytar'
+    if (mode === 'file') secretStore = createFileSecretStore(process.env.AI_SECRET_STORE_PATH)
+    else if (mode === 'keytar') secretStore = createProtectedSecretStore('kb_ai_00000000-0000-4000-8000-000000000001')
+    else throw new SecretStoreUnavailableError()
+  }
   catch { secretStore = { get: async () => { throw new SecretStoreUnavailableError() }, set: async () => { throw new SecretStoreUnavailableError() }, clear: async () => { throw new SecretStoreUnavailableError() } } }
   const aiConfig = new AiConfigManager(secretStore)
   return {

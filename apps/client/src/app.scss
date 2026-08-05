@@ -5,6 +5,16 @@ page {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+:root {
+  --color-ink: #2d2924;
+  --color-muted: #81796e;
+  --color-surface: #fffdf9;
+  --color-canvas: #f7f4ed;
+  --color-line: #e4ddd2;
+  --color-accent: #e98f68;
+  --shadow-soft: 0 12px 30px rgba(71, 56, 40, .08);
+}
+
 button {
   border-radius: 12px;
 }

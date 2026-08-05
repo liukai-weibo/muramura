@@ -1,8 +1,9 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
 import { parseEnv } from 'node:util'
+import { promisify } from 'node:util'
 
 export const DAILY_API_HOST = '127.0.0.1'
 export const DAILY_API_PORT = 32146
@@ -45,11 +46,8 @@ export function assertSupportedNodeVersion(version = process.versions.node) {
 }
 
 export function assertSupportedDevelopmentPlatform(platform = process.platform) {
-  if (platform === 'win32') {
-    throw new LocalLauncherError(
-      'WINDOWS_FOREGROUND_NOT_READY',
-      '原生 Windows 前台编排暂未支持；请在 WSL/Linux 中运行 pnpm dev。',
-    )
+  if (platform !== 'win32' && platform !== 'linux' && platform !== 'darwin') {
+    throw new LocalLauncherError('PLATFORM_UNSUPPORTED', '当前操作系统不支持本地开发编排。')
   }
 }
 
@@ -197,10 +195,19 @@ export async function terminateOwnedChild(child, {
   platform = process.platform,
   killProcess = process.kill,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  execFileImpl = promisify(execFile),
 } = {}) {
   if (!child?.pid) return
   if (platform === 'win32') {
-    throw new LocalLauncherError('WINDOWS_CLEANUP_UNSUPPORTED', '原生 Windows 进程树清理尚未启用。')
+    try { child.kill?.('SIGINT') } catch {}
+    if (graceMs > 0) await sleep(graceMs)
+    try {
+      await execFileImpl('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'])
+    } catch (error) {
+      // The process may already have exited during the grace period.
+      if (!childHasExited(child) && error?.code !== 'ERRORLEVEL_128') throw error
+    }
+    return
   }
 
   if (!signalProcessGroup(child.pid, 'SIGINT', killProcess)) return

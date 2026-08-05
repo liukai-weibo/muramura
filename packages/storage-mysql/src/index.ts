@@ -98,6 +98,37 @@ function loadMigrations(directory: string): Migration[] {
   })
 }
 
+async function reconcileLegacyAiMigrationLineage(
+  connection: PoolConnection,
+  migrations: readonly Migration[],
+): Promise<void> {
+  const [rows] = await connection.query<Array<RowDataPacket & { version: number; name: string }>>('SELECT version, name FROM schema_migrations WHERE version BETWEEN 7 AND 11')
+  const records = new Map(rows.map((row) => [row.version, row.name]))
+  const legacyNames = new Map([
+    [7, '007_add_ai_conversations.sql'],
+    [8, '008_add_ai_conversation_summary.sql'],
+    [9, '009_remove_legacy_item_statuses.sql'],
+    [10, '010_add_user_ai_preferences.sql'],
+    [11, '011_add_ai_conversation_lifecycle.sql'],
+  ])
+  if (![...legacyNames].every(([version, name]) => records.get(version) === name)) return
+
+  const remap = [
+    [11, 14],
+    [10, 13],
+    [9, 12],
+    [8, 11],
+    [7, 10],
+  ] as const
+  for (const [fromVersion, toVersion] of remap) {
+    const migration = migrations.find((entry) => entry.version === toVersion)
+    if (!migration) throw new Error(`缺少兼容迁移：${String(toVersion).padStart(3, '0')}`)
+    const [existingTarget] = await connection.query<Array<RowDataPacket>>('SELECT version FROM schema_migrations WHERE version = ?', [toVersion])
+    if (existingTarget.length > 0) throw new Error(`旧 AI migration 兼容映射目标已存在：${String(toVersion).padStart(3, '0')}`)
+    await connection.query('UPDATE schema_migrations SET version = ?, name = ?, checksum = ? WHERE version = ?', [toVersion, migration.name, migration.checksum, fromVersion])
+  }
+}
+
 async function preflightMigration004(connection: PoolConnection): Promise<void> {
   const [conflicts] = await connection.query<Array<RowDataPacket & { kind: string; name: string }>>(`
     SELECT '表' AS kind, table_name AS name
@@ -186,9 +217,11 @@ export async function runMySqlMigrations(pool: Pool, directory: string): Promise
     const [locks] = await connection.query<Array<RowDataPacket & { acquired: number }>>("SELECT GET_LOCK('knowledge_base_schema_migration', 30) AS acquired")
     if (locks[0]?.acquired !== 1) throw new Error('无法获得 MySQL Schema Migration 锁')
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (version INT PRIMARY KEY, name VARCHAR(255) NOT NULL, checksum CHAR(64) NOT NULL, applied_at DATETIME(3) NOT NULL) ENGINE=InnoDB')
+    const migrations = loadMigrations(directory)
+    await reconcileLegacyAiMigrationLineage(connection, migrations)
     const [applied] = await connection.query<Array<RowDataPacket & { version: number; name: string; checksum: string }>>('SELECT version, name, checksum FROM schema_migrations')
     const records = new Map(applied.map(record => [record.version, record]))
-    for (const migration of loadMigrations(directory)) {
+    for (const migration of migrations) {
       const existing = records.get(migration.version)
       if (existing) {
         if (existing.name !== migration.name || !migration.acceptedChecksums.includes(existing.checksum)) throw new Error(`已执行的 migration 内容不一致：${migration.name}`)

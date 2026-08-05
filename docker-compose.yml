@@ -49,8 +49,12 @@ services:
       MYSQL_APP_USER: ${MYSQL_APP_USER:?MYSQL_APP_USER is required}
       MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD is required}
       MYSQL_POOL_CONNECTION_LIMIT: ${MYSQL_POOL_CONNECTION_LIMIT:-5}
+      AI_SECRET_STORE: ${AI_SECRET_STORE:-file}
+      AI_SECRET_STORE_PATH: ${AI_SECRET_STORE_PATH:-/var/lib/knowledge-base/secrets/ai-config.json}
       API_HOST: 127.0.0.1
       API_PORT: 32146
+    volumes:
+      - knowledge_base_ai_secrets:/var/lib/knowledge-base/secrets
     ports:
       - "${KB_H5_BIND_IP:-127.0.0.1}:${KB_H5_HOST_PORT:-10086}:8080"
       - "127.0.0.1:${KB_API_HOST_PORT:-32146}:8080"
@@ -62,3 +66,5 @@ services:
 volumes:
   knowledge_base_mysql_data:
     name: knowledge_base_mysql_data
+  knowledge_base_ai_secrets:
+    name: knowledge_base_ai_secrets

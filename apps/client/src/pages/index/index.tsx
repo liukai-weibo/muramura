@@ -45,7 +45,7 @@ const statusNavigation: Array<{ label: string; status: ItemStatus }> = [
 ]
 
 type MethodMode = 'none' | 'create' | 'validate'
-type PrimaryModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration'
+type PrimaryModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration' | 'aiConfiguration'
 type GlobalTool = 'search' | 'capture'
 type NavigationTarget =
   | { type: 'item'; itemId: string }
@@ -58,9 +58,10 @@ const moduleLabels: Record<PrimaryModule, string> = {
   explorations: '长期探索',
   methods: '方法',
   insights: '观察',
-  ai: 'AI',
+  ai: '圈圈助手 · AI 行动参谋',
   settings: '数据管理',
   administration: '用户管理',
+  aiConfiguration: 'AI 参数配置',
 }
 
 const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
@@ -179,7 +180,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [activeExplorationTrackCount, setActiveExplorationTrackCount] = useState<number>()
   useEffect(() => {
     if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
-    if (activeModule === 'administration') setAdministrationMounted(true)
+    if (activeModule === 'administration' || activeModule === 'aiConfiguration') setAdministrationMounted(true)
   }, [activeModule])
   useEffect(() => setApiClientAdminForbiddenHandler((error) => {
     setManagementAccessDenied(true)
@@ -1230,6 +1231,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
   const openCaptureNow = () => {
     setSearchResultsOpen(false)
+    setMessage('')
     if (captureLocked) {
       setMessage(restoring ? '正在恢复数据，暂不可使用快速捕获' : '请先完成或取消当前恢复确认')
       return
@@ -1892,13 +1894,17 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       <View className='primary-navigation'>
         <View className='navigation-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
         <View className='navigation-group'>
-          {(['actions', 'explorations', 'methods', 'insights', 'ai'] as PrimaryModule[]).map((module) => <View
+          {(['actions', 'explorations', 'methods', 'ai'] as PrimaryModule[]).map((module) => <View
             key={module}
-            className={`navigation-item ${activeModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
+            className={`navigation-item navigation-item-${module} ${activeModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule(module)) }}
           ><Text>{moduleLabels[module]}</Text></View>)}
         </View>
         <View className='navigation-group navigation-settings'>
+          <View
+            className={`navigation-item navigation-item-insights ${activeModule === 'insights' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
+            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('insights')) }}
+          ><Text>{moduleLabels.insights}</Text></View>
           <View
             className={`navigation-item ${activeModule === 'settings' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('settings')) }}
@@ -1907,8 +1913,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
             className={`navigation-item ${activeModule === 'administration' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('administration')) }}
           ><Text>用户管理</Text></View>}
+          {isPlatformAdministrator && !managementAccessDenied && <View
+            className={`navigation-item ${activeModule === 'aiConfiguration' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
+            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('aiConfiguration')) }}
+          ><Text>AI 参数配置</Text></View>}
         </View>
-        <View className='navigation-status'><View className='status-dot' /><View><Text>本地数据正常</Text><Text>{items.length} 条事项 · {methods.length} 条方法</Text></View></View>
         <View className='navigation-account'>
           <View><Text className='navigation-account-label'>当前账户</Text><Text className='navigation-account-name'>{session.user.username}</Text></View>
           <Button className='navigation-logout' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出'}</Button>
@@ -1918,9 +1927,9 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       </View>
 
       <View className='app-main'>
-        <View className='global-header'>
-          <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{activeModule === 'explorations' ? '长期探索 · 已接入本地真实数据' : managementAccessNotice && activeModule === 'actions' ? managementAccessNotice : restoring ? '正在安全恢复数据，请勿离开' : message}</Text></View>
-          {activeModule !== 'explorations' && activeModule !== 'administration' && activeModule !== 'ai' && <View className='global-actions'>
+        <View className={`global-header ${activeModule === 'actions' ? 'global-header-actions' : ''}`}>
+          <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{managementAccessNotice && activeModule === 'actions' ? managementAccessNotice : restoring && activeModule === 'actions' ? '正在安全恢复数据，请勿离开' : activeModule === 'actions' ? message : ''}</Text></View>
+          {activeModule !== 'explorations' && activeModule !== 'administration' && activeModule !== 'aiConfiguration' && activeModule !== 'ai' && <View className='global-actions'>
             <View className={`global-tool-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '刷新数据失败')) }}><Text>刷新数据</Text></View>
             <View className='global-search-control' ref={searchControlRef}>
               {searchExpanded ? <View className='global-search-expanded'>
@@ -2028,7 +2037,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       {isPlatformAdministrator && !managementAccessDenied && (activeModule === 'administration' || administrationMounted) && <PlatformAdministration
         authenticationContext={`${session.user.id}-${session.user.createdAt}`}
         currentUserId={session.user.id}
-        visible={activeModule === 'administration'}
+        view={activeModule === 'aiConfiguration' ? 'ai' : 'users'}
+        visible={activeModule === 'administration' || activeModule === 'aiConfiguration'}
       />}
 
       {activeModule === 'ai' && <ExperimentalAiPage />}

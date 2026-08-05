@@ -1,4 +1,4 @@
-import type { PlatformRole, PlatformUserPage, PlatformUserSummary } from '@knowledge-base/contracts'
+import type { AiConfigMetadata, PlatformRole, PlatformUserPage, PlatformUserSummary } from '@knowledge-base/contracts'
 import type { ApiClientError } from './api-client'
 
 export const PLATFORM_USERS_PAGE_SIZE = 20
@@ -6,6 +6,31 @@ export const PLATFORM_USER_QUERY_LIMIT = 80
 
 export type PlatformAdministrationAction = 'grant-role' | 'revoke-role' | 'revoke-sessions' | 'soft-delete' | 'restore'
 export type PlatformTargetWriteState = 'idle' | 'submitting-role' | 'submitting-sessions' | 'submitting-account' | 'role-unknown' | 'sessions-unknown' | 'account-unknown'
+
+export type PlatformAiConfigStatus = 'initial-loading' | 'ready' | 'refreshing' | 'initial-error' | 'refresh-error' | 'saving' | 'clearing' | 'unknown'
+
+export interface PlatformAiConfigState {
+  status: PlatformAiConfigStatus
+  metadata?: AiConfigMetadata
+  message?: string
+  requestId?: string
+}
+
+export function createPlatformAiConfigState(): PlatformAiConfigState {
+  return { status: 'initial-loading' }
+}
+
+export function withAiConfigMetadata(_state: PlatformAiConfigState, metadata: AiConfigMetadata): PlatformAiConfigState {
+  return { status: 'ready', metadata }
+}
+
+export function withAiConfigReadError(state: PlatformAiConfigState, message: string, requestId?: string): PlatformAiConfigState {
+  return { status: state.metadata ? 'refresh-error' : 'initial-error', metadata: state.metadata, message, requestId }
+}
+
+export function withAiConfigUnknown(state: PlatformAiConfigState, message: string, requestId?: string): PlatformAiConfigState {
+  return { status: 'unknown', metadata: state.metadata, message, requestId }
+}
 
 export interface PlatformAdministrationConfirmation {
   targetId: string
