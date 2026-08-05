@@ -11,7 +11,7 @@ export function requireAuthenticatedSession(root: RootHonoServices): MiddlewareH
     const session = await root.auth.current(parseSessionSecretFromCookie(context.req.header('cookie')))
     if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
     context.set('actor', session.user)
-    context.set('services', createScopedHonoServices(root.pool, session.user.id))
+    context.set('services', createScopedHonoServices(root.pool, session.user.id, root.aiConfig))
     await next()
   }
 }

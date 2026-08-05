@@ -12,6 +12,7 @@ import type {
   MethodVersion,
   Review,
 } from './reviews-and-methods'
+import type { AiConversationSnapshot, AiPreference } from './ai'
 /**
  * 备份文档是跨版本的持久化契约。旧版本继续保留原始形状，新增版本只能通过
  * 新的判别值扩展，恢复方不得根据展示文本推断缺失的可信字段。
@@ -28,6 +29,8 @@ export interface BackupData {
   itemStatusEvents: ItemStatusEvent[]
   itemLinks: ItemLink[]
   methodTombstones: MethodTombstone[]
+  aiConversations?: AiConversationSnapshot[]
+  aiPreferences?: AiPreference[]
 }
 
 /**

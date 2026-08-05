@@ -87,7 +87,8 @@ function run(options: { pre?: Parameters<typeof writeSnapshot>[2]; post?: Parame
   require('node:fs').mkdirSync(pre); require('node:fs').mkdirSync(post)
   writeSnapshot(pre, options.preVersion ?? 3, options.pre)
   writeSnapshot(post, options.postVersion ?? 4, options.post)
-  const result = spawnSync('sh', [script, pre, post, output], { encoding: 'utf8' })
+  const shell = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'sh'
+  const result = spawnSync(shell, [script, pre, post, output], { encoding: 'utf8' })
   return { result, output }
 }
 

@@ -9,7 +9,7 @@ export {
 } from './platform-administration-repository'
 export { MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
 
-export const MYSQL_REQUIRED_SCHEMA_VERSION = 9
+export const MYSQL_REQUIRED_SCHEMA_VERSION = 14
 
 export const MYSQL_SCHEMA_AUDIT_EXCLUDED_TABLES = ['schema_migrations'] as const
 
@@ -23,7 +23,7 @@ export interface MySqlSchemaNotReadyDetails {
   database: string
   requiredSchemaVersion: number
   actualSchemaVersion?: number
-  requiredTable?: 'schema_migrations' | 'user_roles' | 'security_audit_events'
+  requiredTable?: 'schema_migrations' | 'user_roles' | 'security_audit_events' | 'ai_conversations' | 'ai_conversation_messages' | 'user_ai_preferences'
 }
 
 export interface MySqlConnectionConfig {
@@ -210,7 +210,7 @@ export async function runMySqlMigrations(pool: Pool, directory: string): Promise
       for (const statement of splitStatements(migration.sql)) {
         if (migration.version === 7) await runMigration007Statement(connection, statement)
         else if (migration.version === 8) await runMigration008Statement(connection, statement)
-        else if (migration.version === 9) await runMigration009Statement(connection, statement)
+        else if (migration.version === 9 || migration.version === 12) await runMigration009Statement(connection, statement)
         else await connection.query(statement)
       }
       await connection.query('INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))', [migration.version, migration.name, migration.checksum])
@@ -259,7 +259,7 @@ export async function assertMySqlPlatformSchemaReady(pool: Pool, expectedDatabas
   const health = await getMySqlHealth(pool, expectedDatabase)
   const connection = await pool.getConnection()
   try {
-    const requiredTables = ['user_roles', 'security_audit_events'] as const
+    const requiredTables = ['user_roles', 'security_audit_events', 'ai_conversations', 'ai_conversation_messages', 'user_ai_preferences'] as const
     for (const requiredTable of requiredTables) {
       try {
         await connection.query(`SELECT 1 FROM ${requiredTable} LIMIT 0`)
@@ -297,6 +297,8 @@ export class MySqlSchemaNotReadyError extends Error {
 export { MySqlItemRepository, type MySqlItemRepositoryTestHooks } from './item-repository'
 export { MySqlReviewRepository } from './review-repository'
 export { MySqlReviewWorkflowRepository, type MySqlReviewWorkflowRepositoryTestHooks } from './review-workflow-repository'
+export { MySqlAiConversationRepository } from './ai-conversation-repository'
+export { MySqlAiPreferenceRepository } from './ai-preference-repository'
 export { MySqlMethodRepository, type MySqlMethodRepositoryTestHooks } from './method-repository'
 export { MySqlMethodApplicationRepository, type MySqlMethodApplicationRepositoryTestHooks } from './method-application-repository'
 export { MySqlBackupRepository, type MySqlBackupRepositoryTestHooks } from './backup-repository'

@@ -1,0 +1,89 @@
+import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DashboardSnapshot, ItemRepository, ItemStatus, MethodRepository } from '@knowledge-base/contracts'
+import { itemStatuses } from '@knowledge-base/contracts'
+import type { DashboardApplicationService, ExplorationTrackApplicationService } from './index'
+
+export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOverviewReader {
+  constructor(
+    private readonly dashboard: DashboardApplicationService,
+    private readonly explorations: ExplorationTrackApplicationService,
+    private readonly items?: ItemRepository,
+    private readonly methods?: MethodRepository,
+  ) {}
+
+  async read(user: AuthUser): Promise<AiKnowledgeOverview> {
+    const [snapshot, activeTracks, deletedItems, deletedMethods, deletedTracks] = await Promise.all([
+      this.dashboard.getSnapshot(),
+      this.explorations.listActiveExplorationTracks(),
+      this.items?.listDeleted() ?? Promise.resolve([]),
+      this.methods?.listDeleted() ?? Promise.resolve([]),
+      this.explorations.listDeletedExplorationTracks(),
+    ])
+    const itemStatusCounts = Object.fromEntries(itemStatuses.map((status) => [status, 0])) as Record<ItemStatus, number>
+    snapshot.items.forEach((item) => { itemStatusCounts[item.status] += 1 })
+    const recentReviews = [...snapshot.reviews].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id)).slice(0, 30)
+    const report = await this.dashboard.getReport('all')
+    return {
+      profile: { username: user.username, roles: [...user.roles], createdAt: user.createdAt },
+      itemStatusCounts,
+      items: snapshot.items.map(({ id, title, content, status, createdAt, updatedAt }) => ({ id, title, content, status, createdAt, updatedAt })),
+      explorations: activeTracks.map(({ track, latestAssociatedItem }) => ({ id: track.id, name: track.name, ...(latestAssociatedItem ? { latestItem: latestAssociatedItem } : {}) })),
+      reviews: recentReviews.map(({ id, itemId, result, createdAt }) => ({ id, itemId, result, createdAt })),
+      methods: snapshot.methods.map(({ id, title, steps, version, validationCount, createdAt, updatedAt }) => ({ id, title, steps, version, validationCount, createdAt, updatedAt })),
+      trash: [
+        ...deletedItems.map(({ title, deletedAt }) => ({ type: 'item' as const, title, deletedAt: deletedAt! })),
+        ...deletedMethods.map(({ title, deletedAt }) => ({ type: 'method' as const, title, deletedAt: deletedAt! })),
+        ...deletedTracks.map(({ track }) => ({ type: 'exploration-track' as const, title: track.name, deletedAt: track.deletedAt! })),
+      ].sort((left, right) => right.deletedAt.localeCompare(left.deletedAt)),
+      dashboard: { metrics: report.metrics, backlog: report.backlog, unreviewedMethodActions: report.unreviewedMethodActions, facts: report.facts },
+    }
+  }
+}
+
+export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined, searchContext: string, summary: AiConversationSummary | undefined, preferences: AiPreference[], maxChars: number): string {
+  const sections = [
+    'Server-verified read-only personal knowledge context (user data):',
+    'Use only this context as user data. Do not claim to modify it.',
+  ]
+  if (overview) {
+    sections.push(`Profile: username=${overview.profile.username}; accountCreatedAt=${overview.profile.createdAt}; roles=${overview.profile.roles.join(',') || 'none'}`)
+    sections.push(`Authoritative knowledge base summary for numeric questions: 事项总数=${overview.items.length}; 方法总数=${overview.methods.length}; 复盘总数=${overview.reviews.length}; 探索主线总数=${overview.explorations.length}`)
+    sections.push(`Authoritative item status counts: ${Object.entries(overview.itemStatusCounts).map(([status, count]) => `${statusLabel(status)}=${count}`).join(', ')}`)
+    sections.push(`Items (cite by title; internal IDs and machine status codes are unavailable to the assistant):\n${overview.items.slice(0, 80).map((item) => `- ${item.title} | 状态=${statusLabel(item.status)} | updatedAt=${item.updatedAt} | ${item.content.slice(0, 240)}`).join('\n') || '- none'}`)
+    sections.push(`Explorations (cite by name; internal IDs and machine status codes are unavailable to the assistant):\n${overview.explorations.slice(0, 40).map((track) => `- ${track.name}${track.latestItem ? ` | latest=${track.latestItem.title}（${statusLabel(track.latestItem.status)}）` : ''}`).join('\n') || '- none'}`)
+    sections.push(`Recent reviews (cite by subject; internal IDs are unavailable to the assistant):\n${overview.reviews.slice(0, 30).map((review) => `- review record | ${review.result.slice(0, 240)}`).join('\n') || '- none'}`)
+    sections.push(`Methods (cite by title; internal IDs are unavailable to the assistant):\n${overview.methods.slice(0, 40).map((method) => `- ${method.title} v${method.version} | validations=${method.validationCount} | ${method.steps.slice(0, 240)}`).join('\n') || '- none'}`)
+    sections.push(`Dashboard: ${overview.dashboard.facts.map(replaceStatusCodes).join(' ')}; backlog=想尝试${overview.dashboard.backlog.ideaToTry}，已开始${overview.dashboard.backlog.doing}，已暂停${overview.dashboard.backlog.paused}，以后考虑${overview.dashboard.backlog.ideaLater}; unreviewedMethodActions=${overview.dashboard.unreviewedMethodActions}`)
+    if (overview.trash) {
+      const trashCounts = overview.trash.reduce((counts, entry) => { counts[entry.type] += 1; return counts }, { item: 0, method: 0, 'exploration-track': 0 } as Record<'item' | 'method' | 'exploration-track', number>)
+      sections.push(`Authoritative recycle bin counts (server-calculated): 事项=${trashCounts.item}，方法=${trashCounts.method}，探索主线=${trashCounts['exploration-track']}，合计=${overview.trash.length}。Only these counts may be used for numeric answers. Do not calculate counts from titles.`)
+      sections.push(`Recycle bin titles (labels only, not counts; a numeric-looking title such as “111” or “1” is still just a title):\n${overview.trash.slice(0, 80).map((entry) => `- ${trashTypeLabel(entry.type)}：标题“${entry.title}” | deletedAt=${entry.deletedAt}`).join('\n') || '- none'}`)
+    }
+  }
+  if (summary?.content) sections.push(`Server-owned derived conversation summary (not a business record; original messages remain authoritative):\n${summary.content}`)
+  if (preferences.length) sections.push(`Confirmed user preferences (explicitly saved by the user; not business facts):\n${preferences.map((preference) => `- ${preference.key}: ${preference.value}`).join('\n')}`)
+  if (searchContext) sections.push(`Search matches for the latest question:\n${searchContext}`)
+  const output: string[] = []
+  let remaining = maxChars
+  for (const section of sections) {
+    if (remaining <= 0) break
+    const separator = output.length ? '\n\n' : ''
+    const available = remaining - separator.length
+    if (available <= 0) break
+    const content = section.length > available ? `${section.slice(0, Math.max(0, available - 32))}\n[…knowledge context truncated…]` : section
+    output.push(`${separator}${content}`)
+    remaining -= separator.length + content.length
+  }
+  return `${output.join('')}\n\n`
+}
+
+function statusLabel(status: string): string {
+  return ({ doing: '已开始', idea_to_try: '想尝试', idea_later: '以后考虑', paused: '已暂停', reviewed: '已复盘', abandoned: '已放弃' } as Record<string, string>)[status] ?? status
+}
+
+function replaceStatusCodes(value: string): string {
+  return value.replace(/\bdoing\b/g, '已开始').replace(/\bidea_to_try\b/g, '想尝试').replace(/\bidea_later\b/g, '以后考虑').replace(/\bpaused\b/g, '已暂停').replace(/\breviewed\b/g, '已复盘').replace(/\babandoned\b/g, '已放弃')
+}
+
+function trashTypeLabel(type: string): string {
+  return ({ item: '事项', method: '方法', 'exploration-track': '探索主线' } as Record<string, string>)[type] ?? '记录'
+}

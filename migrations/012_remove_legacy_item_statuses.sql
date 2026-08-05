@@ -1,0 +1,3 @@
+-- Reserved migration slot retained for the AI migration sequence.
+-- The current main architecture still supports waiting_review and archived_no_review;
+-- no legacy status constraint is changed during this AI-only migration.
