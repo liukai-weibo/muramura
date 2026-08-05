@@ -10,6 +10,10 @@ import type {
 export class DashboardApplicationService {
   constructor(private readonly repository: DashboardRepository) {}
 
+  getSnapshot(): Promise<DashboardSnapshot> {
+    return this.repository.getSnapshot()
+  }
+
   async getReport(window: DashboardWindow, now = new Date()): Promise<DashboardReport> {
     const snapshot = await this.repository.getSnapshot()
     return buildDashboardReport(snapshot, window, now)

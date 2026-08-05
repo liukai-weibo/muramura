@@ -8,6 +8,7 @@ import { hasPlatformAdminRole } from './platform-administration-state'
 import { searchCollapseState, searchExitState, searchResultSelectionState, shouldOpenSearchResults } from './search-session-state'
 import { canModifyItemExplorationContext } from './item-exploration-state'
 import { mergeUpdatedItemContentIntoList } from './item-content-state'
+import ExperimentalAiPage from './experimental-ai'
 import { canOpenStartConfirm, shouldDisplayStartAction, shouldInterceptStartAction, startFeedbackVisible } from './start-confirm-state'
 import './index.scss'
 type ItemAction = ApiItemAction
@@ -44,7 +45,7 @@ const statusNavigation: Array<{ label: string; status: ItemStatus }> = [
 ]
 
 type MethodMode = 'none' | 'create' | 'validate'
-type PrimaryModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'settings' | 'administration'
+type PrimaryModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration'
 type GlobalTool = 'search' | 'capture'
 type NavigationTarget =
   | { type: 'item'; itemId: string }
@@ -57,6 +58,7 @@ const moduleLabels: Record<PrimaryModule, string> = {
   explorations: '长期探索',
   methods: '方法',
   insights: '观察',
+  ai: 'AI',
   settings: '数据管理',
   administration: '用户管理',
 }
@@ -1890,7 +1892,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       <View className='primary-navigation'>
         <View className='navigation-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
         <View className='navigation-group'>
-          {(['actions', 'explorations', 'methods', 'insights'] as PrimaryModule[]).map((module) => <View
+          {(['actions', 'explorations', 'methods', 'insights', 'ai'] as PrimaryModule[]).map((module) => <View
             key={module}
             className={`navigation-item ${activeModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule(module)) }}
@@ -1918,7 +1920,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       <View className='app-main'>
         <View className='global-header'>
           <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{activeModule === 'explorations' ? '长期探索 · 已接入本地真实数据' : managementAccessNotice && activeModule === 'actions' ? managementAccessNotice : restoring ? '正在安全恢复数据，请勿离开' : message}</Text></View>
-          {activeModule !== 'explorations' && activeModule !== 'administration' && <View className='global-actions'>
+          {activeModule !== 'explorations' && activeModule !== 'administration' && activeModule !== 'ai' && <View className='global-actions'>
             <View className={`global-tool-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '刷新数据失败')) }}><Text>刷新数据</Text></View>
             <View className='global-search-control' ref={searchControlRef}>
               {searchExpanded ? <View className='global-search-expanded'>
@@ -2028,6 +2030,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         currentUserId={session.user.id}
         visible={activeModule === 'administration'}
       />}
+
+      {activeModule === 'ai' && <ExperimentalAiPage />}
 
       {activeModule === 'insights' && <View className='dashboard-panel module-panel'>
         <View className='dashboard-header'>

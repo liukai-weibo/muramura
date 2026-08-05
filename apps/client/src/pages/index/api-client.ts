@@ -36,6 +36,14 @@ import type {
   SearchResult,
   TrashEntry,
   TrashFilter,
+  AiConfigInput,
+  AiConfigMetadata,
+  AiPreference,
+  AiPreferenceInput,
+  AiChatMessage,
+  AiConversation,
+  AiConversationSnapshot,
+  AiStreamEvent,
 } from '@knowledge-base/contracts'
 
 export interface ApiClientError extends Error {
@@ -357,4 +365,49 @@ export const apiClient = {
   listTrashEntries: (filter: TrashFilter, signal?: AbortSignal) => request<TrashEntry[]>(`/trash?filter=${filter}`, { signal }),
   createBackup: () => request<BackupDocument>('/backup'),
   restoreBackup: (document: BackupDocument) => request<void>('/backup/restore', { method: 'POST', body: json(document) }),
+  getExperimentalAiConfig: (signal?: AbortSignal) => request<AiConfigMetadata>('/admin/experimental/ai-config', { signal }),
+  setExperimentalAiConfig: (input: AiConfigInput, signal?: AbortSignal) => request<AiConfigMetadata>('/admin/experimental/ai-config', { method: 'PUT', body: json(input), signal }),
+  clearExperimentalAiConfig: (signal?: AbortSignal) => request<void>('/admin/experimental/ai-config', { method: 'DELETE', signal }),
+  getAiPreferences: (signal?: AbortSignal) => request<AiPreference[]>('/ai/preferences', { signal }),
+  createAiPreference: (input: AiPreferenceInput, signal?: AbortSignal) => request<AiPreference>('/ai/preferences', { method: 'POST', body: json(input), signal }),
+  updateAiPreference: (id: string, input: AiPreferenceInput, signal?: AbortSignal) => request<AiPreference>(`/ai/preferences/${encodeURIComponent(id)}`, { method: 'PUT', body: json(input), signal }),
+  deleteAiPreference: (id: string, signal?: AbortSignal) => request<void>(`/ai/preferences/${encodeURIComponent(id)}`, { method: 'DELETE', signal }),
+  getExperimentalAiConversation: (options?: { limit?: number; beforeSequence?: number }, signal?: AbortSignal) => {
+    const query = new URLSearchParams()
+    if (options?.limit !== undefined) query.set('limit', String(options.limit))
+    if (options?.beforeSequence !== undefined) query.set('beforeSequence', String(options.beforeSequence))
+    return request<AiConversationSnapshot>(`/experimental/ai-conversation${query.toString() ? `?${query}` : ''}`, { signal })
+  },
+  listAiConversations: (includeDeleted = false, signal?: AbortSignal) => request<AiConversation[]>(`/experimental/ai-conversations${includeDeleted ? '?includeDeleted=true' : ''}`, { signal }),
+  listAiConversationTrash: (signal?: AbortSignal) => request<AiConversation[]>('/experimental/ai-conversations/trash', { signal }),
+  createAiConversation: (title?: string, signal?: AbortSignal) => request<AiConversation>('/experimental/ai-conversations', { method: 'POST', body: json(title === undefined ? {} : { title }), signal }),
+  updateAiConversationTitle: (id: string, title: string, signal?: AbortSignal) => request<AiConversation>(`/experimental/ai-conversations/${encodeURIComponent(id)}/title`, { method: 'PATCH', body: json({ title }), signal }),
+  archiveAiConversation: (id: string, signal?: AbortSignal) => request<AiConversation>(`/experimental/ai-conversations/${encodeURIComponent(id)}/archive`, { method: 'POST', signal }),
+  restoreAiConversation: (id: string, signal?: AbortSignal) => request<AiConversation>(`/experimental/ai-conversations/${encodeURIComponent(id)}/restore`, { method: 'POST', signal }),
+  deleteAiConversation: (id: string, signal?: AbortSignal) => request<AiConversation>(`/experimental/ai-conversations/${encodeURIComponent(id)}`, { method: 'DELETE', signal }),
+  purgeAiConversation: (id: string, signal?: AbortSignal) => request<void>(`/experimental/ai-conversations/${encodeURIComponent(id)}/purge`, { method: 'DELETE', signal }),
+  getExperimentalAiConversationById: (id: string, options?: { limit?: number; beforeSequence?: number }, signal?: AbortSignal) => {
+    const query = new URLSearchParams()
+    if (options?.limit !== undefined) query.set('limit', String(options.limit))
+    if (options?.beforeSequence !== undefined) query.set('beforeSequence', String(options.beforeSequence))
+    return request<AiConversationSnapshot>(`/experimental/ai-conversations/${encodeURIComponent(id)}${query.toString() ? `?${query}` : ''}`, { signal })
+  },
+  streamExperimentalAiChat: async function* (messages: AiChatMessage[], signal?: AbortSignal, conversationId?: string): AsyncGenerator<AiStreamEvent> {
+    if (messages.some((message) => message.role === 'system')) throw new Error('system messages are server-owned')
+    const response = await fetch('/api/v1/experimental/ai-chat/stream', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
+    if (!response.ok) throw new Error('AI stream failed')
+    if (!response.body) throw new Error('AI stream failed')
+    const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''
+    const parse = function* (chunk: string): Generator<AiStreamEvent> {
+      const data = chunk.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('\n')
+      if (data) yield JSON.parse(data) as AiStreamEvent
+    }
+    while (true) {
+      const next = await reader.read(); if (next.done) break
+      buffer += decoder.decode(next.value, { stream: true })
+      const chunks = buffer.split(/\r?\n\r?\n/); buffer = chunks.pop() ?? ''
+      for (const chunk of chunks) yield* parse(chunk)
+    }
+    if (buffer.trim()) yield* parse(buffer)
+  },
 }

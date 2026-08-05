@@ -7,6 +7,8 @@ import {
   type ItemStatusEvent,
   type MethodTombstone,
   type MethodVersion,
+  type AiConversationBackupStore,
+  type AiPreferenceBackupStore,
 } from '@knowledge-base/contracts'
 import { BusinessError, createId } from '@knowledge-base/domain'
 
@@ -185,10 +187,12 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
 }
 
 export class BackupApplicationService {
-  constructor(private readonly repository: BackupRepository) {}
+  constructor(private readonly repository: BackupRepository, private readonly aiConversations?: AiConversationBackupStore, private readonly aiPreferences?: AiPreferenceBackupStore) {}
 
   async createBackup(): Promise<BackupDocument> {
     const data = await this.repository.exportData()
+    if (this.aiConversations) data.aiConversations = await this.aiConversations.exportBackup()
+    if (this.aiPreferences) data.aiPreferences = await this.aiPreferences.exportBackup()
     return {
       format: 'knowledge-base-backup',
       version: 'explorationTracks' in data ? 3 : 2,
@@ -205,6 +209,8 @@ export class BackupApplicationService {
   async restoreBackup(document: BackupDocument): Promise<void> {
     const data = { ...document.data, methodTombstones: document.data.methodTombstones ?? [] }
     await this.repository.replaceData(data)
+    if (this.aiConversations && data.aiConversations) await this.aiConversations.replaceBackup(data.aiConversations)
+    if (this.aiPreferences && data.aiPreferences) await this.aiPreferences.replaceBackup(data.aiPreferences)
   }
 
   async restoreBackupSafely(document: BackupDocument, preserveCurrent: (backup: BackupDocument) => void | Promise<void>): Promise<void> {

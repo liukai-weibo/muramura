@@ -25,3 +25,14 @@ export {
 } from './reviews-and-methods'
 export { buildDashboardReport, DashboardApplicationService, SearchApplicationService } from './read-models'
 export { sortTrashEntries, TRASH_RETENTION_DAYS, TrashApplicationService } from './trash'
+export {
+  AiChatApplicationService,
+  AiConfigManager,
+  AiConversationApplicationService,
+  buildAiSystemMessage,
+  type AiLatencyDiagnostic,
+  type AiProvider,
+  aiChatCompletionsUrl,
+} from './experimental-ai'
+export { AiKnowledgeOverviewApplicationService, formatKnowledgeContext } from './ai-context'
+export { AiPreferenceApplicationService } from './ai-preferences'

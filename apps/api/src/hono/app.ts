@@ -24,6 +24,7 @@ import { createMethodRoutes } from './routes/methods'
 import { createDashboardRoutes, createSearchRoutes } from './routes/read-models'
 import { createReviewRoutes } from './routes/reviews'
 import { createTrashRoutes } from './routes/trash'
+import { createAiRoutes } from './routes/ai'
 import { createRootHonoServices, type RootHonoServices } from './services'
 
 /**
@@ -70,6 +71,7 @@ export function buildRpcContractRoutes(
     .route('/health', createHealthRoutes(root, config))
     .route(`${apiV1BasePath}/auth`, createAuthRoutes(root))
     .route(apiV1BasePath, buildBusinessApiV1Routes(root))
+    .route(apiV1BasePath, createAiRoutes())
 }
 
 /** 供 Hono RPC Client（`hc<AppType>()`）使用的服务端路由类型。 */
@@ -109,6 +111,7 @@ export function buildHonoApp(
     .route('/health', createHealthRoutes(root, config))
     .route(`${apiV1BasePath}/auth`, createAuthRoutes(root))
     .route(apiV1BasePath, buildProtectedApiV1Routes(root))
+    .route(apiV1BasePath, createAiRoutes())
     .doc('/openapi.json', {
       openapi: openApiInfo.openapi,
       info: { ...openApiInfo.info },

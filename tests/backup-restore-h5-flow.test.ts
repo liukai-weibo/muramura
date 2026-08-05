@@ -13,7 +13,7 @@ const oldMethod = { id: 'old-method', title: '旧方法事实', applicable: '', 
 const oldTrack = { id: 'old-track', name: '旧探索主线事实', createdAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z' }
 const backup = { format: 'knowledge-base-backup', version: 3, exportedAt: '2026-07-29T00:00:00.000Z', appVersion: 'test', data: { items: [], reviews: [], methods: [], explorationTracks: [] } }
 const history = { track: oldTrack, currentAssociatedItems: [], history: [], abandonedHistory: [] }
-const authSession = { user: { id: 'test-user', username: 'backup-test', createdAt: '2026-07-30T00:00:00.000Z' } }
+const authSession = { user: { id: 'test-user', username: 'backup-test', roles: ['member'], createdAt: '2026-07-30T00:00:00.000Z' } }
 const contentType = (path: string) => ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[extname(path)] ?? 'application/octet-stream')
 
 let browser: Browser

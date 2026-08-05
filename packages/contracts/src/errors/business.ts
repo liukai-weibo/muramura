@@ -82,6 +82,8 @@ export type PlatformAdministrationErrorCode =
   | 'PLATFORM_ADMIN_USER_READ_FAILED'
 
 export type BusinessErrorCode =
+  | 'AI_PREFERENCE_INVALID'
+  | 'AI_PREFERENCE_NOT_FOUND'
   | AuthErrorCode
   | BackupErrorCode
   | ExplorationTrackErrorCode
@@ -93,6 +95,8 @@ export type BusinessErrorCode =
 
 /** 每个统一码对应唯一 category，供抛错与 HTTP 映射共用。 */
 export const businessErrorCategoryByCode = {
+  AI_PREFERENCE_INVALID: 'validation',
+  AI_PREFERENCE_NOT_FOUND: 'not-found',
   INVALID_ITEM_STATUS_TRANSITION: 'conflict',
   ITEM_NOT_FOUND: 'not-found',
   ITEM_NOT_IN_TRASH: 'not-found',
