@@ -178,7 +178,7 @@ curl http://127.0.0.1:32146/health
 ready / knowledge_base / schemaVersion=14
 ```
 
-Docker 应用镜像 `1.1.5` 已发布，可先用 `KB_APP_IMAGE_TAG=1.1.5` 验证；`latest` 暂仍保持旧版本，待云端验收稳定后再更新。后续镜像发布继续使用新的版本标签。
+Docker 应用镜像 `1.1.5` 已发布，`latest` 已同步指向同一镜像；也可以使用 `KB_APP_IMAGE_TAG=1.1.5` 固定版本部署。后续镜像发布继续使用新的版本标签。
 
 停止服务使用：
 
