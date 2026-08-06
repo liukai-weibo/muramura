@@ -24,12 +24,15 @@ MaruMaru（圈圈）将下面这条个人运行闭环落在一个本地优先的
 - 全部业务数据按当前会话用户隔离，跨用户资源统一不可见。
 - 支持平台管理员查看脱敏用户列表、授予或撤销他人的管理员角色、撤销他人的全部会话。
 - 平台管理员不能绕过业务 owner scope，也不能查看密码、密码哈希、Cookie、Token 或会话秘密。
+- 提供 H5 AI 对话，支持 SSE 流式回复、分块增量 Markdown 解析、Worker 异步处理和长消息虚拟列表。
+- AI 流式回复支持停止、异常清理、会话隔离、刷新恢复和稳定滚动；微信小程序暂不作为桌宠与流式优化的验收目标。
+- H5 AI 页面提供 Rive 桌宠及 SVG 降级、思考态、欢迎态和基于时间/星期/节日的本地气泡文案；桌宠交互不写入消息或数据库。
 
 ## 当前状态
 
 - 在线账户与单用户数据隔离 V0 已完成产品验收、Git 归档并封板。
 - 平台角色与最小权限管理 V1 已完成产品验收、真实运行接入、Git 归档并封板。
-- 当前 MySQL Schema 为版本 6，共 17 张 base table。
+- 当前运行中的 MySQL Schema 为版本 14，共 17 张 base table；实际版本以 API `/health` 返回值为准。
 - 所有用户固定拥有 `member`；`platform_admin` 是可选附加角色。
 - 系统不会创建默认管理员，也没有默认管理员密码。
 
@@ -47,11 +50,11 @@ Taro + React + TypeScript H5
 ```
 
 - 前端：Taro + React H5。
-- API：当前实际启动入口为 `apps/api/src/main.ts`，运行原生 Node HTTP 实现。
+- API：当前实际启动入口为 `apps/api/src/main.ts`，运行 Hono + `@hono/node-server`，提供 OpenAPI 与 Scalar 文档。
 - Application / Repository 分层：页面不直接访问数据库。
-- 数据库：MySQL 8.4，Migration 001–006。
+- 数据库：MySQL 8.4，Migration 001–014；当前运行版本以 API `/health` 为准。
 - 部署：Docker Compose，MySQL 与应用使用独立容器，应用容器同时运行 loopback API 与 Nginx H5。
-- `apps/api/src/hono` 是尚未接入主启动入口的并行路由骨架，不能视为当前实际运行 API。
+- H5 通过同源 `/api` 代理访问 loopback API，浏览器不直接连接 MySQL。
 
 ## 环境要求
 
@@ -169,11 +172,13 @@ MySQL 健康
 curl http://127.0.0.1:32146/health
 ```
 
-正常结果应表示：
+正常结果应表示当前实际 Schema，例如：
 
 ```text
-ready / knowledge_base / schemaVersion=6
+ready / knowledge_base / schemaVersion=14
 ```
+
+当前已发布的 Docker 应用镜像为 `1.1.4` 与 `latest`；后续镜像发布须使用新的版本标签，确认云端验收后再更新 `latest`。
 
 停止服务使用：
 
@@ -188,7 +193,7 @@ docker compose stop
 系统不会自动把第一个注册用户设为管理员。首次部署流程是：
 
 ```text
-完成 Migration 001–006
+完成 Migration 001–014
 → 用户通过 H5 正常注册
 → 该用户获得 member
 → 使用显式 userId 受控授予首位 platform_admin
