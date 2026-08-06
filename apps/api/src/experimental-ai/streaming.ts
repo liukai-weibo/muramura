@@ -1,6 +1,6 @@
 import type { AiChatMessage, AiStreamEvent } from '@knowledge-base/contracts'
 
-export const AI_PROVIDER_TIMEOUT_MS = 120_000
+export const AI_PROVIDER_TIMEOUT_MS = 300_000
 
 export interface ProviderAdapter { stream(messages: AiChatMessage[], signal: AbortSignal): AsyncGenerator<AiStreamEvent> }
 export interface SSEParser { parse(chunk: string): AiStreamEvent[] }

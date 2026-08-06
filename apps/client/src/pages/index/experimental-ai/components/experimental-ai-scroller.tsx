@@ -24,7 +24,7 @@ export function MessageScroller({ children, className = '', autoScrollKey, onRea
     if (observer && scrollRef.current) observer.observe(scrollRef.current)
     window.addEventListener('resize', measure)
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
-  }, [children])
+  }, [])
   const maxScrollTop = Math.max(0, scrollMetrics.content - scrollMetrics.viewport)
   const canScroll = maxScrollTop > 0
   const trackHeight = Math.max(0, scrollMetrics.viewport)

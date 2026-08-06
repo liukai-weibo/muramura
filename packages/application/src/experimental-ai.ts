@@ -4,7 +4,7 @@ import { STRONG_STRATEGIST_PROMPT } from './ai-prompts/strong-strategist-prompt'
 import { AI_BUSINESS_SEMANTICS, AI_KNOWLEDGE_CONCEPTS, AI_RESPONSE_POLICY } from './ai-prompts/ai-policy'
 import { formatKnowledgeContext } from './ai-context'
 
-export const AI_PROVIDER_TIMEOUT_MS = 120_000
+export const AI_PROVIDER_TIMEOUT_MS = 300_000
 export const AI_KNOWLEDGE_CONTEXT_MAX_CHARS = 24_000
 export const AI_MAX_RECENT_TURNS = 8
 export const AI_SUMMARY_VERSION = 1

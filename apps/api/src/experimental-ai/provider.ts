@@ -5,7 +5,7 @@ import { aiChatCompletionsUrl, type AiProvider } from '@knowledge-base/applicati
 // guard, especially when the provider is still producing tokens. This is a
 // request lifetime limit, not a token limit; user aborts still cancel it
 // immediately.
-export const AI_PROVIDER_TIMEOUT_MS = 120_000
+export const AI_PROVIDER_TIMEOUT_MS = 300_000
 
 function anthropicMessagesUrl(baseUrl: string): URL {
   const url = new URL(baseUrl)

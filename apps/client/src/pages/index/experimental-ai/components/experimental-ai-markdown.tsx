@@ -37,7 +37,7 @@ function parseListLine(line: string): ParsedListItem | undefined {
   return { kind: 'unordered', content: normalizeListContent(unordered[2]!), depth: Math.max(0, (unordered[1]!.match(/[-*•]/g)?.length ?? 1) - 1) }
 }
 
-export function ExperimentalAiMarkdown({ content }: { content: string }) {
+export function ExperimentalAiMarkdown({ content, mentor }: { content: string; mentor?: React.ReactNode }) {
   const lines = content.replace(/\r\n?/g, '\n').split('\n')
   const blocks: React.ReactNode[] = []
   let index = 0
@@ -94,5 +94,5 @@ export function ExperimentalAiMarkdown({ content }: { content: string }) {
     blocks.push(<Text key={`paragraph-${start}`} className='experimental-ai-markdown-paragraph'>{paragraph.map((part, partIndex) => <Text key={`${start}-${partIndex}`}>{renderInline(part, `paragraph-${start}-${partIndex}`)}{partIndex < paragraph.length - 1 ? '\n' : ''}</Text>)}</Text>)
   }
 
-  return <View className='experimental-ai-markdown'>{blocks}</View>
+  return <View className='experimental-ai-markdown'><View className='experimental-ai-markdown-content'>{blocks}</View>{mentor && <View className='experimental-ai-markdown-mentor-end'>{mentor}</View>}</View>
 }
