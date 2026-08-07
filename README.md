@@ -184,8 +184,7 @@ Docker 应用镜像 `1.1.5` 已发布，`latest` 已同步指向同一镜像；�
 
 仓库已配置 GitHub Actions 工作流：
 
-- 推送 `main` 后自动构建并推送 `latest` 与短提交哈希标签；
-- 推送 `v1.1.6` 这类版本标签后，自动推送对应的 `1.1.6` 镜像标签；
+- 每次推送 `main` 或 `v*` 标签后，同时推送 `latest` 与按 GitHub Actions 构建次数生成的 `build-N` 标签；
 - 同一次构建同时推送阿里云 ACR 和 GitHub Container Registry：`ghcr.io/liukai-weibo/muramura`；
 - 构建使用 GitHub Actions 缓存，不把本地 `.env` 或凭据写入仓库和镜像。
 
@@ -196,7 +195,7 @@ Docker 应用镜像 `1.1.5` 已发布，`latest` 已同步指向同一镜像；�
 
 GHCR 使用工作流内置的 `GITHUB_TOKEN`，不需要单独配置 GitHub 账号密码；工作流已声明 `packages: write` 权限。
 
-配置完成后，可在 `Actions → 构建并发布 Docker 镜像` 中手动运行一次验证；之后推送 `main` 或 `v*` 标签即可自动发布。
+配置完成后，可在 `Actions → 构建并发布 Docker 镜像` 中手动运行一次验证；例如第 42 次构建会同时发布 `latest` 和 `build-42`。
 
 停止服务使用：
 

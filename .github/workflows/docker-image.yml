@@ -46,21 +46,12 @@ jobs:
         id: metadata
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ env.GHCR_IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-,format=short
-            type=match,pattern=^v(.*),group=1
-
-      - name: 生成 GHCR 镜像标签与元数据
-        id: ghcr_metadata
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.GHCR_IMAGE }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-,format=short
-            type=match,pattern=^v(.*),group=1
+            type=raw,value=latest
+            type=raw,value=build-${{ github.run_number }}
 
       - name: 构建并推送镜像
         uses: docker/build-push-action@v6
@@ -68,9 +59,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ steps.metadata.outputs.tags }}
-            ${{ steps.ghcr_metadata.outputs.tags }}
+          tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
