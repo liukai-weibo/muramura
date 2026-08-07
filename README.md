@@ -180,6 +180,21 @@ ready / knowledge_base / schemaVersion=14
 
 Docker 应用镜像 `1.1.5` 已发布，`latest` 已同步指向同一镜像；也可以使用 `KB_APP_IMAGE_TAG=1.1.5` 固定版本部署。后续镜像发布继续使用新的版本标签。
 
+### GitHub Actions 自动发布镜像
+
+仓库已配置 GitHub Actions 工作流：
+
+- 推送 `main` 后自动构建并推送 `latest` 与短提交哈希标签；
+- 推送 `v1.1.6` 这类版本标签后，自动推送对应的 `1.1.6` 镜像标签；
+- 构建使用 GitHub Actions 缓存，不把本地 `.env` 或凭据写入仓库和镜像。
+
+首次使用前，在 GitHub 仓库的 `Settings → Secrets and variables → Actions` 中添加：
+
+- `ACR_USERNAME`：阿里云容器镜像仓库用户名；
+- `ACR_PASSWORD`：阿里云容器镜像仓库密码或访问凭证。
+
+配置完成后，可在 `Actions → 构建并发布 Docker 镜像` 中手动运行一次验证；之后推送 `main` 或 `v*` 标签即可自动发布。
+
 停止服务使用：
 
 ```bash
