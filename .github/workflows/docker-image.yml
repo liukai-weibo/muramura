@@ -11,6 +11,7 @@ on:
 env:
   REGISTRY: crpi-v8ex1zrhoe87bb3d.cn-hangzhou.personal.cr.aliyuncs.com
   IMAGE_NAME: my-acr-demo/dnf
+  GHCR_IMAGE: ghcr.io/liukai-weibo/muramura
 
 jobs:
   build-and-push:
@@ -18,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
 
     steps:
       - name: 拉取源码
@@ -33,11 +35,28 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: 登录 GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: 生成镜像标签与元数据
         id: metadata
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=match,pattern=^v(.*),group=1
+
+      - name: 生成 GHCR 镜像标签与元数据
+        id: ghcr_metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
@@ -49,7 +68,9 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.metadata.outputs.tags }}
+          tags: |
+            ${{ steps.metadata.outputs.tags }}
+            ${{ steps.ghcr_metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
