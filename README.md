@@ -195,7 +195,7 @@ Docker 应用镜像 `1.1.5` 已发布，`latest` 已同步指向同一镜像；�
 
 GHCR 使用工作流内置的 `GITHUB_TOKEN`，不需要单独配置 GitHub 账号密码；工作流已声明 `packages: write` 权限。
 
-构建推送成功后，工作流会通过 SSH 连接云服务器并执行 `/root/start.sh` 完成自动更新。需要在 GitHub Actions Secrets 中配置：
+构建推送成功后，工作流会通过 SSH 连接云服务器并执行 `/root/start.sh --ci` 完成自动更新。`--ci` 仅用于明确授权非交互部署；手动执行 `/root/start.sh` 仍会在已有数据卷时要求输入 `DEPLOY`。需要在 GitHub Actions Secrets 中配置：
 
 - `DEPLOY_HOST`：云服务器地址；
 - `DEPLOY_USER`：SSH 用户名；
