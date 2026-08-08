@@ -4,7 +4,10 @@ import type {
   MethodRepository,
   TrashEntry,
   TrashFilter,
+  TrashPurgeEntry,
+  TrashPurgeRepository,
 } from '@knowledge-base/contracts'
+import { BusinessError } from '@knowledge-base/domain'
 
 export const TRASH_RETENTION_DAYS = 30
 
@@ -24,6 +27,7 @@ export class TrashApplicationService {
     private readonly itemRepository: ItemRepository,
     private readonly methodRepository: MethodRepository,
     private readonly explorationTrackRepository: ExplorationTrackRepository,
+    private readonly purgeRepository?: TrashPurgeRepository,
   ) {}
 
   async listTrashEntries(filter: TrashFilter): Promise<TrashEntry[]> {
@@ -44,6 +48,14 @@ export class TrashApplicationService {
       ...methods.map((method) => ({ type: 'method' as const, id: method.id, title: method.title, deletedAt: method.deletedAt! })),
       ...explorationTracks.map(({ track }) => ({ type: 'exploration-track' as const, id: track.id, title: track.name, deletedAt: track.deletedAt })),
     ])
+  }
+
+  purge(entries: readonly TrashPurgeEntry[]): Promise<void> {
+    if (!entries.length) throw new BusinessError('TRASH_EMPTY_SELECTION', '至少选择一条回收站记录')
+    if (!this.purgeRepository) throw new BusinessError('TRASH_EMPTY_SELECTION', '回收站永久删除能力不可用')
+    const keys = entries.map((entry) => `${entry.type}:${entry.id}`)
+    if (new Set(keys).size !== keys.length) throw new BusinessError('TRASH_DUPLICATE_SELECTION', '回收站记录不能重复选择')
+    return this.purgeRepository.purge(entries)
   }
 
 }

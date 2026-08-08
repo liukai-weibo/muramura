@@ -10,7 +10,7 @@ const root = join(process.cwd(), 'apps/client/dist')
 const oldItem = { id: 'old-item', title: '旧事项事实', content: '', status: 'idea_to_try', createdAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z' }
 const oldTrashItem = { ...oldItem, id: 'old-trash-item', title: '旧回收站事实', status: 'abandoned' }
 const oldMethod = { id: 'old-method', title: '旧方法事实', applicable: '', unsuitable: '', steps: '', version: 1, validationCount: 0, createdAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z' }
-const oldTrack = { id: 'old-track', name: '旧探索主线事实', createdAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z' }
+const oldTrack = { id: 'old-track', name: '旧长期探索事实', createdAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z' }
 const backup = { format: 'knowledge-base-backup', version: 3, exportedAt: '2026-07-29T00:00:00.000Z', appVersion: 'test', data: { items: [], reviews: [], methods: [], explorationTracks: [] } }
 const history = { track: oldTrack, currentAssociatedItems: [], history: [], abandonedHistory: [] }
 const authSession = { user: { id: 'test-user', username: 'backup-test', roles: ['member'], createdAt: '2026-07-30T00:00:00.000Z' } }
@@ -73,7 +73,7 @@ async function openRestore(page: Page, url: string, abortTracks: boolean) {
   await page.goto(url)
   await page.getByText('旧事项事实').waitFor({ state: 'visible' })
   await page.locator('.navigation-item').filter({ hasText: '长期探索' }).click()
-  await page.locator('.exploration-row-name', { hasText: '旧探索主线事实' }).waitFor({ state: 'visible' })
+  await page.locator('.exploration-row-name', { hasText: '旧长期探索事实' }).waitFor({ state: 'visible' })
   await page.locator('.navigation-settings .navigation-item').click()
   if (abortTracks) {
     await page.evaluate(() => {
@@ -117,7 +117,7 @@ describe('Backup restore H5 failure boundaries', () => {
       expect(await page.locator('.navigation-status').textContent()).toContain('1 条事项 · 1 条方法')
       expect(await page.locator('.data-status-grid').textContent()).toContain('1回收站')
       expect(await page.getByText('恢复完成；覆盖前的数据已自动下载为安全备份').count()).toBe(0)
-      expect(await page.getByText('还没有探索主线。').count()).toBe(0)
+      expect(await page.getByText('还没有长期探索。').count()).toBe(0)
       if (failure !== 'abort') {
         const expectedMessage = failure === 'response-lost' ? '提交结果未确认' : '恢复失败'
         await page.waitForFunction((value) => document.querySelector('.backup-message')?.textContent?.includes(value), expectedMessage)
@@ -139,7 +139,7 @@ describe('Backup restore H5 failure boundaries', () => {
     page.setDefaultTimeout(5_000)
     try {
       await openRestorePreview(page, mock.url, explorationTrackCount)
-      expect(await page.locator('.restore-confirm').textContent()).toContain(`${explorationTrackCount} 条探索主线`)
+      expect(await page.locator('.restore-confirm').textContent()).toContain(`${explorationTrackCount} 条长期探索`)
     } finally {
       await page.close()
       await new Promise<void>((resolve) => mock.server.close(() => resolve()))

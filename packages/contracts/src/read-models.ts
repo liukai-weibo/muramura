@@ -111,3 +111,9 @@ export type TrashEntry =
   | { type: 'exploration-track'; id: string; title: string; deletedAt: string }
 
 export type TrashFilter = 'all' | 'item' | 'method' | 'exploration-track'
+
+export type TrashPurgeEntry = Pick<TrashEntry, 'type' | 'id'>
+
+export interface TrashPurgeRepository {
+  purge(entries: readonly TrashPurgeEntry[]): Promise<void>
+}

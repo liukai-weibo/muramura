@@ -25,6 +25,7 @@ import {
   MySqlItemRepository,
   MySqlMethodApplicationRepository,
   MySqlMethodRepository,
+  MySqlTrashPurgeRepository,
   MySqlPlatformAdministrationRepository,
   MySqlReviewRepository,
   MySqlReviewWorkflowRepository,
@@ -65,6 +66,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const reviews = new MySqlReviewRepository(pool, scope)
   const methodApplications = new MySqlMethodApplicationRepository(pool, undefined, scope)
   const explorationTracks = new MySqlExplorationTrackRepository(pool, undefined, scope)
+  const trashPurge = new MySqlTrashPurgeRepository(pool, scope)
   const aiConversationRepository = userId ? new MySqlAiConversationRepository(pool, { userId }) : undefined
   const aiPreferenceRepository = userId ? new MySqlAiPreferenceRepository(pool, { userId }) : undefined
   const aiDashboard = new DashboardApplicationService(new MySqlDashboardRepository(pool, scope))
@@ -89,7 +91,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     reviews: new ReviewApplicationService(reviews, methods, new MySqlReviewWorkflowRepository(pool, undefined, scope)),
     methods: new MethodLifecycleApplicationService(methods),
     methodApplications: new MethodApplicationService(methodApplications),
-    trash: new TrashApplicationService(items, methods, explorationTracks),
+    trash: new TrashApplicationService(items, methods, explorationTracks, trashPurge),
     search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
     backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository),

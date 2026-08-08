@@ -21,16 +21,16 @@ import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
 type TrackRow = RowDataPacket & { id: string; name: string; normalized_name: string; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null }
-type ItemRow = RowDataPacket & { id: string; title: string; content: string; status: ItemStatus; start_action: string | null; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null; exploration_track_id: string | null }
+type ItemRow = RowDataPacket & { id: string; title: string; content: string; status: ItemStatus; start_action: string | null; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null; exploration_track_cascade_deleted_at: string | Date | null; exploration_track_id: string | null }
 type ReviewRow = RowDataPacket & { item_id: string; actual_action: string; result: string }
 
 const iso = (value: string | Date) => value instanceof Date ? value.toISOString() : value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`
 const mysqlDateTime = (value: string) => value.replace('T', ' ').replace('Z', '')
 const mapTrack = (row: TrackRow): ExplorationTrack => ({ id: row.id, name: row.name, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }) })
-const mapItem = (row: ItemRow): Item => ({ id: row.id, title: row.title, content: row.content, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.start_action == null ? {} : { startAction: row.start_action }), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.exploration_track_id == null ? {} : { explorationTrackId: row.exploration_track_id }) })
+const mapItem = (row: ItemRow): Item => ({ id: row.id, title: row.title, content: row.content, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.start_action == null ? {} : { startAction: row.start_action }), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.exploration_track_cascade_deleted_at == null ? {} : { explorationTrackCascadeDeletedAt: iso(row.exploration_track_cascade_deleted_at) }), ...(row.exploration_track_id == null ? {} : { explorationTrackId: row.exploration_track_id }) })
 const currentStatuses: readonly CurrentAssociatedStatus[] = ['doing', 'idea_to_try', 'idea_later', 'paused']
 const trackColumns = 'id, name, normalized_name, created_at, updated_at, deleted_at'
-const itemColumns = 'id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_id'
+const itemColumns = 'id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_cascade_deleted_at, exploration_track_id'
 
 export interface MySqlExplorationTrackRepositoryTestHooks {
   beforeTrackInsert?: () => Promise<void> | void
@@ -76,7 +76,9 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
       if (!track || track.deletedAt) {
         throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
       }
-      await connection.execute(this.scope ? 'UPDATE exploration_tracks SET deleted_at=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET deleted_at=?,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(deletedAt), mysqlDateTime(deletedAt), id, this.scope.userId] : [mysqlDateTime(deletedAt), mysqlDateTime(deletedAt), id])
+      const timestamp = mysqlDateTime(deletedAt)
+      await connection.execute(this.scope ? 'UPDATE items SET deleted_at=?,exploration_track_cascade_deleted_at=?,updated_at=? WHERE exploration_track_id=? AND deleted_at IS NULL AND owner_user_id=?' : 'UPDATE items SET deleted_at=?,exploration_track_cascade_deleted_at=?,updated_at=? WHERE exploration_track_id=? AND deleted_at IS NULL', this.scope ? [timestamp, timestamp, timestamp, id, this.scope.userId] : [timestamp, timestamp, timestamp, id])
+      await connection.execute(this.scope ? 'UPDATE exploration_tracks SET deleted_at=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET deleted_at=?,updated_at=? WHERE id=?', this.scope ? [timestamp, timestamp, id, this.scope.userId] : [timestamp, timestamp, id])
     })
   }
 
@@ -87,6 +89,8 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
       }
       await connection.execute(this.scope ? 'UPDATE exploration_tracks SET deleted_at=NULL,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET deleted_at=NULL,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(updatedAt), id, this.scope.userId] : [mysqlDateTime(updatedAt), id])
+      const deletedAt = mysqlDateTime(track.deletedAt)
+      await connection.execute(this.scope ? 'UPDATE items SET deleted_at=NULL,exploration_track_cascade_deleted_at=NULL,updated_at=? WHERE exploration_track_id=? AND deleted_at=? AND exploration_track_cascade_deleted_at=? AND owner_user_id=?' : 'UPDATE items SET deleted_at=NULL,exploration_track_cascade_deleted_at=NULL,updated_at=? WHERE exploration_track_id=? AND deleted_at=? AND exploration_track_cascade_deleted_at=?', this.scope ? [mysqlDateTime(updatedAt), id, deletedAt, deletedAt, this.scope.userId] : [mysqlDateTime(updatedAt), id, deletedAt, deletedAt])
       const { deletedAt: _deletedAt, ...active } = track
       return { ...active, updatedAt }
     })
@@ -137,7 +141,8 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   async getHistory(id: string): Promise<ExplorationTrackHistory | undefined> {
     const track = await this.getById(id)
     if (!track) return undefined
-    const [rows] = await this.pool.query<ItemRow[]>(this.scope ? `SELECT ${itemColumns} FROM items WHERE exploration_track_id=? AND deleted_at IS NULL AND owner_user_id=? ORDER BY created_at DESC,id ASC` : `SELECT ${itemColumns} FROM items WHERE exploration_track_id=? AND deleted_at IS NULL ORDER BY created_at DESC,id ASC`, this.scope ? [id, this.scope.userId] : [id])
+    const lifecycleFilter = track.deletedAt ? '' : ' AND deleted_at IS NULL'
+    const [rows] = await this.pool.query<ItemRow[]>(this.scope ? `SELECT ${itemColumns} FROM items WHERE exploration_track_id=?${lifecycleFilter} AND owner_user_id=? ORDER BY created_at DESC,id ASC` : `SELECT ${itemColumns} FROM items WHERE exploration_track_id=?${lifecycleFilter} ORDER BY created_at DESC,id ASC`, this.scope ? [id, this.scope.userId] : [id])
     const entries = await this.historyEntries(rows)
     const currentAssociatedItems = currentStatuses.map(status => {
       const items = entries.filter(entry => entry.item.status === status)

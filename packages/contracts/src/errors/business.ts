@@ -92,6 +92,9 @@ export type BusinessErrorCode =
   | MethodErrorCode
   | PlatformAdministrationErrorCode
   | ReviewErrorCode
+  | 'TRASH_EMPTY_SELECTION'
+  | 'TRASH_DUPLICATE_SELECTION'
+  | 'EXPLORATION_TRACK_HAS_ITEMS'
 
 /** 每个统一码对应唯一 category，供抛错与 HTTP 映射共用。 */
 export const businessErrorCategoryByCode = {
@@ -150,6 +153,9 @@ export const businessErrorCategoryByCode = {
   PLATFORM_ADMIN_TARGET_DELETED: 'conflict',
   PLATFORM_ADMIN_ALREADY_INITIALIZED: 'internal',
   PLATFORM_ADMIN_USER_READ_FAILED: 'internal',
+  TRASH_EMPTY_SELECTION: 'validation',
+  TRASH_DUPLICATE_SELECTION: 'validation',
+  EXPLORATION_TRACK_HAS_ITEMS: 'conflict',
 } as const satisfies Record<BusinessErrorCode, BusinessErrorCategory>
 
 /**
@@ -157,6 +163,9 @@ export const businessErrorCategoryByCode = {
  * 认证登录失败码与平台管理内部码默认不外泄。
  */
 export const publicBusinessErrorCodes = [
+  'TRASH_EMPTY_SELECTION',
+  'TRASH_DUPLICATE_SELECTION',
+  'EXPLORATION_TRACK_HAS_ITEMS',
   'INVALID_ITEM_STATUS_TRANSITION',
   'ITEM_NOT_FOUND',
   'ITEM_NOT_IN_TRASH',

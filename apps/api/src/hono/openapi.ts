@@ -12,7 +12,7 @@ export const apiTags = [
   { name: 'Reviews', description: '复盘完成与查询' },
   { name: 'MethodApplications', description: '方法应用与来源展示' },
   { name: 'Backup', description: '备份导出与整库恢复' },
-  { name: 'Trash', description: '统一回收站列表与恢复' },
+  { name: 'Trash', description: '统一回收站列表、恢复与永久删除' },
   { name: 'Search', description: '全文搜索' },
   { name: 'Dashboard', description: '仪表盘报表' },
 ] as const

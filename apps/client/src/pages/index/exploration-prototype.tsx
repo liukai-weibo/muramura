@@ -102,7 +102,7 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
       }
       return { succeeded: true, selectedId: nextId }
     } catch (cause) {
-      if (!isApiClientAbort(cause) && isCurrentExplorationRequest(requestId, listRequest.current)) setError(messageOf(cause, '暂时无法载入探索主线。'))
+      if (!isApiClientAbort(cause) && isCurrentExplorationRequest(requestId, listRequest.current)) setError(messageOf(cause, '暂时无法载入长期探索。'))
       return { succeeded: false }
     } finally { if (isCurrentExplorationRequest(requestId, listRequest.current)) setListLoading(false) }
   }
@@ -122,7 +122,7 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
       }
       return false
     } catch (cause) {
-      if (!isApiClientAbort(cause) && isCurrentExplorationRequest(requestId, detailRequest.current)) setError(messageOf(cause, '暂时无法载入探索历史。'))
+      if (!isApiClientAbort(cause) && isCurrentExplorationRequest(requestId, detailRequest.current)) setError(messageOf(cause, '暂时无法载入长期探索历史。'))
       return false
     } finally { if (!resultApplied && isCurrentExplorationRequest(requestId, detailRequest.current)) setDetailLoading(false) }
   }
@@ -165,8 +165,8 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
             nextHistory = await apiClient.getExplorationTrackHistory(nextSelectedId, detailController.signal)
           } catch (cause) {
             if (!isApiClientAbort(cause) && isCurrentExplorationRequest(detailRequestId, detailRequest.current)) {
-              setError(messageOf(cause, '恢复后的探索历史读取失败，请保留当前事实并重新读取。'))
-              onRestoreFactsFailed('恢复后的探索历史读取失败，请保留当前事实并重新读取。')
+              setError(messageOf(cause, '恢复后的长期探索历史读取失败，请保留当前事实并重新读取。'))
+              onRestoreFactsFailed('恢复后的长期探索历史读取失败，请保留当前事实并重新读取。')
             }
             return
           } finally {
@@ -192,8 +192,8 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
         onRestoreFactsConfirmed()
       } catch (cause) {
         if (!isApiClientAbort(cause) && isCurrentExplorationRequest(listRequestId, listRequest.current)) {
-          setError(messageOf(cause, '恢复后的探索主线读取失败，请保留当前事实并重新读取。'))
-          onRestoreFactsFailed('恢复后的探索主线读取失败，请保留当前事实并重新读取。')
+          setError(messageOf(cause, '恢复后的长期探索读取失败，请保留当前事实并重新读取。'))
+          onRestoreFactsFailed('恢复后的长期探索读取失败，请保留当前事实并重新读取。')
         }
       } finally {
         if (isCurrentExplorationRequest(listRequestId, listRequest.current)) setListLoading(false)
@@ -292,26 +292,26 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     setSelectedId(nextTrack.track.id)
   }
   return <ItemUpdatedAtContext.Provider value={itemUpdatedAtById}><View ref={explorationRootRef} className='exploration-prototype module-panel'>
-    <View className='exploration-prototype-header'><View><Text className='section-kicker'>探索主线</Text><Text className='exploration-prototype-title'>让独立行动形成可回看的过程</Text><Text className='module-description'>主线、关联事项与历史均来自本地 loopback API。</Text></View>
-      <Button className='primary-button exploration-create-trigger' disabled={creating || unknownOutcome} onClick={() => setCreateDialogOpen(true)}>新建探索主线</Button></View>
+    <View className='exploration-prototype-header'><View><Text className='section-kicker'>长期探索</Text><Text className='exploration-prototype-title'>让独立行动形成可回看的过程</Text><Text className='module-description'>长期探索、关联事项与历史均来自本地 loopback API。</Text></View>
+      <Button className='primary-button exploration-create-trigger' disabled={creating || unknownOutcome} onClick={() => setCreateDialogOpen(true)}>新建长期探索</Button></View>
     {error && <View className='exploration-notice' role='status'><Text>{error}</Text><Button className='exploration-inline-button' onClick={() => void (unknownOutcome ? confirmRealFacts() : selectedId ? loadHistory(selectedId) : loadList())}>{unknownOutcome ? '重新读取真实数据' : '重试'}</Button></View>}
     <View className='exploration-workspace'>
       <View className='exploration-list-panel'>
-        <View className='exploration-list-heading'><View><Text className='section-kicker'>探索主线</Text><Text>记录一段长期兴趣与历程</Text></View>{listLoading && listReadSucceeded && <Text className='exploration-refreshing'>正在更新…</Text>}</View>
-        {listState === 'loading' ? <Text className='exploration-state'>正在载入探索主线…</Text> : listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入探索主线。</Text></View> : listState === 'empty' ? <View className='exploration-empty'><Text>还没有探索主线。</Text><Text>探索主线用于串联独立行动与复盘事实，形成一段长期行动历程。</Text></View> : <><View className='exploration-track-list'>{visibleTracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><Text className='exploration-row-name'>{entry.track.name}</Text><Text className='exploration-row-recent'>{entry.latestAssociatedItem ? `最近：${entry.latestAssociatedItem.title} · ${statusLabels[entry.latestAssociatedItem.status] ?? entry.latestAssociatedItem.status}` : '暂无关联行动'}</Text></View>)}</View>{listPageCount > 1 && <View className='exploration-list-pagination'><Button className={`exploration-inline-button ${listPage === 1 ? 'is-disabled' : ''}`} disabled={listPage === 1} onClick={() => { if (listPage > 1) changeListPage(listPage - 1) }}>上一页</Button><Text>{listPage} / {listPageCount}</Text><Button className={`exploration-inline-button ${listPage === listPageCount ? 'is-disabled' : ''}`} disabled={listPage === listPageCount} onClick={() => { if (listPage < listPageCount) changeListPage(listPage + 1) }}>下一页</Button></View>}</>}
+        <View className='exploration-list-heading'><View><Text className='section-kicker'>长期探索</Text><Text>记录一段长期兴趣与历程</Text></View>{listLoading && listReadSucceeded && <Text className='exploration-refreshing'>正在更新…</Text>}</View>
+        {listState === 'loading' ? <Text className='exploration-state'>正在载入长期探索…</Text> : listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入长期探索。</Text></View> : listState === 'empty' ? <View className='exploration-empty'><Text>还没有长期探索。</Text><Text>长期探索用于串联独立行动与复盘事实，形成一段长期行动历程。</Text></View> : <><View className='exploration-track-list'>{visibleTracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><Text className='exploration-row-name'>{entry.track.name}</Text><Text className='exploration-row-recent'>{entry.latestAssociatedItem ? `最近：${entry.latestAssociatedItem.title} · ${statusLabels[entry.latestAssociatedItem.status] ?? entry.latestAssociatedItem.status}` : '暂无关联行动'}</Text></View>)}</View>{listPageCount > 1 && <View className='exploration-list-pagination'><Button className={`exploration-inline-button ${listPage === 1 ? 'is-disabled' : ''}`} disabled={listPage === 1} onClick={() => { if (listPage > 1) changeListPage(listPage - 1) }}>上一页</Button><Text>{listPage} / {listPageCount}</Text><Button className={`exploration-inline-button ${listPage === listPageCount ? 'is-disabled' : ''}`} disabled={listPage === listPageCount} onClick={() => { if (listPage < listPageCount) changeListPage(listPage + 1) }}>下一页</Button></View>}</>}
       </View>
       <View className='exploration-detail-panel'>
-        {detailLoading && !history ? <View className='exploration-state'><Text>正在载入探索历史…</Text></View> : !history && listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入探索主线与探索历史。</Text></View> : !history ? <View className='exploration-state'><Text>选择一条探索主线，查看它串联的独立行动与复盘事实。</Text></View> : <View className='exploration-detail'>
+        {detailLoading && !history ? <View className='exploration-state'><Text>正在载入长期探索历史…</Text></View> : !history && listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入长期探索与长期探索历史。</Text></View> : !history ? <View className='exploration-state'><Text>选择一条长期探索，查看它串联的独立行动与复盘事实。</Text></View> : <View className='exploration-detail'>
           <View className='exploration-detail-heading'><View>{editing ? <View ref={editingAreaRef} className='exploration-edit'><Input value={renameName} onInput={(event) => setRenameName(event.detail.value)} /><Button className='primary-button' disabled={creating || unknownOutcome} onClick={saveEditingTrack}>保存</Button></View> : <Text className='exploration-detail-title'>{history.track.name}</Text>}</View>{!editing && <View className='exploration-manage'><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={beginEditingTrack}>改名</Button><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => setConfirmDelete(true)}>删除主线</Button></View>}</View>
           {detailLoading && <Text className='exploration-refreshing'>正在更新…</Text>}
           <Text className='exploration-description'>由独立行动与复盘组成；不代表计划或完成进度。</Text>
           <View className='exploration-section'><Text className='exploration-section-title'>当前关联事项</Text>{history.currentAssociatedItems.every((group) => group.items.length === 0) ? <Text className='exploration-empty-copy'>还没有关联行动。</Text> : currentStatuses.map((status) => { const group = history.currentAssociatedItems.find((value) => value.status === status); return group?.items.length ? <View key={status} className='exploration-current-group'><Text className='exploration-group-title'>{statusLabels[status]}</Text>{group.items.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />)}{group.hasMore && group.moreLocator && <Button className='exploration-inline-button' onClick={() => apiClient.listItemsByExplorationTrackAndStatus(group.moreLocator!.explorationTrackId, group.moreLocator!.status).then((items) => onOpenItems(group.moreLocator!.status, items)).catch((cause) => setError(messageOf(cause, '暂时无法载入该状态下的事项。')))}>查看该状态下的事项</Button>}</View> : null })}</View>
           <View className='exploration-section exploration-capture'><Text className='exploration-section-title'>在「{history.track.name}」下记下想做的事</Text><View className='item-title-input-wrap'><Input className='exploration-capture-input' value={draft} onInput={(event) => { const next = event.detail.value; if (acceptsItemTitleInput(next)) { setDraft(next); setDraftTitleLimitReached(false) } else setDraftTitleLimitReached(true) }} placeholder='例如：预约一次线下二胡体验课' disabled={creating} /><Text className='item-title-counter'>{itemTitleGraphemeCount(draft)}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>{draftTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}<View className='exploration-capture-actions'><Button className='primary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture(false)}>加入想试试</Button><Button className='secondary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture(true)}>加入以后再说</Button></View></View>
-          <View className='exploration-section'><View className='exploration-history-heading'><Text className='exploration-section-title'>{historyView === 'history' ? '探索历史' : '已放弃记录'}</Text>{history.abandonedHistory.length > 0 && <Button className='exploration-inline-button exploration-history-toggle' onClick={() => setHistoryView((view) => view === 'history' ? 'abandoned' : 'history')}>{historyView === 'history' ? '查看已放弃记录' : '查看探索历史'}</Button>}</View>{visibleHistory?.length ? visibleHistory.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />) : <Text className='exploration-empty-copy'>{historyView === 'history' ? '当前还没有可回看的探索历史。' : '当前还没有已放弃记录。'}</Text>}</View>
+          <View className='exploration-section'><View className='exploration-history-heading'><Text className='exploration-section-title'>{historyView === 'history' ? '长期探索历史' : '已放弃记录'}</Text>{history.abandonedHistory.length > 0 && <Button className='exploration-inline-button exploration-history-toggle' onClick={() => setHistoryView((view) => view === 'history' ? 'abandoned' : 'history')}>{historyView === 'history' ? '查看已放弃记录' : '查看长期探索历史'}</Button>}</View>{visibleHistory?.length ? visibleHistory.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />) : <Text className='exploration-empty-copy'>{historyView === 'history' ? '当前还没有可回看的长期探索历史。' : '当前还没有已放弃记录。'}</Text>}</View>
         </View>}
       </View>
     </View>
     {confirmDelete && <View className='exploration-confirm-backdrop' onClick={() => setConfirmDelete(false)}><View className='exploration-confirm' role='dialog' aria-label='删除主线确认' onClick={(event) => event.stopPropagation()}><Text>删除主线？关联事项、复盘和历史事实不会被删除或解除关联。</Text><View><Button className='secondary-button' disabled={creating} onClick={() => setConfirmDelete(false)}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome} onClick={remove}>删除主线</Button></View></View></View>}
-    {createDialogOpen && <View className='capture-modal-backdrop exploration-create-modal-backdrop'><View className='capture-modal' role='dialog' aria-label='新建探索主线'><View className='capture-modal-heading'><View><Text className='section-kicker'>新建探索主线</Text><Text>为一段长期行动历程命名</Text></View></View><Input className='capture-modal-input' value={newName} onInput={(event) => setNewName(event.detail.value)} placeholder='例如：练习二胡' disabled={creating} /><View className='capture-actions'><Button className='secondary-button' disabled={creating} onClick={() => setCreateDialogOpen(false)}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome || !newName.trim()} onClick={createTrack}>新建</Button></View></View></View>}
+    {createDialogOpen && <View className='capture-modal-backdrop exploration-create-modal-backdrop'><View className='capture-modal' role='dialog' aria-label='新建长期探索'><View className='capture-modal-heading'><View><Text className='section-kicker'>新建长期探索</Text><Text>为一段长期行动历程命名</Text></View></View><Input className='capture-modal-input' value={newName} onInput={(event) => setNewName(event.detail.value)} placeholder='例如：练习二胡' disabled={creating} /><View className='capture-actions'><Button className='secondary-button' disabled={creating} onClick={() => setCreateDialogOpen(false)}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome || !newName.trim()} onClick={createTrack}>新建</Button></View></View></View>}
   </View></ItemUpdatedAtContext.Provider>
 }

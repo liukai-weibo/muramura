@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import type { AuthSession, BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter } from '@knowledge-base/contracts'
+import type { AuthSession, BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, ExplorationTrackHistory, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter, TrashPurgeEntry } from '@knowledge-base/contracts'
 import { advanceApiClientAuthenticationContext, apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, setApiClientAdminForbiddenHandler, setApiClientUnauthorizedHandler, type ApiClientError, type ApiItemAction } from './api-client'
 import { ExplorationPrototype } from './exploration-prototype'
 import { PlatformAdministration } from './platform-administration'
@@ -219,6 +219,15 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [trashPage, setTrashPage] = useState(1)
   const [trashLoading, setTrashLoading] = useState(false)
   const [pendingTrashRestore, setPendingTrashRestore] = useState<TrashEntry>()
+  const [pendingTrashPurge, setPendingTrashPurge] = useState<TrashPurgeEntry[]>()
+  const [trashExpanded, setTrashExpanded] = useState(false)
+  const [selectedTrashKeys, setSelectedTrashKeys] = useState<Set<string>>(() => new Set())
+  const [trashTrackDetailEntry, setTrashTrackDetailEntry] = useState<TrashEntry>()
+  const [trashTrackDetail, setTrashTrackDetail] = useState<ExplorationTrackHistory>()
+  const [trashTrackDetailLoading, setTrashTrackDetailLoading] = useState(false)
+  const [trashTrackDetailError, setTrashTrackDetailError] = useState('')
+  const trashTrackDetailRequestRef = useRef(0)
+  const trashTrackDetailAbortRef = useRef<AbortController>()
   const [methodTrashConfirmId, setMethodTrashConfirmId] = useState<string>()
   const [methodMoreMenuId, setMethodMoreMenuId] = useState<string>()
   const [moreStatusMenuOpen, setMoreStatusMenuOpen] = useState(false)
@@ -322,6 +331,13 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const trashPageCount = Math.max(1, Math.ceil(trashEntries.length / TRASH_ENTRIES_PER_PAGE))
   const visibleTrashEntries = trashEntries.slice((trashPage - 1) * TRASH_ENTRIES_PER_PAGE, trashPage * TRASH_ENTRIES_PER_PAGE)
+  const selectedTrashEntries = trashEntries.filter((entry) => selectedTrashKeys.has(`${entry.type}:${entry.id}`))
+  const allTrashSelected = trashEntries.length > 0 && selectedTrashEntries.length === trashEntries.length
+  const trashTrackDetailItems = useMemo(() => {
+    if (!trashTrackDetail) return []
+    const entries = [...trashTrackDetail.currentAssociatedItems.flatMap((group) => group.items), ...trashTrackDetail.history, ...trashTrackDetail.abandonedHistory]
+    return [...new Map(entries.map((entry) => [entry.item.id, entry])).values()]
+  }, [trashTrackDetail])
   const visibleMethodSourceItemIds = useMemo(() => pagedItems.map((item) => item.id), [pagedItems])
   const visibleMethodSourceItemIdsKey = visibleMethodSourceItemIds.join('\u0000')
   const captureTitle = captureTitleCandidate(title, content)
@@ -423,9 +439,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     }
   }
 
+  useEffect(() => setSelectedTrashKeys(new Set()), [trashFilter])
+
   useEffect(() => {
     refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '本地数据服务初始化失败'))
-    return () => refreshAbortRef.current?.abort()
+    return () => {
+      refreshAbortRef.current?.abort()
+      trashTrackDetailAbortRef.current?.abort()
+    }
   }, [])
 
   useEffect(() => {
@@ -533,6 +554,34 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     })
     return () => controller.abort()
   }, [activeModule, trashApplication, trashFilter])
+
+  const openTrashTrackDetail = (entry: TrashEntry) => {
+    if (entry.type !== 'exploration-track') return
+    trashTrackDetailAbortRef.current?.abort()
+    setTrashTrackDetailEntry(entry)
+    setTrashTrackDetail(undefined)
+    setTrashTrackDetailError('')
+    setTrashTrackDetailLoading(true)
+    const controller = new AbortController()
+    trashTrackDetailAbortRef.current = controller
+    const requestId = ++trashTrackDetailRequestRef.current
+    apiClient.getExplorationTrackHistory(entry.id, controller.signal).then((history) => {
+      if (requestId === trashTrackDetailRequestRef.current) setTrashTrackDetail(history)
+    }).catch((error: unknown) => {
+      if (!isApiClientAbort(error) && requestId === trashTrackDetailRequestRef.current) setTrashTrackDetailError(error instanceof Error ? error.message : '读取长期探索详情失败')
+    }).finally(() => {
+      if (requestId === trashTrackDetailRequestRef.current) setTrashTrackDetailLoading(false)
+    })
+  }
+
+  const closeTrashTrackDetail = () => {
+    trashTrackDetailAbortRef.current?.abort()
+    trashTrackDetailRequestRef.current += 1
+    setTrashTrackDetailEntry(undefined)
+    setTrashTrackDetail(undefined)
+    setTrashTrackDetailError('')
+    setTrashTrackDetailLoading(false)
+  }
 
   useEffect(() => {
     if (!startActionPreview) return
@@ -821,7 +870,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     application.getItemExplorationTrack(selectedId, controller.signal).then((context) => {
       if (!controller.signal.aborted) setItemExplorationContext(context)
     }).catch((error: unknown) => {
-      if (!isApiClientAbort(error) && !controller.signal.aborted) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入探索主线关联。')
+      if (!isApiClientAbort(error) && !controller.signal.aborted) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入长期探索关联。')
     }).finally(() => { if (!controller.signal.aborted) setItemExplorationLoading(false) })
     return () => controller.abort()
   }, [selectedId, showTrash, application])
@@ -839,7 +888,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       if (!controller.signal.aborted && selectedIdRef.current === itemId) setItemExplorationContext(context)
       return !controller.signal.aborted && selectedIdRef.current === itemId
     } catch (error) {
-      if (!isApiClientAbort(error) && !controller.signal.aborted && selectedIdRef.current === itemId) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入探索主线关联。')
+      if (!isApiClientAbort(error) && !controller.signal.aborted && selectedIdRef.current === itemId) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入长期探索关联。')
       return false
     } finally { if (!controller.signal.aborted && selectedIdRef.current === itemId) setItemExplorationLoading(false) }
   }
@@ -868,7 +917,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setSelectableExplorationTracks(tracks)
       setExplorationSelectorOpen(true)
     } catch (error) {
-      setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入可选探索主线。')
+      setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入可选长期探索。')
     }
   }
 
@@ -883,7 +932,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setExplorationSelectorOpen(false)
     } catch (error) {
       if (isApiClientUnknownOutcome(error)) { setItemExplorationUnknownOutcome(true); setItemExplorationError('提交结果未确认，未自动重试。请重新读取真实数据后确认是否已生效。') }
-      else setItemExplorationError(error instanceof Error ? error.message : '调整探索主线未完成，请重试。')
+      else setItemExplorationError(error instanceof Error ? error.message : '调整长期探索未完成，请重试。')
     } finally { setItemExplorationSaving(false) }
   }
 
@@ -898,7 +947,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setExplorationSelectorOpen(false)
     } catch (error) {
       if (isApiClientUnknownOutcome(error)) { setItemExplorationUnknownOutcome(true); setItemExplorationError('提交结果未确认，未自动重试。请重新读取真实数据后确认是否已生效。') }
-      else setItemExplorationError(error instanceof Error ? error.message : '移除探索主线未完成，请重试。')
+      else setItemExplorationError(error instanceof Error ? error.message : '移除长期探索未完成，请重试。')
     } finally { setItemExplorationSaving(false) }
   }
 
@@ -1445,6 +1494,22 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setExplorationFactsVersion((version) => version + 1)
       setMessage(`“${entry.title}”已恢复`)
       setPendingTrashRestore(undefined)
+      closeTrashTrackDetail()
+    }))
+  }
+
+  const purgeTrashEntries = (entries: readonly TrashPurgeEntry[]) => {
+    requestLeaveAllDrafts(() => run(async () => {
+      await trashApplication.purgeTrashEntries([...entries])
+      const refreshed = await trashApplication.listTrashEntries(trashFilter)
+      setTrashEntries(refreshed)
+      setSelectedTrashKeys(new Set())
+      setTrashPage((page) => Math.min(page, Math.max(1, Math.ceil(refreshed.length / TRASH_ENTRIES_PER_PAGE))))
+      setPendingTrashPurge(undefined)
+      await refresh()
+      if (entries.some((entry) => entry.type === 'exploration-track')) setExplorationFactsVersion((version) => version + 1)
+      if (trashTrackDetailEntry && entries.some((entry) => entry.type === 'exploration-track' && entry.id === trashTrackDetailEntry.id)) closeTrashTrackDetail()
+      setMessage(`已永久删除 ${entries.length} 条回收站记录`)
     }))
   }
 
@@ -2180,14 +2245,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               {!showTrash && selectedItem.startAction?.trim() && <button className='detail-start-action-chip' type='button' onClick={() => setStartActionPreview(selectedItem.startAction)}><Text>{compactStartAction(selectedItem.startAction)}</Text></button>}
             </View>
             {!showTrash && <View className='item-exploration-context' ref={itemExplorationContextRef}>
-              <Text className='detail-content-label'>探索主线</Text>
-              {itemExplorationLoading ? <Text className='item-exploration-copy'>正在载入探索主线关联…</Text>
-                : itemExplorationError ? <View className='item-exploration-error'><Text>{itemExplorationError}</Text><Button className='exploration-inline-button' onClick={() => { if (selectedId) { explorationContextAbortRef.current?.abort(); const controller = new AbortController(); explorationContextAbortRef.current = controller; setItemExplorationLoading(true); setItemExplorationError(''); application.getItemExplorationTrack(selectedId, controller.signal).then((context) => { if (!controller.signal.aborted) { setItemExplorationContext(context); setItemExplorationUnknownOutcome(false) } }).catch((error: unknown) => { if (!isApiClientAbort(error) && !controller.signal.aborted) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入探索主线关联。') }).finally(() => { if (!controller.signal.aborted) setItemExplorationLoading(false) }) } }}>{itemExplorationUnknownOutcome ? '重新读取真实数据' : '重试读取'}</Button></View>
+              <Text className='detail-content-label'>长期探索</Text>
+              {itemExplorationLoading ? <Text className='item-exploration-copy'>正在载入长期探索关联…</Text>
+                : itemExplorationError ? <View className='item-exploration-error'><Text>{itemExplorationError}</Text><Button className='exploration-inline-button' onClick={() => { if (selectedId) { explorationContextAbortRef.current?.abort(); const controller = new AbortController(); explorationContextAbortRef.current = controller; setItemExplorationLoading(true); setItemExplorationError(''); application.getItemExplorationTrack(selectedId, controller.signal).then((context) => { if (!controller.signal.aborted) { setItemExplorationContext(context); setItemExplorationUnknownOutcome(false) } }).catch((error: unknown) => { if (!isApiClientAbort(error) && !controller.signal.aborted) setItemExplorationError(error instanceof Error ? error.message : '暂时无法载入长期探索关联。') }).finally(() => { if (!controller.signal.aborted) setItemExplorationLoading(false) }) } }}>{itemExplorationUnknownOutcome ? '重新读取真实数据' : '重试读取'}</Button></View>
                 : itemExplorationContext?.status === 'available' ? <View className='item-exploration-row'><Text className='item-exploration-copy'>{itemExplorationContext.track.name}</Text>{canModifySelectedItemExploration && <View className='item-exploration-actions'><Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>调整</Button><Button className='exploration-inline-button danger' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void removeSelectedItemFromExplorationTrack()}>移除</Button></View>}</View>
-                    : itemExplorationContext?.status === 'track-deleted' ? <Text className='item-exploration-copy'>原探索主线已删除：{itemExplorationContext.track.name}</Text>
-                      : itemExplorationContext?.status === 'unavailable' ? <View><Text className='item-exploration-copy'>关联探索主线暂不可用</Text><Text className='item-exploration-copy'>请保留当前事项并等待数据修复。</Text></View>
-                        : <View className='item-exploration-row'><Text className='item-exploration-copy muted'>未归入探索主线</Text>{canModifySelectedItemExploration && <Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>归入</Button>}</View>}
-              {explorationSelectorOpen && canModifySelectedItemExploration && <View className='item-exploration-selector'><Text className='item-exploration-selector-heading'>归入探索主线</Text><View className='item-exploration-selector-options'>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选探索主线。</Text>}</View><Button className='exploration-inline-button item-exploration-selector-cancel' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
+                    : itemExplorationContext?.status === 'track-deleted' ? <Text className='item-exploration-copy'>原长期探索已删除：{itemExplorationContext.track.name}</Text>
+                      : itemExplorationContext?.status === 'unavailable' ? <View><Text className='item-exploration-copy'>关联长期探索暂不可用</Text><Text className='item-exploration-copy'>请保留当前事项并等待数据修复。</Text></View>
+                        : <View className='item-exploration-row'><Text className='item-exploration-copy muted'>未归入长期探索</Text>{canModifySelectedItemExploration && <Button className='exploration-inline-button' disabled={itemExplorationSaving || itemExplorationUnknownOutcome} onClick={() => void openExplorationSelector()}>归入</Button>}</View>}
+              {explorationSelectorOpen && canModifySelectedItemExploration && <View className='item-exploration-selector'><Text className='item-exploration-selector-heading'>归入长期探索</Text><View className='item-exploration-selector-options'>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选长期探索。</Text>}</View><Button className='exploration-inline-button item-exploration-selector-cancel' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
             </View>}
             {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
             {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>
@@ -2376,17 +2441,20 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       </View>}
 
       {activeModule === 'settings' && <View className='settings-module module-panel'>
-        <View className='trash-panel'>
-          <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和探索主线</Text></View><Text className='backup-description'>事项和方法保留 30 天；探索主线当前不自动清理，可在此恢复。</Text></View>
-          <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => { setTrashFilter(entry); setTrashPage(1) }}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '探索主线' }[entry]}</Text></View>)}</View>
-          {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <><View className='trash-entry-list'>{visibleTrashEntries.map((entry) => <View className='trash-entry' key={`${entry.type}-${entry.id}`}><View><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type === 'exploration-track' ? `探索主线 · 删除于 ${formatTime(entry.deletedAt)} · 当前不自动清理，可在此恢复` : `${entry.type === 'item' ? '事项' : '方法'} · 删除于 ${formatTime(entry.deletedAt)} · 剩余 ${remainingTrashDays(entry.deletedAt)} 天`}</Text></View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button></View>)}</View>{trashPageCount > 1 && <View className='pagination trash-pagination'><View className={`pagination-button ${trashPage === 1 ? 'disabled' : ''}`} onClick={() => { if (trashPage > 1) setTrashPage((page) => page - 1) }}><Text>上一页</Text></View><Text className='pagination-status'>第 {trashPage} / {trashPageCount} 页</Text><View className={`pagination-button ${trashPage === trashPageCount ? 'disabled' : ''}`} onClick={() => { if (trashPage < trashPageCount) setTrashPage((page) => page + 1) }}><Text>下一页</Text></View></View>}</>}
+                <View className='trash-panel'>
+          <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和长期探索</Text></View><View className='trash-heading-actions'><Text className='backup-description'>事项和方法保留 30 天；长期探索当前不自动清理。</Text><Button className='action-button secondary' aria-expanded={trashExpanded} onClick={() => setTrashExpanded((expanded) => !expanded)}>{trashExpanded ? '收起' : '展开'}</Button></View></View>
+          {trashExpanded && <>
+            <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => { setTrashFilter(entry); setTrashPage(1) }}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '长期探索' }[entry]}</Text></View>)}</View>
+            {trashEntries.length > 0 && <View className='trash-batch-actions'><label><input type='checkbox' checked={allTrashSelected} onChange={() => setSelectedTrashKeys(allTrashSelected ? new Set() : new Set(trashEntries.map((entry) => `${entry.type}:${entry.id}`)))} /> 全选当前筛选结果</label><Text>已选 {selectedTrashEntries.length}</Text>{selectedTrashEntries.length > 0 && <><Button className='action-button secondary' disabled={busy} onClick={() => setSelectedTrashKeys(new Set())}>清空选择</Button><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge(selectedTrashEntries.map(({ type, id }) => ({ type, id })))}>批量永久删除</Button></>}</View>}
+            {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <><View className='trash-entry-list'>{visibleTrashEntries.map((entry) => { const key = `${entry.type}:${entry.id}`; const selected = selectedTrashKeys.has(key); return <View className='trash-entry' key={key}><label className='trash-entry-select' onClick={(event) => event.stopPropagation()}><input type='checkbox' checked={selected} onChange={() => setSelectedTrashKeys((current) => { const next = new Set(current); if (selected) next.delete(key); else next.add(key); return next })} /></label><View className={`trash-entry-copy ${entry.type === 'exploration-track' ? 'trash-entry-clickable' : ''}`} onClick={() => openTrashTrackDetail(entry)}><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type} · deleted {formatTime(entry.deletedAt)}</Text>{entry.type === 'exploration-track' && <Text className='trash-entry-hint'>点击查看绑定事项</Text>}</View><View className='trash-entry-actions' onClick={(event) => event.stopPropagation()}><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge([{ type: entry.type, id: entry.id }])}>永久删除</Button></View></View> })}</View>{trashPageCount > 1 && <View className='pagination trash-pagination'><View className={`pagination-button ${trashPage === 1 ? 'disabled' : ''}`} onClick={() => { if (trashPage > 1) setTrashPage((page) => page - 1) }}><Text>Previous</Text></View><Text className='pagination-status'>Page {trashPage} / {trashPageCount}</Text><View className={`pagination-button ${trashPage === trashPageCount ? 'disabled' : ''}`} onClick={() => { if (trashPage < trashPageCount) setTrashPage((page) => page + 1) }}><Text>Next</Text></View></View>}</>}
+          </>}
         </View>
         <View className='data-status-panel'>
           <View><Text className='section-kicker'>本地数据状态</Text><Text className='panel-title'>数据仅保存在当前浏览器</Text></View>
           <View className='data-status-grid'>
             <View><Text>{items.length}</Text><Text>有效事项</Text></View>
             <View><Text>{methods.length}</Text><Text>当前方法</Text></View>
-            <View><Text>{activeExplorationTrackCount ?? '—'}</Text><Text>探索主线</Text></View>
+            <View><Text>{activeExplorationTrackCount ?? '—'}</Text><Text>长期探索</Text></View>
             <View><Text>{trashItems.length}</Text><Text>回收站</Text></View>
           </View>
         </View>
@@ -2402,15 +2470,15 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         {backupMessage && <Text className={`backup-message ${pendingBackup ? 'warning' : ''}`}>{backupMessage}</Text>}
         {pendingBackup && <View className='restore-confirm'>
           <Text>备份时间：{formatTime(pendingBackup.exportedAt)}</Text>
-          <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法 · {pendingBackup.version === 3 ? pendingBackup.data.explorationTracks.length : 0} 条探索主线</Text>
+          <Text>{pendingBackup.data.items.length} 条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法 · {pendingBackup.version === 3 ? pendingBackup.data.explorationTracks.length : 0} 条长期探索</Text>
           <Text className='restore-warning'>恢复会完整覆盖当前浏览器中的全部数据。确认后，系统会先自动下载当前数据的安全备份，再执行恢复。</Text>
           <View className='restore-actions'>
             <View className={`secondary-button restore-cancel-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) { setPendingBackup(undefined); setBackupMessage('已取消恢复') } }}><Text>取消</Text></View>
             <Button className='action-button delete-confirm-button' disabled={busy || restoring} onClick={restoreBackup}>备份当前数据并恢复</Button>
           </View>
-        </View>}
-      {pendingTrashRestore && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashRestore(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='恢复确认' onClick={(event) => event.stopPropagation()}><Text>恢复“{pendingTrashRestore.title}”？</Text><Text>恢复后将重新回到当前可用数据中。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(undefined)}>取消</Button><Button className='action-button primary' disabled={busy} onClick={() => restoreTrashEntry(pendingTrashRestore)}>恢复</Button></View></View></View>}
-        {restoring && <View className='restore-progress'><View className='status-dot' /><Text>恢复正在进行，一级导航已暂时锁定。</Text></View>}
+        </View>}      {pendingTrashRestore && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashRestore(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='恢复确认' onClick={(event) => event.stopPropagation()}><Text>恢复“{pendingTrashRestore.title}”？</Text><Text>恢复后将重新回到当前可用数据中。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(undefined)}>取消</Button><Button className='action-button primary' disabled={busy} onClick={() => restoreTrashEntry(pendingTrashRestore)}>恢复</Button></View></View></View>}
+      {pendingTrashPurge && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashPurge(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='永久删除确认' onClick={(event) => event.stopPropagation()}><Text>永久删除 {pendingTrashPurge.length} 条回收站记录？</Text><Text className='restore-warning'>永久删除后无法恢复，请确认要继续。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashPurge(undefined)}>取消</Button><Button className='action-button danger' disabled={busy} onClick={() => purgeTrashEntries(pendingTrashPurge)}>永久删除</Button></View></View></View>}
+      {trashTrackDetailEntry && <View className='trash-restore-backdrop' onClick={() => { if (!busy) closeTrashTrackDetail() }}><View className='trash-track-detail-modal' role='dialog' aria-modal='true' aria-label='长期探索详情' onClick={(event) => event.stopPropagation()}><View className='trash-track-detail-heading'><View><Text className='section-kicker'>已删除长期探索</Text><Text className='panel-title'>{trashTrackDetail?.track.name ?? trashTrackDetailEntry.title}</Text></View><Button className='action-button secondary' onClick={closeTrashTrackDetail}>关闭</Button></View>{trashTrackDetailLoading && <Text className='method-evidence-state'>正在读取详情…</Text>}{trashTrackDetailError && <View className='trash-track-detail-error'><Text>{trashTrackDetailError}</Text><Button className='action-button secondary' onClick={() => openTrashTrackDetail(trashTrackDetailEntry)}>重试</Button></View>}{trashTrackDetail && <><Text className='trash-entry-meta'>Deleted {formatTime(trashTrackDetail.track.deletedAt ?? trashTrackDetailEntry.deletedAt)} · 生命周期：已删除</Text><Text className='trash-track-detail-section-title'>绑定事项</Text>{trashTrackDetailItems.length === 0 ? <Text className='method-evidence-state'>暂无绑定事项</Text> : <View className='trash-track-detail-items'>{trashTrackDetailItems.map((entry) => <View className='trash-track-detail-item' key={entry.item.id}><View><Text className='trash-entry-title'>{entry.item.title}</Text><Text className='trash-entry-meta'>{statusLabels[entry.item.status] ?? entry.item.status}</Text></View><Text className={`trash-detail-deleted ${entry.item.deletedAt ? 'is-deleted' : ''}`}>{entry.item.deletedAt ? 'Deleted' : 'Active'}</Text></View>)}</View>}</>}</View></View>}      {restoring && <View className='restore-progress'><View className='status-dot' /><Text>恢复正在进行，一级导航已暂时锁定。</Text></View>}
       </View>
       </View>}
 

@@ -14,7 +14,7 @@
 > - `docs/product/整体布局设计-v1.md`
 > - `docs/product/功能清单-v2.md`
 > - `docs/product/Layout-Sprint-1-产品验收记录.md`
-> - `docs/architecture/Layout-Sprint-1-技术评审.md`
+> - `docs/archive/architecture/layout-sprints/Layout-Sprint-1-技术评审.md`
 > - `docs/architecture/整体架构设计-v2.md`
 
 ## 一、总体技术结论

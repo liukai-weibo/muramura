@@ -10,12 +10,12 @@ describe('settings data status and restore preview', () => {
     expect(styles).toContain('.data-status-grid > view { display: flex; min-width: 0;')
     expect(styles).toContain('@media (max-width: 800px) {')
     expect(styles).toContain('.data-status-grid { grid-template-columns: 1fr; }')
-    expect(page).toContain('<Text>{activeExplorationTrackCount ?? \'—\'}</Text><Text>探索主线</Text>')
+    expect(page).toContain('<Text>{activeExplorationTrackCount ?? \'—\'}</Text><Text>长期探索</Text>')
   })
 
   it('shows zero and multi-track restore previews from the existing Backup V3 payload only', () => {
     expect(page).toContain('pendingBackup.version === 3 ? pendingBackup.data.explorationTracks.length : 0')
-    expect(page).toContain('条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法 · {pendingBackup.version === 3 ? pendingBackup.data.explorationTracks.length : 0} 条探索主线')
+    expect(page).toContain('条事项 · {pendingBackup.data.reviews.length} 条复盘 · {pendingBackup.data.methods.length} 条方法 · {pendingBackup.version === 3 ? pendingBackup.data.explorationTracks.length : 0} 条长期探索')
     expect(page).not.toContain('createExplorationTrackCount')
     expect(page).not.toContain('retryRestoreBackup')
   })

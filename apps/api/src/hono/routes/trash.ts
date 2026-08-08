@@ -1,5 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { ApiError } from '../errors'
+import { requireJson } from '../http'
 import { requireServices } from '../auth-middleware'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
 import { itemSchema, methodSchema, trashEntrySchema } from '../schemas'
@@ -43,6 +44,20 @@ const restoreTrashRoute = createRoute({
   },
 })
 
+const purgeEntrySchema = z.object({ type: trashFilterSchema.exclude(['all']), id: z.string().min(1) })
+const purgeTrashRoute = createRoute({
+  middleware: [requireJson],
+  method: 'post', path: '/purge', tags: ['Trash'], summary: '永久删除回收站记录',
+  request: { body: { required: true, content: { 'application/json': { schema: z.object({ entries: z.array(purgeEntrySchema).min(1) }) } } } },
+  responses: { 204: { description: '永久删除完成' }, 400: commonErrorResponses[400], 401: commonErrorResponses[401], 404: commonErrorResponses[404], 409: commonErrorResponses[409] },
+})
+
+const purgeSingleTrashRoute = createRoute({
+  method: 'delete', path: '/{type}/{id}', tags: ['Trash'], summary: '永久删除单条回收站记录',
+  request: { params: z.object({ type: z.string(), id: z.string().min(1) }) },
+  responses: { 204: { description: '永久删除完成' }, 400: commonErrorResponses[400], 401: commonErrorResponses[401], 404: commonErrorResponses[404], 409: commonErrorResponses[409] },
+})
+
 export function createTrashRoutes() {
   return createOpenApiApp()
     .openapi(listTrashRoute, async (context) => {
@@ -71,5 +86,19 @@ export function createTrashRoutes() {
           : await services.methods.restore(id),
         200,
       )
+    })
+    .openapi(purgeTrashRoute, async (context) => {
+      const services = requireServices(context)
+      const body = context.req.valid('json')
+      await services.trash.purge(body.entries)
+      return context.body(null, 204)
+    })
+    .openapi(purgeSingleTrashRoute, async (context) => {
+      const services = requireServices(context)
+      const parameters = context.req.valid('param')
+      const type = z.enum(['item', 'method', 'exploration-track']).safeParse(parameters.type)
+      if (!type.success) throw new ApiError(404, 'NOT_FOUND_ROUTE', '路由不存在')
+      await services.trash.purge([{ type: type.data, id: decodeURIComponent(parameters.id) }])
+      return context.body(null, 204)
     })
 }

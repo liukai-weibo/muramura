@@ -30,6 +30,8 @@ export interface Item {
   createdAt: string
   updatedAt: string
   deletedAt?: string
+  /** 仅用于探索主线级联删除/恢复，不参与普通展示。 */
+  explorationTrackCascadeDeletedAt?: string
   startAction?: string
   explorationTrackId?: string
 }
@@ -81,7 +83,7 @@ export interface ItemLocator {
 }
 
 export interface ExplorationTrackItem {
-  item: Pick<Item, 'id' | 'title' | 'status' | 'createdAt' | 'startAction'>
+  item: Pick<Item, 'id' | 'title' | 'status' | 'createdAt' | 'deletedAt' | 'startAction'>
   locator: ItemLocator
   reviewSummary?: Pick<Review, 'actualAction' | 'result'>
   reviewSummaryStatus: 'available' | 'not-reviewed' | 'unavailable'
