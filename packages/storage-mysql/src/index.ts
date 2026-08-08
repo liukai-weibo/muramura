@@ -94,7 +94,8 @@ function loadMigrations(directory: string): Migration[] {
     const version = Number(file.slice(0, 3))
     const checksum = crypto.createHash('sha256').update(sql).digest('hex')
     const rawChecksum = crypto.createHash('sha256').update(rawSql).digest('hex')
-    return { version, name: file, checksum, acceptedChecksums: [...new Set([checksum, rawChecksum])], sql }
+    const crlfChecksum = crypto.createHash('sha256').update(sql.replace(/\n/g, '\r\n')).digest('hex')
+    return { version, name: file, checksum, acceptedChecksums: [...new Set([checksum, rawChecksum, crlfChecksum])], sql }
   })
 }
 
