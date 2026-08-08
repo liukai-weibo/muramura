@@ -2414,6 +2414,8 @@ button:not(:disabled):active { transform: translateY(1px); }
 .experimental-ai-conversation-drawer:hover { scrollbar-color: rgba(118, 108, 96, .34) transparent; }
 .experimental-ai-conversation-drawer:hover::-webkit-scrollbar-thumb { background: rgba(118, 108, 96, .28); }
 .experimental-ai-conversation-title { -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 14px), transparent 100%); mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 14px), transparent 100%); }
+.experimental-ai-conversation-row.is-menu-open { z-index: 30; }
+.experimental-ai-conversation-menu { top: calc(100% + 6px); z-index: 40; }
 
 /* Final AI composer and conversation-list polish. */
 .experimental-ai-message-group { row-gap: 28px; }
