@@ -195,6 +195,15 @@ Docker 应用镜像 `1.1.5` 已发布，`latest` 已同步指向同一镜像；�
 
 GHCR 使用工作流内置的 `GITHUB_TOKEN`，不需要单独配置 GitHub 账号密码；工作流已声明 `packages: write` 权限。
 
+构建推送成功后，工作流会通过 SSH 连接云服务器并执行 `/root/start.sh` 完成自动更新。需要在 GitHub Actions Secrets 中配置：
+
+- `DEPLOY_HOST`：云服务器地址；
+- `DEPLOY_USER`：SSH 用户名；
+- `DEPLOY_PASSWORD`：SSH 密码；
+- `DEPLOY_PORT`：SSH 端口，不填时使用 `22`。
+
+服务器脚本必须自行完成 `docker compose pull`、`docker compose up -d` 和健康检查。不要把服务器密码写入工作流文件；生产环境更推荐改用 SSH 私钥而不是密码登录。
+
 配置完成后，可在 `Actions → 构建并发布 Docker 镜像` 中手动运行一次验证；例如第 42 次构建会同时发布 `latest` 和 `build-42`。
 
 停止服务使用：
