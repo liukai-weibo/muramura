@@ -12,13 +12,12 @@ import ExperimentalAiPage from './experimental-ai'
 import { canOpenStartConfirm, shouldDisplayStartAction, shouldInterceptStartAction, startFeedbackVisible } from './start-confirm-state'
 import { DesktopTitleBar } from '../../desktop/desktop-title-bar'
 import { installDesktopShortcuts, isTauriDesktop } from '../../desktop/desktop-native-bridge'
+import { HomeDashboard } from './home-dashboard'
+import { readColorTheme, readDisplayEffectMode, saveColorTheme, saveDisplayEffectMode, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
 import './index.scss'
+import './cream-ui-theme.scss'
 import '../../assets/help'
-const homeCarouselImagesByTone: Record<string, string> = {
-  coral: new URL('../../assets/home/carousel-action.svg', import.meta.url).href,
-  blue: new URL('../../assets/home/carousel-exploration.svg', import.meta.url).href,
-  green: new URL('../../assets/home/carousel-method.svg', import.meta.url).href,
-}
+const marumaruBrandIconUrl = new URL('../../assets/brand/marumaru-white-cat-transparent.png', import.meta.url).href
 type ItemAction = ApiItemAction
 
 interface ReviewTextareaProps {
@@ -84,12 +83,6 @@ const primaryModuleLabels: Record<PrimaryModule, string> = {
   data: '数据管理',
   me: '我的',
 }
-
-const homeCarouselSlides = [
-  { title: '把灵感留下', description: '让内容在不同状态之间自然衔接。', tone: 'coral' },
-  { title: '从一个行动开始', description: '先做一个真实动作，再让复盘告诉你下一步。', tone: 'blue' },
-  { title: '长期探索，慢慢变清晰', description: '把反复出现的问题，沉淀成可验证的方向。', tone: 'green' },
-] as const
 
 const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
   formation: '形成方法',
@@ -177,9 +170,11 @@ interface AuthenticatedWorkspaceProps {
   logoutError: string
   onLogout: () => void
   onConfirmLogoutOutcome: () => void
+  colorTheme: ColorTheme
+  onToggleColorTheme: () => void
 }
 
-function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, logoutError, onLogout, onConfirmLogoutOutcome }: AuthenticatedWorkspaceProps) {
+function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, logoutError, onLogout, onConfirmLogoutOutcome, colorTheme, onToggleColorTheme }: AuthenticatedWorkspaceProps) {
   const application = apiClient
   const reviewApplication = apiClient
   const searchApplication = apiClient
@@ -207,10 +202,10 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('actions')
   const [dataTab, setDataTab] = useState<DataTab>('overview')
   const [myTab, setMyTab] = useState<MyTab>('profile')
-  const [homeCarouselIndex, setHomeCarouselIndex] = useState(0)
+  const [displayEffectMode, setDisplayEffectMode] = useState<DisplayEffectMode>(readDisplayEffectMode)
+  const [displayEffectMenuOpen, setDisplayEffectMenuOpen] = useState(false)
   const [workbenchPaneWidth, setWorkbenchPaneWidth] = useState(340)
   const resizingPaneRef = useRef(false)
-  const currentHomeCarouselSlide = homeCarouselSlides[homeCarouselIndex] ?? homeCarouselSlides[0]!
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine)
   const navigationInitializedRef = useRef(false)
   const [administrationMounted, setAdministrationMounted] = useState(false)
@@ -227,11 +222,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
     if (activeModule === 'administration' || activeModule === 'aiConfiguration') setAdministrationMounted(true)
   }, [activeModule])
-  useEffect(() => {
-    if (primaryModule !== 'home') return
-    const timer = window.setInterval(() => setHomeCarouselIndex((current) => (current + 1) % homeCarouselSlides.length), 6000)
-    return () => window.clearInterval(timer)
-  }, [primaryModule])
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
       if (!resizingPaneRef.current) return
@@ -583,7 +573,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', refreshWhenVisible) }
   }, [])
   useEffect(() => {
-    if (primaryModule !== 'data' || dataTab !== 'overview') return
+    if (primaryModule !== 'home' && (primaryModule !== 'data' || dataTab !== 'overview')) return
     const controller = new AbortController()
     dashboardApplication.getReport(dashboardWindow, controller.signal).then(setDashboardReport).catch((error: unknown) => {
       if (!isApiClientAbort(error)) setMessage(error instanceof Error ? error.message : '读取仪表盘失败')
@@ -2028,6 +2018,21 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     })
   }
 
+  const selectDisplayEffectMode = (mode: DisplayEffectMode) => {
+    setDisplayEffectMode(mode)
+    saveDisplayEffectMode(mode)
+    setDisplayEffectMenuOpen(false)
+  }
+
+  useEffect(() => {
+    if (!displayEffectMenuOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDisplayEffectMenuOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [displayEffectMenuOpen])
+
   const startPaneResize = (event: React.PointerEvent) => {
     event.preventDefault()
     resizingPaneRef.current = true
@@ -2099,30 +2104,46 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const desktopBreadcrumb = primaryModuleLabels[primaryModule]
 
   return (
-    <View className='app-shell'>
+    <View className='app-shell' data-color-theme={colorTheme} data-display-effect={displayEffectMode}>
       <View className='primary-navigation'>
-        <View className='navigation-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
+        <View className='navigation-brand'>
+          <View className='navigation-brand-heading'>
+            <Image className='navigation-brand-image' src={marumaruBrandIconUrl} mode='aspectFit' />
+            <Text className='navigation-brand-name'>MaruMaru</Text>
+          </View>
+          <Text className='navigation-brand-subtitle'>圈圈 · 行动与方法</Text>
+        </View>
         <View className='navigation-group navigation-group-workspace'>
           <Text className='navigation-group-title'>工作区</Text>
           {([['home', '首页'], ['workbench', '行动工作台'], ['ai', '圈圈 AI 助手']] as Array<[PrimaryModule, string]>).map(([module, label]) => <View
             key={module}
-            className={`navigation-item navigation-item-${module} ${primaryModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
+            className={`navigation-item navigation-transition navigation-item-${module} ${primaryModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) openPrimaryModule(module) }}
           ><Text>{label}</Text></View>)}
         </View>
         <View className='navigation-group navigation-group-management'>
           <Text className='navigation-group-title'>管理</Text>
-          <View className={`navigation-item navigation-item-data ${primaryModule === 'data' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('data') }}><Text>数据管理</Text></View>
+          <View className={`navigation-item navigation-transition navigation-item-data ${primaryModule === 'data' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('data') }}><Text>数据管理</Text></View>
         </View>
         <View className='navigation-group navigation-group-account'>
           <Text className='navigation-group-title'>账户</Text>
-          <View className={`navigation-item navigation-item-me ${primaryModule === 'me' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('me') }}><Text>我的</Text></View>
+          <View className={`navigation-item navigation-transition navigation-item-me ${primaryModule === 'me' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('me') }}><Text>我的</Text></View>
         </View>
         <View className='navigation-account'>
           <View><Text className='navigation-account-label'>当前账户</Text><Text className='navigation-account-name'>{session.user.username}</Text></View>
-          <Button className='navigation-logout' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出'}</Button>
+          <View className='navigation-display-effect'>
+            <View className='navigation-display-effect-trigger control-transition' role='button' aria-expanded={displayEffectMenuOpen} onClick={() => setDisplayEffectMenuOpen((open) => !open)}>
+              <Text>显示效果</Text><Text>{displayEffectMode === 'glass' ? '玻璃效果' : '兼容模式'}</Text>
+            </View>
+            {displayEffectMenuOpen && <><View className='display-effect-dismiss-layer' onClick={() => setDisplayEffectMenuOpen(false)} /><View className='display-effect-menu' role='dialog' aria-label='显示效果设置'>
+              {([['glass', '玻璃效果', '柔和模糊质感'], ['compatible', '兼容模式', '关闭模糊以降低图形负担']] as Array<[DisplayEffectMode, string, string]>).map(([mode, label, description]) => <View key={mode} className={`display-effect-option ${displayEffectMode === mode ? 'selected' : ''}`} role='button' aria-pressed={displayEffectMode === mode} onClick={() => selectDisplayEffectMode(mode)}>
+                <View><Text>{label}</Text><Text>{description}</Text></View><Text>{displayEffectMode === mode ? '✓' : ''}</Text>
+              </View>)}
+            </View></>}
+          </View>
+          <Button className='navigation-logout control-transition' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出'}</Button>
           {logoutError && <Text className='navigation-account-error'>{logoutError}</Text>}
-          {logoutUnknownOutcome && <Button className='navigation-session-confirm' disabled={logoutBusy} onClick={onConfirmLogoutOutcome}>重新读取当前会话</Button>}
+          {logoutUnknownOutcome && <Button className='navigation-session-confirm control-transition' disabled={logoutBusy} onClick={onConfirmLogoutOutcome}>重新读取当前会话</Button>}
         </View>
       </View>
 
@@ -2131,6 +2152,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           breadcrumb={desktopBreadcrumb}
           onSearch={openSearch}
           onCapture={openCapture}
+          colorTheme={colorTheme}
+          onToggleColorTheme={onToggleColorTheme}
           searchContent={desktopSearchControl}
           workbenchTabs={primaryModule === 'workbench' ? ([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
         />
@@ -2158,8 +2181,9 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
                 })}
               </View>}
             </View>
-            <View className={`global-tool-button primary ${captureLocked ? 'disabled' : ''}`} onClick={openCapture}><Text>＋ 快速捕获</Text></View>
+            <View className={`global-tool-button primary control-transition ${captureLocked ? 'disabled' : ''}`} onClick={openCapture}><Text>＋ 快速捕获</Text></View>
           </View>}
+          {!isTauriDesktop() && <button type='button' className='global-theme-toggle control-transition' title={colorTheme === 'light' ? '切换为深色主题' : '切换为浅色主题'} aria-label={colorTheme === 'light' ? '切换为深色主题' : '切换为浅色主题'} onClick={onToggleColorTheme}>{colorTheme === 'light' ? '☾' : '☀'}</button>}
         </View>
 
         {primaryModule === 'workbench' && !isTauriDesktop() && <View className='fast-ui-tabs workbench-tabs' role='tablist'>
@@ -2174,14 +2198,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
         <View className='page'>
 
-        {primaryModule === 'home' && <View className='fast-ui-home-carousel' aria-roledescription='carousel' aria-label='首页精选内容'>
-          <View className={`fast-ui-carousel-slide fast-ui-carousel-slide-${currentHomeCarouselSlide.tone}`}>
-            <Image className='fast-ui-carousel-image' src={homeCarouselImagesByTone[currentHomeCarouselSlide.tone] ?? homeCarouselImagesByTone.coral!} mode='aspectFill' aria-hidden='true' />
-            <View><Text className='fast-ui-carousel-kicker'>图片轮播 · Carousel</Text><Text className='fast-ui-carousel-title'>{currentHomeCarouselSlide.title}</Text><Text className='fast-ui-carousel-description'>{currentHomeCarouselSlide.description}</Text></View>
-            <View className='fast-ui-carousel-arrow' aria-label='下一张' onClick={() => setHomeCarouselIndex((current) => (current + 1) % homeCarouselSlides.length)}><Text>→</Text></View>
-            <View className='fast-ui-carousel-dots'>{homeCarouselSlides.map((slide, index) => <View key={slide.tone} className={`fast-ui-carousel-dot ${index === homeCarouselIndex ? 'active' : ''}`} aria-label={`第 ${index + 1} 张`} onClick={() => setHomeCarouselIndex(index)} />)}</View>
-          </View>
-        </View>}
+        {primaryModule === 'home' && <HomeDashboard
+          items={items}
+          backlog={dashboardReport?.backlog}
+          onOpenItem={(itemId) => navigateTo({ type: 'item', itemId })}
+          onOpenBacklog={(status) => navigateTo({ type: 'backlog', status })}
+          onOpenCapture={openCapture}
+          displayEffectMode={displayEffectMode}
+        />}
 
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
         <View className='capture-modal' role='dialog' aria-label='快速捕获'>
@@ -2572,7 +2596,10 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
                 </View>
               </View> : <Button className='action-button delete' disabled={busy} onClick={() => requestLeaveAllDrafts(() => setDeleteConfirm(true))}>删除事项</Button>}
             </View>}
-          </> : <View className='detail-empty'><Text className='detail-empty-title'>选择一件事</Text><Text>查看详情，并推动它进入下一个真实状态。</Text></View>}
+          </> : <View className='detail-empty'>
+            <Text className='detail-empty-title'>选择一件事</Text>
+            <Text className='detail-empty-description'>查看详情，并推动它进入下一个真实状态。</Text>
+          </View>}
           </View>
         </View>
       </View></>}
@@ -2728,6 +2755,7 @@ function authenticationErrorMessage(error: unknown, fallback: string): string {
 }
 
 export default function IndexPage() {
+  const [colorTheme, setColorTheme] = useState<ColorTheme>(readColorTheme)
   const [authSession, setAuthSession] = useState<AuthSession>()
   const [sessionResolved, setSessionResolved] = useState(false)
   const [sessionReading, setSessionReading] = useState(true)
@@ -2877,6 +2905,14 @@ export default function IndexPage() {
     setLogoutBusy(false)
   }
 
+  const toggleColorTheme = () => {
+    setColorTheme((current) => {
+      const next: ColorTheme = current === 'light' ? 'dark' : 'light'
+      saveColorTheme(next)
+      return next
+    })
+  }
+
   if (authSession) return <AuthenticatedWorkspace
     key={`${authSession.user.id}-${authSession.user.createdAt}`}
     session={authSession}
@@ -2885,12 +2921,14 @@ export default function IndexPage() {
     logoutError={logoutError}
     onLogout={() => void logout()}
     onConfirmLogoutOutcome={() => void confirmUnknownLogout()}
+    colorTheme={colorTheme}
+    onToggleColorTheme={toggleColorTheme}
   />
 
   const authenticationLocked = authSubmitting || sessionReading || authUnknownOutcome || authNeedsSessionConfirmation
   const canSubmitAuthentication = Boolean(authUsername.trim()) && authPassword.length >= 8 && !authenticationLocked
 
-  return <View className='auth-gate-shell'>
+  return <View className='auth-gate-shell' data-color-theme={colorTheme}>
     <View className='auth-gate-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
     <View className='auth-gate-card'>
       <Text className='auth-gate-kicker'>个人行动闭环</Text>

@@ -34,3 +34,9 @@
 - Tauri 开发和生产均从 `apps/client/dist` 加载本地静态资源，不使用 10086 或新增 10087。
 - Web 环境 API Client 始终请求相对路径 `/api`；Tauri 环境默认直连 `http://127.0.0.1:32146`，并允许 `TARO_APP_API_BASE_URL` 覆盖。
 - API 已放行 `tauri://localhost` 与 `http://tauri.localhost`，桌面端不经过 Web 代理访问 API。
+
+## 品牌图片资源
+
+- `src-tauri/Gemini_Generated_Image_p4vo21p4vo21p4vo.png` 是品牌图片母版。
+- Tauri 安装包、窗口和托盘图标使用该母版的方形裁切多尺寸资源。
+- 客户端静态品牌图和首页轮播使用该母版；AI 桌宠 `.riv` 保留，不替换其动画资源。

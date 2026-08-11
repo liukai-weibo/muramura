@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MaruMaru - 首页主控台视觉稿</title>
+  <style>
+    :root { --ink: #2b2825; --paper: #f7f4ee; --surface: #fffdf9; --line: #e5ddd2; --muted: #857b70; --brass: #8c6b49; --green: #83ad82; }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; margin: 0; background: #e8e3da; color: var(--ink); font-family: "Segoe UI", "Microsoft YaHei", sans-serif; }
+    button { font: inherit; }
+    .desktop-shell { display: grid; width: min(1540px, calc(100vw - 36px)); min-height: min(900px, calc(100vh - 36px)); margin: 18px auto; grid-template-columns: 224px minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr); overflow: hidden; border: 1px solid #d4ccc0; border-radius: 10px; background: var(--surface); box-shadow: 0 20px 54px rgba(59, 48, 37, .16); }
+    .topbar { display: flex; grid-column: 1 / -1; align-items: center; padding: 0 14px 0 18px; background: var(--ink); color: #f9f4eb; }
+    .topbar-brand { font-size: 14px; font-weight: 750; }
+    .tabs { display: flex; margin-left: 28px; gap: 4px; }
+    .tab { padding: 7px 10px; border: 0; border-radius: 6px; background: transparent; color: rgba(249, 244, 235, .65); cursor: pointer; font-size: 12px; }
+    .tab.active { background: rgba(255, 255, 255, .13); color: #fff; }
+    .search { display: flex; width: min(520px, 42vw); height: 30px; margin: 0 auto; padding: 0 12px; align-items: center; border: 1px solid rgba(255, 255, 255, .2); border-radius: 16px; background: rgba(255, 255, 255, .1); color: rgba(249, 244, 235, .7); font-size: 12px; }
+    .search span:last-child { margin-left: auto; color: rgba(249, 244, 235, .45); font-size: 10px; }
+    .capture { height: 30px; padding: 0 13px; border: 0; border-radius: 15px; background: #665342; color: #fff8ef; cursor: pointer; font-size: 12px; font-weight: 700; }
+    .window-actions { display: flex; margin-left: 14px; gap: 16px; color: #bcb4aa; font-size: 18px; }
+    .sidebar { padding: 30px 18px 20px; background: var(--ink); color: #f8f3eb; }
+    .brand-lockup { display: flex; align-items: center; gap: 10px; padding: 12px 16px 32px; }
+    .brand-lockup img { width: 42px; height: 46px; object-fit: contain; }
+    .brand-lockup strong { font-size: 20px; letter-spacing: 0; }
+    .brand-lockup small { display: block; margin-top: 3px; color: #aaa297; font-size: 10px; letter-spacing: .08em; }
+    .nav-label { display: block; margin: 0 16px 8px; color: #a9a097; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+    .nav-item { display: flex; min-height: 41px; padding: 0 14px; align-items: center; border-radius: 9px; color: #d9d2c8; font-size: 13px; font-weight: 650; }
+    .nav-item.active { position: relative; background: var(--paper); color: var(--ink); font-weight: 800; }
+    .nav-item.active::before { position: absolute; top: 9px; bottom: 9px; left: 0; width: 3px; border-radius: 0 2px 2px 0; background: var(--green); content: ""; }
+    .nav-space { height: 24px; }
+    .main { min-width: 0; background: var(--paper); }
+    .dashboard { width: min(100%, 1000px); height: calc(100vh - 86px); min-height: 680px; margin: 0 auto; padding: 28px 34px 52px; overflow-y: auto; }
+    .eyebrow { color: var(--brass); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+    .hero { display: flex; min-height: 242px; padding: 34px 38px; align-items: stretch; justify-content: space-between; gap: 28px; border: 1px solid rgba(60, 50, 40, .08); border-radius: 16px; background: radial-gradient(circle at 80% 20%, #faf8f5 0%, #f4f1ea 100%); box-shadow: 0 12px 32px -8px rgba(43, 40, 37, .08), 0 4px 12px rgba(60, 50, 40, .03); }
+    .hero-copy { display: flex; max-width: 620px; flex-direction: column; justify-content: center; }
+    .hero h1 { margin: 10px 0 0; font-size: clamp(28px, 3vw, 36px); letter-spacing: 0; line-height: 1.2; }
+    .hero p { margin: 11px 0 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
+    .hero-actions { display: flex; margin-top: 24px; gap: 10px; }
+    .button { min-height: 38px; padding: 0 15px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 750; }
+    .button.primary { background: var(--ink); color: #fffaf2; }
+    .button.secondary { border-color: #cfc4b5; background: transparent; color: #554b40; }
+    .hero-aside { display: flex; min-width: 150px; padding: 16px 0 16px 24px; flex-direction: column; justify-content: flex-end; border-left: 1px solid rgba(93, 75, 58, .12); }
+    .hero-aside strong { font-size: 14px; }
+    .hero-aside span { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .widgets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .widget { display: flex; min-height: 124px; padding: 18px; flex-direction: column; border: 1px solid rgba(60, 50, 40, .08); border-radius: 10px; background: var(--surface); }
+    .widget .label { color: var(--brass); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+    .widget b { margin-top: auto; font-size: 32px; line-height: 1.12; }
+    .widget small { margin-top: 5px; color: var(--muted); font-size: 12px; }
+    .section-heading { display: flex; margin-top: 38px; align-items: baseline; justify-content: space-between; gap: 16px; }
+    .section-heading h2 { margin: 0; font-size: 18px; }
+    .section-heading span { color: #958a7d; font-size: 12px; }
+    .guides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 52px; }
+    .guide { position: relative; min-width: 0; overflow: visible; border: 1px solid rgba(60, 50, 40, .08); border-radius: 16px; background: #faf8f5; box-shadow: 0 12px 32px -8px rgba(43, 40, 37, .08), 0 4px 12px rgba(60, 50, 40, .03); cursor: pointer; text-align: left; transition: transform .25s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s ease, border-color .25s ease; }
+    .guide-visual { position: relative; display: flex; min-width: 0; height: 152px; align-items: center; justify-content: center; overflow: visible; border-radius: 15px 15px 0 0; background: #f4f1ea; }
+    .guide-visual img { position: absolute; top: -44px; left: 50%; z-index: 2; width: 156px; height: auto; filter: drop-shadow(0 8px 12px rgba(60, 50, 40, .12)); transform: translateX(-50%); transition: transform .25s cubic-bezier(.34, 1.56, .64, 1); }
+    .guide:hover { transform: translateY(-4px); border-color: rgba(140, 107, 73, .3); box-shadow: 0 16px 36px -8px rgba(43, 40, 37, .12), 0 4px 12px rgba(60, 50, 40, .04); }
+    .guide:hover .guide-visual img { transform: translateX(-50%) translateY(-4px) rotate(3deg); }
+    .guide-content { position: relative; z-index: 1; min-height: 146px; padding: 16px; }
+    .tag { color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+    .guide h3 { margin: 9px 0 0; font-size: 16px; line-height: 1.42; }
+    .guide p { display: -webkit-box; margin: 8px 0 0; overflow: hidden; color: var(--muted); font-size: 13px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .modal { position: fixed; z-index: 10; inset: 0; display: none; padding: 24px; align-items: center; justify-content: center; background: rgba(43, 40, 37, .3); }
+    .modal.open { display: flex; }
+    .modal-card { width: min(470px, 100%); padding: 24px; border: 1px solid rgba(60, 50, 40, .12); border-radius: 12px; background: var(--surface); box-shadow: 0 20px 48px rgba(42, 35, 27, .2); }
+    .modal-header { display: flex; justify-content: space-between; gap: 16px; }
+    .modal h2 { margin: 8px 0 0; font-size: 20px; }
+    .modal-close { border: 0; background: transparent; color: #74695e; cursor: pointer; font-size: 12px; font-weight: 750; }
+    .modal p { margin: 22px 0 0; color: #62594f; font-size: 14px; line-height: 1.8; }
+    @media (max-width: 800px) { body { overflow-x: hidden; } .desktop-shell { display: block; width: 100%; min-height: 100vh; margin: 0; border: 0; border-radius: 0; } .topbar { position: sticky; top: 0; z-index: 2; } .sidebar { display: none; } .search { width: auto; margin-left: 18px; } .tabs { display: none; } .main, .dashboard, .guides { width: 100%; max-width: 100%; min-width: 0; } .dashboard { height: auto; min-height: 0; padding: 18px 16px 42px; } .hero { padding: 25px; flex-direction: column; } .hero-aside { min-width: 0; padding: 14px 0 0; border-top: 1px solid rgba(93, 75, 58, .12); border-left: 0; } .widgets, .guides { grid-template-columns: 1fr; } .guides { margin-top: 42px; } .guide-visual img { top: -28px; right: 10px; width: 132px; } }
+  </style>
+</head>
+<body>
+  <main class="desktop-shell">
+    <header class="topbar">
+      <span class="topbar-brand">首页</span>
+      <nav class="tabs"><button class="tab active">行动</button><button class="tab">长期探索</button><button class="tab">方法</button></nav>
+      <div class="search">搜索事项、复盘或方法 <span>Ctrl F</span></div>
+      <button class="capture">+ 快速捕获</button><div class="window-actions"><span>-</span><span>□</span><span>×</span></div>
+    </header>
+    <aside class="sidebar">
+      <div class="brand-lockup"><img src="../../apps/client/src/assets/brand/marumaru-white-cat-transparent.png" alt="MaruMaru 白猫" /><div><strong>MaruMaru</strong><small>圈圈 · 行动与方法</small></div></div>
+      <span class="nav-label">工作区</span><div class="nav-item active">首页</div><div class="nav-item">行动工作台</div><div class="nav-item">圈圈 AI 助手</div>
+      <div class="nav-space"></div><span class="nav-label">管理</span><div class="nav-item">数据管理</div><div class="nav-space"></div><span class="nav-label">账户</span><div class="nav-item">我的</div>
+    </aside>
+    <section class="main"><div class="dashboard">
+      <section class="hero"><div class="hero-copy"><span class="eyebrow">今日推进</span><h1>继续完成眼前的下一步</h1><p>这件事已经开始。先完成一个真实动作，再让复盘告诉你下一步。</p><div class="hero-actions"><button class="button primary">继续推进</button><button class="button secondary">快速捕获</button></div></div><div class="hero-aside"><strong>进行中</strong><span>一件事足够</span></div></section>
+      <section class="widgets"><article class="widget"><span class="label">当前行动</span><b>1</b><small>正在推进的事项</small></article><article class="widget"><span class="label">待处理</span><b>6</b><small>想试试与进行中</small></article><article class="widget"><span class="label">待复盘</span><b>2</b><small>等待事实复盘</small></article></section>
+      <div class="section-heading"><h2>系统心法与行动指南</h2><span>三条行动提示</span></div>
+      <section class="guides">
+        <button class="guide" data-guide="start"><div class="guide-visual"><img src="assets/cats/cat-playful-stretch.png" alt="" /></div><div class="guide-content"><span class="tag">启动 SOP</span><h3>把行动缩小到现在能开始的一步</h3><p>不要求完整计划，只确定下一步真实动作。</p></div></button>
+        <button class="guide" data-guide="breakdown"><div class="guide-visual"><img src="assets/cats/cat-belly-up.png" alt="" /></div><div class="guide-content"><span class="tag">项目拆解</span><h3>先找可验证的最小动作</h3><p>用执行与复盘校准方向，不制造额外管理负担。</p></div></button>
+        <button class="guide" data-guide="energy"><div class="guide-visual"><img src="assets/cats/cat-curled-sleep.png" alt="" /></div><div class="guide-content"><span class="tag">精力管理</span><h3>记录真实阻力，而不是追加标签</h3><p>让复盘保存可用证据，帮助下一次行动。</p></div></button>
+      </section>
+    </div></section>
+  </main>
+  <div class="modal" id="guide-modal"><article class="modal-card"><div class="modal-header"><div><span class="tag" id="modal-tag"></span><h2 id="modal-title"></h2></div><button class="modal-close" id="modal-close">关闭</button></div><p id="modal-copy"></p></article></div>
+  <script>
+    const guideContent = { start: ['启动 SOP', '把行动缩小到现在能开始的一步', '先选择一件想推进的事项，再把它缩小为十分钟内可以开始的动作。完成后再决定下一步，而不是在开始前设计完整计划。'], breakdown: ['项目拆解', '先找可验证的最小动作', '面对复杂事项时，只拆到下一次可以执行和验证的动作。真正的阻力、结果和新线索，应该在行动之后通过复盘进入系统。'], energy: ['精力管理', '记录真实阻力，而不是追加标签', '精力变化、阻力和有效做法都应作为一次行动复盘中的真实证据。只有反复出现的事实，才值得形成或修订方法。'] };
+    const modal = document.getElementById('guide-modal');
+    document.querySelectorAll('.guide').forEach((guide) => guide.addEventListener('click', () => { const content = guideContent[guide.dataset.guide]; document.getElementById('modal-tag').textContent = content[0]; document.getElementById('modal-title').textContent = content[1]; document.getElementById('modal-copy').textContent = content[2]; modal.classList.add('open'); }));
+    document.getElementById('modal-close').addEventListener('click', () => modal.classList.remove('open'));
+    modal.addEventListener('click', (event) => { if (event.target === modal) modal.classList.remove('open'); });
+  </script>
+</body>
+</html>
