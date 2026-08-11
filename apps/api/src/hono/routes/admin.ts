@@ -9,7 +9,8 @@ import type { ApiEnv } from '../types'
 const platformUserSchema = z.object({
   id: z.string(),
   username: z.string(),
-  roles: z.array(z.enum(['member', 'platform_admin'])),
+  roles: z.array(z.enum(['member', 'ordinary_admin', 'platform_admin'])),
+  isInitialPlatformAdmin: z.boolean(),
   createdAt: z.string(),
   deletedAt: z.string().nullable(),
 }).openapi('PlatformUserSummary')
@@ -62,8 +63,8 @@ const setRolesRoute = createRoute({
   method: 'put',
   path: '/users/{userId}/roles',
   tags: ['Admin'],
-  summary: '设置目标用户平台角色',
-  description: '仅平台管理员。roles 只能是 `["member"]` 或 `["member","platform_admin"]`；operationId 必须为 UUID。禁止修改自己的角色。',
+  summary: '设置目标用户管理员角色',
+  description: '仅平台管理员可调整普通管理员角色。roles 只能是 `["member"]` 或 `["member","ordinary_admin"]`；operationId 必须为 UUID。平台管理员和初始平台管理员不可由此接口修改。',
   request: {
     params: z.object({ userId: z.string().min(1) }),
     body: {
@@ -247,8 +248,8 @@ function parseAdminRoles(value: unknown): PlatformRole[] {
     throw new ApiError(400, 'VALIDATION_FAILED', 'roles 参数无效')
   }
   if (value.length === 1 && value[0] === 'member') return ['member']
-  if (value.length === 2 && value[0] === 'member' && value[1] === 'platform_admin') {
-    return ['member', 'platform_admin']
+  if (value.length === 2 && value[0] === 'member' && value[1] === 'ordinary_admin') {
+    return ['member', 'ordinary_admin']
   }
   throw new ApiError(400, 'VALIDATION_FAILED', 'roles 参数无效')
 }

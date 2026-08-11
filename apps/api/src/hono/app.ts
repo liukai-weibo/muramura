@@ -3,7 +3,7 @@ import { readMySqlConfig, type MySqlConnectionConfig } from '@knowledge-base/sto
 import { reportUnexpectedFailure } from '../api-errors'
 import {
   requireAuthenticatedSession,
-  requirePlatformAdministrator,
+  requireAdministrator,
 } from './auth-middleware'
 import { errorResponse, mapFailure } from './errors'
 import { enforceBodyLimit, requestContext } from './http'
@@ -53,7 +53,7 @@ function buildBusinessApiV1Routes(root: RootHonoServices) {
 function buildProtectedApiV1Routes(root: RootHonoServices) {
   return createOpenApiApp()
     .use('*', requireAuthenticatedSession(root))
-    .use('/admin/*', requirePlatformAdministrator())
+    .use('/admin/*', requireAdministrator())
     .route('/', buildBusinessApiV1Routes(root))
 }
 

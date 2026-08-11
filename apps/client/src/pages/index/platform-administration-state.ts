@@ -104,6 +104,10 @@ export function hasPlatformAdminRole(roles: readonly PlatformRole[]): boolean {
   return roles.includes('platform_admin')
 }
 
+export function hasAdministratorRole(roles: readonly PlatformRole[]): boolean {
+  return roles.includes('platform_admin') || roles.includes('ordinary_admin')
+}
+
 export function acceptPlatformUserQueryDraft(current: string, next: string): string {
   return next.length <= PLATFORM_USER_QUERY_LIMIT ? next : current
 }
@@ -153,13 +157,13 @@ export function createRoleUnknownFact(
   }
 }
 
-export function platformRoleLabel(user: PlatformUserSummary): '成员' | '平台管理员' | '已删除' {
+export function platformRoleLabel(user: PlatformUserSummary): '成员' | '普通管理员' | '平台管理员' | '已删除' {
   if (user.deletedAt !== null) return '已删除'
-  return user.roles.length === 2 ? '平台管理员' : '成员'
+  return user.roles.includes('platform_admin') ? '平台管理员' : user.roles.includes('ordinary_admin') ? '普通管理员' : '成员'
 }
 
 export function rolesForAction(action: PlatformAdministrationAction): PlatformRole[] | undefined {
-  if (action === 'grant-role') return ['member', 'platform_admin']
+  if (action === 'grant-role') return ['member', 'ordinary_admin']
   if (action === 'revoke-role') return ['member']
   return undefined
 }
@@ -177,7 +181,7 @@ export function isConfirmationCompatible(
   return confirmation.action === 'restore' ? target.deletedAt !== null
     : confirmation.action === 'soft-delete' ? target.deletedAt === null
       : target.deletedAt === null && (confirmation.action === 'grant-role' ? target.roles.length === 1
-        : confirmation.action === 'revoke-role' ? target.roles.length === 2
+        : confirmation.action === 'revoke-role' ? target.roles.includes('ordinary_admin')
           : true)
 }
 

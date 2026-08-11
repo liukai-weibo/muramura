@@ -19,3 +19,4 @@ knowledge-base-before-restore-*.json
 *.zip
 *.tar
 *.tar.gz
+src-tauri

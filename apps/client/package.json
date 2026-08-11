@@ -5,6 +5,8 @@
   "scripts": {
     "dev:h5": "taro build --type h5 --watch",
     "build:h5": "taro build --type h5",
+    "tauri:dev": "cd ../.. && corepack pnpm --filter @knowledge-base/client build:h5 && node apps/client/node_modules/@tauri-apps/cli/tauri.js dev --config src-tauri/tauri.dev.conf.json --no-dev-server",
+    "tauri:build": "cd ../.. && node apps/client/node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.conf.json",
     "dev:weapp": "taro build --type weapp --watch",
     "build:weapp": "taro build --type weapp"
   },
@@ -12,6 +14,8 @@
     "@knowledge-base/application": "workspace:*",
     "@knowledge-base/contracts": "workspace:*",
     "@knowledge-base/domain": "workspace:*",
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-global-shortcut": "^2.3.0",
     "@nutui/nutui-react-taro": "3.0.20",
     "@rive-app/react-canvas": "^4.30.1",
     "@tanstack/react-virtual": "^3.13.12",
@@ -37,6 +41,7 @@
     "@babel/preset-react": "^7.29.7",
     "@tarojs/cli": "4.2.1",
     "@tarojs/vite-runner": "4.2.1",
+    "@tauri-apps/cli": "2.8.4",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.3.0",

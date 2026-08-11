@@ -2,14 +2,14 @@ import { createRoute, z } from '@hono/zod-openapi'
 import { ApiError } from '../errors'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
 import { requireJson } from '../http'
-import { buildExpiredSessionCookie } from '../session'
+import { buildExpiredSessionCookie, isTauriOrigin } from '../session'
 import type { RootHonoServices } from '../services'
 import type { ApiEnv } from '../types'
 
 const authUserSchema = z.object({
   id: z.string(),
   username: z.string(),
-  roles: z.array(z.enum(['member', 'platform_admin'])),
+  roles: z.array(z.enum(['member', 'ordinary_admin', 'platform_admin'])),
   createdAt: z.string(),
 }).openapi('AccountAuthUser')
 
@@ -89,7 +89,7 @@ export function createAccountRoutes(root: RootHonoServices) {
         currentPassword: body.currentPassword,
         newPassword: body.newPassword,
       })
-      context.header('set-cookie', buildExpiredSessionCookie())
+      context.header('set-cookie', buildExpiredSessionCookie(isTauriOrigin(context.req.header('origin'))))
       return context.body(null, 204)
     })
 }

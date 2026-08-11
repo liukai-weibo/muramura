@@ -1,16 +1,24 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Input, Text, Textarea, View } from '@tarojs/components'
+import { Button, Image, Input, Text, Textarea, View } from '@tarojs/components'
 import type { AuthSession, BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, ExplorationTrackHistory, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter, TrashPurgeEntry } from '@knowledge-base/contracts'
 import { advanceApiClientAuthenticationContext, apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, setApiClientAdminForbiddenHandler, setApiClientUnauthorizedHandler, type ApiClientError, type ApiItemAction } from './api-client'
 import { ExplorationPrototype } from './exploration-prototype'
 import { PlatformAdministration } from './platform-administration'
-import { hasPlatformAdminRole } from './platform-administration-state'
+import { hasAdministratorRole, hasPlatformAdminRole } from './platform-administration-state'
 import { searchCollapseState, searchExitState, searchResultSelectionState, shouldOpenSearchResults } from './search-session-state'
 import { canModifyItemExplorationContext } from './item-exploration-state'
 import { mergeUpdatedItemContentIntoList } from './item-content-state'
 import ExperimentalAiPage from './experimental-ai'
 import { canOpenStartConfirm, shouldDisplayStartAction, shouldInterceptStartAction, startFeedbackVisible } from './start-confirm-state'
+import { DesktopTitleBar } from '../../desktop/desktop-title-bar'
+import { installDesktopShortcuts, isTauriDesktop } from '../../desktop/desktop-native-bridge'
 import './index.scss'
+import '../../assets/help'
+const homeCarouselImagesByTone: Record<string, string> = {
+  coral: new URL('../../assets/home/carousel-action.svg', import.meta.url).href,
+  blue: new URL('../../assets/home/carousel-exploration.svg', import.meta.url).href,
+  green: new URL('../../assets/home/carousel-method.svg', import.meta.url).href,
+}
 type ItemAction = ApiItemAction
 
 interface ReviewTextareaProps {
@@ -40,12 +48,17 @@ const statusNavigation: Array<{ label: string; status: ItemStatus }> = [
   { label: '想试试', status: 'idea_to_try' },
   { label: '已开始', status: 'doing' },
   { label: '已复盘', status: 'reviewed' },
-  { label: '以后再说', status: 'idea_later' },
-  { label: '已暂停', status: 'paused' },
+]
+const moreStatusNavigation: Array<{ label: string; status: ItemStatus }> = [
+  { label: '已放弃', status: 'abandoned' },
 ]
 
 type MethodMode = 'none' | 'create' | 'validate'
-type PrimaryModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration' | 'aiConfiguration'
+type ContentModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration' | 'aiConfiguration'
+type PrimaryModule = 'home' | 'workbench' | 'ai' | 'data' | 'me'
+type WorkbenchTab = 'actions' | 'explorations' | 'methods'
+type DataTab = 'overview' | 'storage'
+type MyTab = 'profile' | 'security' | 'administration' | 'aiConfiguration'
 type GlobalTool = 'search' | 'capture'
 type NavigationTarget =
   | { type: 'item'; itemId: string }
@@ -53,7 +66,7 @@ type NavigationTarget =
   | { type: 'method'; methodId: string; methodVersion?: number }
   | { type: 'backlog'; status: ItemStatus }
 
-const moduleLabels: Record<PrimaryModule, string> = {
+const moduleLabels: Record<ContentModule, string> = {
   actions: '行动',
   explorations: '长期探索',
   methods: '方法',
@@ -64,6 +77,20 @@ const moduleLabels: Record<PrimaryModule, string> = {
   aiConfiguration: 'AI 参数配置',
 }
 
+const primaryModuleLabels: Record<PrimaryModule, string> = {
+  home: '首页',
+  workbench: '行动工作台',
+  ai: '圈圈 AI 助手',
+  data: '数据管理',
+  me: '我的',
+}
+
+const homeCarouselSlides = [
+  { title: '把灵感留下', description: '让内容在不同状态之间自然衔接。', tone: 'coral' },
+  { title: '从一个行动开始', description: '先做一个真实动作，再让复盘告诉你下一步。', tone: 'blue' },
+  { title: '长期探索，慢慢变清晰', description: '把反复出现的问题，沉淀成可验证的方向。', tone: 'green' },
+] as const
+
 const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
   formation: '形成方法',
   validation: '验证方法',
@@ -71,7 +98,6 @@ const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
   unknown: '历史证据',
 }
 
-const ITEMS_PER_PAGE = 5
 const TRASH_ENTRIES_PER_PAGE = 8
 const ITEM_TITLE_MAX_GRAPHEMES = 20
 const itemTitleSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
@@ -108,8 +134,10 @@ const emptyMethod = { title: '', applicable: '', unsuitable: '', steps: '' }
 function resizeContentEditor(input: HTMLTextAreaElement | null) {
   if (!input) return
   input.style.height = 'auto'
-  const borderHeight = input.offsetHeight - input.clientHeight
-  input.style.height = `${input.scrollHeight + borderHeight}px`
+  const maxHeight = 246
+  const nextHeight = Math.min(input.scrollHeight, maxHeight)
+  input.style.height = `${nextHeight}px`
+  input.style.overflowY = input.scrollHeight > maxHeight ? 'auto' : 'hidden'
 }
 
 
@@ -164,15 +192,32 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [searchExpanded, setSearchExpanded] = useState(false)
   const [searchResultsOpen, setSearchResultsOpen] = useState(false)
   const [searchError, setSearchError] = useState('')
-  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const searchTriggerRef = useRef<HTMLElement>()
-  const searchControlRef = useRef<HTMLDivElement>(null)
+  const searchControlRef = useRef<HTMLDivElement | null>(null)
+  const setDesktopSearchInputRef = (node: HTMLInputElement | null) => {
+    if (node && !node.closest('.desktop-title-bar-actions')) searchInputRef.current = node
+  }
+  const setDesktopSearchControlRef = (node: HTMLDivElement | null) => {
+    if (node && !node.closest('.desktop-title-bar-actions')) searchControlRef.current = node
+  }
   const [searchResults, setSearchResults] = useState<SearchResult[]>()
-  const [activeModule, setActiveModule] = useState<PrimaryModule>('actions')
+  const [activeModule, setActiveModule] = useState<ContentModule>('actions')
+  const [primaryModule, setPrimaryModule] = useState<PrimaryModule>('home')
+  const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('actions')
+  const [dataTab, setDataTab] = useState<DataTab>('overview')
+  const [myTab, setMyTab] = useState<MyTab>('profile')
+  const [homeCarouselIndex, setHomeCarouselIndex] = useState(0)
+  const [workbenchPaneWidth, setWorkbenchPaneWidth] = useState(340)
+  const resizingPaneRef = useRef(false)
+  const currentHomeCarouselSlide = homeCarouselSlides[homeCarouselIndex] ?? homeCarouselSlides[0]!
+  const [isBrowserOnline, setIsBrowserOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine)
+  const navigationInitializedRef = useRef(false)
   const [administrationMounted, setAdministrationMounted] = useState(false)
   const [managementAccessDenied, setManagementAccessDenied] = useState(false)
   const [managementAccessNotice, setManagementAccessNotice] = useState('')
   const isPlatformAdministrator = hasPlatformAdminRole(session.user.roles)
+  const isAdministrator = hasAdministratorRole(session.user.roles)
   const [explorationMounted, setExplorationMounted] = useState(false)
   const [explorationFactsVersion, setExplorationFactsVersion] = useState(0)
   const [restoreFactsVersion, setRestoreFactsVersion] = useState(0)
@@ -182,6 +227,50 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
     if (activeModule === 'administration' || activeModule === 'aiConfiguration') setAdministrationMounted(true)
   }, [activeModule])
+  useEffect(() => {
+    if (primaryModule !== 'home') return
+    const timer = window.setInterval(() => setHomeCarouselIndex((current) => (current + 1) % homeCarouselSlides.length), 6000)
+    return () => window.clearInterval(timer)
+  }, [primaryModule])
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      if (!resizingPaneRef.current) return
+      setWorkbenchPaneWidth(Math.min(420, Math.max(280, event.clientX - 220)))
+    }
+    const onPointerUp = () => { resizingPaneRef.current = false }
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [])
+  useEffect(() => {
+    const handleOnline = () => setIsBrowserOnline(true)
+    const handleOffline = () => setIsBrowserOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+  useEffect(() => {
+    if (!navigationInitializedRef.current) {
+      navigationInitializedRef.current = true
+      return
+    }
+    if (activeModule === 'actions' || activeModule === 'explorations' || activeModule === 'methods') {
+      setPrimaryModule('workbench')
+      setWorkbenchTab(activeModule)
+    } else if (activeModule === 'insights' || activeModule === 'settings') {
+      setPrimaryModule('data')
+      setDataTab(activeModule === 'insights' ? 'overview' : 'storage')
+    } else if (activeModule === 'administration' || activeModule === 'aiConfiguration') {
+      setPrimaryModule('me')
+      setMyTab(activeModule)
+    } else if (activeModule === 'ai') setPrimaryModule('ai')
+  }, [activeModule])
   useEffect(() => setApiClientAdminForbiddenHandler((error) => {
     setManagementAccessDenied(true)
     setManagementAccessNotice(`你的管理员权限已变化，无法继续访问用户管理。${error.requestId ? `（requestId：${error.requestId}）` : ''}`)
@@ -189,7 +278,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     setAdministrationMounted(false)
   }), [])
   const [activeGlobalTool, setActiveGlobalTool] = useState<GlobalTool>()
-  const captureOriginModuleRef = useRef<PrimaryModule>('actions')
+  const captureOriginModuleRef = useRef<ContentModule>('actions')
   const captureInputRef = useRef<HTMLInputElement>(null)
   const [captureDiscardConfirm, setCaptureDiscardConfirm] = useState(false)
   const [captureCreatedItemId, setCaptureCreatedItemId] = useState<string>()
@@ -237,7 +326,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [filter, setFilter] = useState<ItemStatus | undefined>('idea_to_try')
   const [showTrash, setShowTrash] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
   const [pendingBackup, setPendingBackup] = useState<BackupDocument>()
   const [backupMessage, setBackupMessage] = useState('')
   const [selectedId, setSelectedId] = useState<string>()
@@ -327,8 +415,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const startConfirmItem = items.find((item) => item.id === startConfirmItemId)
   const visibleItems = showTrash ? trashItems : filter ? items.filter((item) => item.status === filter) : items
   const itemUpdatedAtById = useMemo(() => new Map(items.map((item) => [item.id, item.updatedAt])), [items])
-  const totalPages = Math.max(1, Math.ceil(visibleItems.length / ITEMS_PER_PAGE))
-  const pagedItems = visibleItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
   const trashPageCount = Math.max(1, Math.ceil(trashEntries.length / TRASH_ENTRIES_PER_PAGE))
   const visibleTrashEntries = trashEntries.slice((trashPage - 1) * TRASH_ENTRIES_PER_PAGE, trashPage * TRASH_ENTRIES_PER_PAGE)
   const selectedTrashEntries = trashEntries.filter((entry) => selectedTrashKeys.has(`${entry.type}:${entry.id}`))
@@ -338,7 +424,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     const entries = [...trashTrackDetail.currentAssociatedItems.flatMap((group) => group.items), ...trashTrackDetail.history, ...trashTrackDetail.abandonedHistory]
     return [...new Map(entries.map((entry) => [entry.item.id, entry])).values()]
   }, [trashTrackDetail])
-  const visibleMethodSourceItemIds = useMemo(() => pagedItems.map((item) => item.id), [pagedItems])
+  const visibleMethodSourceItemIds = useMemo(() => visibleItems.map((item) => item.id), [visibleItems])
   const visibleMethodSourceItemIdsKey = visibleMethodSourceItemIds.join('\u0000')
   const captureTitle = captureTitleCandidate(title, content)
   const captureTitleGraphemes = itemTitleGraphemeCount(captureTitle)
@@ -393,6 +479,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     })
   }, [rhythmNow])
   const formattedRhythmDate = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(rhythmNow)
+  const compactRhythmDate = formattedRhythmDate.replace(/^\d+年/, '').replace('星期', '周').replace('日周', '日 周')
   const [reviewError, setReviewError] = useState('')
   const [methodDisclosureOpen, setMethodDisclosureOpen] = useState(false)
   const [methodDiscardConfirm, setMethodDiscardConfirm] = useState(false)
@@ -467,7 +554,9 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   useEffect(() => {
     if (!searchExpanded) return
     const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!searchControlRef.current?.contains(event.target as Node)) collapseSearch()
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.global-search-control')) return
+      collapseSearch()
     }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') collapseSearch()
@@ -494,13 +583,13 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', refreshWhenVisible) }
   }, [])
   useEffect(() => {
-    if (activeModule !== 'insights') return
+    if (primaryModule !== 'data' || dataTab !== 'overview') return
     const controller = new AbortController()
     dashboardApplication.getReport(dashboardWindow, controller.signal).then(setDashboardReport).catch((error: unknown) => {
       if (!isApiClientAbort(error)) setMessage(error instanceof Error ? error.message : '读取仪表盘失败')
     })
     return () => controller.abort()
-  }, [activeModule, dashboardWindow, dashboardApplication, items, methods])
+  }, [primaryModule, dataTab, dashboardWindow, dashboardApplication, items, methods])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -531,10 +620,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     }
   }, [activeModule, methodSearchQuery, selectedWorkspaceMethodId, workspaceMethods])
 
-
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages)
-  }, [currentPage, totalPages])
 
   useEffect(() => {
     if (trashPage > trashPageCount) setTrashPage(trashPageCount)
@@ -1123,10 +1208,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setMessage('目标记录不存在或已删除')
       return false
     }
-    const statusItems = sourceItems.filter((entry) => !entry.deletedAt && entry.status === item.status)
-    const itemIndex = statusItems.findIndex((entry) => entry.id === item.id)
     setFilter(item.status)
-    setCurrentPage(Math.floor(itemIndex / ITEMS_PER_PAGE) + 1)
     if (review) setSelectedReview(undefined)
     setSelectedId(item.id)
     setPendingReviewLocation(review)
@@ -1187,7 +1269,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setActiveModule('actions')
       setShowTrash(false)
       setFilter(target.status)
-      setCurrentPage(1)
       setSelectedId(undefined)
       setDeleteConfirm(false)
       setPendingReviewLocation(false)
@@ -1373,7 +1454,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       if (withoutSaving) await application.changeStatus(item.id, 'doing')
       else await application.startExecution(item.id, hasStartAction ? { startAction: submittedPrompt, ...(overwriteExistingStartAction ? { overwriteExistingStartAction: true } : {}) } : {})
       setFilter('doing')
-      setCurrentPage(1)
       await refresh(item.id)
       setExplorationFactsVersion((version) => version + 1)
       setStartConfirmItemId(undefined)
@@ -1444,15 +1524,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         || (selectedItem.status === 'abandoned' && action.status === 'idea_to_try')
       )
       await application.changeStatus(changedItemId, action.status)
-      const refreshed = await refresh(changedItemId)
+      await refresh(changedItemId)
       if (shouldRelocateAfterRefresh) {
-        const refreshedIndex = refreshed.items.findIndex((item) => item.id === changedItemId && item.status === action.status)
-        if (refreshedIndex >= 0) {
-          setMoreStatusMenuOpen(false)
-          setFilter(action.status)
-          setCurrentPage(Math.floor(refreshedIndex / ITEMS_PER_PAGE) + 1)
-          setSelectedId(changedItemId)
-        }
+        setMoreStatusMenuOpen(false)
+        setFilter(action.status)
+        setSelectedId(changedItemId)
       }
       setExplorationFactsVersion((version) => version + 1)
     }))
@@ -1477,6 +1553,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setShowTrash(false)
       setFilter(undefined)
       await refresh(restored.id)
+      await reloadCurrentItemExplorationContext()
       setExplorationFactsVersion((version) => version + 1)
       setMessage(`“${restored.title}”已恢复`)
     }))
@@ -1491,6 +1568,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setTrashEntries(entries)
       setTrashPage((page) => Math.min(page, Math.max(1, Math.ceil(entries.length / TRASH_ENTRIES_PER_PAGE))))
       await refresh()
+      await reloadCurrentItemExplorationContext()
       setExplorationFactsVersion((version) => version + 1)
       setMessage(`“${entry.title}”已恢复`)
       setPendingTrashRestore(undefined)
@@ -1531,14 +1609,12 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
   const openActiveItems = () => {
     setShowTrash(false)
-    setCurrentPage(1)
     setSelectedId(undefined)
     setDeleteConfirm(false)
   }
 
   const openTrash = () => {
     setShowTrash(true)
-    setCurrentPage(1)
     setSelectedId(undefined)
     setDeleteConfirm(false)
   }
@@ -1608,7 +1684,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setSelectedId(undefined)
       setFilter('idea_to_try')
       setShowTrash(false)
-      setCurrentPage(1)
       restoreFactsConfirmed = true
       setBackupMessage('恢复完成；覆盖前的数据已自动下载为安全备份')
     } catch (error: unknown) {
@@ -1919,6 +1994,54 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
   const cancelSignalClear = () => setPendingSignalClear(undefined)
 
+  const openPrimaryModule = (target: PrimaryModule) => {
+    requestLeaveAllDrafts(() => {
+      setPrimaryModule(target)
+      if (target === 'workbench') setActiveModule(workbenchTab)
+      else if (target === 'ai') setActiveModule('ai')
+      else if (target === 'data') setActiveModule(dataTab === 'overview' ? 'insights' : 'settings')
+      else if (target === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration')) setActiveModule(myTab)
+    })
+  }
+
+  const openWorkbenchTab = (tab: WorkbenchTab) => {
+    requestLeaveAllDrafts(() => {
+      setWorkbenchTab(tab)
+      setPrimaryModule('workbench')
+      setActiveModule(tab)
+    })
+  }
+
+  const openDataTab = (tab: DataTab) => {
+    requestLeaveAllDrafts(() => {
+      setDataTab(tab)
+      setPrimaryModule('data')
+      setActiveModule(tab === 'overview' ? 'insights' : 'settings')
+    })
+  }
+
+  const openMyTab = (tab: MyTab) => {
+    requestLeaveAllDrafts(() => {
+      setMyTab(tab)
+      setPrimaryModule('me')
+      if (tab === 'administration' || tab === 'aiConfiguration') setActiveModule(tab)
+    })
+  }
+
+  const startPaneResize = (event: React.PointerEvent) => {
+    event.preventDefault()
+    resizingPaneRef.current = true
+  }
+
+  useEffect(() => installDesktopShortcuts({
+    onNew: () => { if (!busy && !restoring && !captureLocked) openCapture() },
+    onSearch: () => openSearch(),
+    onEscape: () => {
+      if (activeGlobalTool === 'capture') closeCapture()
+      else if (searchExpanded) exitSearch()
+    },
+  }), [activeGlobalTool, busy, captureLocked, closeCapture, exitSearch, openCapture, openSearch, restoring, searchExpanded])
+
   const reviewCheckbox = (
     key: 'effective' | 'incompatible',
     label: string,
@@ -1954,34 +2077,46 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     </View>
   }
 
+  const desktopSearchControl = <View className='global-search-control interactive' ref={setDesktopSearchControlRef} onClick={(event) => event.stopPropagation()}>
+    {searchExpanded ? <View className='global-tool-button global-search-expanded'>
+      <input ref={setDesktopSearchInputRef} className='global-search-input' value={searchQuery} maxLength={120} placeholder='搜索事项、复盘或方法' onMouseDown={(event) => event.stopPropagation()} onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
+      <button type='button' className='global-search-exit' aria-label='退出全局搜索' onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); exitSearch() }}>×</button>
+    </View> : <View className={`global-tool-button ${searchQuery.trim() ? 'has-draft' : ''}`} onClick={openSearch}><Text className='global-search-icon'>⌕</Text><Text>搜索事项...</Text><Text className='global-search-shortcut'>Ctrl F</Text></View>}
+    {searchExpanded && searchResultsOpen && searchQuery.trim() && <View className='search-results-popover' role='dialog' aria-label='搜索结果'>
+      {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method'] as const).map((type) => {
+        const grouped = searchResults.filter((result) => result.type === type)
+        if (!grouped.length) return null
+        return <View className='search-group' key={type}>
+          <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : '方法'} · {grouped.length}</Text>
+          {grouped.map((result) => <View className='search-result' key={result.id} onClick={() => locateSearchResult(result)}>
+            <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
+            <Text className='search-result-action'>{result.methodVersion ? `定位 v${result.methodVersion}` : '定位'}</Text>
+          </View>)}
+        </View>
+      })}
+    </View>}
+  </View>
+  const desktopBreadcrumb = primaryModuleLabels[primaryModule]
+
   return (
     <View className='app-shell'>
       <View className='primary-navigation'>
         <View className='navigation-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
-        <View className='navigation-group'>
-          {(['actions', 'explorations', 'methods', 'ai'] as PrimaryModule[]).map((module) => <View
+        <View className='navigation-group navigation-group-workspace'>
+          <Text className='navigation-group-title'>工作区</Text>
+          {([['home', '首页'], ['workbench', '行动工作台'], ['ai', '圈圈 AI 助手']] as Array<[PrimaryModule, string]>).map(([module, label]) => <View
             key={module}
-            className={`navigation-item navigation-item-${module} ${activeModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule(module)) }}
-          ><Text>{moduleLabels[module]}</Text></View>)}
+            className={`navigation-item navigation-item-${module} ${primaryModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
+            onClick={() => { if (!restoring) openPrimaryModule(module) }}
+          ><Text>{label}</Text></View>)}
         </View>
-        <View className='navigation-group navigation-settings'>
-          <View
-            className={`navigation-item navigation-item-insights ${activeModule === 'insights' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('insights')) }}
-          ><Text>{moduleLabels.insights}</Text></View>
-          <View
-            className={`navigation-item ${activeModule === 'settings' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('settings')) }}
-          ><Text>数据管理</Text></View>
-          {isPlatformAdministrator && !managementAccessDenied && <View
-            className={`navigation-item ${activeModule === 'administration' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('administration')) }}
-          ><Text>用户管理</Text></View>}
-          {isPlatformAdministrator && !managementAccessDenied && <View
-            className={`navigation-item ${activeModule === 'aiConfiguration' ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
-            onClick={() => { if (!restoring) requestLeaveAllDrafts(() => setActiveModule('aiConfiguration')) }}
-          ><Text>AI 参数配置</Text></View>}
+        <View className='navigation-group navigation-group-management'>
+          <Text className='navigation-group-title'>管理</Text>
+          <View className={`navigation-item navigation-item-data ${primaryModule === 'data' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('data') }}><Text>数据管理</Text></View>
+        </View>
+        <View className='navigation-group navigation-group-account'>
+          <Text className='navigation-group-title'>账户</Text>
+          <View className={`navigation-item navigation-item-me ${primaryModule === 'me' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('me') }}><Text>我的</Text></View>
         </View>
         <View className='navigation-account'>
           <View><Text className='navigation-account-label'>当前账户</Text><Text className='navigation-account-name'>{session.user.username}</Text></View>
@@ -1992,13 +2127,21 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       </View>
 
       <View className='app-main'>
-        <View className={`global-header ${activeModule === 'actions' ? 'global-header-actions' : ''}`}>
-          <View><Text className='global-module-title'>{moduleLabels[activeModule]}</Text><Text className='global-message'>{managementAccessNotice && activeModule === 'actions' ? managementAccessNotice : restoring && activeModule === 'actions' ? '正在安全恢复数据，请勿离开' : activeModule === 'actions' ? message : ''}</Text></View>
-          {activeModule !== 'explorations' && activeModule !== 'administration' && activeModule !== 'aiConfiguration' && activeModule !== 'ai' && <View className='global-actions'>
+        <DesktopTitleBar
+          breadcrumb={desktopBreadcrumb}
+          onSearch={openSearch}
+          onCapture={openCapture}
+          searchContent={desktopSearchControl}
+          workbenchTabs={primaryModule === 'workbench' ? ([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
+        />
+        <View className={`global-header ${primaryModule === 'workbench' && workbenchTab === 'actions' ? 'global-header-actions' : ''}`}>
+          <View><Text className='global-module-title'>{primaryModuleLabels[primaryModule]}</Text>{(managementAccessNotice && primaryModule === 'workbench' || restoring && primaryModule === 'workbench') && <Text className='global-message'>{managementAccessNotice || '正在安全恢复数据，请勿离开'}</Text>}</View>
+          {!isBrowserOnline && <Text className='global-connectivity-status offline'>网络已断开</Text>}
+          {!isTauriDesktop() && primaryModule !== 'ai' && <View className='global-actions'>
             <View className={`global-tool-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '刷新数据失败')) }}><Text>刷新数据</Text></View>
-            <View className='global-search-control' ref={searchControlRef}>
+            <View className='global-search-control' ref={!isTauriDesktop() ? searchControlRef : undefined}>
               {searchExpanded ? <View className='global-search-expanded'>
-                <input ref={searchInputRef} className='global-search-input' value={searchQuery} maxLength={120} placeholder='搜索事项、复盘或方法' onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
+                <input ref={!isTauriDesktop() ? searchInputRef : undefined} className='global-search-input' value={searchQuery} maxLength={120} placeholder='搜索事项、复盘或方法' onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
                 <button type='button' className='global-search-exit' aria-label='退出全局搜索' onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); exitSearch() }}>×</button>
               </View> : <View className={`global-tool-button ${searchQuery.trim() ? 'has-draft' : ''}`} onClick={openSearch}><Text>全局搜索</Text></View>}
               {searchExpanded && searchResultsOpen && searchQuery.trim() && <View className='search-results-popover' role='dialog' aria-label='搜索结果'>
@@ -2019,7 +2162,26 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           </View>}
         </View>
 
+        {primaryModule === 'workbench' && !isTauriDesktop() && <View className='fast-ui-tabs workbench-tabs' role='tablist'>
+          {([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
+        </View>}
+        {primaryModule === 'data' && <View className='fast-ui-tabs' role='tablist'>
+          {([['overview', '观察'], ['storage', '数据工具']] as Array<[DataTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${dataTab === tab ? 'active' : ''}`} role='tab' aria-selected={dataTab === tab} onClick={() => openDataTab(tab)}><Text>{label}</Text></View>)}
+        </View>}
+        {primaryModule === 'me' && <View className='fast-ui-tabs' role='tablist'>
+          {([['profile', '账户'], ['security', '安全'], ...(isAdministrator && !managementAccessDenied ? [['administration', '管理区域'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['aiConfiguration', 'AI 参数'] as [MyTab, string]] : [])] as Array<[MyTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${myTab === tab ? 'active' : ''}`} role='tab' aria-selected={myTab === tab} onClick={() => openMyTab(tab)}><Text>{label}</Text></View>)}
+        </View>}
+
         <View className='page'>
+
+        {primaryModule === 'home' && <View className='fast-ui-home-carousel' aria-roledescription='carousel' aria-label='首页精选内容'>
+          <View className={`fast-ui-carousel-slide fast-ui-carousel-slide-${currentHomeCarouselSlide.tone}`}>
+            <Image className='fast-ui-carousel-image' src={homeCarouselImagesByTone[currentHomeCarouselSlide.tone] ?? homeCarouselImagesByTone.coral!} mode='aspectFill' aria-hidden='true' />
+            <View><Text className='fast-ui-carousel-kicker'>图片轮播 · Carousel</Text><Text className='fast-ui-carousel-title'>{currentHomeCarouselSlide.title}</Text><Text className='fast-ui-carousel-description'>{currentHomeCarouselSlide.description}</Text></View>
+            <View className='fast-ui-carousel-arrow' aria-label='下一张' onClick={() => setHomeCarouselIndex((current) => (current + 1) % homeCarouselSlides.length)}><Text>→</Text></View>
+            <View className='fast-ui-carousel-dots'>{homeCarouselSlides.map((slide, index) => <View key={slide.tone} className={`fast-ui-carousel-dot ${index === homeCarouselIndex ? 'active' : ''}`} aria-label={`第 ${index + 1} 张`} onClick={() => setHomeCarouselIndex(index)} />)}</View>
+          </View>
+        </View>}
 
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
         <View className='capture-modal' role='dialog' aria-label='快速捕获'>
@@ -2077,12 +2239,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
       </View>}
 
-      {(activeModule === 'explorations' || explorationMounted) && <View className={activeModule === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
+      {(primaryModule === 'workbench' && workbenchTab === 'explorations' || explorationMounted) && <View className={primaryModule === 'workbench' && workbenchTab === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
         explorationFactsVersion={explorationFactsVersion}
         restoreFactsVersion={restoreFactsVersion}
         onRestoreFactsConfirmed={() => restoreFactsConfirmationRef.current?.resolve()}
         onRestoreFactsFailed={(error) => restoreFactsConfirmationRef.current?.reject(new Error(error))}
         onExplorationTrackCountChange={setActiveExplorationTrackCount}
+        onRefresh={() => refresh().then(() => undefined)}
+        showManualRefresh={!isTauriDesktop()}
         itemUpdatedAtById={itemUpdatedAtById}
         onItemsChanged={() => refresh().then(() => reloadCurrentItemExplorationContext()).then(() => undefined)}
         onOpenItem={(locator) => {
@@ -2097,18 +2261,29 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           setItems(locatedItems)
           setSelectedId(undefined)
         }}
+        paneWidth={workbenchPaneWidth}
+        onPaneResizeStart={startPaneResize}
       /></View>}
 
-      {isPlatformAdministrator && !managementAccessDenied && (activeModule === 'administration' || administrationMounted) && <PlatformAdministration
+      {isAdministrator && !managementAccessDenied && (primaryModule === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration') || administrationMounted) && <PlatformAdministration
         authenticationContext={`${session.user.id}-${session.user.createdAt}`}
         currentUserId={session.user.id}
-        view={activeModule === 'aiConfiguration' ? 'ai' : 'users'}
-        visible={activeModule === 'administration' || activeModule === 'aiConfiguration'}
+        canManageRoles={isPlatformAdministrator}
+        view={myTab === 'aiConfiguration' ? 'ai' : 'users'}
+        visible={primaryModule === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration')}
       />}
 
-      {activeModule === 'ai' && <ExperimentalAiPage />}
+      {primaryModule === 'ai' && <ExperimentalAiPage />}
 
-      {activeModule === 'insights' && <View className='dashboard-panel module-panel'>
+      {primaryModule === 'me' && (myTab === 'profile' || myTab === 'security') && <View className='fast-ui-profile module-panel'>
+        <Text className='section-kicker'>账户中心</Text><Text className='fast-ui-profile-title'>{session.user.username}</Text>
+        <Text className='module-description'>{myTab === 'security' ? '查看当前登录状态，并在需要时安全退出。' : '管理你的账户信息、安全设置和已登录会话。'}</Text>
+        <View className='fast-ui-profile-card'><Text>当前角色</Text><Text>{isPlatformAdministrator ? '平台管理员' : isAdministrator ? '普通管理员' : '普通成员'}</Text></View>
+        <View className='fast-ui-profile-card'><Text>{myTab === 'security' ? '当前会话' : '账户安全'}</Text><Text>{myTab === 'security' ? '当前浏览器会话已登录。' : '密码与登录会话请在安全设置中管理。'}</Text></View>
+        <Button className='action-button secondary' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出登录'}</Button>
+      </View>}
+
+      {primaryModule === 'data' && dataTab === 'overview' && <View className='dashboard-panel module-panel'>
         <View className='dashboard-header'>
           <View>
             <Text className='section-kicker'>周期复盘</Text>
@@ -2158,8 +2333,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
                 ['想试试', dashboardReport.backlog.ideaToTry, 'idea_to_try'],
                 ['进行中', dashboardReport.backlog.doing, 'doing'],
                 ['待复盘', dashboardReport.backlog.waitingReview, 'waiting_review'],
-                ['暂停', dashboardReport.backlog.paused, 'paused'],
-                ['以后再说', dashboardReport.backlog.ideaLater, 'idea_later'],
               ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => navigateTo({ type: 'backlog', status })}><Text>{label}</Text><Text>{value}</Text></View>)}
             </View>
 
@@ -2183,40 +2356,44 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </>}
       </View>}
 
-      {activeModule === 'actions' && <>
+      {primaryModule === 'workbench' && workbenchTab === 'actions' && <>
         <View className='action-rhythm-bar'>
           <View><Text className='action-rhythm-date'>{formattedRhythmDate}</Text><Text className='action-rhythm-note'>这一周，推进一件真实的事</Text></View>
           <View className='action-rhythm-days'>{captureWeekDays.map(({ date, isToday }) => <View key={date.toISOString()} className={`action-rhythm-day ${isToday ? 'today' : ''}`}><Text>{['一', '二', '三', '四', '五', '六', '日'][(date.getDay() + 6) % 7]}</Text><Text>{date.getDate()}</Text></View>)}</View>
           <View className={`action-capture-button ${captureLocked ? 'disabled' : ''}`} onClick={openCapture}><Text>＋ 捕获</Text></View>
         </View>
-        <View className={`workspace module-panel ${!showTrash && (reviewEditing || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace'>
+        <View className={`workspace action-workspace ${showTrash ? 'is-trash' : ''} module-panel ${!showTrash && (reviewEditing || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace' style={{ gridTemplateColumns: `${workbenchPaneWidth}px minmax(0, 1fr)` }}>
         <View className='list-panel'>
+          {!showTrash && <View className='desktop-action-list-tools'>
+            <View className='desktop-action-calendar'><Text className='action-rhythm-date'>{compactRhythmDate} · 事项池（{visibleItems.length}）</Text></View>
+          </View>}
           <View className='panel-heading'><View><Text className='section-kicker'>{showTrash ? '回收站' : '事项池'}</Text><Text className='panel-title'>{visibleItems.length} 件事</Text></View></View>
           <View className='filter-header'>
-            {showTrash ? <Text className='filter-guidance'>删除后保留 30 天，之后自动永久清理</Text> : filter === 'abandoned' || filter === 'waiting_review' ? <><Text className='filter-guidance'>{filter === 'abandoned' ? `已放弃 · ${abandonedItemCount} 件` : `待完成复盘（历史）· ${historicalWaitingReviewCount} 件`}</Text><View className='more-status-return' onClick={() => requestLeaveAllDrafts(() => { setFilter('idea_to_try'); setCurrentPage(1); setSelectedId(undefined) })}><Text>返回状态导航</Text></View></> : <Text className='filter-guidance'>按行动状态查看</Text>}
+            {showTrash ? <Text className='filter-guidance'>删除后保留 30 天，之后自动永久清理</Text> : filter === 'abandoned' || filter === 'waiting_review' ? <><Text className='filter-guidance'>{filter === 'abandoned' ? `已放弃 · ${abandonedItemCount} 件` : `待完成复盘（历史）· ${historicalWaitingReviewCount} 件`}</Text><View className='more-status-return' onClick={() => requestLeaveAllDrafts(() => { setFilter('idea_to_try'); setSelectedId(undefined) })}><Text>返回状态导航</Text></View></> : <Text className='filter-guidance'>按行动状态查看</Text>}
           </View>
+          {!showTrash && filter !== 'abandoned' && filter !== 'waiting_review' && <View className='compact-status-navigation'>
+            {statusNavigation.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => requestLeaveAllDrafts(() => { setFilter(entry.status); setSelectedId(undefined) })}><Text>{entry.label}</Text></View>)}
+            <View ref={moreStatusMenuRef} className={`filter-button more-status-trigger ${moreStatusMenuOpen ? 'active' : ''}`} onClick={() => setMoreStatusMenuOpen((open) => !open)}><Text>更多</Text>{moreStatusMenuOpen && <View className='more-status-menu'>{moreStatusNavigation.map((entry) => <View key={entry.status} onClick={() => requestLeaveAllDrafts(() => { setMoreStatusMenuOpen(false); setFilter(entry.status); setSelectedId(undefined) })}><Text>{entry.label}</Text></View>)}</View>}</View>
+          </View>}
           {!showTrash && filter !== 'abandoned' && filter !== 'waiting_review' && <View className='status-navigation'>
-            {statusNavigation.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => requestLeaveAllDrafts(() => { setFilter(entry.status); setCurrentPage(1); setSelectedId(undefined) })}><Text>{entry.label}</Text></View>)}
-            <View ref={moreStatusMenuRef} className={`filter-button more-status-trigger ${moreStatusMenuOpen ? 'active' : ''}`} onClick={() => setMoreStatusMenuOpen((open) => !open)}><Text>更多状态 ▾</Text>{moreStatusMenuOpen && <View className='more-status-menu'><View onClick={() => requestLeaveAllDrafts(() => { setMoreStatusMenuOpen(false); setFilter('abandoned'); setCurrentPage(1); setSelectedId(undefined) })}><Text>已放弃（{abandonedItemCount}）</Text></View></View>}</View>
+            {statusNavigation.map((entry) => <View key={entry.status} className={`filter-button ${filter === entry.status ? 'active' : ''}`} onClick={() => requestLeaveAllDrafts(() => { setFilter(entry.status); setSelectedId(undefined) })}><Text>{entry.label}</Text></View>)}
+            <View ref={moreStatusMenuRef} className={`filter-button more-status-trigger ${moreStatusMenuOpen ? 'active' : ''}`} onClick={() => setMoreStatusMenuOpen((open) => !open)}><Text>更多状态 ▾</Text>{moreStatusMenuOpen && <View className='more-status-menu'><View onClick={() => requestLeaveAllDrafts(() => { setMoreStatusMenuOpen(false); setFilter('abandoned'); setSelectedId(undefined) })}><Text>已放弃（{abandonedItemCount}）</Text></View></View>}</View>
           </View>}
           <View className='list'>
-            {visibleItems.length === 0 ? <View className='empty'><Text>{showTrash ? '回收站是空的。' : '这个状态下还没有事项。'}</Text><Text>{showTrash ? '删除的事项会在这里保留 30 天。' : '先捕获一个真实想法，让系统开始运转。'}</Text></View> : pagedItems.map((item) => (
-              <View className={`item ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => requestLeaveAllDrafts(() => setSelectedId(item.id))}>
+            {visibleItems.length === 0 ? <View className='empty'><Text>{showTrash ? '回收站是空的。' : '这个状态下还没有事项。'}</Text><Text>{showTrash ? '删除的事项会在这里保留 30 天。' : '先捕获一个真实想法，让系统开始运转。'}</Text></View> : visibleItems.map((item) => (
+              <div className={`item ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onMouseDown={(event) => { event.stopPropagation(); if (selectedIdRef.current !== item.id) requestLeaveAllDrafts(() => setSelectedId(item.id)) }} onClick={(event) => { event.stopPropagation(); if (selectedIdRef.current !== item.id) requestLeaveAllDrafts(() => setSelectedId(item.id)) }}>
                 <View className='item-main'><Text className='item-title'>{item.title}</Text>{sourceDisplayText(methodSourceDisplays[item.id]) && <Text className='item-method-source'>{sourceDisplayText(methodSourceDisplays[item.id])}</Text>}</View>
                 <View className='item-meta'>{showTrash
                   ? <><Text className='trash-badge'>待清理</Text><Text className='time'>{Math.max(1, 30 - Math.floor((Date.now() - new Date(item.deletedAt ?? '').getTime()) / 86400000))} 天后清理</Text></>
                   : <><Text className={`status-badge status-${item.status}`}>{statusLabels[item.status]}</Text><Text className='time'>{formatTime(item.updatedAt)}</Text></>}</View>
-              </View>
+              </div>
             ))}
           </View>
-          {visibleItems.length > ITEMS_PER_PAGE && <View className='pagination'>
-            <View className={`pagination-button ${currentPage === 1 ? 'disabled' : ''}`} onClick={() => { if (currentPage > 1) requestLeaveAllDrafts(() => { setCurrentPage((page) => page - 1); setSelectedId(undefined) }) }}><Text>上一页</Text></View>
-            <Text className='pagination-status'>第 {currentPage} / {totalPages} 页</Text>
-            <View className={`pagination-button ${currentPage === totalPages ? 'disabled' : ''}`} onClick={() => { if (currentPage < totalPages) requestLeaveAllDrafts(() => { setCurrentPage((page) => page + 1); setSelectedId(undefined) }) }}><Text>下一页</Text></View>
-          </View>}
         </View>
+        <div className='desktop-pane-divider' style={{ left: `${workbenchPaneWidth}px` }} role='separator' aria-label='调整列表栏宽度' onPointerDown={startPaneResize} />
 
         <View className={`detail-panel ${!showTrash && (reviewEditing || selectedItem?.status === 'reviewed') ? 'review-mode' : ''}`}>
+          <View className={`main-workspace-content ${selectedItem ? '' : 'is-empty'}`}>
           {selectedItem ? <>
             <View className='detail-header'>
               <Text className='section-kicker'>{showTrash ? '回收站事项' : '当前事项'}</Text>
@@ -2263,7 +2440,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => { if (contentEditingItemId !== selectedItem.id) { event.preventDefault(); openContentEditor() } }} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
                 <View className='detail-content-heading'>
                   <Text className='detail-content-label'>补充：</Text>
-                  {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
+                  {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '点击此处添加补充说明，把这件事拆解为具体的物理下一步……'}</Text>}
                   {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
                 </View>
                 {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
@@ -2366,7 +2543,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => { if (contentEditingItemId !== selectedItem.id) { event.preventDefault(); openContentEditor() } }} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
                 <View className='detail-content-heading'>
                   <Text className='detail-content-label'>补充：</Text>
-                  {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '暂无说明。'}</Text>}
+                  {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '点击此处添加补充说明，把这件事拆解为具体的物理下一步……'}</Text>}
                   {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
                 </View>
                 {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
@@ -2386,7 +2563,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               <Button className='action-button primary' disabled={busy} onClick={restoreSelected}>恢复事项</Button>
             </View> : !reviewEditing && <View className='action-stack'>
               {(selectedItem.status === 'doing' || selectedItem.status === 'waiting_review') && <Button className='action-button primary' disabled={busy} onClick={openReviewEditor}>开始复盘</Button>}
-              {actionsFor(selectedItem).filter((action) => !(action.status === 'abandoned' && (selectedItem.status === 'idea_to_try' || selectedItem.status === 'doing'))).map((action) => <Button key={action.status} className={`action-button ${action.tone}`} disabled={busy} onClick={() => shouldInterceptStartAction(selectedItem, action) ? requestLeaveAllDrafts(openStartConfirm) : changeStatus(action)}>{action.label}</Button>)}
+              {actionsFor(selectedItem).filter((action) => !['idea_later', 'paused'].includes(action.status) && !(action.status === 'abandoned' && (selectedItem.status === 'idea_to_try' || selectedItem.status === 'doing'))).map((action) => <Button key={action.status} className={`action-button ${action.tone}`} disabled={busy} onClick={() => shouldInterceptStartAction(selectedItem, action) ? requestLeaveAllDrafts(openStartConfirm) : changeStatus(action)}>{action.label}</Button>)}
               {deleteConfirm ? <View className='delete-confirm'>
                 <Text>确定删除“{selectedItem.title}”？删除后可在回收站保留 30 天。</Text>
                 <View className='delete-confirm-actions'>
@@ -2396,6 +2573,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               </View> : <Button className='action-button delete' disabled={busy} onClick={() => requestLeaveAllDrafts(() => setDeleteConfirm(true))}>删除事项</Button>}
             </View>}
           </> : <View className='detail-empty'><Text className='detail-empty-title'>选择一件事</Text><Text>查看详情，并推动它进入下一个真实状态。</Text></View>}
+          </View>
         </View>
       </View></>}
 
@@ -2440,7 +2618,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
       </View>}
 
-      {activeModule === 'settings' && <View className='settings-module module-panel'>
+      {primaryModule === 'data' && dataTab === 'storage' && <View className='settings-module module-panel'>
                 <View className='trash-panel'>
           <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和长期探索</Text></View><View className='trash-heading-actions'><Text className='backup-description'>事项和方法保留 30 天；长期探索当前不自动清理。</Text><Button className='action-button secondary' aria-expanded={trashExpanded} onClick={() => setTrashExpanded((expanded) => !expanded)}>{trashExpanded ? '收起' : '展开'}</Button></View></View>
           {trashExpanded && <>
@@ -2482,14 +2660,16 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       </View>
       </View>}
 
-      {activeModule === 'methods' && <View className='methods-panel module-panel'>
+      {primaryModule === 'workbench' && workbenchTab === 'methods' && <View className='methods-panel module-panel'>
+        <View className='methods-compact-heading'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View></View>
         <View className='methods-page-header'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View><Text>按最近更新排序</Text></View>
-        <View className='methods-workbench'>
+        <View className='methods-workbench' style={{ gridTemplateColumns: `${workbenchPaneWidth}px minmax(0, 1fr)` }}>
           {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <>
           <View className='method-list-pane'>
             <Input className='method-search-input' value={methodSearchQuery} maxlength={120} placeholder='搜索方法名称、步骤或说明' onInput={(event) => setMethodSearchQuery(event.detail.value)} />
             {workspaceMethods.length === 0 ? <Text className='method-list-empty'>没有匹配的方法</Text> : <View className='method-list'>{workspaceMethods.map((method) => <View key={method.id} className={`method-list-row ${selectedWorkspaceMethodId === method.id ? 'active' : ''}`} onClick={() => selectWorkspaceMethod(method.id)}><Text className='method-list-title'>{method.title}</Text><Text className='method-list-meta'>v{method.version} · 验证 {method.validationCount} 次 · {formatTime(method.updatedAt)}</Text><Text className='method-list-summary'>{method.steps.split(/\r?\n/, 1)[0]}</Text></View>)}</View>}
           </View>
+          <div className='desktop-pane-divider' style={{ left: `${workbenchPaneWidth}px` }} role='separator' aria-label='调整列表栏宽度' onPointerDown={startPaneResize} />
           <View className='method-detail-pane'>
             {!selectedWorkspaceMethod ? <View className='method-detail-empty'><Text>未选择方法</Text><Text>{methodSearchQuery.trim() ? '当前搜索结果不包含已选方法，请从左侧选择。' : '从左侧列表选择一条方法查看详情。'}</Text></View> : (() => {
               const method = selectedWorkspaceMethod

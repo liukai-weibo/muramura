@@ -17,7 +17,7 @@ import {
   type PlatformAdministrationConfirmation,
 } from '../apps/client/src/pages/index/platform-administration-state'
 
-const target: PlatformUserSummary = { id: 'target-1', username: 'target', roles: ['member'], createdAt: '2026-07-30T00:00:00.000Z', deletedAt: null }
+const target: PlatformUserSummary = { id: 'target-1', username: 'target', roles: ['member'], isInitialPlatformAdmin: false, createdAt: '2026-07-30T00:00:00.000Z', deletedAt: null }
 const snapshot: PlatformUserPage = { items: [target], page: 1, pageSize: 20, total: 1 }
 
 describe('platform administration H5 state boundary', () => {

@@ -55,12 +55,14 @@ export interface InitialOwnerClaimRepository {
 
 // --- Platform administration / 平台角色与管理 ---
 
-export const platformRoles = ['member', 'platform_admin'] as const
+export const platformRoles = ['member', 'ordinary_admin', 'platform_admin'] as const
 export type PlatformRole = (typeof platformRoles)[number]
 
 export const securityAuditActions = [
   'platform_admin_granted',
   'platform_admin_revoked',
+  'ordinary_admin_granted',
+  'ordinary_admin_revoked',
   'user_sessions_revoked',
   'user_soft_deleted',
   'user_restored',
@@ -73,6 +75,7 @@ export interface PlatformUserSummary {
   id: string
   username: string
   roles: PlatformRole[]
+  isInitialPlatformAdmin: boolean
   createdAt: string
   deletedAt: string | null
 }
@@ -146,10 +149,10 @@ export interface SecurityAuditEvent {
 }
 
 export interface PlatformAdministrationRepository {
-  listUsers(input: { page: number; query?: string }): Promise<PlatformUserPage>
-  getUserById(userId: string): Promise<PlatformUserSummary | undefined>
-  grantPlatformAdmin(input: PlatformRoleChangeInput): Promise<'granted' | 'already-granted'>
-  revokePlatformAdmin(input: PlatformRoleChangeInput): Promise<'revoked' | 'already-revoked'>
+  listUsers(input: { page: number; query?: string; actorUserId?: string }): Promise<PlatformUserPage>
+  getUserById(userId: string, actorUserId?: string): Promise<PlatformUserSummary | undefined>
+  grantOrdinaryAdmin(input: PlatformRoleChangeInput): Promise<'granted' | 'already-granted'>
+  revokeOrdinaryAdmin(input: PlatformRoleChangeInput): Promise<'revoked' | 'already-revoked'>
   revokeAllSessions(input: RevokeAllUserSessionsInput): Promise<{ revokedSessionCount: number }>
   softDeleteUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary>
   restoreUser(input: PlatformRoleChangeInput): Promise<PlatformUserSummary>

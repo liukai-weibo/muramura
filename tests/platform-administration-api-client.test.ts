@@ -26,7 +26,7 @@ describe('platform administration API client', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await apiClient.listPlatformUsers({ page: 2, query: ' %_王 ' })
-    await apiClient.setPlatformUserRoles(member.id, { roles: ['member', 'platform_admin'], operationId: '11111111-1111-4111-8111-111111111111' })
+    await apiClient.setPlatformUserRoles(member.id, { roles: ['member', 'ordinary_admin'], operationId: '11111111-1111-4111-8111-111111111111' })
     await apiClient.revokePlatformUserSessions(member.id, { operationId: '22222222-2222-4222-8222-222222222222' })
     await apiClient.getPlatformUser(member.id)
     await apiClient.softDeletePlatformUser(member.id, { operationId: '33333333-3333-4333-8333-333333333333' })
@@ -34,7 +34,7 @@ describe('platform administration API client', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/admin/users?page=2&query=%25_%E7%8E%8B', expect.objectContaining({ credentials: 'same-origin' }))
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/admin/users/user%20%E4%B8%80/roles', expect.objectContaining({
-      method: 'PUT', credentials: 'same-origin', body: JSON.stringify({ roles: ['member', 'platform_admin'], operationId: '11111111-1111-4111-8111-111111111111' }),
+      method: 'PUT', credentials: 'same-origin', body: JSON.stringify({ roles: ['member', 'ordinary_admin'], operationId: '11111111-1111-4111-8111-111111111111' }),
     }))
     expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/v1/admin/users/user%20%E4%B8%80/revoke-sessions', expect.objectContaining({
       method: 'POST', credentials: 'same-origin', body: JSON.stringify({ operationId: '22222222-2222-4222-8222-222222222222' }),

@@ -9,14 +9,14 @@ import { BusinessError, fail } from '../packages/domain/src/index'
 
 const at = '2026-07-30T08:00:00.000Z'
 const actor = (roles: AuthUser['roles']): AuthUser => ({ id: 'actor', username: 'actor', roles, createdAt: at })
-const target: PlatformUserSummary = { id: 'target', username: 'target', roles: ['member'], createdAt: at, deletedAt: null }
+const target: PlatformUserSummary = { id: 'target', username: 'target', roles: ['member'], isInitialPlatformAdmin: false, createdAt: at, deletedAt: null }
 
 function repository(): PlatformAdministrationRepository {
   return {
     listUsers: vi.fn(async input => ({ items: [target], page: input.page, pageSize: 20 as const, total: 1 })),
     getUserById: vi.fn(async id => id === target.id ? target : undefined),
-    grantPlatformAdmin: vi.fn(async () => 'granted' as const),
-    revokePlatformAdmin: vi.fn(async () => 'revoked' as const),
+    grantOrdinaryAdmin: vi.fn(async () => 'granted' as const),
+    revokeOrdinaryAdmin: vi.fn(async () => 'revoked' as const),
     revokeAllSessions: vi.fn(async () => ({ revokedSessionCount: 2 })),
     softDeleteUser: vi.fn(async () => ({ ...target, deletedAt: at })),
     restoreUser: vi.fn(async () => target),
@@ -46,8 +46,8 @@ describe('platform administration application', () => {
       await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'target', roles, operationId: crypto.randomUUID() })).rejects.toBeInstanceOf(BusinessError)
     }
     await expect(service.setUserRoles(actor(['member', 'platform_admin']), { targetUserId: 'target', roles: ['member'], operationId: 'not-a-uuid' })).rejects.toMatchObject({ code: 'PLATFORM_ADMIN_VALIDATION_FAILED' })
-    expect(repo.grantPlatformAdmin).not.toHaveBeenCalled()
-    expect(repo.revokePlatformAdmin).not.toHaveBeenCalled()
+    expect(repo.grantOrdinaryAdmin).not.toHaveBeenCalled()
+    expect(repo.revokeOrdinaryAdmin).not.toHaveBeenCalled()
   })
 
   it('uses the actor, one clock value and server IDs, then returns a real repository reread', async () => {
@@ -56,13 +56,13 @@ describe('platform administration application', () => {
     const service = new PlatformAdministrationApplicationService(repo, () => new Date(at), () => ids.shift()!)
     const admin = actor(['member', 'platform_admin'])
     const grantOperation = crypto.randomUUID()
-    expect(await service.setUserRoles(admin, { targetUserId: 'target', roles: ['member', 'platform_admin'], operationId: grantOperation })).toBe(target)
-    expect(repo.grantPlatformAdmin).toHaveBeenCalledWith({ actorUserId: 'actor', targetUserId: 'target', auditEventId: 'audit-grant', operationId: grantOperation, createdAt: at })
-    expect(repo.getUserById).toHaveBeenCalledWith('target')
+    expect(await service.setUserRoles(admin, { targetUserId: 'target', roles: ['member', 'ordinary_admin'], operationId: grantOperation })).toBe(target)
+    expect(repo.grantOrdinaryAdmin).toHaveBeenCalledWith({ actorUserId: 'actor', targetUserId: 'target', auditEventId: 'audit-grant', operationId: grantOperation, createdAt: at })
+    expect(repo.getUserById).toHaveBeenCalledWith('target', 'actor')
 
     const revokeOperation = crypto.randomUUID()
     await service.setUserRoles(admin, { targetUserId: 'target', roles: ['member'], operationId: revokeOperation })
-    expect(repo.revokePlatformAdmin).toHaveBeenCalledWith(expect.objectContaining({ actorUserId: 'actor', auditEventId: 'audit-revoke', operationId: revokeOperation }))
+    expect(repo.revokeOrdinaryAdmin).toHaveBeenCalledWith(expect.objectContaining({ actorUserId: 'actor', auditEventId: 'audit-revoke', operationId: revokeOperation }))
 
     const sessionOperation = crypto.randomUUID()
     expect(await service.revokeAllUserSessions(admin, { targetUserId: 'target', operationId: sessionOperation })).toEqual({ revokedSessionCount: 2 })
@@ -118,7 +118,7 @@ describe('platform administration application', () => {
       code: 'PLATFORM_ADMIN_INVALID_PAGE',
     })
 
-    vi.mocked(repo.revokePlatformAdmin).mockImplementationOnce(() => fail('PLATFORM_ADMIN_FORBIDDEN', '无权执行平台管理操作'))
+    vi.mocked(repo.revokeOrdinaryAdmin).mockImplementationOnce(() => fail('PLATFORM_ADMIN_FORBIDDEN', '无权执行管理员操作'))
     await expect(service.setUserRoles(admin, {
       targetUserId: 'target',
       roles: ['member'],

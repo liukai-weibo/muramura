@@ -5,8 +5,10 @@
   "packageManager": "pnpm@10.28.2",
   "scripts": {
     "setup": "node scripts/local-setup.mjs",
-    "dev": "node scripts/local-dev.mjs",
+    "dev": "node scripts/desktop-api.mjs",
+    "dev:web": "node scripts/local-dev.mjs",
     "dev:api": "pnpm --filter @knowledge-base/api start",
+    "desktop:api": "node scripts/desktop-api.mjs",
     "dev:h5": "pnpm --filter @knowledge-base/client dev:h5",
     "api": "pnpm dev:api",
     "db:migrate": "corepack pnpm --filter @knowledge-base/api migrate",

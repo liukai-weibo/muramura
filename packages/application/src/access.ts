@@ -128,12 +128,12 @@ export class PlatformAdministrationApplicationService {
 
   async listUsers(actor: AuthUser, input: { page: number; query?: string }): Promise<PlatformUserPage> {
     this.assertAdministrator(actor)
-    return this.repository.listUsers(input)
+    return this.repository.listUsers({ ...input, actorUserId: actor.id })
   }
 
   async getUser(actor: AuthUser, targetUserId: string): Promise<PlatformUserSummary> {
     this.assertAdministrator(actor)
-    const user = await this.repository.getUserById(targetUserId)
+    const user = await this.repository.getUserById(targetUserId, actor.id)
     if (!user) fail('PLATFORM_ADMIN_USER_NOT_FOUND', '目标用户不存在')
     return user
   }
@@ -150,9 +150,10 @@ export class PlatformAdministrationApplicationService {
       operationId: input.operationId,
       createdAt,
     }
-    if (input.roles.length === 2) await this.repository.grantPlatformAdmin(change)
-    else await this.repository.revokePlatformAdmin(change)
-    const user = await this.repository.getUserById(input.targetUserId)
+    if (!actor.roles.includes('platform_admin')) fail('PLATFORM_ADMIN_FORBIDDEN', '普通管理员不能调整管理员角色')
+    if (input.roles.length === 2) await this.repository.grantOrdinaryAdmin(change)
+    else await this.repository.revokeOrdinaryAdmin(change)
+    const user = await this.repository.getUserById(input.targetUserId, actor.id)
     if (!user) fail('PLATFORM_ADMIN_USER_READ_FAILED', '读取目标用户失败')
     return user
   }
@@ -230,7 +231,7 @@ export class PlatformAdministrationApplicationService {
   }
 
   private assertAdministrator(actor: AuthUser): void {
-    if (!actor.roles.includes('platform_admin')) fail('PLATFORM_ADMIN_FORBIDDEN', '无权执行平台管理操作')
+    if (!actor.roles.includes('platform_admin') && !actor.roles.includes('ordinary_admin')) fail('PLATFORM_ADMIN_FORBIDDEN', '无权执行管理员操作')
   }
 }
 
@@ -242,7 +243,7 @@ function assertCanonicalOperationId(value: string): void {
 
 function isCanonicalRoleRequest(roles: PlatformRole[]): boolean {
   return roles.length === 1 && roles[0] === 'member'
-    || roles.length === 2 && roles[0] === 'member' && roles[1] === 'platform_admin'
+    || roles.length === 2 && roles[0] === 'member' && roles[1] === 'ordinary_admin'
 }
 
 export class InitialOwnerClaimApplicationService {

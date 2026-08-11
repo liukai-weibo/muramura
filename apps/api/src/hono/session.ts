@@ -1,5 +1,9 @@
 const sessionCookieName = 'kb_session'
 
+export function isTauriOrigin(origin: string | undefined): boolean {
+  return origin === 'tauri://localhost' || origin === 'http://tauri.localhost'
+}
+
 export function parseSessionSecretFromCookie(cookieHeader: string | undefined): Buffer | undefined {
   const raw = cookieHeader
     ?.split(';')
@@ -15,10 +19,10 @@ export function parseSessionSecretFromCookie(cookieHeader: string | undefined): 
   }
 }
 
-export function buildSessionCookie(secret: Buffer, expiresAt: string): string {
-  return `${sessionCookieName}=${secret.toString('base64url')}; HttpOnly; SameSite=Lax; Path=/; Expires=${new Date(expiresAt).toUTCString()}`
+export function buildSessionCookie(secret: Buffer, expiresAt: string, crossSite = false): string {
+  return `${sessionCookieName}=${secret.toString('base64url')}; HttpOnly; ${crossSite ? 'SameSite=None; Secure' : 'SameSite=Lax'}; Path=/; Expires=${new Date(expiresAt).toUTCString()}`
 }
 
-export function buildExpiredSessionCookie(): string {
-  return `${sessionCookieName}=; HttpOnly; SameSite=Lax; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+export function buildExpiredSessionCookie(crossSite = false): string {
+  return `${sessionCookieName}=; HttpOnly; ${crossSite ? 'SameSite=None; Secure' : 'SameSite=Lax'}; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
 }

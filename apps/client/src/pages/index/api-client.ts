@@ -58,6 +58,20 @@ let authenticationContextVersion = 0
 let unauthorizedHandler: (() => void) | undefined
 let adminForbiddenHandler: ((error: ApiClientError) => void) | undefined
 
+export function isTauriRuntime(): boolean {
+  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+}
+
+export function resolveApiTransport(options: { isTauri?: boolean; configuredOrigin?: string } = {}): { origin: string; credentials: RequestCredentials } {
+  const isDesktop = options.isTauri ?? isTauriRuntime()
+  if (!isDesktop) return { origin: '', credentials: 'same-origin' }
+  const configuredOrigin = String(options.configuredOrigin ?? process.env.TARO_APP_API_BASE_URL ?? '').trim().replace(/\/+$/, '')
+  return { origin: configuredOrigin || 'http://127.0.0.1:32146', credentials: 'include' }
+}
+
+const { origin: apiOrigin, credentials: apiCredentials } = resolveApiTransport()
+const apiUrl = (path: string) => `${apiOrigin}/api/v1${path}`
+
 export function advanceApiClientAuthenticationContext(): void {
   authenticationContextVersion += 1
 }
@@ -93,9 +107,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const requestAuthenticationContext = authenticationContextVersion
   let response: Response
   try {
-    response = await fetch(`/api/v1${path}`, {
+    response = await fetch(apiUrl(path), {
       ...init,
-      credentials: 'same-origin',
+      credentials: apiCredentials,
       headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers },
     })
   } catch (error) {
@@ -140,24 +154,25 @@ function parseAuthUser(value: unknown): AuthUser {
     || typeof value.createdAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value.createdAt) || !Number.isFinite(Date.parse(value.createdAt))
     || !Array.isArray(value.roles)
     || !(value.roles.length === 1 && value.roles[0] === 'member')
-      && !(value.roles.length === 2 && value.roles[0] === 'member' && value.roles[1] === 'platform_admin')) {
+      && !(value.roles.length === 2 && value.roles[0] === 'member' && (value.roles[1] === 'ordinary_admin' || value.roles[1] === 'platform_admin'))) {
     throw new Error('账户响应结构无效。')
   }
   return { id: value.id, username: value.username, roles: [...value.roles], createdAt: value.createdAt } as AuthUser
 }
 
 function parsePlatformUserSummary(value: unknown): PlatformUserSummary {
-  if (!isRecord(value) || !hasExactKeys(value, ['id', 'username', 'roles', 'createdAt', 'deletedAt'])
+  if (!isRecord(value) || !hasExactKeys(value, ['id', 'username', 'roles', 'createdAt', 'deletedAt']) && !hasExactKeys(value, ['id', 'username', 'roles', 'isInitialPlatformAdmin', 'createdAt', 'deletedAt'])
     || typeof value.id !== 'string' || value.id.length === 0
     || typeof value.username !== 'string' || value.username.length === 0
+    || value.isInitialPlatformAdmin !== undefined && typeof value.isInitialPlatformAdmin !== 'boolean'
     || typeof value.createdAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value.createdAt) || !Number.isFinite(Date.parse(value.createdAt))
     || !(value.deletedAt === null || typeof value.deletedAt === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value.deletedAt) && Number.isFinite(Date.parse(value.deletedAt)))
     || !Array.isArray(value.roles)
     || !(value.roles.length === 1 && value.roles[0] === 'member')
-      && !(value.roles.length === 2 && value.roles[0] === 'member' && value.roles[1] === 'platform_admin')) {
+      && !(value.roles.length === 2 && value.roles[0] === 'member' && (value.roles[1] === 'ordinary_admin' || value.roles[1] === 'platform_admin'))) {
     throw new Error('用户管理响应结构无效。')
   }
-  return { id: value.id, username: value.username, roles: [...value.roles], createdAt: value.createdAt, deletedAt: value.deletedAt } as PlatformUserSummary
+  return { id: value.id, username: value.username, roles: [...value.roles], isInitialPlatformAdmin: value.isInitialPlatformAdmin === true, createdAt: value.createdAt, deletedAt: value.deletedAt } as PlatformUserSummary
 }
 
 function parsePlatformUserPage(value: unknown, expectedPage: number): PlatformUserPage {
@@ -232,7 +247,7 @@ function validAdminTargetId(value: string): boolean {
 
 function validPlatformRoles(value: readonly string[]): boolean {
   return value.length === 1 && value[0] === 'member'
-    || value.length === 2 && value[0] === 'member' && value[1] === 'platform_admin'
+    || value.length === 2 && value[0] === 'member' && value[1] === 'ordinary_admin'
 }
 
 export type ApiItemAction = { label: string; status: ItemStatus; tone: 'primary' | 'secondary' | 'danger' }
@@ -397,7 +412,7 @@ export const apiClient = {
   },
   streamExperimentalAiChat: async function* (messages: AiChatMessage[], signal?: AbortSignal, conversationId?: string): AsyncGenerator<AiStreamEvent> {
     if (messages.some((message) => message.role === 'system')) throw new Error('system messages are server-owned')
-    const response = await fetch('/api/v1/experimental/ai-chat/stream', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
+    const response = await fetch(apiUrl('/experimental/ai-chat/stream'), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json' }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
     if (!response.ok) throw new Error('AI stream failed')
     if (!response.body) throw new Error('AI stream failed')
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''

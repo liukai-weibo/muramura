@@ -34,6 +34,7 @@ type ListState = 'initial-loading' | 'ready' | 'refreshing' | 'initial-error' | 
 interface PlatformAdministrationProps {
   authenticationContext: string
   currentUserId: string
+  canManageRoles: boolean
   view: 'users' | 'ai'
   visible: boolean
 }
@@ -75,7 +76,7 @@ function confirmationCopy(confirmation: PlatformAdministrationConfirmation): { t
   }
 }
 
-export function PlatformAdministration({ authenticationContext, currentUserId, view, visible }: PlatformAdministrationProps) {
+export function PlatformAdministration({ authenticationContext, currentUserId, canManageRoles, view, visible }: PlatformAdministrationProps) {
   const [snapshot, setSnapshot] = useState<PlatformUserPage>()
   const snapshotRef = useRef<PlatformUserPage>()
   const [listState, setListState] = useState<ListState>('initial-loading')
@@ -318,6 +319,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
 
   const openConfirmation = (target: PlatformUserSummary, action: PlatformAdministrationAction, returnToSessionsUnknown = false) => {
     const lock = targetLocksRef.current[target.id]
+    if (!canManageRoles && (action === 'grant-role' || action === 'revoke-role')) return
     if (target.id === currentUserId || (lock && !(returnToSessionsUnknown && lock === 'sessions-unknown'))) return
     const next: PlatformAdministrationConfirmation = {
       targetId: target.id,
@@ -507,17 +509,17 @@ export function PlatformAdministration({ authenticationContext, currentUserId, v
                 const notice = targetNotices[user.id]
                 return <View className='platform-user-row' key={user.id}>
                   <Text className='platform-user-name'>{user.username}</Text>
-                  <Text className={`platform-role-badge ${user.deletedAt !== null ? 'deleted' : user.roles.length === 2 ? 'administrator' : 'member'}`}>{platformRoleLabel(user)}</Text>
+                  <Text className={`platform-role-badge ${user.deletedAt !== null ? 'deleted' : user.roles.includes('platform_admin') || user.roles.includes('ordinary_admin') ? 'administrator' : 'member'}`}>{platformRoleLabel(user)}</Text>
                   <Text className='platform-user-created'>注册于 {formatRegistrationTime(user.createdAt)}</Text>
                   <View className='platform-user-actions'>
-                    {current ? <Text className='platform-current-user'>当前账号</Text> : <>
+                    {current || user.isInitialPlatformAdmin ? <Text className='platform-current-user'>{current ? '当前账号' : '初始平台管理员'}</Text> : <>
                       {lock === 'role-unknown' && <Button className='platform-inline-action' onClick={() => void readUsers(page, appliedQuery)}>刷新用户列表</Button>}
                       {lock === 'sessions-unknown' && <Button className='platform-inline-action danger' onClick={() => openConfirmation(user, 'revoke-sessions', true)}>再次撤销会话</Button>}
                       {lock === 'account-unknown' && <Button className='platform-inline-action' onClick={() => void confirmAccountState(user.id)}>确认账号状态</Button>}
                       {!locked && <Button {...{ role: 'button' }} className='platform-more-button' aria-label={`管理${user.username}`} onClick={() => setOpenMenuId((value) => value === user.id ? undefined : user.id)}>更多</Button>}
                       {openMenuId === user.id && !locked && <><View className='platform-menu-dismiss-layer' onClick={() => setOpenMenuId(undefined)} /><View className='platform-user-menu' onClick={(event) => event.stopPropagation()}>
                         {user.deletedAt !== null ? <Button onClick={() => openConfirmation(user, 'restore')}>恢复账号</Button> : <>
-                          <Button onClick={() => openConfirmation(user, user.roles.length === 2 ? 'revoke-role' : 'grant-role')}>{user.roles.length === 2 ? '撤销管理员' : '授予管理员'}</Button>
+                          {canManageRoles && <Button onClick={() => openConfirmation(user, user.roles.includes('ordinary_admin') ? 'revoke-role' : 'grant-role')}>{user.roles.includes('ordinary_admin') ? '撤销普通管理员' : '授予普通管理员'}</Button>}
                           <Button onClick={() => openConfirmation(user, 'revoke-sessions')}>撤销全部会话</Button>
                           <View className='platform-user-menu-divider' />
                           <Button className='danger' onClick={() => openConfirmation(user, 'soft-delete')}>删除账号</Button>

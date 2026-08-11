@@ -1,8 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { apiClient, isApiClientAbort, isApiClientUnknownOutcome } from '../apps/client/src/pages/index/api-client'
+import { apiClient, isApiClientAbort, isApiClientUnknownOutcome, resolveApiTransport } from '../apps/client/src/pages/index/api-client'
 
 describe('H5 API client transport outcomes', () => {
   afterEach(() => vi.unstubAllGlobals())
+
+  it('keeps Web requests on the same-origin /api proxy even when a desktop base URL is configured', () => {
+    expect(resolveApiTransport({ isTauri: false, configuredOrigin: 'http://127.0.0.1:32146' })).toEqual({ origin: '', credentials: 'same-origin' })
+  })
+
+  it('uses the local API directly in Tauri when no override is configured', () => {
+    expect(resolveApiTransport({ isTauri: true, configuredOrigin: '' })).toEqual({ origin: 'http://127.0.0.1:32146', credentials: 'include' })
+  })
+
+  it('uses the configured API directly in Tauri and removes trailing slashes', () => {
+    expect(resolveApiTransport({ isTauri: true, configuredOrigin: 'https://api.example.test///' })).toEqual({ origin: 'https://api.example.test', credentials: 'include' })
+  })
 
   it('forwards an AbortSignal and preserves an intentional read cancellation', async () => {
     const controller = new AbortController()

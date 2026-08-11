@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "MaruMaru desktop window and shortcut permissions",
+  "windows": ["main"],
+  "permissions": ["core:default", "global-shortcut:default"]
+}
