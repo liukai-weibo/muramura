@@ -66,10 +66,12 @@ export function resolveApiTransport(options: { isTauri?: boolean; configuredOrig
   const isDesktop = options.isTauri ?? isTauriRuntime()
   if (!isDesktop) return { origin: '', credentials: 'same-origin' }
   const configuredOrigin = String(options.configuredOrigin ?? process.env.TARO_APP_API_BASE_URL ?? '').trim().replace(/\/+$/, '')
-  return { origin: configuredOrigin || 'http://127.0.0.1:32146', credentials: 'include' }
+  return { origin: configuredOrigin || 'http://127.0.0.1:32146', credentials: 'omit' }
 }
 
 const { origin: apiOrigin, credentials: apiCredentials } = resolveApiTransport()
+const desktopTransport = apiCredentials === 'omit'
+let desktopSessionToken: string | undefined
 const apiUrl = (path: string) => `${apiOrigin}/api/v1${path}`
 
 export function advanceApiClientAuthenticationContext(): void {
@@ -110,7 +112,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     response = await fetch(apiUrl(path), {
       ...init,
       credentials: apiCredentials,
-      headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers },
+      headers: {
+        ...(init.body ? { 'content-type': 'application/json' } : {}),
+        ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}),
+        ...init.headers,
+      },
     })
   } catch (error) {
     if (isApiClientAbort(error)) {
@@ -121,6 +127,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new Error('无法连接本地数据服务，请确认 API 与 MySQL 已启动。')
   }
   if (response.ok) {
+    if (desktopTransport && (path === '/auth/login' || path === '/auth/register')) {
+      const token = response.headers.get('x-kb-session-token')
+      if (token) desktopSessionToken = token
+    }
     if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
   }
@@ -131,6 +141,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   error.businessCode = body?.error?.businessCode
   error.requestId = body?.error?.requestId
   const rejectedCurrentPassword = path === '/account/password' && error.businessCode === 'AUTH_CURRENT_PASSWORD_INVALID'
+  if (response.status === 401 && desktopTransport) desktopSessionToken = undefined
   if (response.status === 401 && !path.startsWith('/auth/') && !rejectedCurrentPassword && requestAuthenticationContext === authenticationContextVersion) unauthorizedHandler?.()
   if (response.status === 403 && path.startsWith('/admin/') && requestAuthenticationContext === authenticationContextVersion) adminForbiddenHandler?.(error)
   throw error
@@ -268,7 +279,7 @@ export const apiClient = {
   actionsFor,
   register: (input: { username: string; password: string }) => request<AuthSession>('/auth/register', { method: 'POST', body: json(input) }),
   login: (input: { username: string; password: string }) => request<AuthSession>('/auth/login', { method: 'POST', body: json(input) }),
-  logout: () => request<void>('/auth/logout', { method: 'POST', body: json({}) }),
+  logout: async () => { try { return await request<void>('/auth/logout', { method: 'POST', body: json({}) }) } finally { if (desktopTransport) desktopSessionToken = undefined } },
   getCurrentSession: (signal?: AbortSignal) => request<AuthSession>('/auth/session', { signal }),
   changeOwnUsername: (input: ChangeOwnUsernameInput) => parseUnknownAuthUserWrite(
     request<unknown>('/account/username', { method: 'PATCH', body: json(input) }),
@@ -412,7 +423,7 @@ export const apiClient = {
   },
   streamExperimentalAiChat: async function* (messages: AiChatMessage[], signal?: AbortSignal, conversationId?: string): AsyncGenerator<AiStreamEvent> {
     if (messages.some((message) => message.role === 'system')) throw new Error('system messages are server-owned')
-    const response = await fetch(apiUrl('/experimental/ai-chat/stream'), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json' }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
+    const response = await fetch(apiUrl('/experimental/ai-chat/stream'), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
     if (!response.ok) throw new Error('AI stream failed')
     if (!response.body) throw new Error('AI stream failed')
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''

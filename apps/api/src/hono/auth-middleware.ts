@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
 import { ApiError } from './errors'
-import { parseSessionSecretFromCookie } from './session'
+import { parseSessionSecretFromHeaders } from './session'
 import { createScopedHonoServices, type RootHonoServices } from './services'
 import type { ApiEnv } from './types'
 
@@ -8,7 +8,7 @@ const normalBodyLimit = 64 * 1024
 
 export function requireAuthenticatedSession(root: RootHonoServices): MiddlewareHandler<ApiEnv> {
   return async (context, next) => {
-    const session = await root.auth.current(parseSessionSecretFromCookie(context.req.header('cookie')))
+    const session = await root.auth.current(parseSessionSecretFromHeaders({ cookie: context.req.header('cookie'), authorization: context.req.header('authorization') }))
     if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
     context.set('actor', session.user)
     context.set('services', createScopedHonoServices(root.pool, session.user.id, root.aiConfig))
