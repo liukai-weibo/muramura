@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import { ApiError } from '../errors'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
 import { requireJson } from '../http'
-import { buildExpiredSessionCookie, buildSessionCookie, parseSessionSecretFromCookie } from '../session'
+import { buildExpiredSessionCookie, buildSessionCookie, isTauriOrigin, parseSessionSecretFromHeaders, sessionTokenHeader } from '../session'
 import type { RootHonoServices } from '../services'
 
 const credentialsSchema = z.object({
@@ -13,7 +13,7 @@ const credentialsSchema = z.object({
 const authUserSchema = z.object({
   id: z.string(),
   username: z.string(),
-  roles: z.array(z.enum(['member', 'platform_admin'])),
+  roles: z.array(z.enum(['member', 'ordinary_admin', 'platform_admin'])),
   createdAt: z.string(),
 }).openapi('AuthUser')
 
@@ -90,25 +90,29 @@ export function createAuthRoutes(root: RootHonoServices) {
     .openapi(registerRoute, async (context) => {
       const body = context.req.valid('json')
       const result = await root.auth.register(body)
-      context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt))
+      const crossSite = isTauriOrigin(context.req.header('origin'))
+      context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt, crossSite))
+      if (crossSite) context.header(sessionTokenHeader, result.secret.toString('base64url'))
       return context.json(result.session, 201)
     })
 
     .openapi(loginRoute, async (context) => {
       const body = context.req.valid('json')
       const result = await root.auth.login(body)
-      context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt))
+      const crossSite = isTauriOrigin(context.req.header('origin'))
+      context.header('set-cookie', buildSessionCookie(result.secret, result.expiresAt, crossSite))
+      if (crossSite) context.header(sessionTokenHeader, result.secret.toString('base64url'))
       return context.json(result.session, 200)
     })
 
     .openapi(logoutRoute, async (context) => {
-      await root.auth.logout(parseSessionSecretFromCookie(context.req.header('cookie')))
-      context.header('set-cookie', buildExpiredSessionCookie())
+      await root.auth.logout(parseSessionSecretFromHeaders({ cookie: context.req.header('cookie'), authorization: context.req.header('authorization') }))
+      context.header('set-cookie', buildExpiredSessionCookie(isTauriOrigin(context.req.header('origin'))))
       return context.body(null, 204)
     })
 
     .openapi(sessionRoute, async (context) => {
-      const session = await root.auth.current(parseSessionSecretFromCookie(context.req.header('cookie')))
+      const session = await root.auth.current(parseSessionSecretFromHeaders({ cookie: context.req.header('cookie'), authorization: context.req.header('authorization') }))
       if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
       return context.json(session, 200)
     })

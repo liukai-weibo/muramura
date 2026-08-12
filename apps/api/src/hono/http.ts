@@ -47,7 +47,8 @@ export const requestContext: MiddlewareHandler<ApiEnv> = async (context, next) =
     context.header('access-control-allow-credentials', 'true')
     context.header('vary', 'origin')
     context.header('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-    context.header('access-control-allow-headers', 'content-type, x-request-id')
+    context.header('access-control-allow-headers', 'content-type, x-request-id, authorization')
+    context.header('access-control-expose-headers', 'x-kb-session-token')
   }
 
   await next()

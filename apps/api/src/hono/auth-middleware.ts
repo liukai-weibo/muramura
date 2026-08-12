@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
 import { ApiError } from './errors'
-import { parseSessionSecretFromCookie } from './session'
+import { parseSessionSecretFromHeaders } from './session'
 import { createScopedHonoServices, type RootHonoServices } from './services'
 import type { ApiEnv } from './types'
 
@@ -8,7 +8,7 @@ const normalBodyLimit = 64 * 1024
 
 export function requireAuthenticatedSession(root: RootHonoServices): MiddlewareHandler<ApiEnv> {
   return async (context, next) => {
-    const session = await root.auth.current(parseSessionSecretFromCookie(context.req.header('cookie')))
+    const session = await root.auth.current(parseSessionSecretFromHeaders({ cookie: context.req.header('cookie'), authorization: context.req.header('authorization') }))
     if (!session) throw new ApiError(401, 'UNAUTHORIZED', 'authentication required')
     context.set('actor', session.user)
     context.set('services', createScopedHonoServices(root.pool, session.user.id, root.aiConfig))
@@ -16,10 +16,10 @@ export function requireAuthenticatedSession(root: RootHonoServices): MiddlewareH
   }
 }
 
-export function requirePlatformAdministrator(): MiddlewareHandler<ApiEnv> {
+export function requireAdministrator(): MiddlewareHandler<ApiEnv> {
   return async (context, next) => {
     const actor = context.get('actor')
-    if (!actor?.roles.includes('platform_admin')) {
+    if (!actor?.roles.includes('platform_admin') && !actor?.roles.includes('ordinary_admin')) {
       throw new ApiError(403, 'FORBIDDEN', '无权执行平台管理操作')
     }
     const declaredLength = Number(context.req.header('content-length') ?? '0')

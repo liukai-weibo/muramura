@@ -38,6 +38,28 @@ describe.runIf(enabled)('authentication API', () => {
     const forbidden = await request('/health', { headers: { origin: 'http://invalid.example' } }); expect(forbidden.status).toBe(403); expect(forbidden.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', requestId: expect.any(String) } })
   })
 
+  it('supports a Tauri bearer session without exposing it to H5 origins', async () => {
+    const body = JSON.stringify({ username: 'tauri-bearer', password: 'password-123' })
+    const h5 = await request('/api/v1/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' } }, body)
+    expect(h5.status).toBe(201)
+    expect(h5.headers['x-kb-session-token']).toBeUndefined()
+
+    const loggedIn = await request('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'tauri://localhost' },
+    }, body)
+    expect(loggedIn.status).toBe(200)
+    const token = String(loggedIn.headers['x-kb-session-token'])
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(loggedIn.headers['access-control-expose-headers']).toBe('x-kb-session-token')
+
+    const session = await request('/api/v1/auth/session', { headers: { authorization: `Bearer ${token}` } })
+    expect(session.status).toBe(200)
+    const loggedOut = await request('/api/v1/auth/logout', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` } }, '{}')
+    expect(loggedOut.status).toBe(204)
+    expect((await request('/api/v1/auth/session', { headers: { authorization: `Bearer ${token}` } })).status).toBe(401)
+  })
+
   it('changes own username and password through account routes', async () => {
     const registered = await json('/api/v1/auth/register', { username: 'account-user', password: 'password-123' })
     expect(registered.status).toBe(201)
