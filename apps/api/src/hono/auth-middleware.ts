@@ -16,10 +16,10 @@ export function requireAuthenticatedSession(root: RootHonoServices): MiddlewareH
   }
 }
 
-export function requireAdministrator(): MiddlewareHandler<ApiEnv> {
+export function requirePlatformAdministrator(): MiddlewareHandler<ApiEnv> {
   return async (context, next) => {
     const actor = context.get('actor')
-    if (!actor?.roles.includes('platform_admin') && !actor?.roles.includes('ordinary_admin')) {
+    if (!actor?.roles.includes('platform_admin')) {
       throw new ApiError(403, 'FORBIDDEN', '无权执行平台管理操作')
     }
     const declaredLength = Number(context.req.header('content-length') ?? '0')
