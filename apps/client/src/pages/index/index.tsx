@@ -1,7 +1,7 @@
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Image, Input, Text, Textarea, View } from '@tarojs/components'
 import type { AuthSession, BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, ExplorationTrackHistory, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter, TrashPurgeEntry } from '@knowledge-base/contracts'
-import { advanceApiClientAuthenticationContext, apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, setApiClientAdminForbiddenHandler, setApiClientUnauthorizedHandler, type ApiClientError, type ApiItemAction } from './api-client'
+import { advanceApiClientAuthenticationContext, apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, restoreApiClientDesktopSession, setApiClientAdminForbiddenHandler, setApiClientUnauthorizedHandler, type ApiClientError, type ApiItemAction } from './api-client'
 import { ExplorationPrototype } from './exploration-prototype'
 import { PlatformAdministration } from './platform-administration'
 import { hasAdministratorRole, hasPlatformAdminRole } from './platform-administration-state'
@@ -10,14 +10,19 @@ import { canModifyItemExplorationContext } from './item-exploration-state'
 import { mergeUpdatedItemContentIntoList } from './item-content-state'
 import ExperimentalAiPage from './experimental-ai'
 import { canOpenStartConfirm, shouldDisplayStartAction, shouldInterceptStartAction, startFeedbackVisible } from './start-confirm-state'
-import { DesktopTitleBar } from '../../desktop/desktop-title-bar'
-import { installDesktopShortcuts, isTauriDesktop } from '../../desktop/desktop-native-bridge'
+import { DesktopAuthTitleBar, DesktopTitleBar } from '../../desktop/desktop-title-bar'
+import { exitDesktopApplication, installDesktopShortcuts, isTauriDesktop } from '../../desktop/desktop-native-bridge'
 import { HomeDashboard } from './home-dashboard'
-import { readColorTheme, readDisplayEffectMode, saveColorTheme, saveDisplayEffectMode, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
+import { DailyNotesPage } from './features/daily-notes/daily-notes-page'
+import { QuickNoteFab } from './features/quick-note/quick-note-fab'
+import { readColorTheme, readDisplayEffectMode, readQuickNoteFabVisible, saveColorTheme, saveQuickNoteFabVisible, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
 import './index.scss'
 import './cream-ui-theme.scss'
 import '../../assets/help'
 const marumaruBrandIconUrl = new URL('../../assets/brand/marumaru-white-cat-transparent.png', import.meta.url).href
+const dailyNoteCatIconUrl = new URL('../../assets/home/guides/cat-forward-stretch.png', import.meta.url).href
+const workbenchCatIconUrl = new URL('../../assets/home/guides/cat-playful-stretch.png', import.meta.url).href
+const aiCatIconUrl = new URL('../../assets/home/guides/cat-ball-roll.png', import.meta.url).href
 type ItemAction = ApiItemAction
 
 interface ReviewTextareaProps {
@@ -54,10 +59,9 @@ const moreStatusNavigation: Array<{ label: string; status: ItemStatus }> = [
 
 type MethodMode = 'none' | 'create' | 'validate'
 type ContentModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration' | 'aiConfiguration'
-type PrimaryModule = 'home' | 'workbench' | 'ai' | 'data' | 'me'
+type PrimaryModule = 'home' | 'workbench' | 'dailyNotes' | 'ai' | 'me'
 type WorkbenchTab = 'actions' | 'explorations' | 'methods'
-type DataTab = 'overview' | 'storage'
-type MyTab = 'profile' | 'security' | 'administration' | 'aiConfiguration'
+type MyTab = 'profile' | 'insights' | 'storage' | 'administration' | 'aiConfiguration'
 type GlobalTool = 'search' | 'capture'
 type NavigationTarget =
   | { type: 'item'; itemId: string }
@@ -77,10 +81,10 @@ const moduleLabels: Record<ContentModule, string> = {
 }
 
 const primaryModuleLabels: Record<PrimaryModule, string> = {
+  dailyNotes: '手记',
   home: '首页',
-  workbench: '行动工作台',
+  workbench: '灵感todo',
   ai: '圈圈 AI 助手',
-  data: '数据管理',
   me: '我的',
 }
 
@@ -170,11 +174,13 @@ interface AuthenticatedWorkspaceProps {
   logoutError: string
   onLogout: () => void
   onConfirmLogoutOutcome: () => void
+  onPasswordChanged: (username: string) => void
   colorTheme: ColorTheme
   onToggleColorTheme: () => void
 }
 
-function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, logoutError, onLogout, onConfirmLogoutOutcome, colorTheme, onToggleColorTheme }: AuthenticatedWorkspaceProps) {
+function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, logoutError, onLogout, onConfirmLogoutOutcome, onPasswordChanged, colorTheme, onToggleColorTheme }: AuthenticatedWorkspaceProps) {
+  const dailyNoteFlushRef = useRef<(() => Promise<boolean>)>()
   const application = apiClient
   const reviewApplication = apiClient
   const searchApplication = apiClient
@@ -183,6 +189,12 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const trashApplication = apiClient
   const backupApplication = apiClient
   const dashboardApplication = apiClient
+  const [passwordChangeOpen, setPasswordChangeOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('')
+  const [passwordChangeBusy, setPasswordChangeBusy] = useState(false)
+  const [passwordChangeError, setPasswordChangeError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchExpanded, setSearchExpanded] = useState(false)
   const [searchResultsOpen, setSearchResultsOpen] = useState(false)
@@ -200,10 +212,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [activeModule, setActiveModule] = useState<ContentModule>('actions')
   const [primaryModule, setPrimaryModule] = useState<PrimaryModule>('home')
   const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('actions')
-  const [dataTab, setDataTab] = useState<DataTab>('overview')
   const [myTab, setMyTab] = useState<MyTab>('profile')
   const [displayEffectMode, setDisplayEffectMode] = useState<DisplayEffectMode>(readDisplayEffectMode)
-  const [displayEffectMenuOpen, setDisplayEffectMenuOpen] = useState(false)
+  const [quickNoteFabVisible, setQuickNoteFabVisible] = useState(readQuickNoteFabVisible)
+  const [quickNoteOpenRequest, setQuickNoteOpenRequest] = useState(0)
+  const [dailyNoteEmpty, setDailyNoteEmpty] = useState(false)
   const [workbenchPaneWidth, setWorkbenchPaneWidth] = useState(340)
   const resizingPaneRef = useRef(false)
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine)
@@ -214,14 +227,65 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const isPlatformAdministrator = hasPlatformAdminRole(session.user.roles)
   const isAdministrator = hasAdministratorRole(session.user.roles)
   const [explorationMounted, setExplorationMounted] = useState(false)
+  const [dailyNotesMounted, setDailyNotesMounted] = useState(false)
+  const [aiMounted, setAiMounted] = useState(false)
   const [explorationFactsVersion, setExplorationFactsVersion] = useState(0)
   const [restoreFactsVersion, setRestoreFactsVersion] = useState(0)
   const restoreFactsConfirmationRef = useRef<{ resolve: () => void; reject: (error: Error) => void }>()
   const [activeExplorationTrackCount, setActiveExplorationTrackCount] = useState<number>()
+  const openPrimaryModuleRef = useRef<(target: PrimaryModule) => void>()
+  const refreshDailyNoteBadge = useCallback(async () => {
+    try {
+      const note = await apiClient.readTodayDailyNote()
+      setDailyNoteEmpty(!note?.content.trim())
+    } catch {
+      // Keep the last trusted badge state when the read fails.
+    }
+  }, [])
+  useEffect(() => { void refreshDailyNoteBadge() }, [refreshDailyNoteBadge])
+  useEffect(() => {
+    const onChanged = () => { void refreshDailyNoteBadge() }
+    window.addEventListener('daily-note-content-changed', onChanged)
+    return () => window.removeEventListener('daily-note-content-changed', onChanged)
+  }, [refreshDailyNoteBadge])
+  useEffect(() => {
+    if (!isTauriDesktop()) return
+    let active = true
+    let unlistenQuick: (() => void) | undefined
+    let unlistenDaily: (() => void) | undefined
+    void import('@tauri-apps/api/event').then(async ({ listen }) => {
+      const [quick, daily] = await Promise.all([
+        listen('desktop-quick-note-shortcut', () => { if (active) setQuickNoteOpenRequest(value => value + 1) }),
+        listen('desktop-daily-note-shortcut', () => { if (active) openPrimaryModuleRef.current?.('dailyNotes') }),
+      ])
+      if (active) { unlistenQuick = quick; unlistenDaily = daily } else { quick(); daily() }
+    })
+    return () => { active = false; unlistenQuick?.(); unlistenDaily?.() }
+  }, [])
+  useEffect(() => {
+    if (!isTauriDesktop()) return
+    let active = true
+    let unlisten: (() => void) | undefined
+    void import('@tauri-apps/api/event').then(async ({ listen }) => {
+      const stop = await listen('daily-note-exit-request', async () => {
+        if (!active) return
+        const saved = await Promise.race([
+          dailyNoteFlushRef.current?.() ?? Promise.resolve(true),
+          new Promise<boolean>(resolve => window.setTimeout(() => resolve(false), 2000)),
+        ])
+        if (saved || window.confirm('最后的小记尚未保存。是否仍要退出？')) await exitDesktopApplication()
+      })
+      if (active) unlisten = stop
+      else stop()
+    })
+    return () => { active = false; unlisten?.() }
+  }, [])
   useEffect(() => {
     if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
     if (activeModule === 'administration' || activeModule === 'aiConfiguration') setAdministrationMounted(true)
-  }, [activeModule])
+    if (primaryModule === 'dailyNotes') setDailyNotesMounted(true)
+    if (primaryModule === 'ai') setAiMounted(true)
+  }, [activeModule, primaryModule])
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
       if (!resizingPaneRef.current) return
@@ -254,8 +318,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setPrimaryModule('workbench')
       setWorkbenchTab(activeModule)
     } else if (activeModule === 'insights' || activeModule === 'settings') {
-      setPrimaryModule('data')
-      setDataTab(activeModule === 'insights' ? 'overview' : 'storage')
+      setPrimaryModule('me')
+      setMyTab(activeModule === 'insights' ? 'insights' : 'storage')
     } else if (activeModule === 'administration' || activeModule === 'aiConfiguration') {
       setPrimaryModule('me')
       setMyTab(activeModule)
@@ -338,6 +402,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const contentEditorRef = useRef<HTMLDivElement>(null)
   const contentInputRef = useRef<HTMLTextAreaElement>(null)
   const [selectedReview, setSelectedReview] = useState<Review>()
+  const [reviewNotePrompt, setReviewNotePrompt] = useState<{ title: string; content: string }>()
   const [reviewEditorItemId, setReviewEditorItemId] = useState<string>()
   const [statusEvents, setStatusEvents] = useState<ItemStatusEvent[]>([])
   const [timelineOpen, setTimelineOpen] = useState(false)
@@ -573,13 +638,18 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', refreshWhenVisible) }
   }, [])
   useEffect(() => {
-    if (primaryModule !== 'home' && (primaryModule !== 'data' || dataTab !== 'overview')) return
+    const refreshItems = () => { void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '无法刷新事项列表。')) }
+    window.addEventListener('knowledge-base-items-changed', refreshItems)
+    return () => window.removeEventListener('knowledge-base-items-changed', refreshItems)
+  }, [])
+  useEffect(() => {
+    if (primaryModule !== 'home' && (primaryModule !== 'me' || myTab !== 'insights')) return
     const controller = new AbortController()
     dashboardApplication.getReport(dashboardWindow, controller.signal).then(setDashboardReport).catch((error: unknown) => {
       if (!isApiClientAbort(error)) setMessage(error instanceof Error ? error.message : '读取仪表盘失败')
     })
     return () => controller.abort()
-  }, [primaryModule, dataTab, dashboardWindow, dashboardApplication, items, methods])
+  }, [primaryModule, myTab, dashboardWindow, dashboardApplication, items, methods])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -1189,6 +1259,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
   const locateActiveItemNow = (itemId: string, sourceItems = items, review = false) => {
     const item = sourceItems.find((entry) => entry.id === itemId && !entry.deletedAt)
+    setPrimaryModule('workbench')
+    setWorkbenchTab('actions')
     setActiveModule('actions')
     setShowTrash(false)
     setDeleteConfirm(false)
@@ -1917,6 +1989,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setMessage(result.createdIdea
         ? `复盘已完成，新想法“${result.createdIdea.title}”已进入想试试`
         : '复盘已完成')
+      setReviewNotePrompt({ title: selectedItem.title, content: submittedReviewForm.result })
     } catch (error: unknown) {
       const message = isApiClientUnknownOutcome(error)
         ? '本次提交结果未确认，未自动重试。请刷新真实数据后确认是否已生效。'
@@ -1985,14 +2058,16 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const cancelSignalClear = () => setPendingSignalClear(undefined)
 
   const openPrimaryModule = (target: PrimaryModule) => {
+    if (primaryModule === 'dailyNotes' && target !== 'dailyNotes') void dailyNoteFlushRef.current?.()
     requestLeaveAllDrafts(() => {
       setPrimaryModule(target)
       if (target === 'workbench') setActiveModule(workbenchTab)
       else if (target === 'ai') setActiveModule('ai')
-      else if (target === 'data') setActiveModule(dataTab === 'overview' ? 'insights' : 'settings')
+      else if (target === 'me' && (myTab === 'insights' || myTab === 'storage')) setActiveModule(myTab === 'insights' ? 'insights' : 'settings')
       else if (target === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration')) setActiveModule(myTab)
     })
   }
+  openPrimaryModuleRef.current = openPrimaryModule
 
   const openWorkbenchTab = (tab: WorkbenchTab) => {
     requestLeaveAllDrafts(() => {
@@ -2002,36 +2077,56 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     })
   }
 
-  const openDataTab = (tab: DataTab) => {
-    requestLeaveAllDrafts(() => {
-      setDataTab(tab)
-      setPrimaryModule('data')
-      setActiveModule(tab === 'overview' ? 'insights' : 'settings')
-    })
-  }
-
   const openMyTab = (tab: MyTab) => {
     requestLeaveAllDrafts(() => {
       setMyTab(tab)
       setPrimaryModule('me')
-      if (tab === 'administration' || tab === 'aiConfiguration') setActiveModule(tab)
+      if (tab === 'insights') setActiveModule('insights')
+      else if (tab === 'storage') setActiveModule('settings')
+      else if (tab === 'administration' || tab === 'aiConfiguration') setActiveModule(tab)
     })
   }
 
-  const selectDisplayEffectMode = (mode: DisplayEffectMode) => {
-    setDisplayEffectMode(mode)
-    saveDisplayEffectMode(mode)
-    setDisplayEffectMenuOpen(false)
+  const closePasswordChange = () => {
+    if (passwordChangeBusy) return
+    setPasswordChangeOpen(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setNewPasswordConfirmation('')
+    setPasswordChangeError('')
   }
 
-  useEffect(() => {
-    if (!displayEffectMenuOpen) return
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDisplayEffectMenuOpen(false)
+  const submitPasswordChange = async () => {
+    if (passwordChangeBusy) return
+    if (!currentPassword || !newPassword || !newPasswordConfirmation) {
+      setPasswordChangeError('请填写当前密码、新密码和确认密码。')
+      return
     }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [displayEffectMenuOpen])
+    if (newPassword.length < 8) {
+      setPasswordChangeError('新密码至少需要 8 个字符。')
+      return
+    }
+    if (newPassword !== newPasswordConfirmation) {
+      setPasswordChangeError('两次输入的新密码不一致。')
+      return
+    }
+    setPasswordChangeBusy(true)
+    setPasswordChangeError('')
+    try {
+      await apiClient.changeOwnPassword({ currentPassword, newPassword })
+      setCurrentPassword('')
+      setNewPassword('')
+      setNewPasswordConfirmation('')
+      onPasswordChanged(session.user.username)
+    } catch (error) {
+      const apiError = error as ApiClientError
+      setPasswordChangeError(apiError.businessCode === 'AUTH_CURRENT_PASSWORD_INVALID'
+        ? '当前密码不正确。'
+        : authenticationErrorMessage(error, '密码修改失败。'))
+    } finally {
+      setPasswordChangeBusy(false)
+    }
+  }
 
   const startPaneResize = (event: React.PointerEvent) => {
     event.preventDefault()
@@ -2115,15 +2210,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
         <View className='navigation-group navigation-group-workspace'>
           <Text className='navigation-group-title'>工作区</Text>
-          {([['home', '首页'], ['workbench', '行动工作台'], ['ai', '圈圈 AI 助手']] as Array<[PrimaryModule, string]>).map(([module, label]) => <View
+          {([['home', '首页']] as Array<[PrimaryModule, string]>).map(([module, label]) => <View
             key={module}
             className={`navigation-item navigation-transition navigation-item-${module} ${primaryModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) openPrimaryModule(module) }}
-          ><Text>{label}</Text></View>)}
-        </View>
-        <View className='navigation-group navigation-group-management'>
-          <Text className='navigation-group-title'>管理</Text>
-          <View className={`navigation-item navigation-transition navigation-item-data ${primaryModule === 'data' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('data') }}><Text>数据管理</Text></View>
+          >{module === 'home' && <Text className='navigation-home-icon' aria-hidden='true'>🏠</Text>}{module === 'workbench' && <Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' />}{module === 'ai' && <Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' />}<Text>{label}</Text></View>)}
+          <View className={`navigation-item navigation-transition navigation-item-dailyNotes ${primaryModule === 'dailyNotes' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('dailyNotes') }}><Image className='navigation-daily-note-icon' src={dailyNoteCatIconUrl} mode='aspectFit' /><Text>手记</Text>{dailyNoteEmpty && <Text className='navigation-daily-note-badge' aria-label='今日尚未记录' />}</View>
+          <View className={`navigation-item navigation-transition navigation-item-workbench ${primaryModule === 'workbench' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('workbench') }}><Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' /><Text>灵感todo</Text></View>
+          <View className={`navigation-item navigation-transition navigation-item-ai ${primaryModule === 'ai' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('ai') }}><Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' /><Text>圈圈 AI 助手</Text></View>
         </View>
         <View className='navigation-group navigation-group-account'>
           <Text className='navigation-group-title'>账户</Text>
@@ -2131,15 +2225,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
         <View className='navigation-account'>
           <View><Text className='navigation-account-label'>当前账户</Text><Text className='navigation-account-name'>{session.user.username}</Text></View>
-          <View className='navigation-display-effect'>
-            <View className='navigation-display-effect-trigger control-transition' role='button' aria-expanded={displayEffectMenuOpen} onClick={() => setDisplayEffectMenuOpen((open) => !open)}>
-              <Text>显示效果</Text><Text>{displayEffectMode === 'glass' ? '玻璃效果' : '兼容模式'}</Text>
-            </View>
-            {displayEffectMenuOpen && <><View className='display-effect-dismiss-layer' onClick={() => setDisplayEffectMenuOpen(false)} /><View className='display-effect-menu' role='dialog' aria-label='显示效果设置'>
-              {([['glass', '玻璃效果', '柔和模糊质感'], ['compatible', '兼容模式', '关闭模糊以降低图形负担']] as Array<[DisplayEffectMode, string, string]>).map(([mode, label, description]) => <View key={mode} className={`display-effect-option ${displayEffectMode === mode ? 'selected' : ''}`} role='button' aria-pressed={displayEffectMode === mode} onClick={() => selectDisplayEffectMode(mode)}>
-                <View><Text>{label}</Text><Text>{description}</Text></View><Text>{displayEffectMode === mode ? '✓' : ''}</Text>
-              </View>)}
-            </View></>}
+            <View role='switch' aria-checked={quickNoteFabVisible} className={`navigation-quick-note-toggle ${quickNoteFabVisible ? 'is-on' : ''}`} onClick={() => { const visible = !quickNoteFabVisible; setQuickNoteFabVisible(visible); saveQuickNoteFabVisible(visible) }}>
+            <Text>速记悬浮球</Text><Text className='navigation-quick-note-switch' aria-hidden='true' />
           </View>
           <Button className='navigation-logout control-transition' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出'}</Button>
           {logoutError && <Text className='navigation-account-error'>{logoutError}</Text>}
@@ -2189,14 +2276,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         {primaryModule === 'workbench' && !isTauriDesktop() && <View className='fast-ui-tabs workbench-tabs' role='tablist'>
           {([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
         </View>}
-        {primaryModule === 'data' && <View className='fast-ui-tabs' role='tablist'>
-          {([['overview', '观察'], ['storage', '数据工具']] as Array<[DataTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${dataTab === tab ? 'active' : ''}`} role='tab' aria-selected={dataTab === tab} onClick={() => openDataTab(tab)}><Text>{label}</Text></View>)}
-        </View>}
         {primaryModule === 'me' && <View className='fast-ui-tabs' role='tablist'>
-          {([['profile', '账户'], ['security', '安全'], ...(isAdministrator && !managementAccessDenied ? [['administration', '管理区域'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['aiConfiguration', 'AI 参数'] as [MyTab, string]] : [])] as Array<[MyTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${myTab === tab ? 'active' : ''}`} role='tab' aria-selected={myTab === tab} onClick={() => openMyTab(tab)}><Text>{label}</Text></View>)}
+          {([['profile', '账户'], ['insights', '观察'], ['storage', '数据工具'], ...(isAdministrator && !managementAccessDenied ? [['administration', '管理区域'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['aiConfiguration', 'AI 参数'] as [MyTab, string]] : [])] as Array<[MyTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${myTab === tab ? 'active' : ''}`} role='tab' aria-selected={myTab === tab} onClick={() => openMyTab(tab)}><Text>{label}</Text></View>)}
         </View>}
 
-        <View className='page'>
+        <View className={`page ${primaryModule === 'dailyNotes' ? 'daily-notes-page-shell' : ''}`}>
 
         {primaryModule === 'home' && <HomeDashboard
           items={items}
@@ -2204,8 +2288,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           onOpenItem={(itemId) => navigateTo({ type: 'item', itemId })}
           onOpenBacklog={(status) => navigateTo({ type: 'backlog', status })}
           onOpenCapture={openCapture}
+          onOpenDailyNotes={() => openPrimaryModule('dailyNotes')}
           displayEffectMode={displayEffectMode}
         />}
+        {dailyNotesMounted && <View className={`module-retained ${primaryModule === 'dailyNotes' ? '' : 'module-retained-hidden'}`}><DailyNotesPage onFlushReady={(flush) => { dailyNoteFlushRef.current = flush }} onItemsChanged={async () => { await refresh() }} onItemCreated={(item) => { setItems(current => current.some(entry => entry.id === item.id) ? current : [item, ...current]) }} /></View>}
+
+        {reviewNotePrompt && <View className='review-note-prompt' role='dialog' aria-modal='true' aria-label='写入手记'>
+          <View className='review-note-prompt-card'><Text>是否将本条行动写入手记？</Text><Text>将追加事项标题和本次复盘内容，不会改写已有记录。</Text><View><Button className='action-button secondary' onClick={() => setReviewNotePrompt(undefined)}>暂不写入</Button><Button className='action-button primary' onClick={() => void apiClient.appendTodayDailyNote(`事项：${reviewNotePrompt.title}\n\n${reviewNotePrompt.content}`).then(() => { window.dispatchEvent(new CustomEvent('daily-note-content-changed')); setReviewNotePrompt(undefined); setMessage('已写入手记') }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '写入手记失败'))}>写入手记</Button></View></View>
+        </View>}
 
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
         <View className='capture-modal' role='dialog' aria-label='快速捕获'>
@@ -2297,17 +2387,28 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         visible={primaryModule === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration')}
       />}
 
-      {primaryModule === 'ai' && <ExperimentalAiPage />}
+      {aiMounted && <View className={`module-retained ${primaryModule === 'ai' ? '' : 'module-retained-hidden'}`}><ExperimentalAiPage /></View>}
 
-      {primaryModule === 'me' && (myTab === 'profile' || myTab === 'security') && <View className='fast-ui-profile module-panel'>
+      {primaryModule === 'me' && myTab === 'profile' && <View className='fast-ui-profile module-panel'>
         <Text className='section-kicker'>账户中心</Text><Text className='fast-ui-profile-title'>{session.user.username}</Text>
-        <Text className='module-description'>{myTab === 'security' ? '查看当前登录状态，并在需要时安全退出。' : '管理你的账户信息、安全设置和已登录会话。'}</Text>
+        <Text className='module-description'>查看账户信息、当前登录状态，并在需要时退出登录。</Text>
         <View className='fast-ui-profile-card'><Text>当前角色</Text><Text>{isPlatformAdministrator ? '平台管理员' : isAdministrator ? '普通管理员' : '普通成员'}</Text></View>
-        <View className='fast-ui-profile-card'><Text>{myTab === 'security' ? '当前会话' : '账户安全'}</Text><Text>{myTab === 'security' ? '当前浏览器会话已登录。' : '密码与登录会话请在安全设置中管理。'}</Text></View>
+        <View className='fast-ui-profile-card'><Text>当前会话</Text><Text>当前浏览器会话已登录。</Text></View>
+        <Button className='action-button secondary' onClick={() => setPasswordChangeOpen(true)}>修改密码</Button>
+        {passwordChangeOpen && <View className='account-password-dialog-backdrop' role='dialog' aria-modal='true' aria-label='修改密码'>
+          <View className='account-password-dialog'>
+          <Text className='account-password-form-title'>修改密码</Text>
+          <Input password value={currentPassword} maxlength={256} placeholder='当前密码' disabled={passwordChangeBusy} onInput={(event) => setCurrentPassword(event.detail.value)} />
+          <Input password value={newPassword} maxlength={256} placeholder='新密码，至少 8 个字符' disabled={passwordChangeBusy} onInput={(event) => setNewPassword(event.detail.value)} />
+          <Input password value={newPasswordConfirmation} maxlength={256} placeholder='确认新密码' disabled={passwordChangeBusy} onInput={(event) => setNewPasswordConfirmation(event.detail.value)} onConfirm={() => void submitPasswordChange()} />
+          {passwordChangeError && <Text className='account-password-form-error'>{passwordChangeError}</Text>}
+          <View className='account-password-form-actions'><Button className='action-button secondary' disabled={passwordChangeBusy} onClick={closePasswordChange}>取消</Button><Button className='action-button primary' disabled={passwordChangeBusy} onClick={() => void submitPasswordChange()}>{passwordChangeBusy ? '正在修改…' : '确认修改'}</Button></View>
+          </View>
+        </View>}
         <Button className='action-button secondary' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出登录'}</Button>
       </View>}
 
-      {primaryModule === 'data' && dataTab === 'overview' && <View className='dashboard-panel module-panel'>
+      {primaryModule === 'me' && myTab === 'insights' && <View className='dashboard-panel module-panel'>
         <View className='dashboard-header'>
           <View>
             <Text className='section-kicker'>周期复盘</Text>
@@ -2356,7 +2457,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               {([
                 ['想试试', dashboardReport.backlog.ideaToTry, 'idea_to_try'],
                 ['进行中', dashboardReport.backlog.doing, 'doing'],
-                ['待复盘', dashboardReport.backlog.waitingReview, 'waiting_review'],
               ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => navigateTo({ type: 'backlog', status })}><Text>{label}</Text><Text>{value}</Text></View>)}
             </View>
 
@@ -2645,7 +2745,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
       </View>}
 
-      {primaryModule === 'data' && dataTab === 'storage' && <View className='settings-module module-panel'>
+      {primaryModule === 'me' && myTab === 'storage' && <View className='settings-module module-panel'>
                 <View className='trash-panel'>
           <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和长期探索</Text></View><View className='trash-heading-actions'><Text className='backup-description'>事项和方法保留 30 天；长期探索当前不自动清理。</Text><Button className='action-button secondary' aria-expanded={trashExpanded} onClick={() => setTrashExpanded((expanded) => !expanded)}>{trashExpanded ? '收起' : '展开'}</Button></View></View>
           {trashExpanded && <>
@@ -2693,7 +2793,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         <View className='methods-workbench' style={{ gridTemplateColumns: `${workbenchPaneWidth}px minmax(0, 1fr)` }}>
           {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <>
           <View className='method-list-pane'>
-            <Input className='method-search-input' value={methodSearchQuery} maxlength={120} placeholder='搜索方法名称、步骤或说明' onInput={(event) => setMethodSearchQuery(event.detail.value)} />
             {workspaceMethods.length === 0 ? <Text className='method-list-empty'>没有匹配的方法</Text> : <View className='method-list'>{workspaceMethods.map((method) => <View key={method.id} className={`method-list-row ${selectedWorkspaceMethodId === method.id ? 'active' : ''}`} onClick={() => selectWorkspaceMethod(method.id)}><Text className='method-list-title'>{method.title}</Text><Text className='method-list-meta'>v{method.version} · 验证 {method.validationCount} 次 · {formatTime(method.updatedAt)}</Text><Text className='method-list-summary'>{method.steps.split(/\r?\n/, 1)[0]}</Text></View>)}</View>}
           </View>
           <div className='desktop-pane-divider' style={{ left: `${workbenchPaneWidth}px` }} role='separator' aria-label='调整列表栏宽度' onPointerDown={startPaneResize} />
@@ -2741,6 +2840,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       </View>}
         </View>
       </View>
+      <QuickNoteFab visible={quickNoteFabVisible} openRequest={quickNoteOpenRequest} onOpenDailyNotes={() => openPrimaryModule('dailyNotes')} />
     </View>
   )
 }
@@ -2830,7 +2930,7 @@ export default function IndexPage() {
 
   useEffect(() => {
     const clearHandler = setApiClientUnauthorizedHandler(() => enterUnauthenticatedGate('当前会话已过期，请重新登录。'))
-    void readCurrentSession('initial')
+    void restoreApiClientDesktopSession().then(() => readCurrentSession('initial'))
     return () => {
       clearHandler()
       sessionReadAbortRef.current?.abort()
@@ -2921,6 +3021,7 @@ export default function IndexPage() {
     logoutError={logoutError}
     onLogout={() => void logout()}
     onConfirmLogoutOutcome={() => void confirmUnknownLogout()}
+    onPasswordChanged={(username) => { setAuthUsername(username); enterUnauthenticatedGate('密码已修改，请使用新密码重新登录。') }}
     colorTheme={colorTheme}
     onToggleColorTheme={toggleColorTheme}
   />
@@ -2929,6 +3030,7 @@ export default function IndexPage() {
   const canSubmitAuthentication = Boolean(authUsername.trim()) && authPassword.length >= 8 && !authenticationLocked
 
   return <View className='auth-gate-shell' data-color-theme={colorTheme}>
+    <DesktopAuthTitleBar />
     <View className='auth-gate-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
     <View className='auth-gate-card'>
       <Text className='auth-gate-kicker'>个人行动闭环</Text>
@@ -2951,7 +3053,7 @@ export default function IndexPage() {
         </View>
         <View className='auth-field'>
           <Text>密码</Text>
-          <Input value={authPassword} maxlength={256} disabled={authenticationLocked} password placeholder='至少 8 个字符' onInput={(event) => setAuthPassword(event.detail.value)} />
+          <Input value={authPassword} maxlength={256} disabled={authenticationLocked} password placeholder='至少 8 个字符' onInput={(event) => setAuthPassword(event.detail.value)} onConfirm={() => { if (canSubmitAuthentication) void submitAuthentication() }} />
         </View>
         {authError && <Text className='auth-gate-error'>{authError}</Text>}
         {(authUnknownOutcome || authNeedsSessionConfirmation) ? <View className='auth-confirm-session'>

@@ -1,0 +1,256 @@
+MaruMaru 奶油软萌 UI 升级定稿全案（修正版，锁定 3 条不可突破落地红线）
+前置：3 条强制落地红线（本次修改核心约束，执行时不可调整）
+红线 1：IP 插画永久锁定吉卜力手绘线稿猫，彻底废弃 3D 黏土猫方案
+固定 IP 规范：保留暖米底色填充 + 红棕细轮廓吉卜力复古线稿猫咪，对标宫崎骏手绘原稿质感；
+适配逻辑：线稿手绘质感与页面奶油羊皮纸底色#FAF8F5天然适配，营造绘本手账高级氛围；
+禁止项：不使用 C4D 黏土、盲盒 3D 卡通猫，规避同质化廉价商业手游视觉，全程只迭代手绘线稿细节，不更换 IP 风格。
+红线 2：全程纯 CSS 原生动效，零第三方动画库（彻底舍弃 Framer Motion）
+统一标准过渡代码（全局唯一）：
+css
+transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+性能兜底：所有悬浮弹动、上浮交互仅依靠transform+box-shadow硬件加速，无 JS 动画库开销；
+毛玻璃双兼容方案（按需切换，解决低配 Windows 集成显卡卡顿）
+高性能模式（Tauri WebView 默认）：标准backdrop-filter: blur(12px)毛玻璃；
+低配降级模式（用户设置可手动开启）：纯半透平替background: rgba(255,255,255,0.85) + 1px solid rgba(255,255,255,0.6)，无滤镜、零 GPU 消耗。
+红线 3：全浅色三栏强制分层防糊，避免浅色调融为一体
+界面三层空间结构（从底层到悬浮层严格区分）：
+底层底板：左侧侧边栏#F3EFEA浅奶茶色，右侧加1px #EAE6E0 铅笔细描边，隔绝侧边与主内容区；
+中层浮块：首页统计、心法、事项卡片统一#FFFFFF纯白基底，搭配shadow-soft柔和阴影；
+顶层沉浸层：AI 建议小模块半透玻璃容器，尺寸更小、虚化强度降低；
+依靠「底色深浅差 + 细分割描边 + 分层阴影」建立视觉阶梯，彻底解决全浅色界面发糊、无边界问题。
+一、设计定位 & 四大核心设计原则（同步更新约束）
+低压力暖调基底：放弃冷白、纯黑，全程暖奶油色系，弱化办公严肃感，长时间书写无视觉疲劳；
+手绘绘本 IP 优先：统一吉卜力线稿猫咪视觉，杜绝 3D 黏土卡通形象，维持手账高级质感；
+原生 CSS 轻量化性能：不引入任何动画第三方库，提供毛玻璃高低配双模式，兼容低配 Windows 设备；
+分层清晰浅色系规范：全浅界面依靠描边、阴影搭建三层空间，避免视觉融合模糊；
+低饱和马卡龙色彩：功能区分色全部降低饱和度，柔和区分模块不抢视觉焦点；
+AI 模块独立视觉隔离：新增事项 / 复盘自动生成 AI 短句建议，专属轻量化容器，单向静态展示、无交互入口。
+二、完整标准化色彩系统（无改动，沿用原奶油配色）
+浅色奶油主题（默认启用）
+1）中性基底色
+表格
+色值	名称	使用场景
+#FAF8F5	页面底层背景	全局画布底色，羊皮纸温润质感
+#F3EFEA	侧边栏底板	左侧导航栏，第一层底色，右侧加 1px 分割线
+#FFFFFF	卡片浮层底色	统计、心法、事项主卡片，第二层浮块
+rgba(255,255,255,0.82)	标准毛玻璃底色	高性能模式心法模块、AI 模块
+rgba(255,255,255,0.85)	降级纯半透底色	低配模式平替毛玻璃，无模糊滤镜
+#EAE6E0	铅笔细分割线	侧边栏分割、卡片描边、模块边界，分层核心
+2）文字层级色（抛弃纯黑，降低视觉压迫）
+表格
+色值	层级	场景
+#2C2823	一级标题	板块大标题、数字统计（65/172）
+#544F49	二级正文	常规描述文字、事项内容
+#948E86	辅助小字	提示、标签、AI 辅助文字
+3）品牌主色、功能区分色、状态色（完全沿用原版）
+主交互蜜桃粉：#FF7A96；
+心法三色低饱和渐变；
+轻量化状态标签浅底色，无厚重色块。
+深色备用主题（夜间熬夜使用，一键切换）
+基底：#292521 暖深棕（非纯黑），侧边栏#37322E，卡片#3E3A35；文字统一暖浅米白，功能色同步降低明度。
+三、全局统一组件规范（重点修正动效、IP、毛玻璃模块）
+1. 圆角分级（不变）
+卡片大圆角：22px（统计卡片、心法模块、弹窗）
+按钮胶囊圆角：9999px（快速捕获、继续推进）
+输入框 / 标签小圆角：14px（搜索框、状态标签）
+2. 阴影分级（不变，分层核心）
+css
+/* 基础卡片静态阴影（中层浮块标准） */
+shadow-soft: 0 4px 16px rgba(120,90,60,0.06), 0 1px 4px rgba(0,0,0,0.03)
+/* hover上浮强化阴影（弹动交互配套） */
+shadow-pop: 0 8px 24px rgba(120,90,60,0.1), 0 2px 8px rgba(0,0,0,0.05)
+3. 动效规范（全盘重构，纯 CSS 无第三方库）
+全局统一过渡属性（所有可悬浮卡片、按钮共用）
+css
+.card-transition {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+统一 hover 交互样式（无 JS、无 spring 库）
+css
+.card-transition:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: theme("boxShadow.pop");
+}
+AI 文字淡入动效（原生 opacity+transform 过渡，无第三方）
+css
+.ai-tip {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 0;
+  transform: translateY(6px);
+}
+.ai-tip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+4. 双版本玻璃容器（适配高低配性能）
+① 高性能标准毛玻璃（默认开启，Tauri WebView 完美兼容）
+css
+.soft-glass {
+  background: rgba(255,255,255,0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.45);
+  border-radius: theme("borderRadius.card");
+  box-shadow: theme("boxShadow.soft");
+}
+② 低配降级纯 CSS 平替（无模糊滤镜，零 GPU 损耗）
+css
+.soft-glass-fallback {
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(255,255,255,0.6);
+  /* 内阴影模拟玻璃厚度，弥补无模糊缺失的分层感 */
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15), theme("boxShadow.soft");
+  border-radius: theme("borderRadius.card");
+}
+5. IP 插画硬性规范（新增，锁死手绘猫）
+全页面猫咪插画统一吉卜力复古线稿风格：红棕细轮廓、暖米纯色填充，无渐变、无 3D 光影、无黏土质感；
+心法「启动 SOP」卡片内置手绘猫固定插图，不替换、不新增 3D 卡通素材；
+Logo 区猫咪沿用同款线稿体系，整套 IP 视觉统一，禁止引入任何 C4D 黏土资源。
+6. 间距规范（不变）
+页面全局内边距 24px，卡片内部 padding 20px，模块之间间距 20px，文字行高 1.6（长复盘阅读友好）。
+四、页面逐区域精细化改造（新增三栏分层防糊专项处理）
+1. 左侧侧边栏（分层第一层底板，核心防糊改动）
+底色固定浅奶茶#F3EFEA，彻底移除深色侧边栏；
+右侧新增 1px #EAE6E0 垂直细描边，物理分割侧边栏与主内容区，解决全浅色边界模糊；
+Logo 区嵌入吉卜力手绘线稿猫，拒绝 3D 黏土形象；
+选中菜单：浅蜜桃粉底色 + 柔和圆角，无厚重高亮条；
+底部账户区新增性能模式切换按钮：一键切换「标准毛玻璃 / 低配降级半透」。
+2. 顶部全局导航栏
+顶部栏底色和页面背景#FAF8F5统一，无独立深色条；
+搜索框 14px 圆角、浅灰底色，无硬边框；
+「+ 快速捕获」主按钮挂载.card-transition纯 CSS 弹动效果。
+3. 首页「今日推进」模块（中层纯白浮块）
+外层卡片#FFFFFF纯白基底，22px 大圆角 +shadow-soft；
+卡片四周保留极淡#EAE6E0细描边，区分底层奶油背景；
+按钮挂载纯 CSS 贝塞尔弹动过渡；
+右侧「进行中」轻量化浅粉标签，无厚重色块。
+4. 三大数据统计卡片（当前行动 / 待处理 / 待复盘，中层浮块）
+统一纯白#FFFFFF基底，铅笔细描边 + 柔和阴影，和侧边奶茶底板形成清晰层级差；
+数字65/172/0蜜桃主色加重突出；
+全部挂载.card-transition原生 CSS 悬浮弹动，无任何第三方动画库。
+5. 系统心法三块指南卡片（手绘 IP 核心区域）
+统一 22px 超大圆角，根据用户性能模式自动切换soft-glass/soft-glass-fallback；
+彻底移除原版高饱和艳色块，替换低饱和柔和渐变；
+左侧「启动 SOP」卡片内置吉卜力手绘线稿猫，永久不替换 3D 黏土插画；
+全部卡片挂载纯 CSS 悬浮弹动效果。
+6. AI 专属模块视觉规范（单向无交互，纯 CSS 淡入）
+展示位置：事项 / 复盘卡片底部独立容器，顶层沉浸层；
+容器样式：跟随全局玻璃双模式，小尺寸圆角 16px；
+文字仅静态展示，无输入框、无追问按钮；
+载入动画：原生 CSS opacity+Y 轴过渡，无 Framer Motion。
+五、可直接落地的 Tailwind 全局配置（修正版，移除所有动画库依赖）
+ts
+// tailwind.config.ts
+export default {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        // 奶油浅色主题基底
+        creamBg: "#FAF8F5",
+        creamSide: "#F3EFEA",
+        creamBorder: "#EAE6E0",
+        textTitle: "#2C2823",
+        textBody: "#544F49",
+        textHint: "#948E86",
+        // 主交互蜜桃粉
+        xhsPink: "#FF7A96",
+        xhsPinkLight: "#FFEEF2",
+        // 心法三色
+        sopCard: "#EBE5DD",
+        projectGrad: "linear-gradient(135deg,#FFDFDF,#FFC7BC)",
+        energyGrad: "linear-gradient(135deg,#E0F0E7,#C6E4D3)",
+        // AI模块底色
+        aiGlass: "rgba(255,220,226,0.55)"
+      },
+      borderRadius: {
+        card: "22px",
+        pill: "9999px",
+        tag: "14px"
+      },
+      boxShadow: {
+        soft: "0 4px 16px rgba(120,90,60,0.06), 0 1px 4px rgba(0,0,0,0.03)",
+        pop: "0 8px 24px rgba(120,90,60,0.1), 0 2px 8px rgba(0,0,0,0.05)"
+      },
+      backgroundImage: {
+        pinkGrad: "linear-gradient(135deg,#FFD2D9,#FF7A96)"
+      },
+      // 全局统一CSS过渡，无第三方库
+      transitionProperty: {
+        card: "transform, box-shadow"
+      },
+      transitionTimingFunction: {
+        bounce: "cubic-bezier(0.34, 1.56, 0.64, 1)"
+      }
+    }
+  }
+}
+全局通用工具类 global.css（双玻璃样式 + 纯 CSS 过渡）
+css
+@layer utilities {
+  /* 卡片统一弹动过渡 */
+  .card-transition {
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  }
+  .card-transition:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: theme("boxShadow.pop");
+  }
+
+  /* 高性能标准毛玻璃 */
+  .soft-glass {
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.45);
+    border-radius: theme("borderRadius.card");
+    box-shadow: theme("boxShadow.soft");
+  }
+
+  /* 低配降级纯CSS平替（无blur滤镜） */
+  .soft-glass-fallback {
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15), theme("boxShadow.soft");
+    border-radius: theme("borderRadius.card");
+  }
+
+  /* AI建议容器 */
+  .ai-tip-glass {
+    background: theme("colors.aiGlass");
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 16px;
+    padding: 12px;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .ai-tip-glass.fallback {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+六、落地分步执行流程（调整执行顺序，优先解决分层与性能约束）
+第一步：三栏浅色分层隔离改造（1h）
+修改侧边栏底色，增加右侧#EAE6E0分割描边；统一所有卡片纯白基底 + 细描边，搭建「侧边底板 - 卡片浮块」两层视觉阶梯，解决浅色糊成一片问题。
+第二步：锁定吉卜力手绘 IP 资源（0.5h）
+删除所有 3D 黏土猫咪素材、相关设计代码；全页面统一导入红棕线稿手绘猫，替换所有卡通插图。
+第三步：全局纯 CSS 动效重构（1h）
+移除项目内所有 Framer Motion 引入、spring 弹簧 JS 代码；全局挂载.card-transition纯 CSS 过渡类，统一所有悬浮弹动交互。
+第四步：双模式玻璃容器开发（1h）
+编写标准毛玻璃 + 低配降级两套 CSS 工具类；在设置页增加性能模式切换开关，本地存储用户偏好。
+第五步：AI 模块视觉接入（0.5h）
+事项 / 复盘底部新增 AI 提示容器，原生 CSS 实现文字淡入动画，无交互入口。
+第六步：深色主题兼容（可选，1h）
+配置 dark 模式反向色值，同步两套玻璃样式，主题切换存储至 Tauri 本地存储。
+七、低配 Windows 设备性能兜底方案
+手动性能开关：用户一键切换「毛玻璃开启 / 降级半透」，关闭backdrop-filter滤镜，大幅降低 GPU 渲染负载；
+无第三方动画库：全部动效依靠transform、box-shadow硬件加速，不会触发页面重绘、帧率暴跌；
+克制动画触发逻辑：仅鼠标 hover 卡片时执行过渡，页面初始化无批量全局入场动画（可额外增加开关关闭载入动画）；
+分层依靠描边替代滤镜：全浅色界面层级不靠模糊区分，底层细描边已经完成空间隔离，降级模式不会丢失层次感。
+八、本次方案核心修改汇总（对比原版初稿）
+IP 视觉约束：彻底删除 3D 黏土猫设计规划，全链路锁定吉卜力手绘线稿猫，规避同质化商业卡通风格；
+工程性能约束：完全舍弃 Framer Motion 第三方动画库，所有 duang 弹动、淡入效果改用原生 CSS 贝塞尔过渡；新增毛玻璃高低配双兼容样式，适配低配 Windows 设备；
+浅色界面分层优化：补充三栏空间结构规范，侧边栏增加垂直细分割描边，依靠底色差 + 描边 + 阴影三层手段，解决全浅色调视觉融合发糊问题；
+无额外开发成本：仅修改 CSS 工具类、Tailwind 配置、资源素材，后端、AI 调用、本地存储逻辑完全无需改动。
+最终结论
+整套方案保留原版奶油松弛手账核心设计，同时严格锁死你提出的 3 条硬性红线，兼顾视觉质感、手绘绘本高级感、桌面端性能兼容、浅色界面分层清晰度，可直接交付前端执行完整焕肤。

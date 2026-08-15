@@ -40,7 +40,8 @@ const config: UserConfigExport<'vite'> = {
     compile: { include: sharedPackageSources },
   },
   h5: {
-    publicPath: '/',
+    // Keep the production bundle openable from file:// as well as served over HTTP.
+    publicPath: './',
     staticDirectory: 'static',
     router: { mode: 'hash' },
     devServer: {

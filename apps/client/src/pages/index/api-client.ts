@@ -45,7 +45,9 @@ import type {
   AiConversation,
   AiConversationSnapshot,
   AiStreamEvent,
+  DailyNote,
 } from '@knowledge-base/contracts'
+import { clearDesktopSessionToken, readDesktopSessionToken, saveDesktopSessionToken } from '../../desktop/desktop-native-bridge'
 
 export interface ApiClientError extends Error {
   status?: number
@@ -73,6 +75,51 @@ const { origin: apiOrigin, credentials: apiCredentials } = resolveApiTransport()
 const desktopTransport = apiCredentials === 'omit'
 let desktopSessionToken: string | undefined
 const apiUrl = (path: string) => `${apiOrigin}/api/v1${path}`
+const desktopSessionStorageKey = 'marumaru.desktop-bearer-session'
+
+function readDesktopSessionStorage(): string | undefined {
+  if (!desktopTransport || typeof window === 'undefined') return undefined
+  try {
+    const token = window.localStorage.getItem(desktopSessionStorageKey)
+    return token?.trim() ? token : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function writeDesktopSessionStorage(token: string): void {
+  if (!desktopTransport || typeof window === 'undefined') return
+  try { window.localStorage.setItem(desktopSessionStorageKey, token) } catch { /* Native credential storage remains available. */ }
+}
+
+function clearDesktopSessionStorage(): void {
+  if (!desktopTransport || typeof window === 'undefined') return
+  try { window.localStorage.removeItem(desktopSessionStorageKey) } catch { /* Session state is still cleared from memory. */ }
+}
+
+async function persistDesktopSessionToken(token: string): Promise<void> {
+  desktopSessionToken = token
+  writeDesktopSessionStorage(token)
+  try { await saveDesktopSessionToken(token) } catch { /* Credentials remain optional for desktop availability. */ }
+}
+
+function discardDesktopSessionToken(): void {
+  desktopSessionToken = undefined
+  clearDesktopSessionStorage()
+  void clearDesktopSessionToken().catch(() => undefined)
+}
+
+export async function restoreApiClientDesktopSession(): Promise<void> {
+  if (!desktopTransport) return
+  desktopSessionToken = readDesktopSessionStorage()
+  if (desktopSessionToken) return
+  try {
+    desktopSessionToken = await readDesktopSessionToken()
+    if (desktopSessionToken) writeDesktopSessionStorage(desktopSessionToken)
+  } catch {
+    desktopSessionToken = undefined
+  }
+}
 
 export function advanceApiClientAuthenticationContext(): void {
   authenticationContextVersion += 1
@@ -129,7 +176,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (response.ok) {
     if (desktopTransport && (path === '/auth/login' || path === '/auth/register')) {
       const token = response.headers.get('x-kb-session-token')
-      if (token) desktopSessionToken = token
+      if (token) await persistDesktopSessionToken(token)
     }
     if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
@@ -141,7 +188,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   error.businessCode = body?.error?.businessCode
   error.requestId = body?.error?.requestId
   const rejectedCurrentPassword = path === '/account/password' && error.businessCode === 'AUTH_CURRENT_PASSWORD_INVALID'
-  if (response.status === 401 && desktopTransport) desktopSessionToken = undefined
+  if (response.status === 401 && desktopTransport && !rejectedCurrentPassword) discardDesktopSessionToken()
   if (response.status === 401 && !path.startsWith('/auth/') && !rejectedCurrentPassword && requestAuthenticationContext === authenticationContextVersion) unauthorizedHandler?.()
   if (response.status === 403 && path.startsWith('/admin/') && requestAuthenticationContext === authenticationContextVersion) adminForbiddenHandler?.(error)
   throw error
@@ -279,14 +326,16 @@ export const apiClient = {
   actionsFor,
   register: (input: { username: string; password: string }) => request<AuthSession>('/auth/register', { method: 'POST', body: json(input) }),
   login: (input: { username: string; password: string }) => request<AuthSession>('/auth/login', { method: 'POST', body: json(input) }),
-  logout: async () => { try { return await request<void>('/auth/logout', { method: 'POST', body: json({}) }) } finally { if (desktopTransport) desktopSessionToken = undefined } },
+  logout: async () => { try { return await request<void>('/auth/logout', { method: 'POST', body: json({}) }) } finally { if (desktopTransport) discardDesktopSessionToken() } },
   getCurrentSession: (signal?: AbortSignal) => request<AuthSession>('/auth/session', { signal }),
   changeOwnUsername: (input: ChangeOwnUsernameInput) => parseUnknownAuthUserWrite(
     request<unknown>('/account/username', { method: 'PATCH', body: json(input) }),
   ),
-  changeOwnPassword: (input: ChangeOwnPasswordInput) => parseUnknownVoidWrite(
-    request<unknown>('/account/password', { method: 'POST', body: json(input) }),
-  ),
+  changeOwnPassword: async (input: ChangeOwnPasswordInput) => {
+    const result = await parseUnknownVoidWrite(request<unknown>('/account/password', { method: 'POST', body: json(input) }))
+    if (desktopTransport) discardDesktopSessionToken()
+    return result
+  },
   listPlatformUsers: async (input: { page: number; query?: string }, signal?: AbortSignal) => {
     const query = input.query?.trim()
     if (!Number.isSafeInteger(input.page) || input.page < 1 || (query?.length ?? 0) > 80) throw new Error('用户列表请求参数无效。')
@@ -389,6 +438,29 @@ export const apiClient = {
   search: (query: string, signal?: AbortSignal) => request<SearchResult[]>(`/search?query=${encodeURIComponent(query)}`, { signal }),
   getDashboard: (window: DashboardWindow, signal?: AbortSignal) => request<DashboardReport>(`/dashboard?window=${window}`, { signal }),
   getReport: (window: DashboardWindow, signal?: AbortSignal) => request<DashboardReport>(`/dashboard?window=${window}`, { signal }),
+  getTodayDailyNote: () => request<DailyNote>('/daily-notes/today', { method: 'POST', body: json({}) }),
+  readTodayDailyNote: () => request<DailyNote | undefined>('/daily-notes/today'),
+  listDailyNotes: () => request<DailyNote[]>('/daily-notes'),
+  updateDailyNote: (id: string, content: string) => request<DailyNote>(`/daily-notes/${encodeURIComponent(id)}`, { method: 'PUT', body: json({ content }) }),
+  appendTodayDailyNote: (content: string) => request<DailyNote>('/daily-notes/today/append', { method: 'POST', body: json({ content }) }),
+  streamDailyNoteAi: async function* (id: string, command: string, draft: string, signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
+    const response = await fetch(apiUrl(`/daily-notes/${encodeURIComponent(id)}/ai/stream`), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ command, draft }), signal })
+    if (!response.ok || !response.body) throw new Error('Daily note AI stream failed')
+    const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''
+    const parse = function* (chunk: string): Generator<AiStreamEvent> { const data = chunk.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n'); if (data) yield JSON.parse(data) as AiStreamEvent }
+    while (true) { const next = await reader.read(); if (next.done) break; buffer += decoder.decode(next.value, { stream: true }); const chunks = buffer.split(/\r?\n\r?\n/); buffer = chunks.pop() ?? ''; for (const chunk of chunks) yield* parse(chunk) }
+    if (buffer.trim()) yield* parse(buffer)
+  },
+  extractDailyNoteTodos: (id: string, draft: string, signal?: AbortSignal) => request<Array<{ id: string; title: string; content?: string }>>(`/daily-notes/${encodeURIComponent(id)}/ai/todos`, { method: 'POST', body: json({ draft }), signal }),
+  getDailyNoteAiConversation: (id: string, signal?: AbortSignal) => request<{ messages: Array<{ id: string; conversationId: string; sequence: number; role: 'user' | 'assistant'; status: string; content: string; createdAt: string }> }>(`/daily-notes/${encodeURIComponent(id)}/ai/chat`, { signal }),
+  streamDailyNoteAiChat: async function* (id: string, message: string, draft: string, signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
+    const response = await fetch(apiUrl(`/daily-notes/${encodeURIComponent(id)}/ai/chat/stream`), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ message, draft }), signal })
+    if (!response.ok || !response.body) throw new Error('Daily note AI chat failed')
+    const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''
+    const parse = function* (chunk: string): Generator<AiStreamEvent> { const data = chunk.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n'); if (data) yield JSON.parse(data) as AiStreamEvent }
+    while (true) { const next = await reader.read(); if (next.done) break; buffer += decoder.decode(next.value, { stream: true }); const chunks = buffer.split(/\r?\n\r?\n/); buffer = chunks.pop() ?? ''; for (const chunk of chunks) yield* parse(chunk) }
+    if (buffer.trim()) yield* parse(buffer)
+  },
   listTrashEntries: (filter: TrashFilter, signal?: AbortSignal) => request<TrashEntry[]>(`/trash?filter=${filter}`, { signal }),
   purgeTrashEntry: (entry: TrashPurgeEntry, signal?: AbortSignal) => request<void>(`/trash/${entry.type}/${encodeURIComponent(entry.id)}`, { method: 'DELETE', signal }),
   purgeTrashEntries: (entries: TrashPurgeEntry[], signal?: AbortSignal) => request<void>('/trash/purge', { method: 'POST', body: json({ entries }), signal }),
@@ -423,8 +495,17 @@ export const apiClient = {
   },
   streamExperimentalAiChat: async function* (messages: AiChatMessage[], signal?: AbortSignal, conversationId?: string): AsyncGenerator<AiStreamEvent> {
     if (messages.some((message) => message.role === 'system')) throw new Error('system messages are server-owned')
-    const response = await fetch(apiUrl('/experimental/ai-chat/stream'), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
-    if (!response.ok) throw new Error('AI stream failed')
+    let response: Response
+    try {
+      response = await fetch(apiUrl('/experimental/ai-chat/stream'), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
+    } catch (cause) {
+      const detail = cause instanceof Error && cause.message ? `：${cause.message}` : ''
+      throw new Error(`AI 流请求未能连接本地 API${detail}`)
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => undefined) as { error?: { message?: string; requestId?: string } } | undefined
+      throw new Error(`AI 流请求失败（HTTP ${response.status}）${body?.error?.message ? `：${body.error.message}` : ''}${body?.error?.requestId ? ` [${body.error.requestId}]` : ''}`)
+    }
     if (!response.body) throw new Error('AI stream failed')
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''
     const parse = function* (chunk: string): Generator<AiStreamEvent> {

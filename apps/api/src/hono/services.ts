@@ -15,6 +15,7 @@ import {
   AiConversationApplicationService,
   AiKnowledgeOverviewApplicationService,
   AiPreferenceApplicationService,
+  DailyNoteApplicationService,
 } from '@knowledge-base/application'
 import {
   createMySqlPool,
@@ -32,6 +33,7 @@ import {
   MySqlSearchRepository,
   MySqlAiConversationRepository,
   MySqlAiPreferenceRepository,
+  MySqlDailyNoteRepository,
   type MySqlConnectionConfig,
 } from '@knowledge-base/storage-mysql'
 import { createFileSecretStore, createProtectedSecretStore, SecretStoreUnavailableError, type SecretStore } from '../../../../packages/storage-secrets/src/index'
@@ -69,6 +71,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const trashPurge = new MySqlTrashPurgeRepository(pool, scope)
   const aiConversationRepository = userId ? new MySqlAiConversationRepository(pool, { userId }) : undefined
   const aiPreferenceRepository = userId ? new MySqlAiPreferenceRepository(pool, { userId }) : undefined
+  const dailyNoteRepository = userId ? new MySqlDailyNoteRepository(pool, { userId }) : undefined
   const aiDashboard = new DashboardApplicationService(new MySqlDashboardRepository(pool, scope))
   const aiExplorations = new ExplorationTrackApplicationService(explorationTracks, explorationTracks)
   const aiItems = new ItemApplicationService(items, explorationTracks)
@@ -94,7 +97,8 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     trash: new TrashApplicationService(items, methods, explorationTracks, trashPurge),
     search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
-    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository),
+    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository),
+    dailyNotes: dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository) : undefined,
     aiConfig,
     aiConversation: aiConversationRepository ? new AiConversationApplicationService(aiConversationRepository) : undefined,
     aiPreferences,

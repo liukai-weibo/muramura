@@ -69,7 +69,7 @@ export class AiConversationApplicationService {
     return message
   }
   async listConversations(includeDeleted = false): Promise<AiConversation[]> { return this.repository.listConversations ? this.repository.listConversations(includeDeleted) : [await this.repository.getOrCreateDefault()] }
-  async createConversation(title = '新会话'): Promise<AiConversation> { if (!this.repository.createConversation) return this.repository.getOrCreateDefault(); return this.repository.createConversation(title) }
+  async createConversation(title = '新会话', kind: import('@knowledge-base/contracts').AiConversationKind = 'general'): Promise<AiConversation> { if (!this.repository.createConversation) return this.repository.getOrCreateDefault(); return this.repository.createConversation(title, kind) }
   async getConversation(id: string, includeDeleted = false): Promise<AiConversation | undefined> { if (this.repository.getConversation) return this.repository.getConversation(id, includeDeleted); const conversation = await this.repository.getDefault(); return conversation?.id === id ? conversation : undefined }
   async updateConversationTitle(id: string, title: string): Promise<AiConversation | undefined> { return this.repository.updateConversationTitle?.(id, title) }
   async archiveConversation(id: string): Promise<AiConversation | undefined> { return this.repository.archiveConversation?.(id) }
@@ -163,11 +163,11 @@ const backgroundSummaryTasks = new Map<string, Promise<void>>()
 
 export class AiChatApplicationService {
   constructor(private readonly config: AiConfigManager, private readonly search: ReadonlySearch, private readonly provider: AiProvider, private readonly knowledge?: AiKnowledgeOverviewReader, private readonly conversation?: AiConversationRepository, private readonly onLatency?: (diagnostic: AiLatencyDiagnostic) => void, private readonly preferences?: { readForAi(): Promise<AiPreference[]> }) {}
-  async *stream(messages: AiChatMessage[], signal: AbortSignal, user?: AuthUser, requestId?: string, conversationId?: string): AsyncGenerator<AiStreamEvent> {
+  async *stream(messages: AiChatMessage[], signal: AbortSignal, user?: AuthUser, requestId?: string, conversationId?: string, contextMode: 'full' | 'daily-note' = 'full'): AsyncGenerator<AiStreamEvent> {
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 30 || messages.some((m) => !m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string' || m.content.length > 12000) || messages.reduce((total, m) => total + (typeof m.content === 'string' ? m.content.length : 0), 0) > 12000 || messages.reduce((total, m) => total + (typeof m.content === 'string' ? Math.ceil(m.content.length / 4) : 0), 0) > 6000) { yield { type: 'error', code: 'AI_STREAM_FAILED', message: 'invalid messages' }; return }
     const last = messages[messages.length - 1]!.content
     const searchStartedAt = Date.now()
-    const context = (await this.search.search(last.slice(0, 200))).sort((a, b) => String((b as SearchResult & { updatedAt?: string }).updatedAt ?? '').localeCompare(String((a as SearchResult & { updatedAt?: string }).updatedAt ?? '')) || typeOrder(a.type) - typeOrder(b.type) || a.id.localeCompare(b.id)).slice(0, 30)
+    const context = contextMode === 'daily-note' ? [] : (await this.search.search(last.slice(0, 200))).sort((a, b) => String((b as SearchResult & { updatedAt?: string }).updatedAt ?? '').localeCompare(String((a as SearchResult & { updatedAt?: string }).updatedAt ?? '')) || typeOrder(a.type) - typeOrder(b.type) || a.id.localeCompare(b.id)).slice(0, 30)
     const searchMs = Date.now() - searchStartedAt
     const configStartedAt = Date.now()
     const current = await this.config.current()
@@ -181,9 +181,9 @@ export class AiChatApplicationService {
     if (summaryNeeded && conversation) this.scheduleSummaryRefresh(conversation.id, persisted)
     const contextLines = context.slice(0, 10).map((entry) => `${entry.type}: ${entry.title}`).join('\n')
     const overviewStartedAt = Date.now()
-    const overview = this.knowledge && user ? await this.knowledge.read(user) : undefined
+    const overview = contextMode === 'daily-note' ? undefined : this.knowledge && user ? await this.knowledge.read(user) : undefined
     const overviewMs = Date.now() - overviewStartedAt
-    const confirmedPreferences = this.preferences ? await this.preferences.readForAi() : []
+    const confirmedPreferences = contextMode === 'daily-note' ? [] : this.preferences ? await this.preferences.readForAi() : []
     const readonlyContext = formatKnowledgeContext(overview, contextLines, summary, confirmedPreferences, AI_KNOWLEDGE_CONTEXT_MAX_CHARS)
     const sourceMessages = persisted.length > 0 ? selectRecentMessages(persisted, summary?.throughSequence) : messages
     const prompt: AiChatMessage[] = [buildAiSystemMessage(), ...sourceMessages.map((message, index) => index === 0 && message.role === 'user' ? { role: 'user' as const, content: `${readonlyContext}${message.content}` } : { role: message.role, content: message.content })]

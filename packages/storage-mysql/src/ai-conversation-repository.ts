@@ -1,13 +1,13 @@
 import crypto from 'node:crypto'
-import type { AiConversation, AiConversationBackupStore, AiConversationMessage, AiConversationMessageStatus, AiConversationRepository, AiConversationSnapshot, AiConversationSummary, CurrentUserScope } from '@knowledge-base/contracts'
+import type { AiConversation, AiConversationBackupStore, AiConversationKind, AiConversationMessage, AiConversationMessageStatus, AiConversationRepository, AiConversationSnapshot, AiConversationSummary, CurrentUserScope } from '@knowledge-base/contracts'
 import type { Pool, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
 
-type ConversationRow = RowDataPacket & { id: string; owner_user_id: string; title: string; created_at: string | Date; updated_at: string | Date; archived_at: string | Date | null; deleted_at: string | Date | null; summary_content: string | null; summary_version: number | null; summary_through_sequence: number | null; summary_updated_at: string | Date | null }
+type ConversationRow = RowDataPacket & { id: string; owner_user_id: string; title: string; conversation_kind: AiConversationKind; created_at: string | Date; updated_at: string | Date; archived_at: string | Date | null; deleted_at: string | Date | null; summary_content: string | null; summary_version: number | null; summary_through_sequence: number | null; summary_updated_at: string | Date | null }
 type MessageRow = RowDataPacket & { id: string; conversation_id: string; owner_user_id: string; sequence_no: number; role_code: 'user' | 'assistant'; status_code: AiConversationMessageStatus; content: string; created_at: string | Date }
 const iso = (value: string | Date) => value instanceof Date ? value.toISOString() : value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`
 const sqlDate = (value: string) => value.replace('T', ' ').replace('Z', '')
-const mapConversation = (row: ConversationRow): AiConversation => ({ id: row.id, title: row.title, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.archived_at === null ? {} : { archivedAt: iso(row.archived_at) }), ...(row.deleted_at === null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.summary_content !== null && row.summary_version !== null && row.summary_through_sequence !== null && row.summary_updated_at !== null ? { summary: { content: row.summary_content, version: Number(row.summary_version), throughSequence: Number(row.summary_through_sequence), updatedAt: iso(row.summary_updated_at) } } : {}) })
+const mapConversation = (row: ConversationRow): AiConversation => ({ id: row.id, title: row.title, kind: row.conversation_kind, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.archived_at === null ? {} : { archivedAt: iso(row.archived_at) }), ...(row.deleted_at === null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.summary_content !== null && row.summary_version !== null && row.summary_through_sequence !== null && row.summary_updated_at !== null ? { summary: { content: row.summary_content, version: Number(row.summary_version), throughSequence: Number(row.summary_through_sequence), updatedAt: iso(row.summary_updated_at) } } : {}) })
 const mapMessage = (row: MessageRow): AiConversationMessage => ({ id: row.id, conversationId: row.conversation_id, sequence: Number(row.sequence_no), role: row.role_code, status: row.status_code, content: row.content, createdAt: iso(row.created_at) })
 
 export class MySqlAiConversationRepository implements AiConversationRepository, AiConversationBackupStore {
@@ -20,19 +20,19 @@ export class MySqlAiConversationRepository implements AiConversationRepository, 
   }
 
   async getDefault(): Promise<AiConversation | undefined> {
-    const [rows] = await this.pool.query<ConversationRow[]>('SELECT * FROM ai_conversations WHERE owner_user_id=? AND deleted_at IS NULL ORDER BY archived_at IS NOT NULL ASC, updated_at DESC, id ASC LIMIT 1', [this.scope.userId])
+    const [rows] = await this.pool.query<ConversationRow[]>('SELECT * FROM ai_conversations WHERE owner_user_id=? AND conversation_kind=\'general\' AND deleted_at IS NULL ORDER BY archived_at IS NOT NULL ASC, updated_at DESC, id ASC LIMIT 1', [this.scope.userId])
     return rows[0] ? mapConversation(rows[0]) : undefined
   }
 
   async listConversations(includeDeleted = false): Promise<AiConversation[]> {
-    const [rows] = await this.pool.query<ConversationRow[]>(`SELECT * FROM ai_conversations WHERE owner_user_id=?${includeDeleted ? '' : ' AND deleted_at IS NULL'} ORDER BY ${includeDeleted ? 'deleted_at IS NULL DESC,' : ''} archived_at IS NOT NULL ASC, updated_at DESC, id ASC`, [this.scope.userId])
+    const [rows] = await this.pool.query<ConversationRow[]>(`SELECT * FROM ai_conversations WHERE owner_user_id=? AND conversation_kind='general'${includeDeleted ? '' : ' AND deleted_at IS NULL'} ORDER BY ${includeDeleted ? 'deleted_at IS NULL DESC,' : ''} archived_at IS NOT NULL ASC, updated_at DESC, id ASC`, [this.scope.userId])
     return rows.map(mapConversation)
   }
 
-  async createConversation(title: string): Promise<AiConversation> {
+  async createConversation(title: string, kind: AiConversationKind = 'general'): Promise<AiConversation> {
     const now = new Date().toISOString(); const id = crypto.randomUUID(); const normalized = title.trim().slice(0, 160) || '新会话'
-    await this.pool.execute('INSERT INTO ai_conversations(id,owner_user_id,title,created_at,updated_at) VALUES(?,?,?,?,?)', [id, this.scope.userId, normalized, sqlDate(now), sqlDate(now)])
-    return { id, title: normalized, createdAt: now, updatedAt: now }
+    await this.pool.execute('INSERT INTO ai_conversations(id,owner_user_id,title,conversation_kind,created_at,updated_at) VALUES(?,?,?,?,?,?)', [id, this.scope.userId, normalized, kind, sqlDate(now), sqlDate(now)])
+    return { id, title: normalized, kind, createdAt: now, updatedAt: now }
   }
 
   async getConversation(id: string, includeDeleted = false): Promise<AiConversation | undefined> {
@@ -102,7 +102,7 @@ export class MySqlAiConversationRepository implements AiConversationRepository, 
     await runInMySqlTransaction(this.pool, async connection => {
       await connection.execute('DELETE FROM ai_conversations WHERE owner_user_id=?', [this.scope.userId])
       for (const value of values) {
-        await connection.execute('INSERT INTO ai_conversations(id,owner_user_id,title,created_at,updated_at,archived_at,deleted_at,summary_content,summary_version,summary_through_sequence,summary_updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)', [value.conversation.id, this.scope.userId, value.conversation.title || '默认会话', sqlDate(value.conversation.createdAt), sqlDate(value.conversation.updatedAt), value.conversation.archivedAt ? sqlDate(value.conversation.archivedAt) : null, value.conversation.deletedAt ? sqlDate(value.conversation.deletedAt) : null, value.conversation.summary?.content ?? null, value.conversation.summary?.version ?? null, value.conversation.summary?.throughSequence ?? null, value.conversation.summary ? sqlDate(value.conversation.summary.updatedAt) : null])
+        await connection.execute('INSERT INTO ai_conversations(id,owner_user_id,title,conversation_kind,created_at,updated_at,archived_at,deleted_at,summary_content,summary_version,summary_through_sequence,summary_updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', [value.conversation.id, this.scope.userId, value.conversation.title || '默认会话', value.conversation.kind ?? 'general', sqlDate(value.conversation.createdAt), sqlDate(value.conversation.updatedAt), value.conversation.archivedAt ? sqlDate(value.conversation.archivedAt) : null, value.conversation.deletedAt ? sqlDate(value.conversation.deletedAt) : null, value.conversation.summary?.content ?? null, value.conversation.summary?.version ?? null, value.conversation.summary?.throughSequence ?? null, value.conversation.summary ? sqlDate(value.conversation.summary.updatedAt) : null])
         for (const message of value.messages) {
           await connection.execute('INSERT INTO ai_conversation_messages(id,conversation_id,owner_user_id,sequence_no,role_code,status_code,content,created_at) VALUES(?,?,?,?,?,?,?,?)', [message.id, value.conversation.id, this.scope.userId, message.sequence, message.role, message.status, message.content, sqlDate(message.createdAt)])
         }

@@ -20,6 +20,26 @@ export async function closeDesktopWindow(): Promise<void> {
   await invoke('close_window')
 }
 
+export async function exitDesktopApplication(): Promise<void> {
+  await invoke('exit_app')
+}
+
+export async function readDesktopSessionToken(): Promise<string | undefined> {
+  if (!isTauriDesktop()) return undefined
+  const token = await invoke<string | null>('read_desktop_session_token')
+  return typeof token === 'string' && token.trim() ? token : undefined
+}
+
+export async function saveDesktopSessionToken(token: string): Promise<void> {
+  if (!isTauriDesktop()) return
+  await invoke('save_desktop_session_token', { token })
+}
+
+export async function clearDesktopSessionToken(): Promise<void> {
+  if (!isTauriDesktop()) return
+  await invoke('clear_desktop_session_token')
+}
+
 export function installDesktopShortcuts(handlers: {
   onNew: () => void
   onSearch: () => void

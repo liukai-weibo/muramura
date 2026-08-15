@@ -9,11 +9,11 @@ describe('H5 API client transport outcomes', () => {
   })
 
   it('uses the local API directly in Tauri when no override is configured', () => {
-    expect(resolveApiTransport({ isTauri: true, configuredOrigin: '' })).toEqual({ origin: 'http://127.0.0.1:32146', credentials: 'include' })
+    expect(resolveApiTransport({ isTauri: true, configuredOrigin: '' })).toEqual({ origin: 'http://127.0.0.1:32146', credentials: 'omit' })
   })
 
   it('uses the configured API directly in Tauri and removes trailing slashes', () => {
-    expect(resolveApiTransport({ isTauri: true, configuredOrigin: 'https://api.example.test///' })).toEqual({ origin: 'https://api.example.test', credentials: 'include' })
+    expect(resolveApiTransport({ isTauri: true, configuredOrigin: 'https://api.example.test///' })).toEqual({ origin: 'https://api.example.test', credentials: 'omit' })
   })
 
   it('forwards an AbortSignal and preserves an intentional read cancellation', async () => {

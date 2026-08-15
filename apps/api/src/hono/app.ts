@@ -25,6 +25,7 @@ import { createDashboardRoutes, createSearchRoutes } from './routes/read-models'
 import { createReviewRoutes } from './routes/reviews'
 import { createTrashRoutes } from './routes/trash'
 import { createAiRoutes } from './routes/ai'
+import { createDailyNoteRoutes } from './routes/daily-notes'
 import { createRootHonoServices, type RootHonoServices } from './services'
 
 /**
@@ -47,6 +48,8 @@ function buildBusinessApiV1Routes(root: RootHonoServices) {
     .route('/trash', createTrashRoutes())
     .route('/search', createSearchRoutes())
     .route('/dashboard', createDashboardRoutes())
+    .route('/daily-notes', createDailyNoteRoutes())
+    .route('/', createAiRoutes())
 }
 
 /** 运行时安全外壳：先认证，再对 `/admin/*` 追加平台管理员校验。 */
@@ -111,7 +114,6 @@ export function buildHonoApp(
     .route('/health', createHealthRoutes(root, config))
     .route(`${apiV1BasePath}/auth`, createAuthRoutes(root))
     .route(apiV1BasePath, buildProtectedApiV1Routes(root))
-    .route(apiV1BasePath, createAiRoutes())
     .doc('/openapi.json', {
       openapi: openApiInfo.openapi,
       info: { ...openApiInfo.info },

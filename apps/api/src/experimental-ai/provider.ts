@@ -43,7 +43,7 @@ export class LoopbackProviderAdapter implements AiProvider {
       }
       if (!response) throw new Error('provider response unavailable')
       if (!response.ok || !response.body) {
-        const detail = response.ok ? 'empty response body' : `upstream HTTP ${response.status}`
+        const detail = response.ok ? 'empty response body' : await upstreamResponseDetail(response)
         yield { type: 'error', code: 'AI_STREAM_FAILED', message: `AI provider request failed (${detail})` }; return
       }
       reader = response.body.getReader()
@@ -96,12 +96,12 @@ export class LoopbackProviderAdapter implements AiProvider {
         }
       }
       if (signal.aborted) return
-      if (timedOut) yield { type: 'error', code: 'AI_PROVIDER_TIMEOUT', message: 'AI provider request failed' }
+      if (timedOut) yield { type: 'error', code: 'AI_PROVIDER_TIMEOUT', message: 'AI provider request timed out after 300 seconds' }
       else yield { type: 'incomplete', reason: 'stream-ended' }
     } catch (error) {
       if (signal.aborted) return
-      if (timedOut) { yield { type: 'error', code: 'AI_PROVIDER_TIMEOUT', message: 'AI provider request failed' }; return }
-      yield { type: 'error', code: 'AI_STREAM_FAILED', message: 'AI provider request failed' }
+      if (timedOut) { yield { type: 'error', code: 'AI_PROVIDER_TIMEOUT', message: 'AI provider request timed out after 300 seconds' }; return }
+      yield { type: 'error', code: 'AI_STREAM_FAILED', message: `AI provider request failed (${providerConnectionDetail(error)})` }
     } finally {
       clearTimeout(timeout); signal.removeEventListener('abort', onAbort)
       onAbort()
@@ -109,6 +109,30 @@ export class LoopbackProviderAdapter implements AiProvider {
       config.apiKey.fill(0)
     }
   }
+}
+
+async function upstreamResponseDetail(response: Response): Promise<string> {
+  const status = `upstream HTTP ${response.status}`
+  try {
+    const raw = await response.clone().text()
+    if (!raw) return status
+    const parsed = JSON.parse(raw) as { error?: { message?: unknown } | unknown; message?: unknown }
+    const message = typeof parsed.message === 'string'
+      ? parsed.message
+      : parsed.error && typeof parsed.error === 'object' && typeof (parsed.error as { message?: unknown }).message === 'string'
+        ? (parsed.error as { message: string }).message
+        : undefined
+    if (message) return `${status}: ${message.slice(0, 240)}`
+  } catch { /* Keep the status when the provider body is not JSON. */ }
+  return status
+}
+
+function providerConnectionDetail(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name === 'TypeError') return 'unable to connect to upstream provider'
+    if (error.message) return error.message.slice(0, 240)
+  }
+  return 'connection error'
 }
 
 function providerBody(config: { modelName: string; temperature?: number; topP?: number; presencePenalty?: number; frequencyPenalty?: number }, messages: AiChatMessage[], anthropic: boolean, fallback: boolean): Record<string, unknown> {

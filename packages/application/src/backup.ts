@@ -2,6 +2,8 @@ import {
   itemStatuses,
   type BackupData,
   type BackupDataV3,
+  type BackupDataV4,
+  type BackupDataV5,
   type BackupDocument,
   type BackupRepository,
   type ItemStatusEvent,
@@ -9,6 +11,7 @@ import {
   type MethodVersion,
   type AiConversationBackupStore,
   type AiPreferenceBackupStore,
+  type DailyNoteBackupStore,
 } from '@knowledge-base/contracts'
 import { BusinessError, createId } from '@knowledge-base/domain'
 
@@ -89,7 +92,7 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
   try { value = JSON.parse(input) }
   catch { throw invalidBackup('备份文件不是有效的 JSON') }
   if (!isRecord(value) || value.format !== 'knowledge-base-backup') throw invalidBackup('这不是本系统的备份文件')
-  if (value.version !== 1 && value.version !== 2 && value.version !== 3) throw invalidBackup(`不支持的备份版本：${String(value.version)}`)
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4 && value.version !== 5) throw invalidBackup(`不支持的备份版本：${String(value.version)}`)
   if (!isRecord(value.data)) throw invalidBackup('备份缺少 data 数据区')
 
   const requiredCollectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
@@ -128,7 +131,11 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
     ? value.data.methodTombstones as MethodTombstone[]
     : []
   const normalizedData: BackupData = { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents, methodTombstones: parsedMethodTombstones }
-  const document: BackupDocument = value.version === 3
+  const document: BackupDocument = value.version === 5
+    ? { ...rawDocument, version: 5, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV5['dailyNotes'] : [] } }
+    : value.version === 4
+    ? { ...rawDocument, version: 4, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? (value.data.dailyNotes as BackupDataV4['dailyNotes']).map(note => ({ ...note, aiConversationId: undefined })) : [] } }
+    : value.version === 3
     ? { ...rawDocument, version: 3, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'] } }
     : {
       ...rawDocument,
@@ -182,20 +189,26 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
   if (itemLinks.some((link) => !reviewIds.has(link.sourceReviewId) || !itemIds.has(link.targetItemId) || link.type !== 'derived_from_review')) {
     throw invalidBackup('想法来源关系存在无效引用')
   }
-  if (document.version === 3) validateV3Data(document.data)
+  if (document.version === 3 || document.version === 4 || document.version === 5) validateV3Data(document.data)
+  if ((document.version === 4 || document.version === 5) && document.data.dailyNotes.some(note => !note.id || !/^\d{4}-\d{2}-\d{2}$/.test(note.entryDate) || typeof note.content !== 'string' || !isTimestamp(note.createdAt) || !isTimestamp(note.updatedAt) || (note.aiConversationId !== undefined && !note.aiConversationId))) throw invalidBackup('日记存在无效记录')
+  if (document.version === 5) {
+    const conversationIds = new Set((document.data.aiConversations ?? []).map(entry => entry.conversation.id))
+    document.data.dailyNotes = document.data.dailyNotes.map(note => note.aiConversationId && !conversationIds.has(note.aiConversationId) ? { ...note, aiConversationId: undefined } : note)
+  }
   return document
 }
 
 export class BackupApplicationService {
-  constructor(private readonly repository: BackupRepository, private readonly aiConversations?: AiConversationBackupStore, private readonly aiPreferences?: AiPreferenceBackupStore) {}
+  constructor(private readonly repository: BackupRepository, private readonly aiConversations?: AiConversationBackupStore, private readonly aiPreferences?: AiPreferenceBackupStore, private readonly dailyNotes?: DailyNoteBackupStore) {}
 
   async createBackup(): Promise<BackupDocument> {
     const data = await this.repository.exportData()
     if (this.aiConversations) data.aiConversations = await this.aiConversations.exportBackup()
     if (this.aiPreferences) data.aiPreferences = await this.aiPreferences.exportBackup()
+    if (this.dailyNotes && 'explorationTracks' in data) (data as BackupDataV5).dailyNotes = await this.dailyNotes.exportBackup()
     return {
       format: 'knowledge-base-backup',
-      version: 'explorationTracks' in data ? 3 : 2,
+      version: 'dailyNotes' in data ? 5 : 'explorationTracks' in data ? 3 : 2,
       exportedAt: new Date().toISOString(),
       appVersion: '0.1.0',
       data,
@@ -211,6 +224,7 @@ export class BackupApplicationService {
     await this.repository.replaceData(data)
     if (this.aiConversations && data.aiConversations) await this.aiConversations.replaceBackup(data.aiConversations)
     if (this.aiPreferences && data.aiPreferences) await this.aiPreferences.replaceBackup(data.aiPreferences)
+    if (this.dailyNotes) await this.dailyNotes.replaceBackup(document.version === 4 || document.version === 5 ? document.data.dailyNotes : [])
   }
 
   async restoreBackupSafely(document: BackupDocument, preserveCurrent: (backup: BackupDocument) => void | Promise<void>): Promise<void> {

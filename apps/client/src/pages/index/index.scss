@@ -1,6 +1,6 @@
 @media (min-width: 981px) {
-  html, body, #app, .app-shell { height: 100%; overflow: clip; }
-  .app-shell { position: fixed; inset: 0; min-height: 0; }
+  html, body, #app, page, .app-shell { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
+  page, #app, .app-shell { max-width: none; max-height: none; background: #f2eee7 !important; }
 }
 
 .platform-administration {
@@ -815,8 +815,11 @@
     flex: 1;
   }
 }
-.app-shell { min-height: 100vh; background: #f5f2ec; color: #302c27; }
-.auth-gate-shell { display: grid; box-sizing: border-box; min-height: 100dvh; padding: 32px; place-items: center; background: radial-gradient(circle at 18% 12%, #fffaf0 0, transparent 34%), #f2eee7; color: #302c27; }
+.app-shell { display: flex; box-sizing: border-box; width: 100%; min-width: 0; height: 100%; min-height: 0; flex-direction: column; overflow: hidden; border-radius: 0; background: #f7f4ed; color: #302c27; }
+.auth-gate-shell { position: fixed; inset: 0; display: grid; box-sizing: border-box; width: auto; min-width: 0; height: auto; min-height: 0; padding: 32px; place-items: center; overflow: hidden; border-radius: 0; background: #f7f4ed; color: #302c27; }
+.desktop-auth-title-bar { position: fixed; z-index: 50; top: 0; right: 0; left: 0; display: flex; height: 44px; align-items: center; -webkit-app-region: drag; }
+.desktop-auth-title-bar-drag { height: 44px; flex: 1 1 auto; -webkit-app-region: drag; }
+.desktop-auth-window-controls { -webkit-app-region: no-drag; }
 .auth-gate-brand { position: fixed; top: 28px; left: 32px; display: flex; flex-direction: column; }
 .auth-gate-brand text:first-child { font-size: 23px; font-weight: 850; letter-spacing: -0.035em; }
 .auth-gate-brand text:last-child { margin-top: 3px; color: #91897e; font-size: 11px; letter-spacing: 0.07em; }
@@ -835,13 +838,15 @@
 .auth-field input:focus { border-color: #8b7d6d; box-shadow: 0 0 0 3px rgba(139, 125, 109, 0.12); }
 .auth-field input:disabled { background: #f4f0e9; color: #8d857a; }
 .auth-gate-error { display: block; margin-top: 14px; color: #984d40; font-size: 12px; font-weight: 700; line-height: 1.55; overflow-wrap: anywhere; }
-.auth-primary-button { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; height: 44px; margin: 22px 0 0; border: 0; border-radius: 10px; background: #302c27; color: #fff; font-size: 13px; font-weight: 800; line-height: 44px; }
+.auth-primary-button { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; height: 44px; margin: 22px 0 0; border: 0; border-radius: 9999px; background: #302c27; color: #fff; font-size: 13px; font-weight: 800; line-height: 44px; transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+.auth-primary-button:hover:not(:disabled) { background: #8c6b49; box-shadow: 0 8px 18px rgba(92, 70, 49, .2); transform: translateY(-1px); }
+.auth-primary-button:active:not(:disabled) { transform: translateY(0); }
 .auth-primary-button:disabled { background: #aaa297; color: #f6f2ec; opacity: 1; }
 .auth-session-state, .auth-confirm-session { display: flex; margin-top: 22px; flex-direction: column; color: #746c62; font-size: 13px; line-height: 1.6; }
 .auth-session-state .auth-primary-button, .auth-confirm-session .auth-primary-button { margin-top: 14px; }
 .navigation-account { display: flex; margin-top: 12px; padding: 13px 10px 0; flex-direction: column; border-top: 1px solid #45423c; }
 .primary-navigation > .navigation-account { margin-top: auto; }
-.navigation-account > view:first-child { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.navigation-account > view:first-child { display: flex; width: 100%; min-width: 0; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 8px; }
 .navigation-account-label { color: #928b80; font-size: 10px; }
 .navigation-account-name { overflow: hidden; color: #f4efe7; font-size: 12px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .navigation-logout, .navigation-session-confirm { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 32px; margin: 9px 0 0; border: 1px solid #5b5750; border-radius: 8px; background: #37342f; color: #d8d1c7; font-size: 11px; font-weight: 750; line-height: 30px; transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
@@ -904,8 +909,90 @@
   padding: 24px 28px 60px;
 }
 
+/* Browser wide layouts must fill the available app-main surface.  Keep
+   readable widths on individual content cards, not on the page background. */
+@media (min-width: 981px) {
+  .app-main > .page {
+    width: 100%;
+    max-width: none;
+    margin-right: 0;
+    margin-left: 0;
+    box-sizing: border-box;
+  }
+}
+
+@media (min-width: 721px) {
+  /* The navigation rail is fixed; let the content column consume every
+     remaining pixel instead of relying on viewport subtraction. */
+  .app-shell {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .app-main {
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 1 1 auto;
+    margin-right: 0 !important;
+    background: #f7f4ed;
+  }
+  .app-main > .page {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 1 1 auto;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+}
+
+/* Keep the browser and desktop content surface flush with the right edge. */
+@media (min-width: 721px) {
+  .app-shell { width: 100% !important; max-width: none !important; }
+  .app-main {
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 1 1 auto;
+    margin-right: 0 !important;
+    background: #f7f4ed;
+  }
+  .app-main > .page {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 1 1 auto;
+    margin: 0 !important;
+  }
+}
+
+/* Final desktop width normalization: this must come after all density rules. */
+@media (min-width: 721px) {
+  .app-shell { width: 100% !important; max-width: none !important; }
+  .app-main {
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 1 1 auto;
+    margin-right: 0 !important;
+    background: #f7f4ed;
+  }
+  .app-main > .page {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 1 1 auto;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+}
+
 .module-panel { margin-top: 0; }
 .exploration-module-retained-hidden { display: none; }
+.module-retained-hidden { display: none; }
+.module-retained { width: 100%; min-width: 0; min-height: 0; height: 100%; }
+.module-retained:not(.module-retained-hidden) { display: flex; flex-direction: column; }
+.module-retained:not(.module-retained-hidden) > .daily-notes-page { width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; }
 .exploration-prototype { display: flex; flex-direction: column; gap: 18px; }
 .exploration-prototype-header, .exploration-detail-heading, .exploration-track-item-heading, .exploration-list-heading, .exploration-confirm > view, .exploration-create, .exploration-manage, .exploration-edit { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .exploration-prototype-header > view:first-child, .exploration-list-heading > view { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
@@ -1972,6 +2059,11 @@ button:not(:disabled):active { transform: translateY(1px); }
 .fast-ui-profile { width: min(680px, 100%); margin: 28px 32px; padding: 28px; box-sizing: border-box; }
 .fast-ui-profile-title { display: block; margin-top: 6px; color: #302b26; font-size: 30px; font-weight: 850; }
 .fast-ui-profile-card { display: flex; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 16px; border-radius: 10px; background: #f4efe7; color: #554c43; }
+.fast-ui-profile { color: #554c43; font-size: 14px; line-height: 1.5; }
+.fast-ui-profile > text { display: block; font-size: 14px; line-height: 1.5; }
+.fast-ui-profile > .fast-ui-profile-title { font-size: 30px; line-height: 1.2; }
+.fast-ui-profile-card > text { display: block; min-width: 0; font-size: 14px; font-weight: 500; line-height: 1.5; }
+.fast-ui-profile-card > text:last-child { color: #6b6258; text-align: right; }
 @media (prefers-reduced-motion: reduce) {
   .fast-ui-tab-indicator, .navigation-item { transition: none !important; }
 }
@@ -2382,7 +2474,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(0, 0, 0, .15); }
   ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, .3); }
-  .app-shell { background: #f4f1ea; border-radius: 10px; }
+  .app-shell { background: #f7f4ed; border-radius: 0; }
   .app-main { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
   .desktop-title-bar { display: flex; flex: 0 0 44px; align-items: center; justify-content: space-between; gap: 18px; padding: 0 8px 0 16px; border-bottom: 1px solid rgba(80, 70, 59, .12); background: rgba(255, 253, 249, .9); color: #302b26; }
   .desktop-title-bar-brand, .desktop-title-bar-actions, .desktop-window-controls { display: flex; align-items: center; }
@@ -2398,7 +2490,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   .desktop-title-bar-actions { gap: 10px; }
   .desktop-title-bar-capture { padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #65594c; cursor: pointer; font: inherit; font-size: 12px; }
   .desktop-window-controls { height: 44px; }
-  .desktop-window-control { display: flex; width: 42px; height: 44px; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent; color: #62594f; cursor: pointer; font: inherit; font-size: 16px; }
+  .desktop-window-control { display: flex; width: 42px; height: 44px; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent; color: #62594f; cursor: default; font: inherit; font-size: 16px; }
   .desktop-window-control:hover { background: #eee8df; }
   .desktop-window-control-close:hover { background: #d9534f; color: #fff; }
   .global-header { flex: 0 0 58px; min-height: 58px; padding: 10px 24px; border-bottom: 1px solid #e2dacf; backdrop-filter: none; }
@@ -2422,6 +2514,26 @@ button:not(:disabled):active { transform: translateY(1px); }
 
 /* fast-ui desktop density pass: the rail owns global actions; panes own local filters. */
 @media (min-width: 721px) {
+  /* The desktop rail is fixed-width; size the content from the viewport so
+     body/page scrollbars cannot leave a white strip at the right edge. */
+  .app-shell {
+    width: 100vw !important;
+    min-width: 100vw !important;
+  }
+  .app-main {
+    width: calc(100vw - 220px) !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-left: 220px;
+  }
+  .app-main > .page {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
   .desktop-title-bar { position: fixed; z-index: 50; top: 0; right: 0; left: 0; height: 44px; flex: none; background: #2b2825; color: #f8f4ec; -webkit-app-region: drag; }
   .desktop-title-bar button, .desktop-title-bar input, .desktop-title-bar taro-button-core, .desktop-title-bar taro-view-core.interactive { -webkit-app-region: no-drag; }
   .desktop-title-bar-tabs, .desktop-title-bar-actions, .desktop-window-controls, .global-search-control { -webkit-app-region: no-drag; }
@@ -2434,7 +2546,8 @@ button:not(:disabled):active { transform: translateY(1px); }
   .desktop-title-bar-tab.active { background: rgba(255, 255, 255, .14); color: #fff; }
   .desktop-title-bar-actions { min-width: 0; gap: 8px; }
   .desktop-title-bar-actions > .global-search-control { display: none; }
-  .desktop-title-bar-center { position: absolute; left: 50%; display: flex; box-sizing: border-box; width: min(580px, calc(100% - 500px)); min-width: 220px; height: 44px; align-items: center; justify-content: center; transform: translateX(-50%); -webkit-app-region: no-drag; }
+  .desktop-title-bar-center { position: absolute; left: 50%; display: flex; box-sizing: border-box; width: min(580px, calc(100% - 500px)); min-width: 220px; height: 44px; align-items: center; justify-content: center; transform: translateX(-50%); -webkit-app-region: drag; }
+  .desktop-title-bar-center > * { -webkit-app-region: no-drag; }
   .desktop-title-bar-center .global-search-control { width: min(440px, 100%); -webkit-app-region: no-drag; }
   .desktop-title-bar-center .global-search-control * { -webkit-app-region: no-drag; }
   .desktop-title-bar-center .global-tool-button { width: 100%; box-sizing: border-box; }

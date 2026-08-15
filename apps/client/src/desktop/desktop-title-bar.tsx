@@ -53,3 +53,30 @@ export function DesktopTitleBar({ breadcrumb, onSearch, onCapture, colorTheme, o
     </View>
   </View>
 }
+
+export function DesktopAuthTitleBar() {
+  const [isMaximized, setIsMaximized] = useState(false)
+  useEffect(() => {
+    if (!isTauriDesktop()) return
+    void isDesktopWindowMaximized().then(setIsMaximized).catch(() => undefined)
+  }, [])
+  if (!isTauriDesktop()) return null
+  const invoke = (action: () => void | Promise<void>) => { void Promise.resolve(action()).catch(() => undefined) }
+  const control = (event: MouseEvent, action: () => void | Promise<void>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    invoke(action)
+  }
+  const toggleMaximize = async () => {
+    await toggleDesktopMaximize()
+    setIsMaximized((current) => !current)
+  }
+  return <View className='desktop-auth-title-bar' data-tauri-drag-region>
+    <View className='desktop-auth-title-bar-drag' data-tauri-drag-region />
+    <View className='desktop-window-controls desktop-auth-window-controls'>
+      <button type='button' className='desktop-window-control' aria-label='最小化' onMouseDown={(event) => control(event, minimizeDesktopWindow)}>−</button>
+      <button type='button' className='desktop-window-control' aria-label={isMaximized ? '还原窗口' : '全屏'} onMouseDown={(event) => control(event, toggleMaximize)}>{isMaximized ? '❐' : '□'}</button>
+      <button type='button' className='desktop-window-control desktop-window-control-close' aria-label='退出应用' onMouseDown={(event) => control(event, closeDesktopWindow)}>×</button>
+    </View>
+  </View>
+}

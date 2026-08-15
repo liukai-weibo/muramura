@@ -30,7 +30,8 @@ export interface AiChatMessage { role: 'system' | 'user' | 'assistant'; content:
 export type AiPersonalityMode = 'warm_coach' | 'strong_strategist'
 export interface AiChatRequest { messages: AiChatMessage[]; conversationId?: string; personalityMode?: AiPersonalityMode }
 export type AiConversationMessageStatus = 'completed' | 'incomplete' | 'aborted' | 'error'
-export interface AiConversation { id: string; title: string; createdAt: string; updatedAt: string; archivedAt?: string; deletedAt?: string; summary?: AiConversationSummary }
+export type AiConversationKind = 'general' | 'daily_note'
+export interface AiConversation { id: string; title: string; kind?: AiConversationKind; createdAt: string; updatedAt: string; archivedAt?: string; deletedAt?: string; summary?: AiConversationSummary }
 export interface AiConversationSummary { content: string; version: number; throughSequence: number; updatedAt: string }
 export interface AiConversationMessage { id: string; conversationId: string; sequence: number; role: 'user' | 'assistant'; status: AiConversationMessageStatus; content: string; createdAt: string }
 export interface AiConversationSnapshot { conversation: AiConversation; messages: AiConversationMessage[]; hasMoreBefore?: boolean; beforeSequence?: number }
@@ -42,7 +43,7 @@ export interface AiConversationRepository {
   getOrCreateDefault(): Promise<AiConversation>
   getDefault(): Promise<AiConversation | undefined>
   listConversations?(includeDeleted?: boolean): Promise<AiConversation[]>
-  createConversation?(title: string): Promise<AiConversation>
+  createConversation?(title: string, kind?: AiConversationKind): Promise<AiConversation>
   getConversation?(id: string, includeDeleted?: boolean): Promise<AiConversation | undefined>
   updateConversationTitle?(id: string, title: string): Promise<AiConversation | undefined>
   archiveConversation?(id: string): Promise<AiConversation | undefined>

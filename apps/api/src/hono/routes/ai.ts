@@ -188,7 +188,15 @@ export function createAiRoutes() {
           }
         },
       })
-      return new Response(readable, { headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' } })
+      const response = new Response(readable, { headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' } })
+      const origin = context.req.header('origin')
+      if (origin) {
+        response.headers.set('access-control-allow-origin', origin)
+        response.headers.set('access-control-allow-credentials', 'true')
+        response.headers.set('access-control-expose-headers', 'x-kb-session-token')
+        response.headers.set('vary', 'origin')
+      }
+      return response
     })
 }
 

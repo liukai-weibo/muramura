@@ -37,3 +37,4 @@ export {
 } from './experimental-ai'
 export { AiKnowledgeOverviewApplicationService, formatKnowledgeContext } from './ai-context'
 export { AiPreferenceApplicationService } from './ai-preferences'
+export { DailyNoteApplicationService } from './daily-notes'
