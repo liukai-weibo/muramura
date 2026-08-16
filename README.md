@@ -16,15 +16,19 @@ MaruMaru（圈圈）将下面这条个人运行闭环落在一个本地优先的
 ## 当前能力
 
 - 快速捕获想法，并进入“想试试”或“以后再说”。
-- 支持开始、暂停、恢复、完成、放弃和复盘。
+- 事项主流程使用“想试试 → 已开始 → 已复盘”三个用户状态；旧状态值仅作为历史数据兼容，不作为当前操作入口。
 - 支持形成、验证、修订及复用方法，并保留版本和证据关系。
 - 提供全局搜索、周期 Dashboard、状态历史和统一回收站。
-- 支持 Backup V1 / V2 / V3 的预览、完整 JSON 导出和安全恢复。
+- 支持手记（今日小记）按日期编辑、历史查看、自动保存和 Markdown 整理。
+- 提供完整 JSON 备份导出与安全恢复，并保持当前备份版本兼容。
 - 支持注册、登录、退出、Cookie 会话和会话过期。
+- 账户页支持修改密码；成功后撤销全部会话，并要求使用新密码重新登录。
 - 全部业务数据按当前会话用户隔离，跨用户资源统一不可见。
 - 支持平台管理员查看脱敏用户列表、授予或撤销他人的管理员角色、撤销他人的全部会话。
 - 平台管理员不能绕过业务 owner scope，也不能查看密码、密码哈希、Cookie、Token 或会话秘密。
+- 提供移动网页版 `#/pages/mobile/index`，复刻手记与事项的轻量操作；桌面工作台入口 `#/pages/index/index` 保持独立。
 - 提供 H5 AI 对话，支持 SSE 流式回复、分块增量 Markdown 解析、Worker 异步处理和长消息虚拟列表。
+- 圈圈 AI 可按当前用户读取全部可用历史手记、当天手记、事项状态和工作台摘要；AI 会话与业务数据按用户隔离。
 - AI 流式回复支持停止、异常清理、会话隔离、刷新恢复和稳定滚动；微信小程序暂不作为桌宠与流式优化的验收目标。
 - H5 AI 页面提供 Rive 桌宠及 SVG 降级、思考态、欢迎态和基于时间/星期/节日的本地气泡文案；桌宠交互不写入消息或数据库。
 
@@ -32,7 +36,7 @@ MaruMaru（圈圈）将下面这条个人运行闭环落在一个本地优先的
 
 - 在线账户与单用户数据隔离 V0 已完成产品验收、Git 归档并封板。
 - 平台角色与最小权限管理 V1 已完成产品验收、真实运行接入、Git 归档并封板。
-- 当前运行中的 MySQL Schema 为版本 14，共 17 张 base table；实际版本以 API `/health` 返回值为准。
+- 当前源码要求 MySQL Schema 至少为版本 18；实际运行版本以 API `/health` 返回值为准。今日小记及其 AI 专属会话依赖 Migration 017–018，云端未完成迁移前不应宣称可用。
 - 所有用户固定拥有 `member`；`platform_admin` 是可选附加角色。
 - 系统不会创建默认管理员，也没有默认管理员密码。
 
@@ -50,9 +54,10 @@ Taro + React + TypeScript H5
 ```
 
 - 前端：Taro + React H5。
+- 页面：桌面工作台 `#/pages/index/index` 与移动手记/事项页 `#/pages/mobile/index` 共用认证和 API，不共用桌面布局样式。
 - API：当前实际启动入口为 `apps/api/src/main.ts`，运行 Hono + `@hono/node-server`，提供 OpenAPI 与 Scalar 文档。
 - Application / Repository 分层：页面不直接访问数据库。
-- 数据库：MySQL 8.4，Migration 001–014；当前运行版本以 API `/health` 为准。
+- 数据库：MySQL 8.4，Migration 001–018；当前运行版本以 API `/health` 为准。
 - 部署：Docker Compose，MySQL 与应用使用独立容器，应用容器同时运行 loopback API 与 Nginx H5。
 - H5 通过同源 `/api` 代理访问 loopback API，浏览器不直接连接 MySQL。
 
@@ -175,7 +180,7 @@ curl http://127.0.0.1:32146/health
 正常结果应表示当前实际 Schema，例如：
 
 ```text
-ready / knowledge_base / schemaVersion=14
+ready / knowledge_base / schemaVersion=18
 ```
 
 Docker 应用镜像 `1.1.5` 已发布，`latest` 已同步指向同一镜像；也可以使用 `KB_APP_IMAGE_TAG=1.1.5` 固定版本部署。后续镜像发布继续使用新的版本标签。
@@ -219,7 +224,7 @@ docker compose stop
 系统不会自动把第一个注册用户设为管理员。首次部署流程是：
 
 ```text
-完成 Migration 001–014
+完成 Migration 001–018
 → 用户通过 H5 正常注册
 → 该用户获得 member
 → 使用显式 userId 受控授予首位 platform_admin
@@ -285,10 +290,11 @@ H5 构建产物位于 `apps/client/dist`。
 
 以下能力尚未纳入当前封板范围：
 
-- 邮箱验证、找回密码、修改密码和邀请码。
+- 邮箱验证、找回密码和邀请码。
 - 团队共享、自定义角色、动态权限和协作编辑。
-- 多端同步、云端同步、Tauri 和安卓客户端。
-- HTTPS、域名、反向代理、Kubernetes 和正式公网生产部署。
+- 多端同步、云端同步和安卓客户端。
+- HTTPS 域名、Kubernetes 及正式公网生产部署。
+- DeepSeek Harness 嵌入、代理、配置和业务工具桥接；该能力已从活动代码中撤除。
 
 ## 仓库边界
 
