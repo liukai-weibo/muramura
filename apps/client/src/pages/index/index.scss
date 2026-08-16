@@ -2027,7 +2027,12 @@ button:not(:disabled):active { transform: translateY(1px); }
 .experimental-ai-delete-description { color: #625a50; font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
 .experimental-ai-delete-error { color: #9d3d2d; font-size: 13px; line-height: 20px; }
 .experimental-ai-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
-.experimental-ai-delete-actions button { width: auto; min-width: 92px; margin: 0; }
+.experimental-ai-delete-actions button, .experimental-ai-delete-actions taro-button-core { display: inline-flex; width: auto; min-width: 92px; height: 40px; min-height: 40px; margin: 0; padding: 0 14px; align-items: center; justify-content: center; border-radius: 9px; font-size: 13px; font-weight: 750; line-height: 20px; }
+.experimental-ai-delete-actions .experimental-ai-delete-cancel { border: 1px solid #d8d0c4; background: #fffdf9; color: #554f46; }
+.experimental-ai-delete-actions .experimental-ai-delete-cancel:hover:not(:disabled) { border-color: #b8aea0; background: #f4f0e9; color: #302c27; }
+.experimental-ai-delete-actions .experimental-ai-delete-confirm { border: 1px solid #8f4138; background: #8f4138; color: #fffdf9; }
+.experimental-ai-delete-actions .experimental-ai-delete-confirm:hover:not(:disabled) { border-color: #773d31; background: #773d31; color: #fffdf9; }
+.experimental-ai-delete-actions .experimental-ai-delete-confirm:disabled, .experimental-ai-delete-actions .experimental-ai-delete-cancel:disabled { opacity: .62; }
 .experimental-ai-generating { color: #5a78dc; font-size: 12px; }
 .experimental-ai-main { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: column; }
 .experimental-ai-toolbar { min-height: 38px; }
