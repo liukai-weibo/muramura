@@ -877,6 +877,36 @@ textarea:focus,
 .app-shell .review-submit-button:hover:not(:disabled),
 .app-shell .exploration-prototype .primary-button:hover:not(:disabled) { background: linear-gradient(135deg, #cf8393, #bb6e7e); }
 
+.app-shell .home-action-button,
+.app-shell .home-daily-note-action { height: 40px; min-height: 40px; box-sizing: border-box; }
+
+/* Keep the capture entry points aligned with the home quick-record accent. */
+.app-shell .quick-capture-modal .capture-actions .primary-button,
+.app-shell .desktop-title-bar-capture,
+.app-shell .desktop-title-bar .global-tool-button.primary {
+  border-color: #E94781;
+  background: #E94781;
+  color: #fff;
+}
+.app-shell .quick-capture-modal .capture-actions .primary-button:hover:not(.disabled),
+.app-shell .desktop-title-bar-capture:hover,
+.app-shell .desktop-title-bar .global-tool-button.primary:hover {
+  border-color: #D93870;
+  background: #D93870;
+  color: #fff;
+}
+
+/* H5 button hosts need the same dimensions as their inner native button. */
+.app-shell .trash-entry-action,
+.app-shell .trash-entry-action > taro-button-core,
+.app-shell .trash-entry-action > taro-button-core > button,
+.app-shell .trash-entry-action > button { box-sizing: border-box; width: 100% !important; min-width: 0 !important; max-width: none !important; }
+.app-shell .trash-entry-action > taro-button-core,
+.app-shell .trash-entry-action > taro-button-core > button,
+.app-shell .trash-entry-action > button { height: 40px !important; min-height: 40px !important; }
+.app-shell .trash-entry-action > taro-button-core > button,
+.app-shell .trash-entry-action > button { display: flex !important; align-items: center; justify-content: center; margin: 0 !important; padding: 0 8px !important; }
+
 @media (min-width: 721px) {
   .app-shell .desktop-title-bar .global-search-input { color: var(--cream-body) !important; }
   .app-shell .desktop-title-bar .global-search-input::placeholder { color: var(--cream-hint) !important; }
@@ -1156,6 +1186,14 @@ taro-textarea-core.daily-note-textarea,
   min-height: 0;
   flex: 1 1 auto;
 }
+.daily-note-textarea,
+.daily-note-textarea textarea,
+taro-textarea-core.daily-note-textarea,
+taro-textarea-core.daily-note-textarea textarea {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif !important;
+  font-weight: 400;
+  letter-spacing: 0;
+}
 
 @media (max-width: 720px) {
   .daily-notes-editor { padding: 10px 12px 12px; }
@@ -1301,6 +1339,76 @@ taro-textarea-core.daily-note-textarea,
   opacity: 1 !important;
 }
 .daily-notes-ai-panel .daily-note-ai-candidate > taro-button-core > button { background: transparent; }
+
+/* Keep the daily-note conversation visually separate from the shared button system. */
+.daily-notes-ai-panel .daily-note-ai-composer {
+  align-items: center;
+  border-color: var(--cream-line);
+  background: var(--cream-surface);
+  box-shadow: var(--cream-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .2s ease, width .2s ease;
+}
+.daily-notes-ai-panel .daily-note-ai-composer:focus-within {
+  border-color: #dfc984;
+  box-shadow: 0 0 0 3px rgba(226, 202, 130, .2), var(--cream-shadow);
+}
+.daily-notes-ai-panel .daily-note-ai-input {
+  color: var(--cream-ink);
+  background: transparent;
+}
+.daily-notes-ai-panel .daily-note-ai-send,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send > button,
+.daily-notes-ai-panel button.daily-note-ai-send {
+  display: inline-flex !important;
+  min-height: 34px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center;
+  border: 1px solid rgba(126, 112, 96, .22) !important;
+  background: rgba(255, 253, 249, .45) !important;
+  color: var(--cream-body) !important;
+  -webkit-text-fill-color: var(--cream-body) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send::after,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send > button::after,
+.daily-notes-ai-panel button.daily-note-ai-send::after { border: 0 !important; }
+.daily-notes-ai-panel .daily-note-ai-send:not(:disabled):hover,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send:not([disabled='true']):hover,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send > button:not(:disabled):hover,
+.daily-notes-ai-panel button.daily-note-ai-send:not(:disabled):hover {
+  border-color: rgba(126, 112, 96, .36) !important;
+  background: rgba(255, 253, 249, .7) !important;
+  box-shadow: 0 5px 12px rgba(71, 60, 48, .12) !important;
+  transform: translateY(-1px);
+}
+.daily-notes-ai-panel .daily-note-ai-send:not(:disabled):active,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send:not([disabled='true']):active,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send > button:not(:disabled):active,
+.daily-notes-ai-panel button.daily-note-ai-send:not(:disabled):active {
+  box-shadow: none !important;
+  transform: translateY(0);
+}
+.daily-notes-ai-panel .daily-note-ai-send:focus-visible,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send:focus-visible,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send > button:focus-visible,
+.daily-notes-ai-panel button.daily-note-ai-send:focus-visible { outline: 2px solid rgba(157, 79, 96, .42); outline-offset: 2px; }
+.daily-notes-ai-panel .daily-note-ai-send:disabled,
+.daily-notes-ai-panel taro-button-core.daily-note-ai-send[disabled='true'] { opacity: .52 !important; }
+.daily-notes-ai-panel .daily-note-ai-message.is-user .daily-note-ai-message-bubble {
+  border-color: rgba(126, 112, 96, .2);
+  background: rgba(255, 253, 249, .34);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
 @media (prefers-reduced-motion: reduce) {
-  .daily-note-ai-composer { transition: none; }
+  .daily-note-ai-composer, .daily-note-ai-send, .daily-note-ai-send > button { transition: none; }
 }

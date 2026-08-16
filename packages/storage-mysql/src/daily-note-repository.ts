@@ -73,7 +73,7 @@ export class MySqlDailyNoteRepository implements DailyNoteRepository, DailyNoteB
         WHERE owner_user_id=? AND entry_date=DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) FOR UPDATE`, [this.scope.userId])
       const current = rows[0]!
       const [times] = await connection.query<Array<RowDataPacket & { time_label: string }>>("SELECT DATE_FORMAT(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00'), '%H:%i') AS time_label")
-      const nextContent = current.content.trim() ? `${current.content}\n\n## ${times[0]!.time_label}\n${content}` : `## ${times[0]!.time_label}\n${content}`
+      const nextContent = current.content.trim() ? `${current.content}\n\n${times[0]!.time_label}\n${content}` : `${times[0]!.time_label}\n${content}`
       await connection.execute('UPDATE daily_notes SET content=?, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND owner_user_id=?', [nextContent, current.id, this.scope.userId])
       const [saved] = await connection.query<DailyNoteRow[]>(`SELECT ${noteColumns} FROM daily_notes WHERE id=? AND owner_user_id=?`, [current.id, this.scope.userId])
       return map(saved[0]!)

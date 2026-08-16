@@ -225,8 +225,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [quickNoteFabVisible, setQuickNoteFabVisible] = useState(readQuickNoteFabVisible)
   const [quickNoteOpenRequest, setQuickNoteOpenRequest] = useState(0)
   const [dailyNoteEmpty, setDailyNoteEmpty] = useState(false)
-  const [workbenchPaneWidth, setWorkbenchPaneWidth] = useState(340)
-  const resizingPaneRef = useRef(false)
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine)
   const navigationInitializedRef = useRef(false)
   const [administrationMounted, setAdministrationMounted] = useState(false)
@@ -296,19 +294,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     if (primaryModule === 'dailyNotes') setDailyNotesMounted(true)
     if (primaryModule === 'ai') setAiMounted(true)
   }, [activeModule, primaryModule])
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      if (!resizingPaneRef.current) return
-      setWorkbenchPaneWidth(Math.min(420, Math.max(280, event.clientX - 220)))
-    }
-    const onPointerUp = () => { resizingPaneRef.current = false }
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp)
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onPointerUp)
-    }
-  }, [])
   useEffect(() => {
     const handleOnline = () => setIsBrowserOnline(true)
     const handleOffline = () => setIsBrowserOnline(false)
@@ -2128,11 +2113,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     }
   }
 
-  const startPaneResize = (event: React.PointerEvent) => {
-    event.preventDefault()
-    resizingPaneRef.current = true
-  }
-
   useEffect(() => installDesktopShortcuts({
     onNew: () => { if (!busy && !restoring && !captureLocked) openCapture() },
     onSearch: () => openSearch(),
@@ -2298,7 +2278,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>}
 
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>
-        <View className='capture-modal' role='dialog' aria-label='快速捕获'>
+        <View className='capture-modal quick-capture-modal' role='dialog' aria-label='快速捕获'>
           <View className='capture-modal-heading'><View><Text className='section-kicker'>快速捕获</Text><Text>记录一个现在不想丢失的行动念头</Text></View><View className='capture-modal-close' onClick={closeCapture}><Text>关闭</Text></View></View>
           <View className='item-title-input-wrap'><Input ref={captureInputRef} className='capture-modal-input' value={title} placeholder='一句话记录你想做什么' onInput={(event) => { const next = event.detail.value; if (acceptsItemTitleInput(next)) { setTitle(next); setCaptureTitleLimitReached(false) } else setCaptureTitleLimitReached(true) }} /><Text className='item-title-counter'>{captureTitleGraphemes}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>
           {captureTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}
@@ -2353,7 +2333,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
       </View>}
 
-      {(primaryModule === 'workbench' && workbenchTab === 'explorations' || explorationMounted) && <View className={primaryModule === 'workbench' && workbenchTab === 'explorations' ? '' : 'exploration-module-retained-hidden'}><ExplorationPrototype
+      {(primaryModule === 'workbench' && workbenchTab === 'explorations' || explorationMounted) && <View className={`exploration-module ${primaryModule === 'workbench' && workbenchTab === 'explorations' ? '' : 'exploration-module-retained-hidden'}`}><ExplorationPrototype
         explorationFactsVersion={explorationFactsVersion}
         restoreFactsVersion={restoreFactsVersion}
         onRestoreFactsConfirmed={() => restoreFactsConfirmationRef.current?.resolve()}
@@ -2376,8 +2356,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           setItems(locatedItems)
           setSelectedId(undefined)
         }}
-        paneWidth={workbenchPaneWidth}
-        onPaneResizeStart={startPaneResize}
       /></View>}
 
       {isAdministrator && !managementAccessDenied && (primaryModule === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration') || administrationMounted) && <PlatformAdministration
@@ -2484,7 +2462,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           <View className='action-rhythm-days'>{captureWeekDays.map(({ date, isToday }) => <View key={date.toISOString()} className={`action-rhythm-day ${isToday ? 'today' : ''}`}><Text>{['一', '二', '三', '四', '五', '六', '日'][(date.getDay() + 6) % 7]}</Text><Text>{date.getDate()}</Text></View>)}</View>
           <View className={`action-capture-button ${captureLocked ? 'disabled' : ''}`} onClick={openCapture}><Text>＋ 捕获</Text></View>
         </View>
-        <View className={`workspace action-workspace ${showTrash ? 'is-trash' : ''} module-panel ${!showTrash && (reviewEditing || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace' style={{ gridTemplateColumns: `${workbenchPaneWidth}px minmax(0, 1fr)` }}>
+        <View className={`workspace action-workspace ${showTrash ? 'is-trash' : ''} module-panel ${!showTrash && (reviewEditing || selectedItem?.status === 'reviewed') ? 'review-workspace' : ''}`} id='workspace'>
         <View className='list-panel'>
           {!showTrash && <View className='desktop-action-list-tools'>
             <View className='desktop-action-calendar'><Text className='action-rhythm-date'>{compactRhythmDate} · 事项池（{visibleItems.length}）</Text></View>
@@ -2512,8 +2490,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
             ))}
           </View>
         </View>
-        <div className='desktop-pane-divider' style={{ left: `${workbenchPaneWidth}px` }} role='separator' aria-label='调整列表栏宽度' onPointerDown={startPaneResize} />
-
         <View className={`detail-panel ${!showTrash && (reviewEditing || selectedItem?.status === 'reviewed') ? 'review-mode' : ''}`}>
           <View className={`main-workspace-content ${selectedItem ? '' : 'is-empty'}`}>
           {selectedItem ? <>
@@ -2685,7 +2661,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               <Button className='action-button primary' disabled={busy} onClick={restoreSelected}>恢复事项</Button>
             </View> : !reviewEditing && <View className='action-stack'>
               {(selectedItem.status === 'doing' || selectedItem.status === 'waiting_review') && <Button className='action-button primary' disabled={busy} onClick={openReviewEditor}>开始复盘</Button>}
-              {actionsFor(selectedItem).filter((action) => !['idea_later', 'paused'].includes(action.status) && !(action.status === 'abandoned' && (selectedItem.status === 'idea_to_try' || selectedItem.status === 'doing'))).map((action) => <Button key={action.status} className={`action-button ${action.tone}`} disabled={busy} onClick={() => shouldInterceptStartAction(selectedItem, action) ? requestLeaveAllDrafts(openStartConfirm) : changeStatus(action)}>{action.label}</Button>)}
+              {actionsFor(selectedItem).filter((action) => !['idea_later', 'paused'].includes(action.status) && !(action.status === 'abandoned' && (selectedItem.status === 'idea_to_try' || selectedItem.status === 'doing'))).map((action) => <Button key={action.status} className={`action-button ${action.tone} ${action.label === '开始执行' ? 'start-execution-button' : ''}`} disabled={busy} onClick={() => shouldInterceptStartAction(selectedItem, action) ? requestLeaveAllDrafts(openStartConfirm) : changeStatus(action)}>{action.label}</Button>)}
               {deleteConfirm ? <View className='delete-confirm'>
                 <Text>确定删除“{selectedItem.title}”？删除后可在回收站保留 30 天。</Text>
                 <View className='delete-confirm-actions'>
@@ -2749,7 +2725,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           {trashExpanded && <>
             <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '长期探索' }[entry]}</Text></View>)}</View>
             {trashEntries.length > 0 && <View className='trash-batch-actions'><View className='trash-batch-selection'><label className='trash-select-control'><input type='checkbox' checked={allTrashSelected} onChange={() => setSelectedTrashKeys(allTrashSelected ? new Set() : new Set(trashEntries.map((entry) => `${entry.type}:${entry.id}`)))} /><Text>全选当前筛选结果</Text></label><Text>已选 {selectedTrashEntries.length}</Text></View><View className={`trash-batch-action-slot ${selectedTrashEntries.length > 0 ? 'is-visible' : ''}`}><Button className='action-button secondary' disabled={busy || selectedTrashEntries.length === 0} onClick={() => setSelectedTrashKeys(new Set())}>清空选择</Button><Button className='action-button danger' disabled={busy || selectedTrashEntries.length === 0} onClick={() => setPendingTrashPurge(selectedTrashEntries.map(({ type, id }) => ({ type, id })))}>批量永久删除</Button></View></View>}
-            {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => { const key = `${entry.type}:${entry.id}`; const selected = selectedTrashKeys.has(key); return <View className='trash-entry' key={key}><label className='trash-entry-select' onClick={(event) => event.stopPropagation()}><input type='checkbox' checked={selected} onChange={() => setSelectedTrashKeys((current) => { const next = new Set(current); if (selected) next.delete(key); else next.add(key); return next })} /></label><View className={`trash-entry-copy ${entry.type === 'exploration-track' ? 'trash-entry-clickable' : ''}`} onClick={() => openTrashTrackDetail(entry)}><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{trashEntryTypeLabels[entry.type]} · 已删除 · {formatTime(entry.deletedAt)}</Text>{entry.type === 'exploration-track' && <Text className='trash-entry-hint'>点击查看绑定事项</Text>}</View><View className='trash-entry-actions' onClick={(event) => event.stopPropagation()}><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge([{ type: entry.type, id: entry.id }])}>永久删除</Button></View></View> })}</View>}
+            {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => { const key = `${entry.type}:${entry.id}`; const selected = selectedTrashKeys.has(key); return <View className='trash-entry' key={key}><label className='trash-entry-select' onClick={(event) => event.stopPropagation()}><input type='checkbox' checked={selected} onChange={() => setSelectedTrashKeys((current) => { const next = new Set(current); if (selected) next.delete(key); else next.add(key); return next })} /></label><View className={`trash-entry-copy ${entry.type === 'exploration-track' ? 'trash-entry-clickable' : ''}`} onClick={() => openTrashTrackDetail(entry)}><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{trashEntryTypeLabels[entry.type]} · 已删除 · {formatTime(entry.deletedAt)}</Text>{entry.type === 'exploration-track' && <Text className='trash-entry-hint'>点击查看绑定事项</Text>}</View><View className='trash-entry-actions' onClick={(event) => event.stopPropagation()}><View className='trash-entry-action'><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button></View><View className='trash-entry-action'><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge([{ type: entry.type, id: entry.id }])}>永久删除</Button></View></View></View> })}</View>}
           </>}
         </View>
         <View className='data-status-panel'>
@@ -2788,12 +2764,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       {primaryModule === 'workbench' && workbenchTab === 'methods' && <View className='methods-panel module-panel'>
         <View className='methods-compact-heading'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View></View>
         <View className='methods-page-header'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View><Text>按最近更新排序</Text></View>
-        <View className='methods-workbench' style={{ gridTemplateColumns: `${workbenchPaneWidth}px minmax(0, 1fr)` }}>
+        <View className='methods-workbench'>
           {methods.length === 0 ? <View className='methods-empty'><Text>完成复盘时，可以把已验证的结论提炼成方法。</Text></View> : <>
           <View className='method-list-pane'>
             {workspaceMethods.length === 0 ? <Text className='method-list-empty'>没有匹配的方法</Text> : <View className='method-list'>{workspaceMethods.map((method) => <View key={method.id} className={`method-list-row ${selectedWorkspaceMethodId === method.id ? 'active' : ''}`} onClick={() => selectWorkspaceMethod(method.id)}><Text className='method-list-title'>{method.title}</Text><Text className='method-list-meta'>v{method.version} · 验证 {method.validationCount} 次 · {formatTime(method.updatedAt)}</Text><Text className='method-list-summary'>{method.steps.split(/\r?\n/, 1)[0]}</Text></View>)}</View>}
           </View>
-          <div className='desktop-pane-divider' style={{ left: `${workbenchPaneWidth}px` }} role='separator' aria-label='调整列表栏宽度' onPointerDown={startPaneResize} />
           <View className='method-detail-pane'>
             {!selectedWorkspaceMethod ? <View className='method-detail-empty'><Text>未选择方法</Text><Text>{methodSearchQuery.trim() ? '当前搜索结果不包含已选方法，请从左侧选择。' : '从左侧列表选择一条方法查看详情。'}</Text></View> : (() => {
               const method = selectedWorkspaceMethod

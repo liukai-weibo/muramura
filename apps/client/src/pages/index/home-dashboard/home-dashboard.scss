@@ -1,14 +1,16 @@
 .home-dashboard { box-sizing: border-box; width: min(100%, 1000px); height: 100%; min-height: 100%; margin: 0 auto; padding: 24px 32px 48px; overflow-x: hidden; overflow-y: auto; }
 .home-primary-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .home-hero-section { display: flex; min-width: 0; min-height: 260px; padding: 28px; align-items: stretch; justify-content: space-between; gap: 20px; border: 1px solid #eae6e0; border-radius: 22px; background: radial-gradient(circle at 80% 20%, #fff 0%, #f4f1ea 100%); box-shadow: 0 4px 16px rgba(120, 90, 60, .06), 0 1px 4px rgba(0, 0, 0, .03); }
-.home-hero-copy { display: flex; min-width: 0; max-width: 640px; flex-direction: column; justify-content: center; }
+.home-hero-copy { position: relative; display: flex; min-width: 0; max-width: 640px; padding-bottom: 60px; box-sizing: border-box; flex-direction: column; justify-content: center; }
 .home-hero-kicker, .home-widget-label, .home-guide-tag { color: #8c6b49; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
 .home-hero-title { display: -webkit-box; margin-top: 10px; overflow: hidden; color: #2b2825; font-size: 30px; font-weight: 850; letter-spacing: 0; line-height: 1.25; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .home-hero-description { margin-top: 10px; color: #544f49; font-size: 14px; line-height: 1.6; }
-.home-hero-actions { display: flex; margin-top: 24px; gap: 10px; align-items: center; }
-.home-action-button { display: flex; min-height: 38px; padding: 0 17px; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 9999px; cursor: pointer; font-size: 13px; font-weight: 750; }
+.home-hero-actions { position: absolute; right: 0; bottom: -8px; left: 0; display: flex; min-height: 40px; gap: 10px; align-items: center; }
+.home-action-button { display: flex; width: fit-content; height: 40px; min-height: 40px; padding: 0 17px; box-sizing: border-box; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 9999px; cursor: pointer; font-size: 13px; font-weight: 750; }
 .home-action-button.primary { background: #2b2825; color: #fffaf2; }
 .home-action-button.primary:hover { background: #433d37; }
+.home-hero-actions .home-action-button.primary { border-color: #e94781 !important; background: #e94781 !important; color: #fffafd !important; }
+.home-hero-actions .home-action-button.primary:hover { border-color: #d93870 !important; background: #d93870 !important; }
 .home-action-button.secondary { border-color: #cfc4b5; background: transparent; color: #554b40; }
 .home-action-button.secondary:hover { border-color: #a99a87; background: rgba(255, 255, 255, .62); }
 .home-hero-status { display: flex; min-width: 142px; padding: 16px 0 16px 22px; flex-direction: column; justify-content: flex-end; border-left: 1px solid rgba(93, 75, 58, .12); }
@@ -23,7 +25,11 @@
 .home-daily-note-heading, .home-daily-note-heading > view, .home-daily-note-actions, .home-daily-note-modal-actions { display: flex; align-items: center; }
 .home-daily-note-heading { justify-content: space-between; gap: 16px; }.home-daily-note-heading > view { gap: 8px; }.home-daily-note-heading > view text:nth-child(2) { color: #2b2825; font-size: 16px; font-weight: 850; }.home-daily-note-heading > text { color: #948e86; font-size: 11px; }.home-daily-note-cat { color: #8c6b49; font-size: 19px; }.home-daily-note-badge { width: 7px; height: 7px; border-radius: 50%; background: #d98495; }
 .home-daily-note-preview { display: flex; min-width: 0; max-width: 100%; margin-top: 14px; flex-direction: column; gap: 4px; overflow: hidden; color: #544f49; font-size: 13px; line-height: 1.65; }.home-daily-note-preview-line { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.home-daily-note-preview-line.empty-line { height: 8px; line-height: 8px; }.home-daily-note-preview.empty { color: #948e86; }
-.home-daily-note-actions { position: absolute; right: 20px; bottom: 20px; }.home-daily-note-action, .home-daily-note-save, .home-daily-note-cancel { min-height: 34px; padding: 0 14px; border-radius: 9999px; font-size: 12px; }.home-daily-note-action, .home-daily-note-save { border: 1px solid #e7a6b5; background: #d98495; color: #fffafd; }.home-daily-note-cancel { border: 1px solid #eae6e0; background: #fff; color: #544f49; }
+.home-daily-note-actions { position: absolute; right: 20px; bottom: 20px; display: flex; height: 40px; min-height: 40px; align-items: center; }.home-daily-note-action, .home-daily-note-save, .home-daily-note-cancel { height: 40px; min-height: 40px; padding: 0 14px; box-sizing: border-box; align-items: center; border-radius: 9999px; font-size: 12px; }.home-daily-note-action, .home-daily-note-save { border: 1px solid #e94781; background: #e94781; color: #fffafd; }.home-daily-note-action:hover, .home-daily-note-save:hover { border-color: #d93870; background: #d93870; }.home-daily-note-cancel { border: 1px solid #eae6e0; background: #fff; color: #544f49; }
+.home-daily-note-action,
+.home-daily-note-action > taro-button-core,
+.home-daily-note-action > taro-button-core > button { display: flex !important; align-items: center; justify-content: center; line-height: 1 !important; }
+.home-daily-note-modal-actions > .home-daily-note-save { border-color: #e94781 !important; background: #e94781 !important; color: #fffafd !important; }
 .home-daily-note-modal-backdrop { position: fixed; z-index: 90; inset: 0; display: flex; padding: 24px; align-items: center; justify-content: center; background: rgba(43, 40, 37, .28); }.home-daily-note-modal { width: min(100%, 440px); padding: 22px; border: 1px solid #eae6e0; border-radius: 22px; background: #fffdfa; box-shadow: 0 20px 48px rgba(42, 35, 27, .2); }.home-daily-note-modal-title { display: block; color: #2b2825; font-size: 18px; font-weight: 850; }.home-daily-note-modal-hint { display: block; margin-top: 5px; color: #948e86; font-size: 11px; }.home-daily-note-modal-input { display: block; width: 100%; min-height: 148px; margin-top: 18px; padding: 14px; box-sizing: border-box; border: 1px solid #eae6e0; border-radius: 14px; background: #faf8f5; color: #2c2823; font-size: 14px; line-height: 1.7; outline: none; resize: none; }.home-daily-note-modal-input:focus { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .2); }.home-daily-note-modal-error { display: block; margin-top: 8px; color: #a94f58; font-size: 12px; }.home-daily-note-modal-actions { display: flex; justify-content: stretch; gap: 10px; margin-top: 16px; }.home-daily-note-modal-actions > button, .home-daily-note-modal-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; }.home-daily-note-modal-actions > .home-daily-note-cancel { border: 1px solid #eae6e0 !important; background: #fff !important; color: #544f49 !important; }.home-daily-note-modal-actions > .home-daily-note-save { border: 1px solid #e7a6b5 !important; background: #d98495 !important; color: #fffafd !important; }
 .home-guides-section { margin-top: 20px; }
 .home-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
@@ -52,7 +58,7 @@
   .home-hero-status { min-width: 0; padding: 14px 0 0; border-top: 1px solid rgba(93, 75, 58, .12); border-left: 0; }
   .home-widgets-section, .home-guides-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .home-widget { min-height: 104px; }
-  .home-daily-note-card { min-height: 150px; }.home-daily-note-preview { max-width: 100%; }.home-daily-note-actions { position: static; justify-content: flex-end; margin-top: 16px; }
+  .home-hero-copy { max-width: none; padding-bottom: 0; }.home-hero-actions { position: static; min-height: 40px; margin-top: 24px; }.home-daily-note-card { min-height: 150px; }.home-daily-note-preview { max-width: 100%; }.home-daily-note-actions { position: static; height: 40px; min-height: 40px; justify-content: flex-end; margin-top: 16px; }
   .home-guide-visual { height: 120px; }
   .home-guides-grid { margin-top: 52px; }
   .home-guide-cat-image { top: -28px; width: 150px; height: 136px; }
