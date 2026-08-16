@@ -1,4 +1,4 @@
-import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DashboardSnapshot, ItemRepository, ItemStatus, MethodRepository } from '@knowledge-base/contracts'
+import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNote, DashboardSnapshot, ItemRepository, ItemStatus, MethodRepository } from '@knowledge-base/contracts'
 import { itemStatuses } from '@knowledge-base/contracts'
 import type { DashboardApplicationService, ExplorationTrackApplicationService } from './index'
 
@@ -39,20 +39,25 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
   }
 }
 
-export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined, searchContext: string, summary: AiConversationSummary | undefined, preferences: AiPreference[], maxChars: number): string {
+export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined, searchContext: string, summary: AiConversationSummary | undefined, preferences: AiPreference[], maxChars: number, dailyNotes: DailyNote[] = []): string {
   const sections = [
     'Server-verified read-only personal knowledge context (user data):',
     'Use only this context as user data. Do not claim to modify it.',
   ]
+  if (dailyNotes.length) {
+    const notes = [...dailyNotes].sort((left, right) => right.entryDate.localeCompare(left.entryDate) || right.updatedAt.localeCompare(left.updatedAt))
+    sections.push(`Historical daily notes (all available dates, use only when relevant to the question; the date is authoritative):\n${notes.map((note) => `- ${note.entryDate} | ${note.content || '(empty)'}`).join('\n')}`)
+  }
   if (overview) {
     sections.push(`Profile: username=${overview.profile.username}; accountCreatedAt=${overview.profile.createdAt}; roles=${overview.profile.roles.join(',') || 'none'}`)
     sections.push(`Authoritative knowledge base summary for numeric questions: 事项总数=${overview.items.length}; 方法总数=${overview.methods.length}; 复盘总数=${overview.reviews.length}; 探索主线总数=${overview.explorations.length}`)
-    sections.push(`Authoritative item status counts: ${Object.entries(overview.itemStatusCounts).map(([status, count]) => `${statusLabel(status)}=${count}`).join(', ')}`)
+    const currentStatusCodes = new Set(['idea_to_try', 'doing', 'reviewed'])
+    sections.push(`Authoritative current item status counts: ${Object.entries(overview.itemStatusCounts).filter(([status]) => currentStatusCodes.has(status)).map(([status, count]) => `${statusLabel(status)}=${count}`).join(', ')}`)
     sections.push(`Items (cite by title; internal IDs and machine status codes are unavailable to the assistant):\n${overview.items.slice(0, 80).map((item) => `- ${item.title} | 状态=${statusLabel(item.status)} | updatedAt=${item.updatedAt} | ${item.content.slice(0, 240)}`).join('\n') || '- none'}`)
     sections.push(`Explorations (cite by name; internal IDs and machine status codes are unavailable to the assistant):\n${overview.explorations.slice(0, 40).map((track) => `- ${track.name}${track.latestItem ? ` | latest=${track.latestItem.title}（${statusLabel(track.latestItem.status)}）` : ''}`).join('\n') || '- none'}`)
     sections.push(`Recent reviews (cite by subject; internal IDs are unavailable to the assistant):\n${overview.reviews.slice(0, 30).map((review) => `- review record | ${review.result.slice(0, 240)}`).join('\n') || '- none'}`)
     sections.push(`Methods (cite by title; internal IDs are unavailable to the assistant):\n${overview.methods.slice(0, 40).map((method) => `- ${method.title} v${method.version} | validations=${method.validationCount} | ${method.steps.slice(0, 240)}`).join('\n') || '- none'}`)
-    sections.push(`Dashboard: ${overview.dashboard.facts.map(replaceStatusCodes).join(' ')}; backlog=想尝试${overview.dashboard.backlog.ideaToTry}，已开始${overview.dashboard.backlog.doing}，已暂停${overview.dashboard.backlog.paused}，以后考虑${overview.dashboard.backlog.ideaLater}; unreviewedMethodActions=${overview.dashboard.unreviewedMethodActions}`)
+    sections.push(`Dashboard: ${overview.dashboard.facts.map(replaceStatusCodes).join(' ')}; current status summary=想试试${overview.dashboard.backlog.ideaToTry}，已开始${overview.dashboard.backlog.doing}，已复盘${overview.itemStatusCounts.reviewed ?? 0}; homepage quick actions=快速记录（追加一条内容到当天手记）、继续推进（定位当前事项并进入下一步）、快速捕获（记录一条待处理想法）; unreviewedMethodActions=${overview.dashboard.unreviewedMethodActions}`)
     if (overview.trash) {
       const trashCounts = overview.trash.reduce((counts, entry) => { counts[entry.type] += 1; return counts }, { item: 0, method: 0, 'exploration-track': 0 } as Record<'item' | 'method' | 'exploration-track', number>)
       sections.push(`Authoritative recycle bin counts (server-calculated): 事项=${trashCounts.item}，方法=${trashCounts.method}，探索主线=${trashCounts['exploration-track']}，合计=${overview.trash.length}。Only these counts may be used for numeric answers. Do not calculate counts from titles.`)
@@ -77,7 +82,7 @@ export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined
 }
 
 function statusLabel(status: string): string {
-  return ({ doing: '已开始', idea_to_try: '想尝试', idea_later: '以后考虑', paused: '已暂停', reviewed: '已复盘', abandoned: '已放弃' } as Record<string, string>)[status] ?? status
+  return ({ doing: '已开始', idea_to_try: '想试试', idea_later: '以后考虑', paused: '已暂停', reviewed: '已复盘', abandoned: '已放弃' } as Record<string, string>)[status] ?? status
 }
 
 function replaceStatusCodes(value: string): string {

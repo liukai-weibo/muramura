@@ -46,6 +46,9 @@ export default function ExperimentalAiPage() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string>()
+  const [pendingDelete, setPendingDelete] = useState<AiConversation>()
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string>()
   const [welcomeVisible, setWelcomeVisible] = useState(true)
   const [welcomeDismissing, setWelcomeDismissing] = useState(false)
   const welcomeDismissTimer = useRef<number>()
@@ -58,11 +61,33 @@ export default function ExperimentalAiPage() {
   useEffect(() => { let active = true; void apiClient.listAiConversations().then(async (items) => { const available = await resolveVisibleConversations(items); if (!active) return; setConversations(available); setDraftActive(true); setActiveId(undefined) }).catch(() => undefined); return () => { active = false; aborts.current.forEach((controller) => controller.abort()); streamFlushTimers.current.forEach((timer) => window.clearTimeout(timer)); streamFlushTimers.current.clear(); pendingStreamChunks.current.clear(); streamSurfaces.current.clear() } }, [])
   useEffect(() => () => { if (welcomeDismissTimer.current !== undefined) window.clearTimeout(welcomeDismissTimer.current) }, [])
   useEffect(() => { const closeMenu = () => setOpenMenuId(undefined); const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') closeMenu() }; document.addEventListener('click', closeMenu); document.addEventListener('keydown', closeOnEscape); return () => { document.removeEventListener('click', closeMenu); document.removeEventListener('keydown', closeOnEscape) } }, [])
+  useEffect(() => { if (!pendingDelete) return; const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !deleteSubmitting) setPendingDelete(undefined) }; document.addEventListener('keydown', closeOnEscape); return () => document.removeEventListener('keydown', closeOnEscape) }, [pendingDelete, deleteSubmitting])
 
   const activeView = activeId ? views[activeId] ?? emptyView() : emptyView()
   const activateDraft = () => { if (welcomeDismissTimer.current !== undefined) window.clearTimeout(welcomeDismissTimer.current); setWelcomeVisible(true); setWelcomeDismissing(false); setInput(''); setDraftActive(true); setActiveId(undefined); setDraftError(undefined); setOpenMenuId(undefined); setDrawerOpen(false); focusComposer() }
   const selectConversation = async (id: string) => { setOpenMenuId(undefined); setDraftActive(false); setActiveId(id); setDrawerOpen(false); await loadConversation(id) }
-  const deleteConversation = async (conversation: AiConversation) => { if (!window.confirm(`确定删除会话“${conversation.title}”吗？`)) return; await apiClient.deleteAiConversation(conversation.id); setOpenMenuId(undefined); const remaining = conversations.filter((item) => item.id !== conversation.id); setConversations(remaining); if (activeId === conversation.id) { const next = remaining[0]; if (next) void selectConversation(next.id); else activateDraft() } }
+  const deleteConversation = (conversation: AiConversation) => { setOpenMenuId(undefined); setDeleteError(undefined); setPendingDelete(conversation) }
+  const confirmDeleteConversation = async () => {
+    if (!pendingDelete || deleteSubmitting) return
+    setDeleteSubmitting(true)
+    setDeleteError(undefined)
+    try {
+      await apiClient.deleteAiConversation(pendingDelete.id)
+      const remaining = conversations.filter((item) => item.id !== pendingDelete.id)
+      setConversations(remaining)
+      const wasActive = activeId === pendingDelete.id
+      setPendingDelete(undefined)
+      if (wasActive) {
+        const next = remaining[0]
+        if (next) void selectConversation(next.id)
+        else activateDraft()
+      }
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : '删除会话失败，请稍后重试')
+    } finally {
+      setDeleteSubmitting(false)
+    }
+  }
   const renameConversation = async (conversation: AiConversation) => { const title = window.prompt('修改会话标题', conversation.title); if (!title?.trim()) return; const updated = await apiClient.updateAiConversationTitle(conversation.id, title.trim()); setOpenMenuId(undefined); setConversations((current) => current.map((item) => item.id === updated.id ? updated : item)) }
   const loadOlder = async () => { if (!activeId || activeView.loadingOlder || !activeView.hasMoreBefore || !activeView.oldestSequence) return; const id = activeId; updateView(id, (current) => ({ ...current, loadingOlder: true })); try { const snapshot = await apiClient.getExperimentalAiConversationById(id, { limit: 20, beforeSequence: activeView.oldestSequence }); const older = toView(snapshot); updateView(id, (current) => ({ ...current, messages: [...older.messages.filter((message) => !current.messages.some((entry) => entry.id === message.id)), ...current.messages], hasMoreBefore: older.hasMoreBefore, oldestSequence: older.oldestSequence ?? current.oldestSequence, loadingOlder: false })) } catch { updateView(id, (current) => ({ ...current, loadingOlder: false })) } }
 
@@ -114,5 +139,6 @@ export default function ExperimentalAiPage() {
     {draftActive && activeView.messages.length === 0 && welcomeVisible && <View className={`experimental-ai-welcome-mascot${welcomeDismissing ? ' is-dismissing' : ''}`}><ExperimentalAiMascot compact isListening={false} isThinking={false} sessionKind="new" persistentBubble useRiveMascot /></View>}
     <View className={`experimental-ai-conversation-drawer ${drawerOpen ? 'is-open' : ''}`} onClick={(event) => event.stopPropagation()}><View className="experimental-ai-conversation-list"><View className={`experimental-ai-conversation-row experimental-ai-draft-row ${draftActive ? 'is-active' : ''}`} onClick={activateDraft}><Text className="experimental-ai-conversation-title">{DRAFT_TITLE}</Text></View>{conversations.map((conversation) => <View key={conversation.id} className={`experimental-ai-conversation-row ${activeId === conversation.id ? 'is-active' : ''} ${openMenuId === conversation.id ? 'is-menu-open' : ''}`} onClick={() => void selectConversation(conversation.id)}><Text className="experimental-ai-conversation-title">{conversation.title}</Text>{views[conversation.id]?.isGenerating && <Text className="experimental-ai-generating">生成中</Text>}<Button className="experimental-ai-more" aria-label="会话操作" onClick={(event) => { event.stopPropagation(); setOpenMenuId((current) => current === conversation.id ? undefined : conversation.id) }}>⋯</Button>{openMenuId === conversation.id && <View className="experimental-ai-conversation-menu" onClick={(event) => event.stopPropagation()}><Button size="mini" onClick={() => void renameConversation(conversation)}>重命名</Button><Button size="mini" onClick={() => void deleteConversation(conversation)}>删除</Button></View>}</View>)}</View></View>
     <View className="experimental-ai-main"><View className="experimental-ai-toolbar"><Button className="experimental-ai-conversation-toggle" size="mini" onClick={(event) => { event.stopPropagation(); setDrawerOpen((value) => !value) }}>会话列表</Button><Text className="experimental-ai-title">{draftActive ? DRAFT_TITLE : conversations.find((conversation) => conversation.id === activeId)?.title ?? '新会话'}</Text></View><ExperimentalAiMessageList messages={activeView.messages} renderMessage={renderMessage} onReachTop={() => void loadOlder()} scrollKey={`${activeId ?? 'draft'}:${activeView.messages.length}`} /><View className="experimental-ai-composer-shell"><View className="experimental-ai-composer" style={{ width: '100%', minWidth: 0 }}><textarea ref={inputRef} className="experimental-ai-input taro-textarea" style={{ display: 'block', width: '100%', minWidth: 0, flex: '1 1 auto', boxSizing: 'border-box' }} value={input} maxLength={MAX_CONTEXT_CHARACTERS} onInput={(event) => setInput(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }} placeholder="输入你想复盘的问题" /><Button className="experimental-ai-send-button" disabled={!activeView.isGenerating && !input.trim()} aria-label={activeView.isGenerating ? '停止生成' : '发送消息'} onClick={activeView.isGenerating ? stop : () => void send()}>{activeView.isGenerating ? '停止生成' : '发送'}</Button></View></View>{(activeView.error || draftError) && <Text className="experimental-ai-error">{activeView.error ?? draftError}</Text>}</View>
+    {pendingDelete && <View className="experimental-ai-delete-backdrop" onClick={() => !deleteSubmitting && setPendingDelete(undefined)}><View className="experimental-ai-delete-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}><Text className="experimental-ai-delete-title">删除会话？</Text><Text className="experimental-ai-delete-description">确定删除“{pendingDelete.title}”吗？删除后无法恢复。</Text>{deleteError && <Text className="experimental-ai-delete-error">{deleteError}</Text>}<View className="experimental-ai-delete-actions"><Button disabled={deleteSubmitting} onClick={() => setPendingDelete(undefined)}>取消</Button><Button className="danger" disabled={deleteSubmitting} onClick={() => void confirmDeleteConversation()}>{deleteSubmitting ? '正在删除…' : '确认删除'}</Button></View></View></View>}
   </View>
 }
