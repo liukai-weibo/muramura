@@ -331,7 +331,10 @@
 
 .platform-user-list {
   min-width: 0;
-  overflow: visible;
+  max-height: clamp(260px, calc(100vh - 360px), 680px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   border: 1px solid #e1d9cc;
   border-radius: 8px;
 }
@@ -347,6 +350,9 @@
 }
 
 .platform-user-table-heading {
+  position: sticky;
+  z-index: 2;
+  top: 0;
   height: 40px;
   min-height: 40px;
   color: #81796e;
@@ -709,6 +715,7 @@
     display: grid;
     width: 100%;
     min-width: 0;
+    max-height: calc(100dvh - 300PX);
     gap: 12PX;
     border: 0;
   }
@@ -2014,6 +2021,13 @@ button:not(:disabled):active { transform: translateY(1px); }
 .experimental-ai-conversation-menu { position: absolute; z-index: 10; top: 35px; right: 7px; display: flex; width: 112px; padding: 5px; flex-direction: column; gap: 2px; border: 1px solid #ded8cd; border-radius: 9px; background: #fffdf9; box-shadow: 0 8px 24px rgba(32, 28, 23, .14); }
 .experimental-ai-conversation-menu button { width: 100%; min-height: 32px; margin: 0; border: 0; background: transparent; color: #554f46; text-align: left; }
 .experimental-ai-conversation-menu button:hover { background: #eee8de; }
+.experimental-ai-delete-backdrop { position: fixed; z-index: 120; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(38, 34, 29, .42); }
+.experimental-ai-delete-modal { display: flex; box-sizing: border-box; width: min(100%, 420px); padding: 22px; flex-direction: column; gap: 10px; border: 1px solid #ded8cd; border-radius: 16px; background: #fffdf9; box-shadow: 0 20px 60px rgba(32, 28, 23, .28); color: #554f46; }
+.experimental-ai-delete-title { color: #302c27; font-size: 18px; font-weight: 820; line-height: 26px; }
+.experimental-ai-delete-description { color: #625a50; font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+.experimental-ai-delete-error { color: #9d3d2d; font-size: 13px; line-height: 20px; }
+.experimental-ai-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.experimental-ai-delete-actions button { width: auto; min-width: 92px; margin: 0; }
 .experimental-ai-generating { color: #5a78dc; font-size: 12px; }
 .experimental-ai-main { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: column; }
 .experimental-ai-toolbar { min-height: 38px; }

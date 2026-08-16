@@ -1,4 +1,4 @@
-import type { AiChatMessage, AiConfigInput, AiConfigMetadata, AiConversation, AiConversationRepository, AiConversationSnapshot, AiConversationSummary, AiKnowledgeOverviewReader, AiPreference, AiStreamEvent, AuthUser, SearchResult } from '@knowledge-base/contracts'
+import type { AiChatMessage, AiConfigInput, AiConfigMetadata, AiConversation, AiConversationRepository, AiConversationSnapshot, AiConversationSummary, AiKnowledgeOverviewReader, AiPreference, AiStreamEvent, AuthUser, DailyNoteRepository, SearchResult } from '@knowledge-base/contracts'
 import type { SecretStore } from '../../storage-secrets/src/index'
 import { STRONG_STRATEGIST_PROMPT } from './ai-prompts/strong-strategist-prompt'
 import { AI_BUSINESS_SEMANTICS, AI_KNOWLEDGE_CONCEPTS, AI_RESPONSE_POLICY } from './ai-prompts/ai-policy'
@@ -162,7 +162,7 @@ export interface AiLatencyDiagnostic {
 const backgroundSummaryTasks = new Map<string, Promise<void>>()
 
 export class AiChatApplicationService {
-  constructor(private readonly config: AiConfigManager, private readonly search: ReadonlySearch, private readonly provider: AiProvider, private readonly knowledge?: AiKnowledgeOverviewReader, private readonly conversation?: AiConversationRepository, private readonly onLatency?: (diagnostic: AiLatencyDiagnostic) => void, private readonly preferences?: { readForAi(): Promise<AiPreference[]> }) {}
+  constructor(private readonly config: AiConfigManager, private readonly search: ReadonlySearch, private readonly provider: AiProvider, private readonly knowledge?: AiKnowledgeOverviewReader, private readonly conversation?: AiConversationRepository, private readonly onLatency?: (diagnostic: AiLatencyDiagnostic) => void, private readonly preferences?: { readForAi(): Promise<AiPreference[]> }, private readonly dailyNotes?: Pick<DailyNoteRepository, 'listMine'>) {}
   async *stream(messages: AiChatMessage[], signal: AbortSignal, user?: AuthUser, requestId?: string, conversationId?: string, contextMode: 'full' | 'daily-note' = 'full'): AsyncGenerator<AiStreamEvent> {
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 30 || messages.some((m) => !m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string' || m.content.length > 12000) || messages.reduce((total, m) => total + (typeof m.content === 'string' ? m.content.length : 0), 0) > 12000 || messages.reduce((total, m) => total + (typeof m.content === 'string' ? Math.ceil(m.content.length / 4) : 0), 0) > 6000) { yield { type: 'error', code: 'AI_STREAM_FAILED', message: 'invalid messages' }; return }
     const last = messages[messages.length - 1]!.content
@@ -184,7 +184,8 @@ export class AiChatApplicationService {
     const overview = contextMode === 'daily-note' ? undefined : this.knowledge && user ? await this.knowledge.read(user) : undefined
     const overviewMs = Date.now() - overviewStartedAt
     const confirmedPreferences = contextMode === 'daily-note' ? [] : this.preferences ? await this.preferences.readForAi() : []
-    const readonlyContext = formatKnowledgeContext(overview, contextLines, summary, confirmedPreferences, AI_KNOWLEDGE_CONTEXT_MAX_CHARS)
+    const dailyNotes = contextMode === 'daily-note' ? [] : this.dailyNotes ? await this.dailyNotes.listMine() : []
+    const readonlyContext = formatKnowledgeContext(overview, contextLines, summary, confirmedPreferences, AI_KNOWLEDGE_CONTEXT_MAX_CHARS, dailyNotes)
     const sourceMessages = persisted.length > 0 ? selectRecentMessages(persisted, summary?.throughSequence) : messages
     const prompt: AiChatMessage[] = [buildAiSystemMessage(), ...sourceMessages.map((message, index) => index === 0 && message.role === 'user' ? { role: 'user' as const, content: `${readonlyContext}${message.content}` } : { role: message.role, content: message.content })]
     if (sourceMessages.length === 0 || sourceMessages[sourceMessages.length - 1]?.content !== last) prompt.push({ role: 'user', content: `${readonlyContext}${last}` })

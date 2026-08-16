@@ -251,7 +251,15 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
     setListNotice(undefined)
     setListState(snapshotRef.current ? 'refreshing' : 'initial-loading')
     try {
-      const result = await apiClient.listPlatformUsers({ page: nextPage, query: nextQuery || undefined, status: deleted ? 'deleted' : undefined }, controller.signal)
+      const firstPage = await apiClient.listPlatformUsers({ page: 1, query: nextQuery || undefined, status: deleted ? 'deleted' : undefined }, controller.signal)
+      const pages = platformPageCount(firstPage.total)
+      const items = [...firstPage.items]
+      for (let currentPage = 2; currentPage <= pages; currentPage += 1) {
+        if (controller.signal.aborted) return
+        const next = await apiClient.listPlatformUsers({ page: currentPage, query: nextQuery || undefined, status: deleted ? 'deleted' : undefined }, controller.signal)
+        items.push(...next.items)
+      }
+      const result: PlatformUserPage = { ...firstPage, page: 1, items }
       if (!shouldApplyPlatformRead({
         mounted: mountedRef.current,
         aborted: controller.signal.aborted,
@@ -411,6 +419,12 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
         if (currentSnapshot) updateSnapshot(replacePlatformUser(currentSnapshot, result))
         updateLock(current.targetId, 'idle')
         updateTargetNotice(current.targetId, { kind: 'success', message: current.action === 'soft-delete' ? '账号已删除。' : '账号已恢复，可以重新登录。' })
+        if (current.action === 'soft-delete') {
+          setShowDeletedUsers(false)
+          snapshotRef.current = undefined
+          setSnapshot(undefined)
+          void readUsers(1, appliedQuery, false)
+        }
       }
       clearConfirmation()
     } catch (error) {
@@ -474,15 +488,8 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
     void readUsers(1, '')
   }
 
-  const changePage = (nextPage: number) => {
-    if (nextPage < 1 || listState === 'initial-loading' || listState === 'refreshing') return
-    setPage(nextPage)
-    void readUsers(nextPage, appliedQuery)
-  }
-
   const refreshing = listState === 'refreshing'
   const reading = refreshing || listState === 'initial-loading'
-  const pageCount = platformPageCount(snapshot?.total ?? 0)
   const confirmationContent = confirmation ? confirmationCopy(confirmation) : undefined
 
   return <View className={`platform-administration platform-administration--${view} ${visible ? '' : 'platform-administration-hidden'}`}>
@@ -551,10 +558,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
                 </View>
               })}
             </View>}
-            <View className='platform-administration-pagination'>
-              <Text>共 {snapshot.total} 位用户</Text>
-              <View><Button className={`platform-pagination-button ${page <= 1 || refreshing ? 'platform-pagination-button-disabled' : ''}`} disabled={page <= 1 || refreshing} onClick={() => changePage(page - 1)}>上一页</Button><Text>第 {page} / {pageCount} 页</Text><Button className={`platform-pagination-button ${page >= pageCount || refreshing ? 'platform-pagination-button-disabled' : ''}`} disabled={page >= pageCount || refreshing} onClick={() => changePage(page + 1)}>下一页</Button></View>
-            </View>
+            <View className='platform-administration-pagination'><Text>共 {snapshot.total} 位用户</Text></View>
           </>}
     </>}
 

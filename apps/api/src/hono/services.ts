@@ -90,6 +90,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
       aiConversationRepository,
       diagnostic => console.info('[knowledge-base-ai-latency]', diagnostic),
       aiPreferences,
+      dailyNoteRepository,
     )
     : undefined
   return {
