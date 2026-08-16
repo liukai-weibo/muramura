@@ -149,7 +149,7 @@ export interface SecurityAuditEvent {
 }
 
 export interface PlatformAdministrationRepository {
-  listUsers(input: { page: number; query?: string; actorUserId?: string }): Promise<PlatformUserPage>
+  listUsers(input: { page: number; query?: string; status?: 'active' | 'deleted'; actorUserId?: string }): Promise<PlatformUserPage>
   getUserById(userId: string, actorUserId?: string): Promise<PlatformUserSummary | undefined>
   grantOrdinaryAdmin(input: PlatformRoleChangeInput): Promise<'granted' | 'already-granted'>
   revokeOrdinaryAdmin(input: PlatformRoleChangeInput): Promise<'revoked' | 'already-revoked'>

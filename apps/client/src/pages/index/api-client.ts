@@ -336,11 +336,12 @@ export const apiClient = {
     if (desktopTransport) discardDesktopSessionToken()
     return result
   },
-  listPlatformUsers: async (input: { page: number; query?: string }, signal?: AbortSignal) => {
+  listPlatformUsers: async (input: { page: number; query?: string; status?: 'active' | 'deleted' }, signal?: AbortSignal) => {
     const query = input.query?.trim()
     if (!Number.isSafeInteger(input.page) || input.page < 1 || (query?.length ?? 0) > 80) throw new Error('用户列表请求参数无效。')
     const search = new URLSearchParams({ page: String(input.page) })
     if (query) search.set('query', query)
+    if (input.status) search.set('status', input.status)
     return parsePlatformUserPage(await request<unknown>(`/admin/users?${search.toString()}`, { signal }), input.page)
   },
   setPlatformUserRoles: (targetUserId: string, input: AdminSetUserRolesRequest) => {

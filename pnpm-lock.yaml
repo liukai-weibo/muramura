@@ -20,6 +20,9 @@ importers:
       fake-indexeddb:
         specifier: ^6.2.5
         version: 6.2.5
+      http-proxy:
+        specifier: 1.18.1
+        version: 1.18.1
       mysql2:
         specifier: ^3.23.1
         version: 3.23.1(@types/node@22.20.1)
@@ -10735,8 +10738,7 @@ snapshots:
   etag@1.8.1:
     optional: true
 
-  eventemitter3@4.0.7:
-    optional: true
+  eventemitter3@4.0.7: {}
 
   events@3.3.0:
     optional: true
@@ -11463,7 +11465,6 @@ snapshots:
       requires-port: 1.0.0
     transitivePeerDependencies:
       - debug
-    optional: true
 
   https-proxy-agent@2.2.4:
     dependencies:
@@ -12990,8 +12991,7 @@ snapshots:
 
   require-from-string@2.0.2: {}
 
-  requires-port@1.0.0:
-    optional: true
+  requires-port@1.0.0: {}
 
   resolve-dir@0.1.1:
     dependencies:

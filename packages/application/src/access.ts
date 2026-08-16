@@ -126,7 +126,7 @@ export class PlatformAdministrationApplicationService {
     private readonly newId: () => string = createId,
   ) {}
 
-  async listUsers(actor: AuthUser, input: { page: number; query?: string }): Promise<PlatformUserPage> {
+  async listUsers(actor: AuthUser, input: { page: number; query?: string; status?: 'active' | 'deleted' }): Promise<PlatformUserPage> {
     this.assertAdministrator(actor)
     return this.repository.listUsers({ ...input, actorUserId: actor.id })
   }

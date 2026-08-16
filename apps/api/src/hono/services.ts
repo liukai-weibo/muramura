@@ -42,14 +42,7 @@ import type { Pool } from 'mysql2/promise'
 
 export function createRootHonoServices(config: MySqlConnectionConfig) {
   const pool = createMySqlPool(config)
-  let secretStore: SecretStore
-  try {
-    const mode = process.env.AI_SECRET_STORE ?? 'keytar'
-    if (mode === 'file') secretStore = createFileSecretStore(process.env.AI_SECRET_STORE_PATH)
-    else if (mode === 'keytar') secretStore = createProtectedSecretStore('kb_ai_00000000-0000-4000-8000-000000000001')
-    else throw new SecretStoreUnavailableError()
-  }
-  catch { secretStore = { get: async () => { throw new SecretStoreUnavailableError() }, set: async () => { throw new SecretStoreUnavailableError() }, clear: async () => { throw new SecretStoreUnavailableError() } } }
+  const secretStore = createSecretStore('kb_ai_00000000-0000-4000-8000-000000000001', process.env.AI_SECRET_STORE_PATH)
   const aiConfig = new AiConfigManager(secretStore)
   return {
     pool,
@@ -58,6 +51,17 @@ export function createRootHonoServices(config: MySqlConnectionConfig) {
     platformAdministration: new PlatformAdministrationApplicationService(new MySqlPlatformAdministrationRepository(pool)),
     ...createScopedHonoServices(pool, undefined, aiConfig),
     aiConfig,
+  }
+}
+
+function createSecretStore(name: string, filePath?: string): SecretStore {
+  try {
+    const mode = process.env.AI_SECRET_STORE ?? 'keytar'
+    if (mode === 'file') return createFileSecretStore(filePath ?? `.secrets/${name}.json`)
+    if (mode === 'keytar') return createProtectedSecretStore(name)
+    throw new SecretStoreUnavailableError()
+  } catch {
+    return { get: async () => { throw new SecretStoreUnavailableError() }, set: async () => { throw new SecretStoreUnavailableError() }, clear: async () => { throw new SecretStoreUnavailableError() } }
   }
 }
 

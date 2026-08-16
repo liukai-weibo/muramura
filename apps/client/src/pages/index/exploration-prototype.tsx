@@ -42,7 +42,7 @@ const TrackItem = memo(function TrackItem({ item, onOpen }: { item: ExplorationT
   </View>
 })
 
-export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVersion, onRestoreFactsConfirmed, onRestoreFactsFailed, onExplorationTrackCountChange, onItemsChanged, onRefresh, showManualRefresh = true, onOpenItem, onOpenItems, itemUpdatedAtById, paneWidth, onPaneResizeStart }: { explorationFactsVersion: number; restoreFactsVersion: number; onRestoreFactsConfirmed: () => void; onRestoreFactsFailed: (message: string) => void; onExplorationTrackCountChange: (count: number) => void; onItemsChanged: () => Promise<void>; onRefresh?: () => void | Promise<void>; showManualRefresh?: boolean; onOpenItem: (locator: ItemLocator) => void; onOpenItems: (status: CurrentAssociatedStatus, items: import('@knowledge-base/contracts').Item[]) => void; itemUpdatedAtById: ReadonlyMap<string, string>; paneWidth?: number; onPaneResizeStart?: (event: React.PointerEvent) => void }) {
+export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVersion, onRestoreFactsConfirmed, onRestoreFactsFailed, onExplorationTrackCountChange, onExplorationTracksChange, onItemsChanged, onRefresh, showManualRefresh = true, onOpenItem, onOpenItems, itemUpdatedAtById, paneWidth, onPaneResizeStart }: { explorationFactsVersion: number; restoreFactsVersion: number; onRestoreFactsConfirmed: () => void; onRestoreFactsFailed: (message: string) => void; onExplorationTrackCountChange: (count: number) => void; onExplorationTracksChange?: (tracks: ExplorationTrackListEntry[]) => void; onItemsChanged: () => Promise<void>; onRefresh?: () => void | Promise<void>; showManualRefresh?: boolean; onOpenItem: (locator: ItemLocator) => void; onOpenItems: (status: CurrentAssociatedStatus, items: import('@knowledge-base/contracts').Item[]) => void; itemUpdatedAtById: ReadonlyMap<string, string>; paneWidth?: number; onPaneResizeStart?: (event: React.PointerEvent) => void }) {
   const [tracks, setTracks] = useState<ExplorationTrackListEntry[]>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [listPage, setListPage] = useState(1)
@@ -86,6 +86,7 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
       const normalized = next
       setTracks(normalized)
       onExplorationTrackCountChange(normalized.length)
+      onExplorationTracksChange?.(normalized)
       setListReadSucceeded(true)
       const effectivePreferredId = preserveCurrentSelection ? selectedIdRef.current : preferredId
       const preferredIndex = effectivePreferredId ? normalized.findIndex((entry) => entry.track.id === effectivePreferredId) : -1
@@ -176,6 +177,7 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
         }
         setTracks(nextTracks)
         onExplorationTrackCountChange(nextTracks.length)
+        onExplorationTracksChange?.(nextTracks)
         setListReadSucceeded(true)
         setListPage(1)
         if (nextSelectedId && nextHistory) {

@@ -28,7 +28,7 @@ export interface MySqlPlatformAdministrationRepositoryTestHooks { beforeCommit?:
 export class MySqlPlatformAdministrationRepository implements PlatformAdministrationRepository, InitialPlatformAdminRepository {
   constructor(private readonly pool: Pool, private readonly hooks: MySqlPlatformAdministrationRepositoryTestHooks = {}) {}
 
-  async listUsers(input: { page: number; query?: string; actorUserId?: string }): Promise<PlatformUserPage> {
+  async listUsers(input: { page: number; query?: string; status?: 'active' | 'deleted'; actorUserId?: string }): Promise<PlatformUserPage> {
     if (!Number.isSafeInteger(input.page) || input.page < 1) fail('PLATFORM_ADMIN_INVALID_PAGE', '页码无效')
     const connection = await this.pool.getConnection()
     try {
@@ -37,6 +37,7 @@ export class MySqlPlatformAdministrationRepository implements PlatformAdministra
       const query = input.query?.trim() ?? ''
       const conditions = [
         ...(query ? ["username LIKE ? ESCAPE '='"] : []),
+        ...(input.status === 'deleted' ? ['deleted_at IS NOT NULL'] : ['deleted_at IS NULL']),
         ...(actor.platform ? [] : ["EXISTS (SELECT 1 FROM user_roles rm WHERE rm.user_id=users.id AND rm.role_code='member')", "NOT EXISTS (SELECT 1 FROM user_roles ra WHERE ra.user_id=users.id AND ra.role_code IN ('ordinary_admin','platform_admin'))"]),
       ]
       const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : ''

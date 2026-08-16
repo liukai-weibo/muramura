@@ -32,6 +32,7 @@ const listUsersRoute = createRoute({
     query: z.object({
       page: z.string().optional().openapi({ example: '1' }),
       query: z.string().optional().openapi({ example: 'alice' }),
+      status: z.enum(['active', 'deleted']).optional().openapi({ example: 'active' }),
     }),
   },
   responses: {
@@ -227,20 +228,31 @@ function requireActor(context: { get: (key: 'actor') => ApiEnv['Variables']['act
   return actor
 }
 
-function parseAdminUserListQuery(parameters: URLSearchParams): { page: number; query?: string } {
+function parseAdminUserListQuery(parameters: URLSearchParams): { page: number; query?: string; status?: 'active' | 'deleted' } {
+  if (parameters.has('status')) {
+    const status = parameters.get('status')
+    if (status !== 'active' && status !== 'deleted') throw new ApiError(400, 'VALIDATION_FAILED', 'invalid user status')
+    const withoutStatus = new URLSearchParams(parameters)
+    withoutStatus.delete('status')
+    return { ...parseAdminUserListQuery(withoutStatus), status }
+  }
   for (const key of parameters.keys()) {
     if (key !== 'page' && key !== 'query') throw new ApiError(400, 'VALIDATION_FAILED', '用户列表查询参数无效')
   }
   const pages = parameters.getAll('page')
   const queries = parameters.getAll('query')
+  const statuses = parameters.getAll('status')
   if (pages.length > 1 || queries.length > 1) throw new ApiError(400, 'VALIDATION_FAILED', '用户列表查询参数无效')
+  if (pages.length > 1 || queries.length > 1 || statuses.length > 1) throw new ApiError(400, 'VALIDATION_FAILED', 'invalid user list query')
   const rawPage = pages[0]
   if (rawPage !== undefined && !/^[1-9][0-9]*$/.test(rawPage)) throw new ApiError(400, 'VALIDATION_FAILED', '页码无效')
   const page = rawPage === undefined ? 1 : Number(rawPage)
   if (!Number.isSafeInteger(page)) throw new ApiError(400, 'VALIDATION_FAILED', '页码无效')
   const query = queries[0]?.trim()
   if (query !== undefined && query.length > 80) throw new ApiError(400, 'VALIDATION_FAILED', '搜索文本过长')
-  return query ? { page, query } : { page }
+  const status = statuses[0]
+  if (status !== undefined && status !== 'active' && status !== 'deleted') throw new ApiError(400, 'VALIDATION_FAILED', 'invalid user status')
+  return { page, ...(query ? { query } : {}), ...(status ? { status } : {}) }
 }
 
 function parseAdminRoles(value: unknown): PlatformRole[] {

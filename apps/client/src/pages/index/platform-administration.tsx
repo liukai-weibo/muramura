@@ -83,8 +83,10 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
   const [queryDraft, setQueryDraft] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
   const [page, setPage] = useState(1)
+  const [showDeletedUsers, setShowDeletedUsers] = useState(false)
   const [listNotice, setListNotice] = useState<PlatformAdministrationNotice>()
   const [targetNotices, setTargetNotices] = useState<Record<string, PlatformAdministrationNotice>>({})
+  const noticeTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const [confirmation, setConfirmation] = useState<PlatformAdministrationConfirmation>()
   const confirmationRef = useRef<PlatformAdministrationConfirmation>()
   const [openMenuId, setOpenMenuId] = useState<string>()
@@ -107,6 +109,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
   const [aiTopP, setAiTopP] = useState('0.9')
   const [aiPresencePenalty, setAiPresencePenalty] = useState('0.3')
   const [aiFrequencyPenalty, setAiFrequencyPenalty] = useState('0.4')
+  const [aiAdvancedOpen, setAiAdvancedOpen] = useState(false)
   const aiKeyInputRef = useRef<HTMLInputElement | null>(null)
   const aiConfigFormRef = useRef<HTMLFormElement | null>(null)
   const aiReadAbortRef = useRef<AbortController>()
@@ -128,12 +131,25 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
   }
 
   const updateTargetNotice = (targetId: string, notice?: PlatformAdministrationNotice) => {
+    const timer = noticeTimersRef.current.get(targetId)
+    if (timer) clearTimeout(timer)
+    noticeTimersRef.current.delete(targetId)
     setTargetNotices((current) => {
       const next = { ...current }
       if (notice) next[targetId] = notice
       else delete next[targetId]
       return next
     })
+    if (notice) {
+      noticeTimersRef.current.set(targetId, setTimeout(() => {
+        noticeTimersRef.current.delete(targetId)
+        setTargetNotices((current) => {
+          const next = { ...current }
+          delete next[targetId]
+          return next
+        })
+      }, 1000))
+    }
   }
 
   const applyAiMetadata = (metadata: AiConfigMetadata) => {
@@ -224,7 +240,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
     setConfirmation(undefined)
   }
 
-  const readUsers = async (nextPage = page, nextQuery = appliedQuery) => {
+  const readUsers = async (nextPage = page, nextQuery = appliedQuery, deleted = showDeletedUsers) => {
     readAbortRef.current?.abort()
     const controller = new AbortController()
     readAbortRef.current = controller
@@ -235,7 +251,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
     setListNotice(undefined)
     setListState(snapshotRef.current ? 'refreshing' : 'initial-loading')
     try {
-      const result = await apiClient.listPlatformUsers({ page: nextPage, query: nextQuery || undefined }, controller.signal)
+      const result = await apiClient.listPlatformUsers({ page: nextPage, query: nextQuery || undefined, status: deleted ? 'deleted' : undefined }, controller.signal)
       if (!shouldApplyPlatformRead({
         mounted: mountedRef.current,
         aborted: controller.signal.aborted,
@@ -290,6 +306,8 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
       readAbortRef.current?.abort()
       aiReadAbortRef.current?.abort()
       aiWriteAbortRef.current?.abort()
+      for (const timer of noticeTimersRef.current.values()) clearTimeout(timer)
+      noticeTimersRef.current.clear()
       aiGenerationRef.current += 1
       occupiedTargetsRef.current.clear()
       writeAttemptsRef.current.clear()
@@ -471,7 +489,9 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
     {view === 'users' && <>
       <View className='platform-administration-header'>
         <View><Text className='platform-administration-title'>用户管理</Text><Text className='platform-administration-description'>管理账号状态、平台管理员角色与用户登录会话</Text></View>
-        <Button className='platform-administration-refresh' disabled={refreshing || listState === 'initial-loading'} onClick={() => void readUsers(page, appliedQuery)}>刷新</Button>
+        <View className='platform-administration-header-actions'>
+          <Button className='action-button secondary platform-administration-trash-toggle' disabled={refreshing || listState === 'initial-loading'} onClick={() => { const next = !showDeletedUsers; setShowDeletedUsers(next); setPage(1); snapshotRef.current = undefined; setSnapshot(undefined); void readUsers(1, appliedQuery, next) }}>{showDeletedUsers ? '返回正常用户' : '已删除用户'}</Button>
+        </View>
       </View>
 
       <View className='platform-administration-search'>
@@ -527,7 +547,7 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
                       </View></>}
                     </>}
                   </View>
-                  {notice && <View className={`platform-target-notice ${notice.kind}`}><Button className='platform-target-notice-dismiss' aria-label='关闭通知' onClick={() => updateTargetNotice(user.id)}>×</Button><Text>{notice.message}</Text>{notice.requestId && <Text>requestId：{notice.requestId}</Text>}{notice.refreshSuggested && <Button onClick={() => void readUsers(page, appliedQuery)}>刷新列表</Button>}</View>}
+                  {notice && <View className={`platform-target-notice ${notice.kind}`}><Text>{notice.kind === 'success' ? '操作成功' : '操作失败'}</Text></View>}
                 </View>
               })}
             </View>}
@@ -555,13 +575,13 @@ export function PlatformAdministration({ authenticationContext, currentUserId, c
         </form>
       </View>
       <View className='platform-ai-config-section platform-ai-config-advanced'>
-        <Text className='platform-ai-config-section-title'>模型生成参数</Text>
-        <View className='platform-ai-config-fields platform-ai-config-advanced-fields'>
+        <Button className='platform-ai-config-advanced-toggle' aria-expanded={aiAdvancedOpen} onClick={() => setAiAdvancedOpen((open) => !open)}>模型生成参数　{aiAdvancedOpen ? '收起' : '展开'}</Button>
+        {aiAdvancedOpen && <View className='platform-ai-config-fields platform-ai-config-advanced-fields'>
           <View className='platform-ai-config-field platform-ai-config-range-field'><View className='platform-ai-config-range-label'><Text>Temperature（0–2）</Text><input className='platform-ai-config-number' type='number' min='0' max='2' step='0.1' value={aiTemperature} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiTemperature(event.currentTarget.value)} /></View><input className='platform-ai-config-range' type='range' min='0' max='2' step='0.1' value={aiTemperature} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiTemperature(event.currentTarget.value)} /></View>
           <View className='platform-ai-config-field platform-ai-config-range-field'><View className='platform-ai-config-range-label'><Text>Top P（0–1）</Text><input className='platform-ai-config-number' type='number' min='0' max='1' step='0.1' value={aiTopP} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiTopP(event.currentTarget.value)} /></View><input className='platform-ai-config-range' type='range' min='0' max='1' step='0.1' value={aiTopP} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiTopP(event.currentTarget.value)} /></View>
           <View className='platform-ai-config-field platform-ai-config-range-field'><View className='platform-ai-config-range-label'><Text>Presence Penalty（-2–2）</Text><input className='platform-ai-config-number' type='number' min='-2' max='2' step='0.1' value={aiPresencePenalty} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiPresencePenalty(event.currentTarget.value)} /></View><input className='platform-ai-config-range' type='range' min='-2' max='2' step='0.1' value={aiPresencePenalty} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiPresencePenalty(event.currentTarget.value)} /></View>
           <View className='platform-ai-config-field platform-ai-config-range-field'><View className='platform-ai-config-range-label'><Text>Frequency Penalty（-2–2）</Text><input className='platform-ai-config-number' type='number' min='-2' max='2' step='0.1' value={aiFrequencyPenalty} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiFrequencyPenalty(event.currentTarget.value)} /></View><input className='platform-ai-config-range' type='range' min='-2' max='2' step='0.1' value={aiFrequencyPenalty} disabled={aiConfig.status === 'saving' || aiConfig.status === 'clearing'} onInput={(event) => setAiFrequencyPenalty(event.currentTarget.value)} /></View>
-        </View>
+        </View>}
       </View>
       <View className='platform-ai-config-fact'><Text>API Key：{aiConfig.metadata?.apiKeyConfigured ? '已配置' : '未配置'}</Text></View>
       <View className='platform-ai-config-actions'>

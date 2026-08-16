@@ -48,7 +48,7 @@ const config: UserConfigExport<'vite'> = {
       host: '127.0.0.1',
       port: 10086,
       proxy: {
-        '/api': { target: 'http://127.0.0.1:32146', changeOrigin: true },
+        '/api/v1': { target: 'http://127.0.0.1:32146', changeOrigin: true },
         '/health': { target: 'http://127.0.0.1:32146', changeOrigin: true },
       },
     },

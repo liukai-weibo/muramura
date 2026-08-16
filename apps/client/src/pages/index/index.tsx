@@ -1,6 +1,6 @@
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Image, Input, Text, Textarea, View } from '@tarojs/components'
-import type { AuthSession, BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, ExplorationTrackHistory, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter, TrashPurgeEntry } from '@knowledge-base/contracts'
+import type { AuthSession, BackupDocument, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, ExplorationTrackHistory, ExplorationTrackListEntry, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter, TrashPurgeEntry } from '@knowledge-base/contracts'
 import { advanceApiClientAuthenticationContext, apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, restoreApiClientDesktopSession, setApiClientAdminForbiddenHandler, setApiClientUnauthorizedHandler, type ApiClientError, type ApiItemAction } from './api-client'
 import { ExplorationPrototype } from './exploration-prototype'
 import { PlatformAdministration } from './platform-administration'
@@ -46,6 +46,10 @@ function ReviewTextarea({ value, placeholder, onValueChange, observation = false
 const statusLabels: Record<ItemStatus, string> = {
   idea_to_try: '想试试', idea_later: '以后再说', doing: '已开始', paused: '已暂停',
   waiting_review: '待完成复盘（历史）', reviewed: '已复盘', archived_no_review: '不复盘归档', abandoned: '已放弃',
+}
+
+function formatDashboardDetail(detail: string): string {
+  return detail.replace(/\b(idea_to_try|idea_later|doing|paused|waiting_review|reviewed|archived_no_review|abandoned)\b/g, (status) => statusLabels[status as ItemStatus] ?? status)
 }
 
 const statusNavigation: Array<{ label: string; status: ItemStatus }> = [
@@ -95,9 +99,13 @@ const evidenceRelationLabels: Record<MethodEvidenceRelation, string> = {
   unknown: '历史证据',
 }
 
-const TRASH_ENTRIES_PER_PAGE = 8
 const ITEM_TITLE_MAX_GRAPHEMES = 20
 const itemTitleSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+const trashEntryTypeLabels: Record<TrashEntry['type'], string> = {
+  item: '事项',
+  method: '方法',
+  'exploration-track': '长期探索',
+}
 
 function itemTitleGraphemeCount(value: string): number {
   return [...itemTitleSegmenter.segment(value.trim())].length
@@ -233,6 +241,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [restoreFactsVersion, setRestoreFactsVersion] = useState(0)
   const restoreFactsConfirmationRef = useRef<{ resolve: () => void; reject: (error: Error) => void }>()
   const [activeExplorationTrackCount, setActiveExplorationTrackCount] = useState<number>()
+  const [explorationDashboardEntries, setExplorationDashboardEntries] = useState<ExplorationTrackListEntry[]>([])
+  const [dashboardExplorationOpen, setDashboardExplorationOpen] = useState(false)
   const openPrimaryModuleRef = useRef<(target: PrimaryModule) => void>()
   const refreshDailyNoteBadge = useCallback(async () => {
     try {
@@ -359,7 +369,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [historyReviews, setHistoryReviews] = useState<Record<string, Review>>({})
   const [trashFilter, setTrashFilter] = useState<TrashFilter>('all')
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([])
-  const [trashPage, setTrashPage] = useState(1)
   const [trashLoading, setTrashLoading] = useState(false)
   const [pendingTrashRestore, setPendingTrashRestore] = useState<TrashEntry>()
   const [pendingTrashPurge, setPendingTrashPurge] = useState<TrashPurgeEntry[]>()
@@ -470,8 +479,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const startConfirmItem = items.find((item) => item.id === startConfirmItemId)
   const visibleItems = showTrash ? trashItems : filter ? items.filter((item) => item.status === filter) : items
   const itemUpdatedAtById = useMemo(() => new Map(items.map((item) => [item.id, item.updatedAt])), [items])
-  const trashPageCount = Math.max(1, Math.ceil(trashEntries.length / TRASH_ENTRIES_PER_PAGE))
-  const visibleTrashEntries = trashEntries.slice((trashPage - 1) * TRASH_ENTRIES_PER_PAGE, trashPage * TRASH_ENTRIES_PER_PAGE)
   const selectedTrashEntries = trashEntries.filter((entry) => selectedTrashKeys.has(`${entry.type}:${entry.id}`))
   const allTrashSelected = trashEntries.length > 0 && selectedTrashEntries.length === trashEntries.length
   const trashTrackDetailItems = useMemo(() => {
@@ -682,16 +689,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
 
   useEffect(() => {
-    if (trashPage > trashPageCount) setTrashPage(trashPageCount)
-  }, [trashPage, trashPageCount])
-
-  useEffect(() => {
     if (activeModule !== 'settings') return
     const controller = new AbortController()
     setTrashLoading(true)
     trashApplication.listTrashEntries(trashFilter, controller.signal).then((entries) => {
       setTrashEntries(entries)
-      setTrashPage((page) => Math.min(page, Math.max(1, Math.ceil(entries.length / TRASH_ENTRIES_PER_PAGE))))
     }).catch((error: unknown) => {
       if (!isApiClientAbort(error)) setMessage(error instanceof Error ? error.message : '读取回收站失败')
     }).finally(() => {
@@ -1628,7 +1630,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       else await apiClient.restoreExplorationTrack(entry.id)
       const entries = await trashApplication.listTrashEntries(trashFilter)
       setTrashEntries(entries)
-      setTrashPage((page) => Math.min(page, Math.max(1, Math.ceil(entries.length / TRASH_ENTRIES_PER_PAGE))))
       await refresh()
       await reloadCurrentItemExplorationContext()
       setExplorationFactsVersion((version) => version + 1)
@@ -1644,7 +1645,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       const refreshed = await trashApplication.listTrashEntries(trashFilter)
       setTrashEntries(refreshed)
       setSelectedTrashKeys(new Set())
-      setTrashPage((page) => Math.min(page, Math.max(1, Math.ceil(refreshed.length / TRASH_ENTRIES_PER_PAGE))))
       setPendingTrashPurge(undefined)
       await refresh()
       if (entries.some((entry) => entry.type === 'exploration-track')) setExplorationFactsVersion((version) => version + 1)
@@ -2215,8 +2215,8 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
             className={`navigation-item navigation-transition navigation-item-${module} ${primaryModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) openPrimaryModule(module) }}
           >{module === 'home' && <Text className='navigation-home-icon' aria-hidden='true'>🏠</Text>}{module === 'workbench' && <Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' />}{module === 'ai' && <Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' />}<Text>{label}</Text></View>)}
-          <View className={`navigation-item navigation-transition navigation-item-dailyNotes ${primaryModule === 'dailyNotes' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('dailyNotes') }}><Image className='navigation-daily-note-icon' src={dailyNoteCatIconUrl} mode='aspectFit' /><Text>手记</Text>{dailyNoteEmpty && <Text className='navigation-daily-note-badge' aria-label='今日尚未记录' />}</View>
           <View className={`navigation-item navigation-transition navigation-item-workbench ${primaryModule === 'workbench' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('workbench') }}><Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' /><Text>灵感todo</Text></View>
+          <View className={`navigation-item navigation-transition navigation-item-dailyNotes ${primaryModule === 'dailyNotes' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('dailyNotes') }}><Image className='navigation-daily-note-icon' src={dailyNoteCatIconUrl} mode='aspectFit' /><Text>手记</Text>{dailyNoteEmpty && <Text className='navigation-daily-note-badge' aria-label='今日尚未记录' />}</View>
           <View className={`navigation-item navigation-transition navigation-item-ai ${primaryModule === 'ai' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('ai') }}><Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' /><Text>圈圈 AI 助手</Text></View>
         </View>
         <View className='navigation-group navigation-group-account'>
@@ -2357,8 +2357,9 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         explorationFactsVersion={explorationFactsVersion}
         restoreFactsVersion={restoreFactsVersion}
         onRestoreFactsConfirmed={() => restoreFactsConfirmationRef.current?.resolve()}
-        onRestoreFactsFailed={(error) => restoreFactsConfirmationRef.current?.reject(new Error(error))}
-        onExplorationTrackCountChange={setActiveExplorationTrackCount}
+         onRestoreFactsFailed={(error) => restoreFactsConfirmationRef.current?.reject(new Error(error))}
+         onExplorationTrackCountChange={setActiveExplorationTrackCount}
+         onExplorationTracksChange={setExplorationDashboardEntries}
         onRefresh={() => refresh().then(() => undefined)}
         showManualRefresh={!isTauriDesktop()}
         itemUpdatedAtById={itemUpdatedAtById}
@@ -2434,24 +2435,32 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
                 ['startedExecutions', '进入执行次数', dashboardReport.metrics.startedExecutions],
                 ['completedReviews', '完成复盘', dashboardReport.metrics.completedReviews],
                 ['newMethods', '形成方法', dashboardReport.metrics.newMethods],
-                ['methodValidations', '仅验证方法', dashboardReport.metrics.methodValidations],
-                ['methodRevisions', '修订方法', dashboardReport.metrics.methodRevisions],
-                ['methodApplications', '方法发起行动', dashboardReport.metrics.methodApplications],
-              ] as Array<[DashboardMetricKey, string, number]>).map(([key, label, value]) => <View className={`metric-card ${dashboardMetric === key ? 'active' : ''}`} key={key} onClick={() => setDashboardMetric((current) => current === key ? undefined : key)}>
+              ] as Array<[DashboardMetricKey, string, number]>).map(([key, label, value]) => <View className={`metric-card ${dashboardMetric === key ? 'active' : ''}`} key={key} onClick={() => { setDashboardExplorationOpen(false); setDashboardMetric((current) => current === key ? undefined : key) }}>
                 <Text>{value}</Text><Text>{label}</Text>
               </View>)}
+              <View className={`metric-card ${dashboardExplorationOpen ? 'active' : ''}`} onClick={() => { setDashboardMetric(undefined); setDashboardExplorationOpen((current) => !current) }}>
+                <Text>{activeExplorationTrackCount ?? '—'}</Text><Text>长期探索</Text>
+              </View>
             </View>
             {dashboardMetric && <View className='dashboard-drilldown'>
               <View className='dashboard-drilldown-heading'><Text>对应记录 · {dashboardReport.metricRecords[dashboardMetric].length}</Text><Text onClick={() => setDashboardMetric(undefined)}>收起</Text></View>
               {dashboardReport.metricRecords[dashboardMetric].length === 0
                 ? <Text className='dashboard-empty'>该窗口内没有对应记录。</Text>
                 : dashboardReport.metricRecords[dashboardMetric].map((record) => <View className='dashboard-drilldown-row' key={record.id} onClick={() => locateDashboardRecord(dashboardMetric, record)}>
-                  <View><Text>{record.title}</Text><Text>{record.detail}</Text></View><Text>{record.itemId || record.methodId ? '定位' : '仅记录'}</Text>
+                  <View><Text>{record.title}</Text><Text>{formatDashboardDetail(record.detail)}</Text></View><Text>{record.itemId || record.methodId ? '定位' : '仅记录'}</Text>
+                </View>)}
+            </View>}
+            {dashboardExplorationOpen && <View className='dashboard-drilldown'>
+              <View className='dashboard-drilldown-heading'><Text>长期探索 · {explorationDashboardEntries.length}</Text><Text onClick={() => setDashboardExplorationOpen(false)}>收起</Text></View>
+              {explorationDashboardEntries.length === 0
+                ? <Text className='dashboard-empty'>当前没有长期探索记录。</Text>
+                : explorationDashboardEntries.slice(0, 5).map((entry) => <View className='dashboard-drilldown-row' key={entry.track.id}>
+                  <View><Text>{entry.track.name}</Text><Text>{entry.latestAssociatedItem ? `最近关联事项：${entry.latestAssociatedItem.title}` : `最近修改：${formatTime(entry.track.updatedAt)}`}</Text></View><Text>仅记录</Text>
                 </View>)}
             </View>}
           </View>
 
-          <View className='dashboard-columns'>
+          <View className='dashboard-columns dashboard-columns-single'>
             <View className='dashboard-section'>
               <Text className='dashboard-section-title'>当前堵塞</Text>
               {([
@@ -2460,17 +2469,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               ] as Array<[string, number, ItemStatus]>).map(([label, value, status]) => <View className='backlog-row' key={status} onClick={() => navigateTo({ type: 'backlog', status })}><Text>{label}</Text><Text>{value}</Text></View>)}
             </View>
 
-            <View className='dashboard-section'>
-              <Text className='dashboard-section-title'>方法复利</Text>
-              {[dashboardReport.mostValidated, dashboardReport.mostApplied, dashboardReport.recentlyRevised]
-                .filter(Boolean)
-                .map((insight) => <View className='insight-row' key={`${insight!.methodId}-${insight!.detail}`} onClick={() => navigateTo({ type: 'method', methodId: insight!.methodId })}>
-                  <Text>{insight!.title}</Text><Text>{insight!.detail}</Text>
-                </View>)}
-              {!dashboardReport.mostValidated && !dashboardReport.mostApplied && !dashboardReport.recentlyRevised && (
-                <Text className='dashboard-empty'>该窗口内还没有方法活动。</Text>
-              )}
-            </View>
           </View>
 
           <View className='dashboard-section dashboard-facts'>
@@ -2749,9 +2747,9 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
                 <View className='trash-panel'>
           <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和长期探索</Text></View><View className='trash-heading-actions'><Text className='backup-description'>事项和方法保留 30 天；长期探索当前不自动清理。</Text><Button className='action-button secondary' aria-expanded={trashExpanded} onClick={() => setTrashExpanded((expanded) => !expanded)}>{trashExpanded ? '收起' : '展开'}</Button></View></View>
           {trashExpanded && <>
-            <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => { setTrashFilter(entry); setTrashPage(1) }}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '长期探索' }[entry]}</Text></View>)}</View>
-            {trashEntries.length > 0 && <View className='trash-batch-actions'><label><input type='checkbox' checked={allTrashSelected} onChange={() => setSelectedTrashKeys(allTrashSelected ? new Set() : new Set(trashEntries.map((entry) => `${entry.type}:${entry.id}`)))} /> 全选当前筛选结果</label><Text>已选 {selectedTrashEntries.length}</Text>{selectedTrashEntries.length > 0 && <><Button className='action-button secondary' disabled={busy} onClick={() => setSelectedTrashKeys(new Set())}>清空选择</Button><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge(selectedTrashEntries.map(({ type, id }) => ({ type, id })))}>批量永久删除</Button></>}</View>}
-            {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <><View className='trash-entry-list'>{visibleTrashEntries.map((entry) => { const key = `${entry.type}:${entry.id}`; const selected = selectedTrashKeys.has(key); return <View className='trash-entry' key={key}><label className='trash-entry-select' onClick={(event) => event.stopPropagation()}><input type='checkbox' checked={selected} onChange={() => setSelectedTrashKeys((current) => { const next = new Set(current); if (selected) next.delete(key); else next.add(key); return next })} /></label><View className={`trash-entry-copy ${entry.type === 'exploration-track' ? 'trash-entry-clickable' : ''}`} onClick={() => openTrashTrackDetail(entry)}><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{entry.type} · deleted {formatTime(entry.deletedAt)}</Text>{entry.type === 'exploration-track' && <Text className='trash-entry-hint'>点击查看绑定事项</Text>}</View><View className='trash-entry-actions' onClick={(event) => event.stopPropagation()}><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge([{ type: entry.type, id: entry.id }])}>永久删除</Button></View></View> })}</View>{trashPageCount > 1 && <View className='pagination trash-pagination'><View className={`pagination-button ${trashPage === 1 ? 'disabled' : ''}`} onClick={() => { if (trashPage > 1) setTrashPage((page) => page - 1) }}><Text>Previous</Text></View><Text className='pagination-status'>Page {trashPage} / {trashPageCount}</Text><View className={`pagination-button ${trashPage === trashPageCount ? 'disabled' : ''}`} onClick={() => { if (trashPage < trashPageCount) setTrashPage((page) => page + 1) }}><Text>Next</Text></View></View>}</>}
+            <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '长期探索' }[entry]}</Text></View>)}</View>
+            {trashEntries.length > 0 && <View className='trash-batch-actions'><View className='trash-batch-selection'><label className='trash-select-control'><input type='checkbox' checked={allTrashSelected} onChange={() => setSelectedTrashKeys(allTrashSelected ? new Set() : new Set(trashEntries.map((entry) => `${entry.type}:${entry.id}`)))} /><Text>全选当前筛选结果</Text></label><Text>已选 {selectedTrashEntries.length}</Text></View><View className={`trash-batch-action-slot ${selectedTrashEntries.length > 0 ? 'is-visible' : ''}`}><Button className='action-button secondary' disabled={busy || selectedTrashEntries.length === 0} onClick={() => setSelectedTrashKeys(new Set())}>清空选择</Button><Button className='action-button danger' disabled={busy || selectedTrashEntries.length === 0} onClick={() => setPendingTrashPurge(selectedTrashEntries.map(({ type, id }) => ({ type, id })))}>批量永久删除</Button></View></View>}
+            {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => { const key = `${entry.type}:${entry.id}`; const selected = selectedTrashKeys.has(key); return <View className='trash-entry' key={key}><label className='trash-entry-select' onClick={(event) => event.stopPropagation()}><input type='checkbox' checked={selected} onChange={() => setSelectedTrashKeys((current) => { const next = new Set(current); if (selected) next.delete(key); else next.add(key); return next })} /></label><View className={`trash-entry-copy ${entry.type === 'exploration-track' ? 'trash-entry-clickable' : ''}`} onClick={() => openTrashTrackDetail(entry)}><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{trashEntryTypeLabels[entry.type]} · 已删除 · {formatTime(entry.deletedAt)}</Text>{entry.type === 'exploration-track' && <Text className='trash-entry-hint'>点击查看绑定事项</Text>}</View><View className='trash-entry-actions' onClick={(event) => event.stopPropagation()}><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge([{ type: entry.type, id: entry.id }])}>永久删除</Button></View></View> })}</View>}
           </>}
         </View>
         <View className='data-status-panel'>
@@ -2783,7 +2781,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           </View>
         </View>}      {pendingTrashRestore && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashRestore(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='恢复确认' onClick={(event) => event.stopPropagation()}><Text>恢复“{pendingTrashRestore.title}”？</Text><Text>恢复后将重新回到当前可用数据中。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(undefined)}>取消</Button><Button className='action-button primary' disabled={busy} onClick={() => restoreTrashEntry(pendingTrashRestore)}>恢复</Button></View></View></View>}
       {pendingTrashPurge && <View className='trash-restore-backdrop' onClick={() => { if (!busy) setPendingTrashPurge(undefined) }}><View className='trash-restore-confirm' role='dialog' aria-label='永久删除确认' onClick={(event) => event.stopPropagation()}><Text>永久删除 {pendingTrashPurge.length} 条回收站记录？</Text><Text className='restore-warning'>永久删除后无法恢复，请确认要继续。</Text><View><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashPurge(undefined)}>取消</Button><Button className='action-button danger' disabled={busy} onClick={() => purgeTrashEntries(pendingTrashPurge)}>永久删除</Button></View></View></View>}
-      {trashTrackDetailEntry && <View className='trash-restore-backdrop' onClick={() => { if (!busy) closeTrashTrackDetail() }}><View className='trash-track-detail-modal' role='dialog' aria-modal='true' aria-label='长期探索详情' onClick={(event) => event.stopPropagation()}><View className='trash-track-detail-heading'><View><Text className='section-kicker'>已删除长期探索</Text><Text className='panel-title'>{trashTrackDetail?.track.name ?? trashTrackDetailEntry.title}</Text></View><Button className='action-button secondary' onClick={closeTrashTrackDetail}>关闭</Button></View>{trashTrackDetailLoading && <Text className='method-evidence-state'>正在读取详情…</Text>}{trashTrackDetailError && <View className='trash-track-detail-error'><Text>{trashTrackDetailError}</Text><Button className='action-button secondary' onClick={() => openTrashTrackDetail(trashTrackDetailEntry)}>重试</Button></View>}{trashTrackDetail && <><Text className='trash-entry-meta'>Deleted {formatTime(trashTrackDetail.track.deletedAt ?? trashTrackDetailEntry.deletedAt)} · 生命周期：已删除</Text><Text className='trash-track-detail-section-title'>绑定事项</Text>{trashTrackDetailItems.length === 0 ? <Text className='method-evidence-state'>暂无绑定事项</Text> : <View className='trash-track-detail-items'>{trashTrackDetailItems.map((entry) => <View className='trash-track-detail-item' key={entry.item.id}><View><Text className='trash-entry-title'>{entry.item.title}</Text><Text className='trash-entry-meta'>{statusLabels[entry.item.status] ?? entry.item.status}</Text></View><Text className={`trash-detail-deleted ${entry.item.deletedAt ? 'is-deleted' : ''}`}>{entry.item.deletedAt ? 'Deleted' : 'Active'}</Text></View>)}</View>}</>}</View></View>}      {restoring && <View className='restore-progress'><View className='status-dot' /><Text>恢复正在进行，一级导航已暂时锁定。</Text></View>}
+      {trashTrackDetailEntry && <View className='trash-restore-backdrop' onClick={() => { if (!busy) closeTrashTrackDetail() }}><View className='trash-track-detail-modal' role='dialog' aria-modal='true' aria-label='长期探索详情' onClick={(event) => event.stopPropagation()}><View className='trash-track-detail-heading'><View><Text className='section-kicker'>已删除长期探索</Text><Text className='panel-title'>{trashTrackDetail?.track.name ?? trashTrackDetailEntry.title}</Text></View><Button className='action-button secondary' onClick={closeTrashTrackDetail}>关闭</Button></View>{trashTrackDetailLoading && <Text className='method-evidence-state'>正在读取详情…</Text>}{trashTrackDetailError && <View className='trash-track-detail-error'><Text>{trashTrackDetailError}</Text><Button className='action-button secondary' onClick={() => openTrashTrackDetail(trashTrackDetailEntry)}>重试</Button></View>}{trashTrackDetail && <><Text className='trash-entry-meta'>已删除 · {formatTime(trashTrackDetail.track.deletedAt ?? trashTrackDetailEntry.deletedAt)} · 生命周期：已删除</Text><Text className='trash-track-detail-section-title'>绑定事项</Text>{trashTrackDetailItems.length === 0 ? <Text className='method-evidence-state'>暂无绑定事项</Text> : <View className='trash-track-detail-items'>{trashTrackDetailItems.map((entry) => <View className='trash-track-detail-item' key={entry.item.id}><View><Text className='trash-entry-title'>{entry.item.title}</Text><Text className='trash-entry-meta'>{statusLabels[entry.item.status] ?? entry.item.status}</Text></View><Text className={`trash-detail-deleted ${entry.item.deletedAt ? 'is-deleted' : ''}`}>{entry.item.deletedAt ? '已删除' : '正常'}</Text></View>)}</View>}</>}</View></View>}      {restoring && <View className='restore-progress'><View className='status-dot' /><Text>恢复正在进行，一级导航已暂时锁定。</Text></View>}
       </View>
       </View>}
 
