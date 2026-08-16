@@ -21,6 +21,12 @@ jobs:
       contents: read
       packages: write
 
+    # ACR's personal registry endpoint cannot accept concurrent writes to
+    # the shared latest tag reliably.
+    concurrency:
+      group: docker-main
+      cancel-in-progress: true
+
     steps:
       - name: 拉取源码
         uses: actions/checkout@v4
@@ -61,6 +67,10 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+          # The ACR personal registry rejects BuildKit's OCI attestation
+          # manifests (application/vnd.oci.empty.v1+json).
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
