@@ -45,11 +45,11 @@ const config: UserConfigExport<'vite'> = {
     staticDirectory: 'static',
     router: { mode: 'hash' },
     devServer: {
-      host: '127.0.0.1',
+      host: '0.0.0.0',
       port: 10086,
       proxy: {
-        '/api/v1': { target: 'http://127.0.0.1:32146', changeOrigin: true },
-        '/health': { target: 'http://127.0.0.1:32146', changeOrigin: true },
+        '/api/v1': { target: 'http://127.0.0.1:32146', changeOrigin: true, headers: { origin: 'http://127.0.0.1:10086' } },
+        '/health': { target: 'http://127.0.0.1:32146', changeOrigin: true, headers: { origin: 'http://127.0.0.1:10086' } },
       },
     },
     compile: { include: sharedPackageSources },
