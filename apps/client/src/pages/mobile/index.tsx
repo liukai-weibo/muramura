@@ -19,6 +19,7 @@ const statusFilters: Array<{ label: string; value: ItemFilter }> = [
 ]
 const shanghaiDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 const formatNoteDate = (date: string) => date === shanghaiDate() ? '今天' : date
+const formatHistoryDate = (date: string) => date === shanghaiDate() ? '今天' : `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`
 const formatTime = (value: string) => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -119,7 +120,7 @@ function MobileNotes() {
 
   return <View className='mobile-notes'>
     <View className='mobile-section-heading'><View><Text className='mobile-section-title'>手记</Text><Text className='mobile-section-meta'>{selected ? formatNoteDate(selected.entryDate) : '正在读取'}</Text></View><View className='mobile-note-actions'><Button className='mobile-quiet-button' onClick={() => setHistoryOpen(open => !open)}>{historyOpen ? '收起日期' : '日期历史'}</Button><Button className='mobile-primary-button mobile-small-button' onClick={() => { setQuickError(''); setQuickOpen(true) }}>快速记录</Button></View></View>
-    {historyOpen && <View className='mobile-note-history'>{noteGroups.length === 0 ? <Text className='mobile-muted'>还没有其他日期的手记。</Text> : noteGroups.map(note => <Button key={note.id} className={`mobile-note-history-item ${note.id === selectedId ? 'active' : ''}`} onClick={() => void choose(note)}><Text>{formatNoteDate(note.entryDate)}</Text><Text>{note.content.trim().split(/\r?\n/, 1)[0] || '空白手记'}</Text></Button>)}</View>}
+    {historyOpen && <View className='mobile-note-history'>{noteGroups.length === 0 ? <Text className='mobile-muted'>还没有其他日期的手记。</Text> : noteGroups.map(note => <Button key={note.id} className={`mobile-note-history-item ${note.id === selectedId ? 'active' : ''}`} onClick={() => void choose(note)}><Text>{formatHistoryDate(note.entryDate)}</Text></Button>)}</View>}
     {state === 'error' && <View className='mobile-inline-error'><Text>{error}</Text><Button className='mobile-link-button' onClick={() => void flush()}>重试保存</Button></View>}
     <View className='mobile-note-editor'><textarea className='mobile-note-textarea' value={draft} maxLength={100000} placeholder='记录今天真实发生的事…' onInput={event => edit(event.currentTarget.value)} onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key !== 'Tab') return; event.preventDefault(); event.stopPropagation(); const target = event.currentTarget; const start = target.selectionStart; const next = draftRef.current.slice(0, start) + '  ' + draftRef.current.slice(target.selectionEnd); edit(next); requestAnimationFrame(() => { target.selectionStart = start + 2; target.selectionEnd = start + 2 }) }} /></View>
     <View className='mobile-save-line'><Text>{state === 'loading' ? '正在读取…' : state === 'saving' ? '正在保存…' : state === 'error' ? '保存失败' : '已自动保存'}</Text></View>
