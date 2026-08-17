@@ -134,6 +134,16 @@ export default function MobileIndex() {
   const [session, setSession] = useState<AuthSession>()
   const [sessionResolved, setSessionResolved] = useState(false)
   const [tab, setTab] = useState<MobileTab>('notes')
+  useEffect(() => {
+    const viewport = document.querySelector('meta[name="viewport"]')
+    if (!viewport) return
+    const original = viewport.getAttribute('content')
+    viewport.setAttribute('content', `${original ?? 'width=device-width, initial-scale=1'}, maximum-scale=1, user-scalable=no`)
+    return () => {
+      if (original === null) viewport.removeAttribute('content')
+      else viewport.setAttribute('content', original)
+    }
+  }, [])
   useEffect(() => { let active = true; void apiClient.getCurrentSession().then(current => { if (active) setSession(current) }).catch(() => undefined).finally(() => { if (active) setSessionResolved(true) }); return () => { active = false } }, [])
   if (!sessionResolved) return <View className='mobile-page mobile-loading'><Text>正在确认登录状态…</Text></View>
   if (!session) return <View className='mobile-page'><MobileLogin onAuthenticated={setSession} /></View>
