@@ -59,6 +59,10 @@ function MobileNotes() {
   const [state, setState] = useState<NoteSaveState>('loading')
   const [error, setError] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickDraft, setQuickDraft] = useState('')
+  const [quickSaving, setQuickSaving] = useState(false)
+  const [quickError, setQuickError] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const draftRef = useRef('')
   const selectedRef = useRef<DailyNote>()
@@ -96,14 +100,30 @@ function MobileNotes() {
   const selected = notes.find(note => note.id === selectedId)
   const edit = (value: string) => { setDraft(value); draftRef.current = value; pendingRef.current = true; setState('saving'); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => void flush(), 2000) }
   const choose = async (note: DailyNote) => { if (note.id === selectedId) { setHistoryOpen(false); return }; if (!(await flush())) return; ++generationRef.current; setSelectedId(note.id); setDraft(note.content); draftRef.current = note.content; selectedRef.current = note; pendingRef.current = false; setState('saved'); setHistoryOpen(false) }
+  const saveQuickNote = async () => {
+    const content = quickDraft.trim()
+    if (!content || quickSaving) return
+    setQuickSaving(true); setQuickError('')
+    try {
+      const saved = await apiClient.appendTodayDailyNote(content)
+      setNotes(current => [saved, ...current.filter(note => note.id !== saved.id)])
+      if (selectedRef.current?.id === saved.id) {
+        setDraft(saved.content); draftRef.current = saved.content; selectedRef.current = saved; pendingRef.current = false; setState('saved')
+      }
+      window.dispatchEvent(new CustomEvent('daily-note-content-changed'))
+      setQuickDraft(''); setQuickOpen(false)
+    } catch (cause) { setQuickError(errorMessage(cause, '快速记录保存失败，内容仍保留在这里。')) }
+    finally { setQuickSaving(false) }
+  }
   const noteGroups = useMemo(() => notes.filter(note => note.id !== selectedId), [notes, selectedId])
 
   return <View className='mobile-notes'>
-    <View className='mobile-section-heading'><View><Text className='mobile-section-title'>手记</Text><Text className='mobile-section-meta'>{selected ? formatNoteDate(selected.entryDate) : '正在读取'}</Text></View><Button className='mobile-quiet-button' onClick={() => setHistoryOpen(open => !open)}>{historyOpen ? '收起日期' : '日期历史'}</Button></View>
+    <View className='mobile-section-heading'><View><Text className='mobile-section-title'>手记</Text><Text className='mobile-section-meta'>{selected ? formatNoteDate(selected.entryDate) : '正在读取'}</Text></View><View className='mobile-note-actions'><Button className='mobile-quiet-button' onClick={() => setHistoryOpen(open => !open)}>{historyOpen ? '收起日期' : '日期历史'}</Button><Button className='mobile-primary-button mobile-small-button' onClick={() => { setQuickError(''); setQuickOpen(true) }}>快速记录</Button></View></View>
     {historyOpen && <View className='mobile-note-history'>{noteGroups.length === 0 ? <Text className='mobile-muted'>还没有其他日期的手记。</Text> : noteGroups.map(note => <Button key={note.id} className={`mobile-note-history-item ${note.id === selectedId ? 'active' : ''}`} onClick={() => void choose(note)}><Text>{formatNoteDate(note.entryDate)}</Text><Text>{note.content.trim().split(/\r?\n/, 1)[0] || '空白手记'}</Text></Button>)}</View>}
     {state === 'error' && <View className='mobile-inline-error'><Text>{error}</Text><Button className='mobile-link-button' onClick={() => void flush()}>重试保存</Button></View>}
     <View className='mobile-note-editor'><textarea className='mobile-note-textarea' value={draft} maxLength={100000} placeholder='记录今天真实发生的事…' onInput={event => edit(event.currentTarget.value)} onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key !== 'Tab') return; event.preventDefault(); event.stopPropagation(); const target = event.currentTarget; const start = target.selectionStart; const next = draftRef.current.slice(0, start) + '  ' + draftRef.current.slice(target.selectionEnd); edit(next); requestAnimationFrame(() => { target.selectionStart = start + 2; target.selectionEnd = start + 2 }) }} /></View>
     <View className='mobile-save-line'><Text>{state === 'loading' ? '正在读取…' : state === 'saving' ? '正在保存…' : state === 'error' ? '保存失败' : '已自动保存'}</Text></View>
+    {quickOpen && <View className='mobile-modal-backdrop' onClick={() => { if (!quickSaving) setQuickOpen(false) }}><View className='mobile-modal' role='dialog' aria-label='快速记录' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>快速记录</Text><Text className='mobile-modal-hint'>保存后会自动添加当前时间</Text><textarea autoFocus className='mobile-quick-input' value={quickDraft} maxLength={100000} placeholder='记下此刻想到的事…' onInput={event => { setQuickDraft(event.currentTarget.value); setQuickError('') }} />{quickError && <Text className='mobile-error'>{quickError}</Text>}<View className='mobile-modal-actions'><Button className='mobile-quiet-button' disabled={quickSaving} onClick={() => setQuickOpen(false)}>取消</Button><Button className='mobile-primary-button' disabled={quickSaving || !quickDraft.trim()} onClick={() => void saveQuickNote()}>{quickSaving ? '保存中…' : '保存'}</Button></View></View></View>}
   </View>
 }
 
