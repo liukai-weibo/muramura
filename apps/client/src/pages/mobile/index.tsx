@@ -6,15 +6,16 @@ import './index.scss'
 
 type MobileTab = 'notes' | 'items'
 type NoteSaveState = 'loading' | 'saved' | 'saving' | 'error'
-type ItemFilter = 'all' | ItemStatus
+type ItemFilter = 'idea_to_try' | 'doing' | 'reviewed'
 
 const statusLabels: Record<ItemStatus, string> = {
   idea_to_try: '想试试', idea_later: '以后再说', doing: '已开始', paused: '已暂停',
   waiting_review: '待完成复盘', reviewed: '已复盘', archived_no_review: '已归档', abandoned: '已放弃',
 }
 const statusFilters: Array<{ label: string; value: ItemFilter }> = [
-  { label: '全部', value: 'all' }, { label: '想试试', value: 'idea_to_try' }, { label: '已开始', value: 'doing' },
-  { label: '待复盘', value: 'waiting_review' }, { label: '已复盘', value: 'reviewed' }, { label: '已放弃', value: 'abandoned' },
+  { label: '想试试', value: 'idea_to_try' },
+  { label: '已开始', value: 'doing' },
+  { label: '已复盘', value: 'reviewed' },
 ]
 const shanghaiDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 const formatNoteDate = (date: string) => date === shanghaiDate() ? '今天' : date
@@ -108,7 +109,7 @@ function MobileNotes() {
 
 function MobileItems() {
   const [items, setItems] = useState<Item[]>([])
-  const [filter, setFilter] = useState<ItemFilter>('all')
+  const [filter, setFilter] = useState<ItemFilter>('idea_to_try')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string>()
   const [error, setError] = useState('')
@@ -118,7 +119,7 @@ function MobileItems() {
   const [saveForLater, setSaveForLater] = useState(false)
   const refresh = async () => { setLoading(true); setError(''); try { setItems((await apiClient.listItems()).filter(item => !item.deletedAt).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))) } catch (cause) { setError(errorMessage(cause, '暂时无法读取事项。')) } finally { setLoading(false) } }
   useEffect(() => { void refresh(); const onChanged = () => void refresh(); window.addEventListener('knowledge-base-items-changed', onChanged); return () => window.removeEventListener('knowledge-base-items-changed', onChanged) }, [])
-  const visible = items.filter(item => filter === 'all' || item.status === filter)
+  const visible = items.filter(item => item.status === filter)
   const create = async () => { if (!title.trim() || busyId) return; setBusyId('create'); setError(''); try { await apiClient.createIdea({ title: title.trim(), content: content.trim(), saveForLater }); setTitle(''); setContent(''); setSaveForLater(false); setCreateOpen(false); await refresh(); window.dispatchEvent(new CustomEvent('knowledge-base-items-changed')) } catch (cause) { setError(errorMessage(cause, '创建事项失败，请重试。')) } finally { setBusyId(undefined) } }
   const changeStatus = async (item: Item, action: { status: ItemStatus; label: string }) => { if (busyId) return; setBusyId(item.id); setError(''); try { if (action.status === 'doing' && item.status === 'idea_to_try') { const startAction = window.prompt('开始执行时，准备先做什么？', item.startAction ?? '') ; if (startAction === null) return; await apiClient.startExecution(item.id, { startAction: startAction.trim() || undefined }) } else await apiClient.changeStatus(item.id, action.status); await refresh() } catch (cause) { setError(errorMessage(cause, '状态更新失败，请重试。')) } finally { setBusyId(undefined) } }
   return <View className='mobile-items'>
