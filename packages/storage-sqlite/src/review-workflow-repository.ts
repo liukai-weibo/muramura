@@ -21,7 +21,7 @@ export class SqliteReviewWorkflowRepository implements ReviewWorkflowRepository 
       const itemRow = this.raw.prepare('SELECT * FROM items WHERE id=?').get(input.itemId) as Row | undefined
       if (!itemRow || itemRow.deleted_at != null) throw new Error('事项不存在')
       const item = mapItem(itemRow)
-      if (item.status !== 'doing' && item.status !== 'waiting_review') throw new Error('只有已开始或待复盘事项可以完成复盘')
+      if (item.status !== 'doing') throw new Error('只有进行中事项可以完成复盘')
       if (this.raw.prepare('SELECT 1 FROM reviews WHERE item_id=?').get(item.id)) throw new Error('该事项已经完成复盘')
       if (input.method && input.existingMethod) throw new Error('不能同时形成新方法和验证已有方法')
 
@@ -56,7 +56,7 @@ export class SqliteReviewWorkflowRepository implements ReviewWorkflowRepository 
       const newIdeaTitle = review.newIdeas.split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
       let createdIdea: Item | undefined
       if (newIdeaTitle) {
-        createdIdea = { id: createId(), title: newIdeaTitle, content: review.newIdeas === newIdeaTitle ? '' : review.newIdeas, status: 'idea_to_try', createdAt: timestamp, updatedAt: timestamp }
+        createdIdea = { id: createId(), title: newIdeaTitle, content: review.newIdeas === newIdeaTitle ? '' : review.newIdeas, status: 'doing', createdAt: timestamp, updatedAt: timestamp }
         this.raw.prepare('INSERT INTO items VALUES(?,?,?,?,?,?,NULL,NULL)').run(createdIdea.id, createdIdea.title, createdIdea.content, createdIdea.status, timestamp, timestamp)
         this.raw.prepare('INSERT INTO item_status_events VALUES(?,?,?,?,?)').run(createId(), createdIdea.id, null, createdIdea.status, timestamp)
         this.raw.prepare('INSERT INTO item_links VALUES(?,?,?,?,?)').run(createId(), review.id, createdIdea.id, 'derived_from_review', timestamp)

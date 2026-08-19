@@ -22,7 +22,7 @@ export class SqliteMethodApplicationRepository implements MethodApplicationRepos
       const title = input.title.trim()
       if (!title) throw new Error('标题不能为空')
       const createdAt = now()
-      const item: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: 'idea_to_try', createdAt, updatedAt: createdAt }
+      const item: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: 'doing', createdAt, updatedAt: createdAt }
       const method = mapMethod(methodRow)
       this.raw.prepare('INSERT INTO items VALUES(?,?,?,?,?,?,NULL,NULL)').run(item.id, item.title, item.content, item.status, createdAt, createdAt)
       this.raw.prepare('INSERT INTO item_status_events VALUES(?,?,?,?,?)').run(createId(), item.id, null, item.status, createdAt)

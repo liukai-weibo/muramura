@@ -10,7 +10,7 @@ import {
   itemStatusEventSchema,
 } from '../schemas'
 
-const currentAssociatedStatuses = ['doing', 'idea_to_try', 'idea_later', 'paused'] as const
+const currentAssociatedStatuses = ['doing'] as const
 const statusSchema = z.enum(itemStatuses)
 const currentAssociatedStatusSchema = z.enum(currentAssociatedStatuses)
 const idParamSchema = z.object({ id: z.string().min(1) })

@@ -3,7 +3,7 @@
 
 export type PrototypeTrackItem = {
   id: string
-  status: '已开始' | '想试试' | '以后再说' | '已暂停' | '已复盘' | '已放弃'
+  status: string
   title: string
   startAction?: string
   reviewSummary?: string
@@ -24,9 +24,9 @@ export const prototypeExplorationTracks: PrototypeExplorationTrack[] = [
     id: 'prototype-erhu',
     name: '学习拉二胡',
     lifecycle: 'active',
-    recent: '最近：预约一次线下二胡体验课 · 已开始',
+    recent: '最近：预约一次线下二胡体验课 · 进行中',
     currentItems: [
-      { id: 'prototype-erhu-lesson', status: '已开始', title: '预约一次线下二胡体验课', startAction: '联系附近的一家琴行' },
+      { id: 'prototype-erhu-lesson', status: '进行中', title: '预约一次线下二胡体验课', startAction: '联系附近的一家琴行' },
       { id: 'prototype-erhu-bow', status: '想试试', title: '连续练习一周基础运弓' },
       { id: 'prototype-erhu-listen', status: '以后再说', title: '听三位演奏者的处理差异' },
     ],

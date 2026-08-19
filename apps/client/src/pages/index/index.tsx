@@ -44,8 +44,8 @@ function ReviewTextarea({ value, placeholder, onValueChange, observation = false
 }
 
 const statusLabels: Record<ItemStatus, string> = {
-  idea_to_try: '想试试', idea_later: '以后再说', doing: '已开始', paused: '已暂停',
-  waiting_review: '待完成复盘（历史）', reviewed: '已复盘', archived_no_review: '不复盘归档', abandoned: '已放弃',
+  idea_to_try: '历史状态', idea_later: '历史状态', doing: '进行中', paused: '历史状态',
+  waiting_review: '历史状态', reviewed: '已复盘', archived_no_review: '历史状态', abandoned: '历史状态',
 }
 
 function formatDashboardDetail(detail: string): string {
@@ -53,8 +53,7 @@ function formatDashboardDetail(detail: string): string {
 }
 
 const statusNavigation: Array<{ label: string; status: ItemStatus }> = [
-  { label: '想试试', status: 'idea_to_try' },
-  { label: '已开始', status: 'doing' },
+  { label: '进行中', status: 'doing' },
   { label: '已复盘', status: 'reviewed' },
 ]
 const moreStatusNavigation: Array<{ label: string; status: ItemStatus }> = [
@@ -371,7 +370,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const moreStatusMenuRef = useRef<HTMLDivElement>()
   const methodMoreMenuRef = useRef<HTMLDivElement>()
   const methodMoreTriggerRef = useRef<HTMLButtonElement>(null)
-  const [filter, setFilter] = useState<ItemStatus | undefined>('idea_to_try')
+  const [filter, setFilter] = useState<ItemStatus | undefined>('doing')
   const [showTrash, setShowTrash] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [pendingBackup, setPendingBackup] = useState<BackupDocument>()
@@ -1729,7 +1728,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       setTrashEntries(restoredTrashEntries)
       setPendingBackup(undefined)
       setSelectedId(undefined)
-      setFilter('idea_to_try')
+    setFilter('doing')
       setShowTrash(false)
       restoreFactsConfirmed = true
       setBackupMessage('恢复完成；覆盖前的数据已自动下载为安全备份')
@@ -2283,8 +2282,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           <View className='item-title-input-wrap'><Input ref={captureInputRef} className='capture-modal-input' value={title} placeholder='一句话记录你想做什么' onInput={(event) => { const next = event.detail.value; if (acceptsItemTitleInput(next)) { setTitle(next); setCaptureTitleLimitReached(false) } else setCaptureTitleLimitReached(true) }} /><Text className='item-title-counter'>{captureTitleGraphemes}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>
           {captureTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}
           <View className='capture-actions'>
-            <View className={`secondary-button ${busy || captureLocked || captureUnknownOutcome || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && !captureUnknownOutcome && hasCaptureContent) createIdea(true) }}><Text>加入以后再说</Text></View>
-            <View className={`primary-button ${busy || captureLocked || captureUnknownOutcome || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && !captureUnknownOutcome && hasCaptureContent) createIdea(false) }}><Text>{busy ? '正在创建…' : '加入想试试'}</Text></View>
+            <View className={`primary-button ${busy || captureLocked || captureUnknownOutcome || !hasCaptureContent ? 'disabled' : ''}`} onClick={() => { if (!busy && !captureLocked && !captureUnknownOutcome && hasCaptureContent) createIdea(false) }}><Text>{busy ? '正在创建…' : '开始记录'}</Text></View>
           </View>
           {captureUnknownOutcome && <View className='capture-discard-confirm'><Text>提交结果未确认，未自动重试。请重新读取真实数据后确认是否已生效。</Text><View><View onClick={() => { void refresh().then(() => setCaptureUnknownOutcome(false)).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '无法重新读取真实数据')) }}><Text>重新读取真实数据</Text></View></View></View>}
           {captureDiscardConfirm && <View className='capture-discard-confirm'><Text>放弃本次未保存的捕获内容？</Text><View><View onClick={() => setCaptureDiscardConfirm(false)}><Text>继续编辑</Text></View><View onClick={discardCapture}><Text>放弃</Text></View></View></View>}
@@ -2531,7 +2529,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
             </View>}
             {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
             {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>
-              <Text>✓ 已开始推进</Text>
+              <Text>✓ 进行中</Text>
               <Text>现在先从一个小动作开始。</Text>
             </View>}
             {!showTrash && (!contentBelowFacts || selectedItem.status === 'reviewed') && <View className={`action-context-summary ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
@@ -2623,18 +2621,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               </View>
               {reviewError && <Text className='form-error'>{reviewError}</Text>}
               <Button className='action-button primary review-submit-button' disabled={busy} onClick={completeReview}>完成复盘{methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : ''}</Button>
-            </View>}
-
-            {!showTrash && selectedItem.status === 'reviewed' && selectedReview && <View className='review-record' id='review-section'>
-              <Text className='section-kicker'>复盘证据</Text>
-              {([
-                ...(selectedReview.actualAction !== selectedReview.result ? [['实际行动', selectedReview.actualAction]] : []),
-                ['结果', selectedReview.result],
-                ...(selectedReview.effective && selectedReview.effective !== defaultEffective ? [['有效 / 舒服', selectedReview.effective]] : []),
-                ...(selectedReview.incompatible && selectedReview.incompatible !== defaultIncompatible ? [['阻力 / 不舒服', selectedReview.incompatible]] : []),
-                ['下次调整', selectedReview.adjustment],
-                ['新想法', selectedReview.newIdeas],
-              ] as Array<[string, string]>).filter(([, value]) => value).map(([label, value]) => <View className='review-record-row' key={label}><Text>{label}</Text><Text>{value}</Text></View>)}
             </View>}
 
             {!showTrash && contentBelowFacts && selectedItem.status !== 'reviewed' && <View className={`action-context-summary detail-content-after-facts ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>

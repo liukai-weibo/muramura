@@ -35,7 +35,7 @@ export class MySqlItemRepository implements ItemRepository {
 
   async create(input: CreateItemInput): Promise<Item> {
     const createdAt = now()
-    const item: Item = { id: createId(), title: normalizeItemTitle(input.title), content: input.content?.trim() ?? '', status: input.status ?? 'idea_to_try', createdAt, updatedAt: createdAt }
+    const item: Item = { id: createId(), title: normalizeItemTitle(input.title), content: input.content?.trim() ?? '', status: input.status ?? 'doing', createdAt, updatedAt: createdAt }
     if (!item.title) throw businessError('ITEM_TITLE_REQUIRED', '标题不能为空')
     await runInMySqlTransaction(this.pool, async connection => {
       assertItemTitleLength(item.title)

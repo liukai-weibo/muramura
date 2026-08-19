@@ -20,7 +20,7 @@ export class SqliteItemRepository implements ItemRepository {
     const title = input.title.trim()
     if (!title) throw new Error('标题不能为空')
     const createdAt = now()
-    const result: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: input.status ?? 'idea_to_try', createdAt, updatedAt: createdAt }
+    const result: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: input.status ?? 'doing', createdAt, updatedAt: createdAt }
     return this.database.runInTransaction(() => {
       this.raw.prepare('INSERT INTO items VALUES(?,?,?,?,?,?,NULL,NULL)').run(result.id, result.title, result.content, result.status, createdAt, createdAt)
       this.raw.prepare('INSERT INTO item_status_events VALUES(?,?,?,?,?)').run(createId(), result.id, null, result.status, createdAt)

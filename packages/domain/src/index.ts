@@ -117,14 +117,14 @@ export function normalizeExplorationTrackName(value: string): { name: string; no
 }
 
 const transitions: Record<ItemStatus, readonly ItemStatus[]> = {
-  idea_to_try: ['idea_later', 'doing', 'abandoned'],
-  idea_later: ['idea_to_try', 'abandoned'],
-  doing: ['paused', 'archived_no_review', 'abandoned'],
-  paused: ['doing', 'abandoned'],
-  waiting_review: ['reviewed', 'doing'],
+  idea_to_try: [],
+  idea_later: [],
+  doing: ['reviewed'],
+  paused: [],
+  waiting_review: [],
   reviewed: [],
   archived_no_review: [],
-  abandoned: ['idea_to_try'],
+  abandoned: [],
 }
 
 export function allowedTransitions(status: ItemStatus): readonly ItemStatus[] {

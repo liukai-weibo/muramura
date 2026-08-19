@@ -112,7 +112,8 @@ export class ItemApplicationService {
     const enteredContent = input.content?.trim() ?? ''
     const title = normalizeItemTitle(enteredTitle || enteredContent.split(/\r?\n/, 1)[0] || '')
     assertItemTitleLength(title)
-    const capture = { title, content: enteredTitle ? enteredContent : '', status: input.saveForLater ? 'idea_later' as const : 'idea_to_try' as const }
+    // New captures are immediately actionable; saveForLater remains accepted for old clients only.
+    const capture = { title, content: enteredTitle ? enteredContent : '', status: 'doing' as const }
     if (!input.explorationTrack) return this.repository.create(capture)
     if (!this.explorationWorkflow) throw new BusinessError('EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE', '探索主线工作流不可用')
     return this.explorationWorkflow.createItemWithExplorationTrack({ ...capture, id: createId(), createdAt: new Date().toISOString() }, prepareExplorationTrackSelection(input.explorationTrack))
@@ -143,7 +144,7 @@ export class ItemApplicationService {
   }
 
   startExecution(id: string, startAction?: string, overwriteExistingStartAction?: boolean): Promise<Item> {
-    return this.repository.startExecution(id, startAction?.trim() ? { startAction, overwriteExistingStartAction } : undefined)
+    throw new BusinessError('INVALID_ITEM_STATUS_TRANSITION', '事项创建后即为进行中，无需单独开始执行')
   }
 
   updateItemContent(id: string, content: string): Promise<Item> {

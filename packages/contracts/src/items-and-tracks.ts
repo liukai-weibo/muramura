@@ -71,11 +71,7 @@ export type PreparedExplorationTrackSelection =
   | { type: 'existing'; trackId: string }
   | { type: 'new'; name: string; normalizedName: string }
 
-export type CurrentAssociatedStatus =
-  | 'doing'
-  | 'idea_to_try'
-  | 'idea_later'
-  | 'paused'
+export type CurrentAssociatedStatus = 'doing'
 
 export interface ItemLocator {
   itemId: string
