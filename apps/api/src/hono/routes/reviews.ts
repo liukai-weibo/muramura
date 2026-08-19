@@ -18,10 +18,10 @@ const completeReviewSchema = z.object({
   itemId: z.string(),
   actualAction: z.string(),
   result: z.string(),
-  effective: z.string(),
-  incompatible: z.string(),
-  reason: z.string(),
-  adjustment: z.string(),
+  effective: z.string().optional(),
+  incompatible: z.string().optional(),
+  reason: z.string().optional(),
+  adjustment: z.string().optional(),
   newIdeas: z.string().optional(),
   method: methodSchema.optional(),
   existingMethod: z.object({
@@ -86,7 +86,7 @@ export function createReviewRoutes() {
     .openapi(completeReviewRoute, async (context) => {
       const services = requireServices(context)
       return context.json(
-        await services.reviews.completeReview(context.req.valid('json')),
+        await services.reviews.completeReview({ ...context.req.valid('json'), effective: context.req.valid('json').effective ?? '', incompatible: context.req.valid('json').incompatible ?? '', reason: context.req.valid('json').reason ?? '', adjustment: context.req.valid('json').adjustment ?? '' }),
         201,
       )
     })

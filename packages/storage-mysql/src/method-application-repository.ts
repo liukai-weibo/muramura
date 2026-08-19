@@ -50,7 +50,7 @@ export class MySqlMethodApplicationRepository implements MethodApplicationReposi
         throw businessError('METHOD_NOT_FOUND', '选择的方法不存在')
       }
       const createdAt = new Date().toISOString()
-      const item: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: 'idea_to_try', createdAt, updatedAt: createdAt }
+        const item: Item = { id: createId(), title, content: input.content?.trim() ?? '', status: 'doing', createdAt, updatedAt: createdAt }
       await connection.execute(this.scope ? 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,?,?,NULL,?,?,NULL,?)' : 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at) VALUES(?,?,?,?,NULL,?,?,NULL)', this.scope ? [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt), this.scope.userId] : [item.id, item.title, item.content, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt)])
       await connection.execute(this.scope ? 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at,owner_user_id) VALUES(?,?,NULL,?,?,?,?)' : 'INSERT INTO item_status_events(id,item_id,from_status,to_status,created_at,updated_at) VALUES(?,?,NULL,?,?,?)', this.scope ? [createId(), item.id, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt), this.scope.userId] : [createId(), item.id, item.status, mysqlDateTime(createdAt), mysqlDateTime(createdAt)])
       await this.hooks?.beforeApplicationInsert?.()

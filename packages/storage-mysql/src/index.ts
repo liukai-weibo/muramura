@@ -241,11 +241,18 @@ export async function runMySqlMigrations(pool: Pool, directory: string): Promise
         }
       }
       if (migration.version === 4) await preflightMigration004(connection)
-      for (const statement of splitStatements(migration.sql)) {
-        if (migration.version === 7) await runMigration007Statement(connection, statement)
-        else if (migration.version === 8) await runMigration008Statement(connection, statement)
-        else if (migration.version === 9 || migration.version === 12) await runMigration009Statement(connection, statement)
-        else await connection.query(statement)
+      if (migration.version === 19) await connection.beginTransaction()
+      try {
+        for (const statement of splitStatements(migration.sql)) {
+          if (migration.version === 7) await runMigration007Statement(connection, statement)
+          else if (migration.version === 8) await runMigration008Statement(connection, statement)
+          else if (migration.version === 9 || migration.version === 12) await runMigration009Statement(connection, statement)
+          else await connection.query(statement)
+        }
+        if (migration.version === 19) await connection.commit()
+      } catch (error) {
+        if (migration.version === 19) await connection.rollback()
+        throw error
       }
       await connection.query('INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, UTC_TIMESTAMP(3))', [migration.version, migration.name, migration.checksum])
     }

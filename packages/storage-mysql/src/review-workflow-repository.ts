@@ -67,10 +67,10 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
       if (!item || item.deleted_at) {
         throw businessError('ITEM_NOT_FOUND', '事项不存在')
       }
-      if (item.status !== 'doing' && item.status !== 'waiting_review') {
+      if (item.status !== 'doing') {
         throw businessError(
           'ITEM_NOT_REVIEWABLE',
-          '只有已开始或待复盘事项可以完成复盘',
+          '只有进行中事项可以完成复盘',
         )
       }
       const [existing] = await connection.query<Array<RowDataPacket & { id: string }>>(this.scope ? 'SELECT id FROM reviews WHERE item_id=? AND owner_user_id=? FOR UPDATE' : 'SELECT id FROM reviews WHERE item_id=? FOR UPDATE', this.scope ? [input.itemId, this.scope.userId] : [input.itemId])
@@ -189,7 +189,7 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
     const title = ideas.split(/\r?\n/, 1)[0]?.slice(0, 120) ?? ''
     if (!title) return undefined
     const now = new Date().toISOString()
-    const item: Item = { id: createId(), title, content: ideas === title ? '' : ideas, status: 'idea_to_try', createdAt: now, updatedAt: now }
+    const item: Item = { id: createId(), title, content: ideas === title ? '' : ideas, status: 'doing', createdAt: now, updatedAt: now }
     await this.hooks?.beforeDerivedItemInsert?.()
     await connection.execute(this.scope ? 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,?,?,NULL,?,?,NULL,?)' : 'INSERT INTO items(id,title,content,status,start_action,created_at,updated_at,deleted_at) VALUES(?,?,?,?,NULL,?,?,NULL)', this.scope ? [item.id, item.title, item.content, item.status, mysqlDateTime(now), mysqlDateTime(now), this.scope.userId] : [item.id, item.title, item.content, item.status, mysqlDateTime(now), mysqlDateTime(now)])
     await this.hooks?.beforeDerivedStatusEventInsert?.()
@@ -202,7 +202,7 @@ export class MySqlReviewWorkflowRepository implements ReviewWorkflowRepository {
   private buildReview(input: CompleteReviewInput): Review {
     const createdAt = new Date().toISOString()
     const review: Review = {
-      id: createId(), itemId: input.itemId, actualAction: input.actualAction.trim(), result: input.result.trim(), effective: input.effective.trim(), incompatible: input.incompatible.trim(), reason: input.reason.trim(), adjustment: input.adjustment.trim(), newIdeas: input.newIdeas?.trim() ?? '', createdAt, updatedAt: createdAt,
+      id: createId(), itemId: input.itemId, actualAction: input.actualAction.trim(), result: input.result.trim(), effective: input.effective?.trim() ?? '', incompatible: input.incompatible?.trim() ?? '', reason: input.reason?.trim() ?? '', adjustment: input.adjustment?.trim() ?? '', newIdeas: input.newIdeas?.trim() ?? '', createdAt, updatedAt: createdAt,
     }
     const required = [['实际行动', review.actualAction], ['结果', review.result]].filter(([, value]) => !value).map(([label]) => label)
     if (required.length) {

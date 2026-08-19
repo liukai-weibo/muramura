@@ -311,15 +311,7 @@ function validPlatformRoles(value: readonly string[]): boolean {
 export type ApiItemAction = { label: string; status: ItemStatus; tone: 'primary' | 'secondary' | 'danger' }
 
 export function actionsFor(item: Item): ApiItemAction[] {
-  const actions: Partial<Record<ItemStatus, Array<{ label: string; status: ItemStatus; tone: 'primary' | 'secondary' | 'danger' }>>> = {
-    idea_to_try: [{ label: '开始执行', status: 'doing', tone: 'primary' }, { label: '以后再说', status: 'idea_later', tone: 'secondary' }],
-    idea_later: [{ label: '重新考虑', status: 'idea_to_try', tone: 'primary' }, { label: '放弃', status: 'abandoned', tone: 'danger' }],
-    doing: [{ label: '暂停', status: 'paused', tone: 'secondary' }],
-    paused: [{ label: '恢复执行', status: 'doing', tone: 'primary' }, { label: '放弃', status: 'abandoned', tone: 'danger' }],
-    waiting_review: [{ label: '返回执行', status: 'doing', tone: 'secondary' }],
-    abandoned: [{ label: '重新考虑', status: 'idea_to_try', tone: 'primary' }],
-  }
-  return actions[item.status] ?? []
+  return []
 }
 
 export const apiClient = {

@@ -48,10 +48,10 @@ export const AI_KNOWLEDGE_CONCEPTS = [
 ] as const
 
 export const AI_BUSINESS_SEMANTICS = [
-  'Current action workbench status flow: the active user-facing statuses are 想试试 (idea_to_try), 已开始 (doing), and 已复盘 (reviewed). Prefer these three labels and do not suggest paused, abandoned, or idea_later as current workflow steps.',
+  'Current action workbench status flow: the only active user-facing statuses are 进行中 (doing) and 已复盘 (reviewed). New captures immediately enter 进行中; do not suggest a separate start, pause, abandon, or later step.',
   'Other status codes may exist in historical records or compatibility data; describe them only when they are present in supplied facts, and never present them as current primary navigation states.',
   'Current home layout: the main workbench has tabs for 行动, 长期探索, and 方法; the primary navigation exposes 首页, 灵感todo, 手记, and 圈圈AI助手. Do not describe removed tabs or obsolete navigation as currently available.',
-  'Current status labels: doing means 已开始; idea_to_try means 想试试; reviewed means 已复盘. The other status codes are historical compatibility values only.',
+  'Current status labels: doing means 进行中 and reviewed means 已复盘. Any other status code is historical compatibility data only.',
   'If historical data contains paused, idea_later, or abandoned, describe it as historical status data and do not recommend it as a current action. The recycle bin means deleted or soft-deleted records only.',
   'This system has no formal item priority field. Do not assert an item is objectively highest priority from recency, title recognizability, frequency, or status alone.',
   'When evidence is insufficient, say what cannot be confirmed. Do not turn an interpretation or suggestion into a stored fact.',

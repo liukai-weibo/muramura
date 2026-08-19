@@ -6,15 +6,14 @@ import './index.scss'
 
 type MobileTab = 'notes' | 'items'
 type NoteSaveState = 'loading' | 'saved' | 'saving' | 'error'
-type ItemFilter = 'idea_to_try' | 'doing' | 'reviewed'
+type ItemFilter = 'doing' | 'reviewed'
 
 const statusLabels: Record<ItemStatus, string> = {
-  idea_to_try: '想试试', idea_later: '以后再说', doing: '已开始', paused: '已暂停',
-  waiting_review: '待完成复盘', reviewed: '已复盘', archived_no_review: '已归档', abandoned: '已放弃',
+  idea_to_try: '历史状态', idea_later: '历史状态', doing: '进行中', paused: '历史状态',
+  waiting_review: '历史状态', reviewed: '已复盘', archived_no_review: '历史状态', abandoned: '历史状态',
 }
 const statusFilters: Array<{ label: string; value: ItemFilter }> = [
-  { label: '想试试', value: 'idea_to_try' },
-  { label: '已开始', value: 'doing' },
+  { label: '进行中', value: 'doing' },
   { label: '已复盘', value: 'reviewed' },
 ]
 const shanghaiDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
@@ -130,7 +129,7 @@ function MobileNotes() {
 
 function MobileItems() {
   const [items, setItems] = useState<Item[]>([])
-  const [filter, setFilter] = useState<ItemFilter>('idea_to_try')
+  const [filter, setFilter] = useState<ItemFilter>('doing')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string>()
   const [error, setError] = useState('')
@@ -148,7 +147,7 @@ function MobileItems() {
     <View className='mobile-filter-row'>{statusFilters.map(option => <Button key={option.value} className={filter === option.value ? 'active' : ''} onClick={() => setFilter(option.value)}>{option.label}</Button>)}</View>
     {error && <View className='mobile-inline-error'><Text>{error}</Text><Button className='mobile-link-button' onClick={() => void refresh()}>重试</Button></View>}
     {loading ? <Text className='mobile-muted'>正在读取事项…</Text> : visible.length === 0 ? <View className='mobile-empty'><Text>当前没有事项</Text><Text>把下一步写下来，之后再推进。</Text></View> : <View className='mobile-item-list'>{visible.map(item => <View className='mobile-item-card' key={item.id}><View className='mobile-item-card-heading'><Text className='mobile-item-title'>{item.title}</Text><Text className={`mobile-status mobile-status-${item.status}`}>{statusLabels[item.status]}</Text></View>{item.content && <Text className='mobile-item-content'>{item.content}</Text>}<Text className='mobile-item-time'>更新于 {formatTime(item.updatedAt)}</Text><View className='mobile-item-actions'>{actionsFor(item).filter(action => !['idea_later', 'paused'].includes(action.status) && !(action.status === 'abandoned' && (item.status === 'idea_to_try' || item.status === 'doing'))).map(action => <Button key={action.status} disabled={busyId === item.id} className={`mobile-action-button ${action.tone}`} onClick={() => void changeStatus(item, action)}>{action.label}</Button>)}</View></View>)}</View>}
-    {createOpen && <View className='mobile-modal-backdrop' onClick={() => setCreateOpen(false)}><View className='mobile-modal' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>新建事项</Text><Input className='mobile-auth-input' value={title} placeholder='事项标题' onInput={event => setTitle(event.detail.value)} /><Textarea className='mobile-create-content' value={content} maxlength={12000} placeholder='补充说明（可选）' onInput={event => setContent(event.detail.value)} /><View className='mobile-check-row' onClick={() => setSaveForLater(value => !value)}><View className={`mobile-checkbox ${saveForLater ? 'checked' : ''}`}>{saveForLater ? '✓' : ''}</View><Text>加入以后再说</Text></View><View className='mobile-modal-actions'><Button className='mobile-quiet-button' onClick={() => setCreateOpen(false)}>取消</Button><Button className='mobile-primary-button' disabled={!title.trim() || busyId === 'create'} onClick={() => void create()}>{busyId === 'create' ? '创建中…' : '创建'}</Button></View></View></View>}
+    {createOpen && <View className='mobile-modal-backdrop' onClick={() => setCreateOpen(false)}><View className='mobile-modal' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>新建事项</Text><Input className='mobile-auth-input' value={title} placeholder='事项标题' onInput={event => setTitle(event.detail.value)} /><Textarea className='mobile-create-content' value={content} maxlength={12000} placeholder='补充说明（可选）' onInput={event => setContent(event.detail.value)} /><View className='mobile-modal-actions'><Button className='mobile-quiet-button' onClick={() => setCreateOpen(false)}>取消</Button><Button className='mobile-primary-button' disabled={!title.trim() || busyId === 'create'} onClick={() => void create()}>{busyId === 'create' ? '创建中…' : '创建'}</Button></View></View></View>}
   </View>
 }
 

@@ -24,7 +24,14 @@ export class ReviewApplicationService {
   ) {}
 
   completeReview(input: CompleteReviewInput): Promise<CompleteReviewResult> {
-    return this.workflowRepository.complete(input)
+    return this.workflowRepository.complete({
+      ...input,
+      effective: input.effective ?? '',
+      incompatible: input.incompatible ?? '',
+      reason: input.reason ?? '',
+      adjustment: input.adjustment ?? '',
+      newIdeas: input.newIdeas ?? '',
+    })
   }
 
   getReview(reviewId: string): Promise<Review | undefined> {

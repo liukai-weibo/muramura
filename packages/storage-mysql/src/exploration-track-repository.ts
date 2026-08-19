@@ -28,7 +28,7 @@ const iso = (value: string | Date) => value instanceof Date ? value.toISOString(
 const mysqlDateTime = (value: string) => value.replace('T', ' ').replace('Z', '')
 const mapTrack = (row: TrackRow): ExplorationTrack => ({ id: row.id, name: row.name, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }) })
 const mapItem = (row: ItemRow): Item => ({ id: row.id, title: row.title, content: row.content, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.start_action == null ? {} : { startAction: row.start_action }), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.exploration_track_cascade_deleted_at == null ? {} : { explorationTrackCascadeDeletedAt: iso(row.exploration_track_cascade_deleted_at) }), ...(row.exploration_track_id == null ? {} : { explorationTrackId: row.exploration_track_id }) })
-const currentStatuses: readonly CurrentAssociatedStatus[] = ['doing', 'idea_to_try', 'idea_later', 'paused']
+const currentStatuses: readonly CurrentAssociatedStatus[] = ['doing']
 const trackColumns = 'id, name, normalized_name, created_at, updated_at, deleted_at'
 const itemColumns = 'id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_cascade_deleted_at, exploration_track_id'
 

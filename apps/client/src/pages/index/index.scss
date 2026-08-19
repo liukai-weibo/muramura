@@ -2597,7 +2597,6 @@ button:not(:disabled):active { transform: translateY(1px); }
 }
 
 .desktop-action-list-tools, .methods-compact-heading, .compact-status-navigation { display: none; }
-.capture-actions > view:first-child, .exploration-capture-actions > button:last-child { display: none; }
 
 /* fast-ui desktop density pass: the rail owns global actions; panes own local filters. */
 @media (min-width: 721px) {

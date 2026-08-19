@@ -99,11 +99,11 @@ export const explorationTrackHistorySchema: z.ZodType<ExplorationTrackHistory> =
   track: explorationTrackSchema,
   lifecycle: z.enum(['active', 'deleted']),
   currentAssociatedItems: z.array(z.object({
-    status: z.enum(['doing', 'idea_to_try', 'idea_later', 'paused']),
+    status: z.enum(['doing']),
     items: z.array(explorationTrackItemSchema),
     hasMore: z.boolean(),
     moreLocator: z.object({
-      status: z.enum(['doing', 'idea_to_try', 'idea_later', 'paused']),
+      status: z.enum(['doing']),
       explorationTrackId: z.string(),
     }).optional(),
   })),
