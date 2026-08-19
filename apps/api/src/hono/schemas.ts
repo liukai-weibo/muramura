@@ -242,13 +242,16 @@ export const completeReviewResultSchema: z.ZodType<CompleteReviewResult> = z.obj
 
 export const searchResultSchema: z.ZodType<SearchResult> = z.object({
   id: z.string(),
-  type: z.enum(['item', 'review', 'method']),
+  type: z.enum(['item', 'review', 'method', 'daily-note', 'exploration-track']),
   title: z.string(),
   excerpt: z.string(),
   itemId: z.string().optional(),
   itemStatus: itemStatusSchema.optional(),
   methodId: z.string().optional(),
   methodVersion: z.number().int().optional(),
+  entryDate: z.string().optional(),
+  explorationTrackId: z.string().optional(),
+  deletedAt: z.string().optional(),
 }).openapi('SearchResult')
 
 const dashboardDrilldownRecordSchema = z.object({

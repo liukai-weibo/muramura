@@ -1364,12 +1364,28 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     const next = searchResultSelectionState()
     setSearchResultsOpen(next.resultsOpen)
     setSearchExpanded(next.expanded)
+    if (result.deletedAt && result.type === 'item' && result.itemId) {
+      requestLeaveAllDrafts(() => {
+        setActiveModule('actions')
+        setShowTrash(true)
+        setSelectedId(result.itemId)
+      })
+      return
+    }
     if (result.type === 'review' && result.itemId) {
       navigateTo({ type: 'review', itemId: result.itemId })
       return
     }
     if (result.type === 'item' && result.itemId) {
       navigateTo({ type: 'item', itemId: result.itemId })
+      return
+    }
+    if (result.type === 'daily-note') {
+      openPrimaryModule('dailyNotes')
+      return
+    }
+    if (result.type === 'exploration-track') {
+      openWorkbenchTab('explorations')
       return
     }
     if (result.methodId) navigateTo({ type: 'method', methodId: result.methodId, methodVersion: result.methodVersion })
@@ -2162,13 +2178,13 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       <button type='button' className='global-search-exit' aria-label='退出全局搜索' onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); exitSearch() }}>×</button>
     </View> : <View className={`global-tool-button ${searchQuery.trim() ? 'has-draft' : ''}`} onClick={openSearch}><Text className='global-search-icon'>⌕</Text><Text>搜索事项...</Text><Text className='global-search-shortcut'>Ctrl F</Text></View>}
     {searchExpanded && searchResultsOpen && searchQuery.trim() && <View className='search-results-popover' role='dialog' aria-label='搜索结果'>
-      {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method'] as const).map((type) => {
+      {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method', 'daily-note', 'exploration-track'] as const).map((type) => {
         const grouped = searchResults.filter((result) => result.type === type)
         if (!grouped.length) return null
         return <View className='search-group' key={type}>
-          <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : '方法'} · {grouped.length}</Text>
+          <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : type === 'method' ? '方法' : type === 'daily-note' ? '手记' : '长期探索'} · {grouped.length}</Text>
           {grouped.map((result) => <View className='search-result' key={result.id} onClick={() => locateSearchResult(result)}>
-            <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
+            <View><Text className='search-result-title'>{result.title}{result.deletedAt ? ' · 已删除' : ''}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
             <Text className='search-result-action'>{result.methodVersion ? `定位 v${result.methodVersion}` : '定位'}</Text>
           </View>)}
         </View>
@@ -2234,13 +2250,13 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
                 <button type='button' className='global-search-exit' aria-label='退出全局搜索' onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); exitSearch() }}>×</button>
               </View> : <View className={`global-tool-button ${searchQuery.trim() ? 'has-draft' : ''}`} onClick={openSearch}><Text>全局搜索</Text></View>}
               {searchExpanded && searchResultsOpen && searchQuery.trim() && <View className='search-results-popover' role='dialog' aria-label='搜索结果'>
-                {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method'] as const).map((type) => {
+                {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method', 'daily-note', 'exploration-track'] as const).map((type) => {
                   const grouped = searchResults.filter((result) => result.type === type)
                   if (!grouped.length) return null
                   return <View className='search-group' key={type}>
-                    <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : '方法'} · {grouped.length}</Text>
+                    <Text className='search-group-title'>{type === 'item' ? '事项' : type === 'review' ? '复盘' : type === 'method' ? '方法' : type === 'daily-note' ? '手记' : '长期探索'} · {grouped.length}</Text>
                     {grouped.map((result) => <View className='search-result' key={result.id} onClick={() => locateSearchResult(result)}>
-                      <View><Text className='search-result-title'>{result.title}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
+                      <View><Text className='search-result-title'>{result.title}{result.deletedAt ? ' · 已删除' : ''}</Text><Text className='search-result-excerpt'>{result.type === 'item' && result.itemStatus ? `状态：${statusLabels[result.itemStatus]}` : result.excerpt}</Text></View>
                       <Text className='search-result-action'>{result.methodVersion ? `定位 v${result.methodVersion}` : '定位'}</Text>
                     </View>)}
                   </View>

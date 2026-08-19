@@ -86,7 +86,7 @@ export interface DashboardRepository {
 
 // --- Search / 搜索 ---
 
-export type SearchResultType = 'item' | 'review' | 'method'
+export type SearchResultType = 'item' | 'review' | 'method' | 'daily-note' | 'exploration-track'
 
 export interface SearchResult {
   id: string
@@ -97,6 +97,9 @@ export interface SearchResult {
   itemStatus?: ItemStatus
   methodId?: string
   methodVersion?: number
+  entryDate?: string
+  explorationTrackId?: string
+  deletedAt?: string
 }
 
 export interface SearchRepository {
