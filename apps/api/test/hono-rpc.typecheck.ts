@@ -61,7 +61,7 @@ type _MethodContextStatusIsTyped = Assert<Equal<
   MethodContextResponse['status'],
   'no-association' | 'available' | 'method-in-trash' | 'method-purged' | 'unavailable'
 >>
-type _SearchResultTypeIsTyped = Assert<Equal<SearchResponse[number]['type'], 'item' | 'review' | 'method'>>
+type _SearchResultTypeIsTyped = Assert<Equal<SearchResponse[number]['type'], 'item' | 'review' | 'method' | 'daily-note' | 'exploration-track'>>
 type _DashboardMetricIsTyped = Assert<Equal<DashboardResponse['metrics']['newItems'], number>>
 type _BackupVersionIsTyped = Assert<Equal<BackupResponse['version'], 1 | 2 | 3 | 4 | 5>>
 type _TrashEntryTitleIsTyped = Assert<Equal<TrashResponse[number]['title'], string>>
