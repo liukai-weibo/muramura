@@ -31,11 +31,14 @@ describe.runIf(enabled)('MySQL M5-B1 candidate write API', () => {
   })
   afterAll(async () => { await new Promise<void>(resolve => server?.close(() => resolve())); await root?.query(`DROP DATABASE IF EXISTS \`${database}\``); await root?.query(`DROP USER IF EXISTS '${appUser}'@'%'`); await root?.query(`DROP USER IF EXISTS '${migratorUser}'@'%'`); await root?.end() })
 
-  it('accepts only the configured local H5 origins for CORS', async () => {
+  it('accepts configured H5 origins and rejects unconfigured origins for CORS', async () => {
     const allowed = await request('/health', { headers: { origin: 'http://127.0.0.1:10086' } })
     expect(allowed.status).toBe(200)
     expect(allowed.headers['access-control-allow-origin']).toBe('http://127.0.0.1:10086')
     expect(allowed.headers.vary).toBe('origin')
+    const cloud = await request('/health', { headers: { origin: 'http://47.97.69.175:10086' } })
+    expect(cloud.status).toBe(200)
+    expect(cloud.headers['access-control-allow-origin']).toBe('http://47.97.69.175:10086')
     const rejected = await request('/health', { headers: { origin: 'http://192.168.128.1:10086' } })
     expect(rejected.status).toBe(403)
     expect(rejected.body).toMatchObject({ error: { code: 'VALIDATION_FAILED', message: '不允许的请求来源' } })

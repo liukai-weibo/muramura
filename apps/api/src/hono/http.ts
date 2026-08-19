@@ -5,7 +5,14 @@ import { ApiError, errorResponse } from './errors'
 import { adminPathPrefix, backupRestorePath } from './paths'
 import type { ApiEnv } from './types'
 
-const allowedApiOrigins = new Set(['http://127.0.0.1:10086', 'http://localhost:10086', 'http://[::1]:10086', 'http://tauri.localhost', 'tauri://localhost'])
+const allowedApiOrigins = new Set([
+  'http://127.0.0.1:10086',
+  'http://localhost:10086',
+  'http://[::1]:10086',
+  'http://47.97.69.175:10086',
+  'http://tauri.localhost',
+  'tauri://localhost',
+])
 function isAllowedApiOrigin(origin: string): boolean {
   if (allowedApiOrigins.has(origin)) return true
   try {
