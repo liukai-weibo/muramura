@@ -20,16 +20,16 @@ import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
-type TrackRow = RowDataPacket & { id: string; name: string; normalized_name: string; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null }
+type TrackRow = RowDataPacket & { id: string; name: string; description: string; normalized_name: string; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null }
 type ItemRow = RowDataPacket & { id: string; title: string; content: string; status: ItemStatus; start_action: string | null; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null; exploration_track_cascade_deleted_at: string | Date | null; exploration_track_id: string | null }
 type ReviewRow = RowDataPacket & { item_id: string; actual_action: string; result: string }
 
 const iso = (value: string | Date) => value instanceof Date ? value.toISOString() : value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`
 const mysqlDateTime = (value: string) => value.replace('T', ' ').replace('Z', '')
-const mapTrack = (row: TrackRow): ExplorationTrack => ({ id: row.id, name: row.name, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }) })
+const mapTrack = (row: TrackRow): ExplorationTrack => ({ id: row.id, name: row.name, description: row.description, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }) })
 const mapItem = (row: ItemRow): Item => ({ id: row.id, title: row.title, content: row.content, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.start_action == null ? {} : { startAction: row.start_action }), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.exploration_track_cascade_deleted_at == null ? {} : { explorationTrackCascadeDeletedAt: iso(row.exploration_track_cascade_deleted_at) }), ...(row.exploration_track_id == null ? {} : { explorationTrackId: row.exploration_track_id }) })
 const currentStatuses: readonly CurrentAssociatedStatus[] = ['doing']
-const trackColumns = 'id, name, normalized_name, created_at, updated_at, deleted_at'
+const trackColumns = 'id, name, description, normalized_name, created_at, updated_at, deleted_at'
 const itemColumns = 'id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_cascade_deleted_at, exploration_track_id'
 
 export interface MySqlExplorationTrackRepositoryTestHooks {
@@ -45,9 +45,9 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
 
   async create(input: { id: string; name: string; normalizedName: string; createdAt: string }): Promise<ExplorationTrack> {
     try {
-      await this.pool.execute(this.scope ? 'INSERT INTO exploration_tracks(id,name,normalized_name,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,?,?,?,NULL,?)' : 'INSERT INTO exploration_tracks(id,name,normalized_name,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,NULL)', this.scope ? [input.id, input.name, input.normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt), this.scope.userId] : [input.id, input.name, input.normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt)])
+      await this.pool.execute(this.scope ? 'INSERT INTO exploration_tracks(id,name,description,normalized_name,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,\'\',?,?,?,NULL,?)' : 'INSERT INTO exploration_tracks(id,name,description,normalized_name,created_at,updated_at,deleted_at) VALUES(?,?,\'\',?,?,?,NULL)', this.scope ? [input.id, input.name, input.normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt), this.scope.userId] : [input.id, input.name, input.normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt)])
     } catch (error) { this.rethrowNameConflict(error) }
-    return { id: input.id, name: input.name, createdAt: input.createdAt, updatedAt: input.createdAt }
+    return { id: input.id, name: input.name, description: '', createdAt: input.createdAt, updatedAt: input.createdAt }
   }
 
   async getById(id: string): Promise<ExplorationTrack | undefined> {
@@ -67,6 +67,15 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
       try { await connection.execute(this.scope ? 'UPDATE exploration_tracks SET name=?,normalized_name=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET name=?,normalized_name=?,updated_at=? WHERE id=?', this.scope ? [input.name, input.normalizedName, mysqlDateTime(input.updatedAt), id, this.scope.userId] : [input.name, input.normalizedName, mysqlDateTime(input.updatedAt), id]) }
       catch (error) { this.rethrowNameConflict(error) }
       return { ...track, name: input.name, updatedAt: input.updatedAt }
+    })
+  }
+
+  async updateDescription(id: string, input: { description: string; updatedAt: string }): Promise<ExplorationTrack> {
+    return runInMySqlTransaction(this.pool, async connection => {
+      const track = await this.lockTrack(connection, id)
+      if (!track || track.deletedAt) throw businessError('EXPLORATION_TRACK_NOT_FOUND', '长期探索不存在')
+      await connection.execute(this.scope ? 'UPDATE exploration_tracks SET description=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET description=?,updated_at=? WHERE id=?', this.scope ? [input.description, mysqlDateTime(input.updatedAt), id, this.scope.userId] : [input.description, mysqlDateTime(input.updatedAt), id])
+      return { ...track, description: input.description, updatedAt: input.updatedAt }
     })
   }
 
@@ -201,7 +210,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         trackId = createId()
         try {
           await this.hooks?.beforeTrackInsert?.()
-          await connection.execute(this.scope ? 'INSERT INTO exploration_tracks(id,name,normalized_name,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,?,?,?,NULL,?)' : 'INSERT INTO exploration_tracks(id,name,normalized_name,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,NULL)', this.scope ? [trackId, selection.name, normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt), this.scope.userId] : [trackId, selection.name, normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt)])
+          await connection.execute(this.scope ? 'INSERT INTO exploration_tracks(id,name,description,normalized_name,created_at,updated_at,deleted_at,owner_user_id) VALUES(?,?,\'\',?,?,?,NULL,?)' : 'INSERT INTO exploration_tracks(id,name,description,normalized_name,created_at,updated_at,deleted_at) VALUES(?,?,\'\',?,?,?,NULL)', this.scope ? [trackId, selection.name, normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt), this.scope.userId] : [trackId, selection.name, normalizedName, mysqlDateTime(input.createdAt), mysqlDateTime(input.createdAt)])
         }
         catch (error) { this.rethrowNameConflict(error) }
       }

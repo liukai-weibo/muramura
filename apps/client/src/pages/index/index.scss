@@ -1040,8 +1040,9 @@
 .exploration-deleted-label, .exploration-description, .exploration-track-item-meta, .exploration-review-summary, .exploration-empty-copy, .exploration-capture-meta { display: block; color: #81796e; font-size: 13px; line-height: 1.6; }
 .exploration-deleted-label { margin-top: 4px; color: #8b675a; font-weight: 700; }
 .exploration-description { margin-top: 10px; }
+.exploration-description-card { margin-top: 10px; }
+.exploration-description-card .action-context-inline-value { display: block; overflow: visible; text-overflow: clip; white-space: pre-wrap; -webkit-line-clamp: unset; }
 .exploration-section { margin-top: 28px; }
-.exploration-description + .exploration-section { display: none; }
 .exploration-section-title { display: block; margin-bottom: 10px; color: #443f38; font-size: 17px; font-weight: 800; }
 .exploration-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .exploration-history-heading .exploration-section-title { margin-bottom: 10px; }

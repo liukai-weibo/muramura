@@ -10,7 +10,7 @@ type EvidenceRow = RowDataPacket & { id: string; method_id: string; review_id: s
 type ApplicationRow = RowDataPacket & { id: string; method_id: string; method_version: number; item_id: string; created_at: DateTime }
 type EventRow = RowDataPacket & { id: string; item_id: string; from_status: ItemStatus | null; to_status: ItemStatus; created_at: DateTime }
 type DailyNoteSearchRow = RowDataPacket & { id: string; entry_date: string | Date; content: string; updated_at: DateTime }
-type TrackSearchRow = RowDataPacket & { id: string; name: string; deleted_at: DateTime | null }
+type TrackSearchRow = RowDataPacket & { id: string; name: string; description: string; deleted_at: DateTime | null }
 
 const iso = (value: DateTime) => value instanceof Date ? value.toISOString() : value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`
 const mapItem = (row: ItemRow): Item => ({ id: row.id, title: row.title, content: row.content, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.deleted_at ? { deletedAt: iso(row.deleted_at) } : {}), ...(row.start_action ? { startAction: row.start_action } : {}), ...(row.exploration_track_id ? { explorationTrackId: row.exploration_track_id } : {}) })
@@ -71,7 +71,7 @@ export class MySqlSearchRepository implements SearchRepository {
       const [methods] = await connection.query<MethodRow[]>(this.scope ? 'SELECT * FROM methods WHERE owner_user_id=? ORDER BY id ASC' : 'SELECT * FROM methods ORDER BY id ASC', this.scope ? [this.scope.userId] : [])
       const [versions] = await connection.query<VersionRow[]>(this.scope ? 'SELECT * FROM method_versions WHERE owner_user_id=? ORDER BY method_id ASC,version ASC,id ASC' : 'SELECT * FROM method_versions ORDER BY method_id ASC,version ASC,id ASC', this.scope ? [this.scope.userId] : [])
       const [notes] = await connection.query<DailyNoteSearchRow[]>(this.scope ? 'SELECT id,entry_date,content,updated_at FROM daily_notes WHERE owner_user_id=? ORDER BY entry_date DESC' : 'SELECT id,entry_date,content,updated_at FROM daily_notes ORDER BY entry_date DESC', this.scope ? [this.scope.userId] : [])
-      const [tracks] = await connection.query<TrackSearchRow[]>(this.scope ? 'SELECT id,name,deleted_at FROM exploration_tracks WHERE owner_user_id=? ORDER BY id ASC' : 'SELECT id,name,deleted_at FROM exploration_tracks ORDER BY id ASC', this.scope ? [this.scope.userId] : [])
+      const [tracks] = await connection.query<TrackSearchRow[]>(this.scope ? 'SELECT id,name,description,deleted_at FROM exploration_tracks WHERE owner_user_id=? ORDER BY id ASC' : 'SELECT id,name,description,deleted_at FROM exploration_tracks ORDER BY id ASC', this.scope ? [this.scope.userId] : [])
       await connection.commit()
       started = false
     const currentItems = items.map(mapItem); const currentMethods = methods.map(mapMethod)
@@ -90,7 +90,7 @@ export class MySqlSearchRepository implements SearchRepository {
     const trackRows = tracks.map(track => {
       const linked = currentItems.filter(item => item.explorationTrackId === track.id)
       const historyText = linked.flatMap(item => [item.title, item.content]).join(' ')
-      return { track, searchText: `${track.name} ${historyText}` }
+      return { track, searchText: `${track.name} ${track.description} ${historyText}` }
     })
     const explorationResults: SearchResult[] = trackRows.filter(({ searchText }) => contains(searchText)).map(({ track, searchText }) => ({ id: `exploration-track:${track.id}`, type: 'exploration-track', title: track.name, excerpt: searchText.replace(track.name, '').trim() || '长期探索', explorationTrackId: track.id, ...(track.deleted_at ? { deletedAt: iso(track.deleted_at) } : {}) }))
     return [...itemResults, ...reviewResults, ...methodResults, ...historicalResults, ...dailyNoteResults, ...explorationResults]

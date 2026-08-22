@@ -48,10 +48,13 @@ export const itemStatusEventSchema: z.ZodType<ItemStatusEvent> = z.object({
 const explorationTrackObjectSchema = z.object({
   id: z.string(),
   name: z.string(),
+  description: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
   deletedAt: z.string().optional(),
 })
+
+export const explorationTrackDescriptionInputSchema = z.object({ description: z.string().max(1000) }).openapi('ExplorationTrackDescriptionInput')
 
 export const explorationTrackSchema: z.ZodType<ExplorationTrack> = explorationTrackObjectSchema
   .openapi('ExplorationTrack')
@@ -70,6 +73,7 @@ export const deletedExplorationTrackListEntrySchema: z.ZodType<DeletedExploratio
   track: z.object({
     id: z.string(),
     name: z.string(),
+    description: z.string().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
     deletedAt: z.string(),
@@ -114,6 +118,7 @@ export const explorationTrackHistorySchema: z.ZodType<ExplorationTrackHistory> =
 const availableExplorationTrackSchema = z.object({
   id: z.string(),
   name: z.string(),
+  description: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

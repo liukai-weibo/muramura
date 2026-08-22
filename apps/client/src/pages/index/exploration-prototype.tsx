@@ -1,4 +1,4 @@
-import { Button, Input, Text, View } from '@tarojs/components'
+import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import type { CurrentAssociatedStatus, ExplorationTrackHistory, ExplorationTrackItem, ExplorationTrackListEntry, ItemLocator } from '@knowledge-base/contracts'
 import { createContext, memo, useContext, useEffect, useRef, useState } from 'react'
 import { apiClient, isApiClientAbort, isApiClientUnknownOutcome } from './api-client'
@@ -59,6 +59,9 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
   const [renameName, setRenameName] = useState('')
   const [editing, setEditing] = useState(false)
   const [editingTrackId, setEditingTrackId] = useState<string>()
+  const [descriptionDraft, setDescriptionDraft] = useState('')
+  const [descriptionEditing, setDescriptionEditing] = useState(false)
+  const [descriptionSaving, setDescriptionSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [historyView, setHistoryView] = useState<'history' | 'abandoned'>('history')
   const [unknownOutcome, setUnknownOutcome] = useState(false)
@@ -66,8 +69,6 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
   const detailRequest = useRef(0)
   const listAbort = useRef<AbortController>()
   const detailAbort = useRef<AbortController>()
-  const explorationRootRef = useRef<HTMLDivElement>()
-  const editingAreaRef = useRef<HTMLDivElement>()
   const editingTrackIdRef = useRef<string>()
   const editingSessionRef = useRef(0)
   const savingRenameSessionRef = useRef<number>()
@@ -259,22 +260,26 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     setRenameName(history.track.name)
     setEditing(true)
   }
-  const consumeOutsideEditingPointer = (event: PointerEvent | MouseEvent) => {
-    if (!editing || editingAreaRef.current?.contains(event.target as Node)) return
-    event.preventDefault()
-    event.stopPropagation()
-    void saveEditingTrack()
+  const beginDescriptionEditing = () => {
+    if (!history || unknownOutcome) return
+    setDescriptionDraft(history.track.description ?? '')
+    setDescriptionEditing(true)
   }
-  useEffect(() => {
-    const root = explorationRootRef.current
-    if (!root || !editing) return
-    root.addEventListener('pointerdown', consumeOutsideEditingPointer, true)
-    root.addEventListener('click', consumeOutsideEditingPointer, true)
-    return () => {
-      root.removeEventListener('pointerdown', consumeOutsideEditingPointer, true)
-      root.removeEventListener('click', consumeOutsideEditingPointer, true)
-    }
-  }, [editing, editingTrackId, renameName, creating, unknownOutcome])
+  const cancelDescriptionEditing = () => {
+    setDescriptionDraft(history?.track.description ?? '')
+    setDescriptionEditing(false)
+  }
+  const saveDescription = async () => {
+    if (!history || descriptionSaving || unknownOutcome) return
+    setDescriptionSaving(true); setError('')
+    try {
+      const updated = await apiClient.updateExplorationTrackDescription(history.track.id, descriptionDraft)
+      setHistory((current) => current?.track.id === updated.id ? { ...current, track: updated } : current)
+      setTracks((current) => current.map((entry) => entry.track.id === updated.id ? { ...entry, track: updated } : entry))
+      setDescriptionEditing(false)
+    } catch (cause) { preserveUnknownOutcome(cause, '描述保存未完成，请重试。') }
+    finally { setDescriptionSaving(false) }
+  }
   const remove = async () => {
     if (!history) return
     setCreating(true); setError('')
@@ -293,7 +298,7 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     setListPage(page)
     setSelectedId(nextTrack.track.id)
   }
-  return <ItemUpdatedAtContext.Provider value={itemUpdatedAtById}><View ref={explorationRootRef} className='exploration-prototype module-panel'>
+  return <ItemUpdatedAtContext.Provider value={itemUpdatedAtById}><View className='exploration-prototype module-panel'>
     <View className='exploration-prototype-header'><View><Text className='exploration-prototype-title'>让独立行动形成可回看的过程</Text><Text className='module-description'>长期探索、关联事项与历史均来自本地 loopback API。</Text></View></View>
     {error && <View className='exploration-notice' role='status'><Text>{error}</Text><Button className='exploration-inline-button' onClick={() => void (unknownOutcome ? confirmRealFacts() : selectedId ? loadHistory(selectedId) : loadList())}>{unknownOutcome ? '重新读取真实数据' : '重试'}</Button></View>}
     <View className='exploration-workspace'>
@@ -304,9 +309,14 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
       </View>
       <View className='exploration-detail-panel'>
         {detailLoading && !history ? <View className='exploration-state'><Text>正在载入长期探索历史…</Text></View> : !history && listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入长期探索与长期探索历史。</Text></View> : !history ? <View className='exploration-state'><Text>选择一条长期探索，查看它串联的独立行动与复盘事实。</Text></View> : <View className='exploration-detail'>
-          <View className='exploration-detail-heading'><View>{editing ? <View ref={editingAreaRef} className='exploration-edit'><Input value={renameName} onInput={(event) => setRenameName(event.detail.value)} /><Button className='primary-button' disabled={creating || unknownOutcome} onClick={saveEditingTrack}>保存</Button></View> : <Text className='exploration-detail-title'>{history.track.name}</Text>}</View>{!editing && <View className='exploration-manage'><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={beginEditingTrack}>改名</Button><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => setConfirmDelete(true)}>删除主线</Button></View>}</View>
+          <View className='exploration-detail-heading'><View>{editing ? <View className='exploration-edit'><Input value={renameName} onInput={(event) => setRenameName(event.detail.value)} /><Button className='secondary-button' disabled={creating} onClick={() => { setEditing(false); setEditingTrackId(undefined); editingTrackIdRef.current = undefined; setRenameName(history.track.name) }}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome} onClick={saveEditingTrack}>保存</Button></View> : <Text className='exploration-detail-title'>{history.track.name}</Text>}</View>{!editing && <View className='exploration-manage'><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={beginEditingTrack}>改名</Button><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => setConfirmDelete(true)}>删除主线</Button></View>}</View>
           {detailLoading && <Text className='exploration-refreshing'>正在更新…</Text>}
-          <Text className='exploration-description'>由独立行动与复盘组成；不代表计划或完成进度。</Text>
+          <View className={`action-context-summary exploration-description-card ${descriptionEditing ? 'editing' : ''}`}>
+            {descriptionEditing ? <View className='detail-content-editor'>
+              <Textarea className='detail-content-input' value={descriptionDraft} maxlength={1000} autoFocus onInput={(event) => setDescriptionDraft(event.detail.value)} placeholder='记录这段长期兴趣与历程的描述' disabled={descriptionSaving} />
+              <View className='detail-content-editor-actions'><Button className='action-button secondary' disabled={descriptionSaving} onClick={() => cancelDescriptionEditing()}>取消</Button><Button className='action-button primary' disabled={descriptionSaving} onClick={() => void saveDescription()}>保存</Button></View>
+            </View> : <View className='action-context-card clickable' role='button' onClick={beginDescriptionEditing}><Text className='detail-content-heading'>描述</Text><Text className={`action-context-inline-value ${history.track.description ? '' : 'muted'}`}>{history.track.description || '点击此处添加描述'}</Text></View>}
+          </View>
           <View className='exploration-section'><Text className='exploration-section-title'>当前关联事项</Text>{history.currentAssociatedItems.every((group) => group.items.length === 0) ? <Text className='exploration-empty-copy'>还没有关联行动。</Text> : currentStatuses.map((status) => { const group = history.currentAssociatedItems.find((value) => value.status === status); return group?.items.length ? <View key={status} className='exploration-current-group'><Text className='exploration-group-title'>{statusLabels[status]}</Text>{group.items.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />)}{group.hasMore && group.moreLocator && <Button className='exploration-inline-button' onClick={() => apiClient.listItemsByExplorationTrackAndStatus(group.moreLocator!.explorationTrackId, group.moreLocator!.status).then((items) => onOpenItems(group.moreLocator!.status, items)).catch((cause) => setError(messageOf(cause, '暂时无法载入该状态下的事项。')))}>查看该状态下的事项</Button>}</View> : null })}</View>
           <View className='exploration-section exploration-capture'><Text className='exploration-section-title'>在「{history.track.name}」下记下想做的事</Text><View className='item-title-input-wrap'><Input className='exploration-capture-input' value={draft} onInput={(event) => { const next = event.detail.value; if (acceptsItemTitleInput(next)) { setDraft(next); setDraftTitleLimitReached(false) } else setDraftTitleLimitReached(true) }} placeholder='例如：预约一次线下二胡体验课' disabled={creating} /><Text className='item-title-counter'>{itemTitleGraphemeCount(draft)}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>{draftTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}<View className='exploration-capture-actions'><Button className='primary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture()}>开始记录</Button></View></View>
           <View className='exploration-section'><View className='exploration-history-heading'><Text className='exploration-section-title'>{historyView === 'history' ? '长期探索历史' : '已放弃记录'}</Text>{history.abandonedHistory.length > 0 && <Button className='exploration-inline-button exploration-history-toggle' onClick={() => setHistoryView((view) => view === 'history' ? 'abandoned' : 'history')}>{historyView === 'history' ? '查看已放弃记录' : '查看长期探索历史'}</Button>}</View>{visibleHistory?.length ? visibleHistory.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />) : <Text className='exploration-empty-copy'>{historyView === 'history' ? '当前还没有可回看的长期探索历史。' : '当前还没有已放弃记录。'}</Text>}</View>

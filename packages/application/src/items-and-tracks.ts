@@ -81,6 +81,11 @@ export class ExplorationTrackApplicationService {
     return this.repository.rename(id, { ...normalizeExplorationTrackName(name), updatedAt: new Date().toISOString() })
   }
 
+  updateExplorationTrackDescription(id: string, description: string): Promise<ExplorationTrack> {
+    if (!this.repository.updateDescription) throw new BusinessError('EXPLORATION_TRACK_NOT_FOUND', '长期探索描述暂不可更新')
+    return this.repository.updateDescription(id, { description, updatedAt: new Date().toISOString() })
+  }
+
   deleteExplorationTrack(id: string): Promise<void> { return this.repository.softDelete(id, new Date().toISOString()) }
   restoreExplorationTrack(id: string): Promise<ExplorationTrack> { return this.repository.restore(id, new Date().toISOString()) }
   listActiveExplorationTracks() { return this.repository.listActive() }

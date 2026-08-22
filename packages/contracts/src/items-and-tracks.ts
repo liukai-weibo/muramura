@@ -57,6 +57,7 @@ export interface StartItemExecutionInput {
 export interface ExplorationTrack {
   id: string
   name: string
+  description?: string
   createdAt: string
   updatedAt: string
   deletedAt?: string
@@ -170,6 +171,7 @@ export interface ExplorationTrackRepository {
   create(input: { id: string; name: string; normalizedName: string; createdAt: string }): Promise<ExplorationTrack>
   getById(id: string): Promise<ExplorationTrack | undefined>
   rename(id: string, input: { name: string; normalizedName: string; updatedAt: string }): Promise<ExplorationTrack>
+  updateDescription?(id: string, input: { description: string; updatedAt: string }): Promise<ExplorationTrack>
   softDelete(id: string, deletedAt: string): Promise<void>
   restore(id: string, updatedAt: string): Promise<ExplorationTrack>
   listActive(): Promise<ExplorationTrackListEntry[]>

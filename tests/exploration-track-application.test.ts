@@ -58,7 +58,7 @@ describe('探索主线 S2 Application', () => {
     await service.createIdea({ title: '关联事项', explorationTrack: { type: 'new', name: '  ＦＯＯ  ' } })
     await service.createIdea({ title: '已有事项', explorationTrack: { type: 'existing', trackId: 'track-1' } })
 
-    expect(created).toEqual([{ title: '原样路径', content: '', status: 'idea_to_try' }])
+    expect(created).toEqual([{ title: '原样路径', content: '', status: 'doing' }])
     expect(delegated).toEqual([
       { type: 'new', name: 'FOO', normalizedName: 'foo' },
       { type: 'existing', trackId: 'track-1' },

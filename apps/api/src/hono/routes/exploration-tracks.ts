@@ -6,6 +6,7 @@ import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
 import {
   deletedExplorationTrackListEntrySchema,
   explorationTrackHistorySchema,
+  explorationTrackDescriptionInputSchema,
   explorationTrackListEntrySchema,
   explorationTrackSchema,
 } from '../schemas'
@@ -119,6 +120,16 @@ const renameTrackRoute = createRoute({
   },
 })
 
+const updateDescriptionRoute = createRoute({
+  middleware: [requireJson],
+  method: 'patch',
+  path: '/{id}/description',
+  tags: ['ExplorationTracks'],
+  summary: '更新长期探索描述',
+  request: { params: idParamSchema, body: { required: true, content: { 'application/json': { schema: explorationTrackDescriptionInputSchema } } } },
+  responses: { 200: jsonSuccess(explorationTrackSchema, '更新后的长期探索'), 400: commonErrorResponses[400], 401: commonErrorResponses[401], 404: commonErrorResponses[404], 415: commonErrorResponses[415] },
+})
+
 const deleteTrackRoute = createRoute({
   method: 'delete',
   path: '/{id}',
@@ -194,6 +205,17 @@ export function createExplorationTrackRoutes() {
         await services.explorationTracks.renameExplorationTrack(
           decodeURIComponent(context.req.valid('param').id),
           context.req.valid('json').name,
+        ),
+        200,
+      )
+    })
+
+    .openapi(updateDescriptionRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.updateExplorationTrackDescription(
+          decodeURIComponent(context.req.valid('param').id),
+          context.req.valid('json').description,
         ),
         200,
       )

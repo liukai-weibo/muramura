@@ -395,6 +395,7 @@ export const apiClient = {
   getExplorationTrackHistory: (id: string, signal?: AbortSignal) => request<ExplorationTrackHistory>(`/exploration-tracks/${encodeURIComponent(id)}/history`, { signal }),
   createExplorationTrack: (name: string, signal?: AbortSignal) => request<ExplorationTrack>('/exploration-tracks', { method: 'POST', body: json({ name }), signal }),
   renameExplorationTrack: (id: string, name: string, signal?: AbortSignal) => request<ExplorationTrack>(`/exploration-tracks/${encodeURIComponent(id)}`, { method: 'PATCH', body: json({ name }), signal }),
+  updateExplorationTrackDescription: (id: string, description: string, signal?: AbortSignal) => request<ExplorationTrack>(`/exploration-tracks/${encodeURIComponent(id)}/description`, { method: 'PATCH', body: json({ description }), signal }),
   deleteExplorationTrack: (id: string, signal?: AbortSignal) => request<void>(`/exploration-tracks/${encodeURIComponent(id)}`, { method: 'DELETE', signal }),
   restoreExplorationTrack: (id: string, signal?: AbortSignal) => request<ExplorationTrack>(`/exploration-tracks/${encodeURIComponent(id)}/restore`, { method: 'POST', signal }),
   listItemsByExplorationTrackAndStatus: (trackId: string, status: CurrentAssociatedStatus, signal?: AbortSignal) => request<Item[]>(`/items?status=${encodeURIComponent(status)}&explorationTrackId=${encodeURIComponent(trackId)}`, { signal }),
