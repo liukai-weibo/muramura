@@ -1,2 +1,2 @@
 ALTER TABLE exploration_tracks
-  ADD COLUMN description TEXT NOT NULL DEFAULT '';
+  ADD COLUMN description VARCHAR(1000) NOT NULL DEFAULT '';
