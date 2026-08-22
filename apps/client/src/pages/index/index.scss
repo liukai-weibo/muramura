@@ -1509,6 +1509,11 @@ button:not(:disabled):active { transform: translateY(1px); }
 .start-action-value { color: #49443d; font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
 .action-context-summary { display: block; margin-top: 18px; flex: 0 0 auto; cursor: text; }
 .action-context-summary.editing { display: block; flex: 0 0 auto; cursor: default; }
+.review-result-card { display: flex; margin-top: 18px; padding: 13px 14px; flex-direction: column; gap: 10px; border: 1px solid #ded6ca; border-radius: 11px; background: #f8f4ec; }
+.review-result-label, .review-result-section-label { color: #857c70; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.review-result-section { display: flex; flex-direction: column; gap: 4px; }
+.review-result-value { color: #49443d; font-size: 14px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-result-empty { color: #999084; font-size: 13px; line-height: 1.6; }
 .action-context-card { display: flex; box-sizing: border-box; width: 100%; min-width: 0; align-self: start; padding: 13px 14px; flex-direction: column; gap: 7px; border: 1px solid #ded6ca; border-radius: 11px; background: #f8f4ec; }
 .action-context-card.clickable { cursor: text; }
 .action-context-card.clickable:focus-visible { outline: 2px solid #817568; outline-offset: 2px; }

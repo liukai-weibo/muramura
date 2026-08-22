@@ -395,6 +395,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const contentEditorRef = useRef<HTMLDivElement>(null)
   const contentInputRef = useRef<HTMLTextAreaElement>(null)
   const [selectedReview, setSelectedReview] = useState<Review>()
+  const [selectedReviewLoading, setSelectedReviewLoading] = useState(false)
   const [reviewNotePrompt, setReviewNotePrompt] = useState<{ title: string; content: string }>()
   const [reviewEditorItemId, setReviewEditorItemId] = useState<string>()
   const [statusEvents, setStatusEvents] = useState<ItemStatusEvent[]>([])
@@ -761,10 +762,16 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
 
 
   useEffect(() => {
-    if (!selectedId) { setSelectedReview(undefined); return }
+    if (!selectedId) { setSelectedReview(undefined); setSelectedReviewLoading(false); return }
     const controller = new AbortController()
-    reviewApplication.getReviewForItem(selectedId, controller.signal).then(setSelectedReview).catch((error: unknown) => {
-      if (!isApiClientAbort(error)) setMessage(error instanceof Error ? error.message : '读取复盘失败')
+    setSelectedReview(undefined)
+    setSelectedReviewLoading(true)
+    reviewApplication.getReviewForItem(selectedId, controller.signal).then((review) => {
+      if (!controller.signal.aborted) setSelectedReview(review)
+    }).catch((error: unknown) => {
+      if (!isApiClientAbort(error) && !controller.signal.aborted) setMessage(error instanceof Error ? error.message : '读取复盘失败')
+    }).finally(() => {
+      if (!controller.signal.aborted) setSelectedReviewLoading(false)
     })
     return () => controller.abort()
   }, [selectedId, reviewApplication, items])
@@ -2544,6 +2551,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               {explorationSelectorOpen && canModifySelectedItemExploration && <View className='item-exploration-selector'><Text className='item-exploration-selector-heading'>归入长期探索</Text><View className='item-exploration-selector-options'>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选长期探索。</Text>}</View><Button className='exploration-inline-button item-exploration-selector-cancel' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
             </View>}
             {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
+            {!showTrash && selectedItem.status === 'reviewed' && <View className='review-result-card'>
+              <Text className='review-result-label'>复盘结果</Text>
+              {selectedReviewLoading ? <Text className='review-result-empty'>正在读取复盘结果…</Text>
+                : selectedReview ? <>
+                  {selectedReview.actualAction.trim() && selectedReview.actualAction.trim() !== selectedReview.result.trim() && <View className='review-result-section'><Text className='review-result-section-label'>做了什么</Text><Text className='review-result-value'>{selectedReview.actualAction}</Text></View>}
+                  <View className='review-result-section'><Text className='review-result-section-label'>结果 / 发现</Text><Text className='review-result-value'>{selectedReview.result.trim() || selectedReview.actualAction.trim() || '未记录结果'}</Text></View>
+                </> : <Text className='review-result-empty'>未找到该事项的复盘记录。</Text>}
+            </View>}
             {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>
               <Text>✓ 进行中</Text>
               <Text>现在先从一个小动作开始。</Text>
