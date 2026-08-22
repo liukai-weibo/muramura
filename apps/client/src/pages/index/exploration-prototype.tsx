@@ -1,5 +1,5 @@
-import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import type { CurrentAssociatedStatus, ExplorationTrackHistory, ExplorationTrackItem, ExplorationTrackListEntry, ItemLocator } from '@knowledge-base/contracts'
+import { Button, Input, Text, View } from '@tarojs/components'
+import type { ExplorationTrackHistory, ExplorationTrackItem, ExplorationTrackListEntry, ItemLocator } from '@knowledge-base/contracts'
 import { createContext, memo, useContext, useEffect, useRef, useState } from 'react'
 import { apiClient, isApiClientAbort, isApiClientUnknownOutcome } from './api-client'
 import { captureDraftAfterWrite, explorationListReadState, isCurrentExplorationRequest, mayUnlockUnknownOutcome } from './exploration-session-state'
@@ -7,7 +7,6 @@ import { captureDraftAfterWrite, explorationListReadState, isCurrentExplorationR
 const statusLabels: Record<string, string> = {
   doing: '进行中', idea_to_try: '历史状态', idea_later: '历史状态', paused: '历史状态', reviewed: '已复盘', abandoned: '历史状态',
 }
-const currentStatuses: CurrentAssociatedStatus[] = ['doing']
 const messageOf = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
 const itemTimeFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 const formatItemTime = (value: string) => itemTimeFormatter.format(new Date(value))
@@ -22,6 +21,15 @@ function itemTitleGraphemeCount(value: string): number {
 
 function acceptsItemTitleInput(value: string): boolean {
   return itemTitleGraphemeCount(value) <= ITEM_TITLE_MAX_GRAPHEMES
+}
+
+function resizeDescriptionEditor(input: HTMLTextAreaElement | null) {
+  if (!input) return
+  input.style.height = 'auto'
+  const maxHeight = 246
+  const nextHeight = Math.min(input.scrollHeight, maxHeight)
+  input.style.height = `${nextHeight}px`
+  input.style.overflowY = input.scrollHeight > maxHeight ? 'auto' : 'hidden'
 }
 
 function Summary({ item }: { item: ExplorationTrackItem }) {
@@ -42,7 +50,7 @@ const TrackItem = memo(function TrackItem({ item, onOpen }: { item: ExplorationT
   </View>
 })
 
-export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVersion, onRestoreFactsConfirmed, onRestoreFactsFailed, onExplorationTrackCountChange, onExplorationTracksChange, onItemsChanged, onRefresh, showManualRefresh = true, onOpenItem, onOpenItems, itemUpdatedAtById }: { explorationFactsVersion: number; restoreFactsVersion: number; onRestoreFactsConfirmed: () => void; onRestoreFactsFailed: (message: string) => void; onExplorationTrackCountChange: (count: number) => void; onExplorationTracksChange?: (tracks: ExplorationTrackListEntry[]) => void; onItemsChanged: () => Promise<void>; onRefresh?: () => void | Promise<void>; showManualRefresh?: boolean; onOpenItem: (locator: ItemLocator) => void; onOpenItems: (status: CurrentAssociatedStatus, items: import('@knowledge-base/contracts').Item[]) => void; itemUpdatedAtById: ReadonlyMap<string, string>; }) {
+export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVersion, onRestoreFactsConfirmed, onRestoreFactsFailed, onExplorationTrackCountChange, onExplorationTracksChange, onItemsChanged, onRefresh, showManualRefresh = true, onOpenItem, itemUpdatedAtById }: { explorationFactsVersion: number; restoreFactsVersion: number; onRestoreFactsConfirmed: () => void; onRestoreFactsFailed: (message: string) => void; onExplorationTrackCountChange: (count: number) => void; onExplorationTracksChange?: (tracks: ExplorationTrackListEntry[]) => void; onItemsChanged: () => Promise<void>; onRefresh?: () => void | Promise<void>; showManualRefresh?: boolean; onOpenItem: (locator: ItemLocator) => void; itemUpdatedAtById: ReadonlyMap<string, string>; }) {
   const [tracks, setTracks] = useState<ExplorationTrackListEntry[]>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [listPage, setListPage] = useState(1)
@@ -62,6 +70,8 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
   const [descriptionDraft, setDescriptionDraft] = useState('')
   const [descriptionEditing, setDescriptionEditing] = useState(false)
   const [descriptionSaving, setDescriptionSaving] = useState(false)
+  const [descriptionSaveError, setDescriptionSaveError] = useState('')
+  const [descriptionSaveUnknownOutcome, setDescriptionSaveUnknownOutcome] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [historyView, setHistoryView] = useState<'history' | 'abandoned'>('history')
   const [unknownOutcome, setUnknownOutcome] = useState(false)
@@ -74,6 +84,11 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
   const savingRenameSessionRef = useRef<number>()
   const selectedIdRef = useRef<string>()
   const restoredHistoryIdRef = useRef<string>()
+  const descriptionEditorRef = useRef<HTMLDivElement>(null)
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null)
+  const descriptionDraftRef = useRef('')
+  const descriptionEditingTrackIdRef = useRef<string>()
+  const descriptionSavingTrackIdRef = useRef<string>()
   selectedIdRef.current = selectedId
 
   const loadList = async (preferredId?: string, resetToFirstPage = false, preserveCurrentSelection = false): Promise<{ succeeded: boolean; selectedId?: string }> => {
@@ -138,6 +153,40 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     }
     if (selectedId) void loadHistory(selectedId)
   }, [selectedId])
+  useEffect(() => {
+    if (!descriptionEditing || descriptionEditingTrackIdRef.current === selectedId) return
+    setDescriptionEditing(false)
+  }, [descriptionEditing, selectedId])
+  useEffect(() => {
+    if (!descriptionEditing) return
+    const frame = window.requestAnimationFrame(() => {
+      const input = descriptionInputRef.current
+      if (!input) return
+      input.focus()
+      input.setSelectionRange(input.value.length, input.value.length)
+      resizeDescriptionEditor(input)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [descriptionEditing])
+  useEffect(() => {
+    if (!descriptionEditing) return
+    const leaveEditor = () => { void requestLeaveDescriptionEditor() }
+    const leaveOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      leaveEditor()
+    }
+    const leaveOnOutsideClick = (event: MouseEvent) => {
+      if (descriptionEditorRef.current?.contains(event.target as Node)) return
+      leaveEditor()
+    }
+    window.addEventListener('keydown', leaveOnEscape)
+    document.addEventListener('click', leaveOnOutsideClick)
+    return () => {
+      window.removeEventListener('keydown', leaveOnEscape)
+      document.removeEventListener('click', leaveOnOutsideClick)
+    }
+  }, [descriptionEditing])
   useEffect(() => {
     if (explorationFactsVersion <= 0) return
     void (async () => {
@@ -262,23 +311,66 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
   }
   const beginDescriptionEditing = () => {
     if (!history || unknownOutcome) return
-    setDescriptionDraft(history.track.description ?? '')
+    const description = history.track.description ?? ''
+    descriptionEditingTrackIdRef.current = history.track.id
+    descriptionDraftRef.current = description
+    setDescriptionDraft(description)
+    setDescriptionSaveError('')
+    setDescriptionSaveUnknownOutcome(false)
     setDescriptionEditing(true)
   }
-  const cancelDescriptionEditing = () => {
-    setDescriptionDraft(history?.track.description ?? '')
+  const closeDescriptionEditor = (trackId: string) => {
+    if (descriptionEditingTrackIdRef.current !== trackId) return
+    descriptionEditingTrackIdRef.current = undefined
+    descriptionDraftRef.current = ''
+    setDescriptionDraft('')
     setDescriptionEditing(false)
+    setDescriptionSaveError('')
+    setDescriptionSaveUnknownOutcome(false)
   }
-  const saveDescription = async () => {
-    if (!history || descriptionSaving || unknownOutcome) return
+  const updateDescriptionDraft = (value: string) => {
+    descriptionDraftRef.current = value
+    setDescriptionDraft(value)
+  }
+  const requestLeaveDescriptionEditor = async (): Promise<boolean> => {
+    const trackId = descriptionEditingTrackIdRef.current
+    if (!trackId) return true
+    const savedDescription = history?.track.id === trackId
+      ? history.track.description ?? ''
+      : tracks.find((entry) => entry.track.id === trackId)?.track.description ?? ''
+    if (descriptionDraftRef.current === savedDescription) {
+      closeDescriptionEditor(trackId)
+      return true
+    }
+    return saveDescription(trackId)
+  }
+  const retrySaveDescription = () => {
+    if (!descriptionSaveUnknownOutcome) void requestLeaveDescriptionEditor()
+  }
+  const saveDescription = async (trackId: string): Promise<boolean> => {
+    if (descriptionSavingTrackIdRef.current === trackId || descriptionSaveUnknownOutcome) return false
+    const submittedDraft = descriptionDraftRef.current
+    descriptionSavingTrackIdRef.current = trackId
     setDescriptionSaving(true); setError('')
     try {
-      const updated = await apiClient.updateExplorationTrackDescription(history.track.id, descriptionDraft)
+      const updated = await apiClient.updateExplorationTrackDescription(trackId, submittedDraft)
       setHistory((current) => current?.track.id === updated.id ? { ...current, track: updated } : current)
       setTracks((current) => current.map((entry) => entry.track.id === updated.id ? { ...entry, track: updated } : entry))
-      setDescriptionEditing(false)
-    } catch (cause) { preserveUnknownOutcome(cause, '描述保存未完成，请重试。') }
-    finally { setDescriptionSaving(false) }
+      if (descriptionEditingTrackIdRef.current === trackId && descriptionDraftRef.current === submittedDraft) closeDescriptionEditor(trackId)
+      return true
+    } catch (cause) {
+      if (isApiClientUnknownOutcome(cause)) {
+        setDescriptionSaveUnknownOutcome(true)
+        setDescriptionSaveError('本次提交结果未确认，请刷新真实数据后确认是否已生效。')
+        preserveUnknownOutcome(cause, '描述保存未完成，请重试。')
+      } else {
+        setDescriptionSaveError(messageOf(cause, '描述保存未完成，请重试。'))
+      }
+      return false
+    } finally {
+      if (descriptionSavingTrackIdRef.current === trackId) descriptionSavingTrackIdRef.current = undefined
+      setDescriptionSaving(false)
+    }
   }
   const remove = async () => {
     if (!history) return
@@ -312,12 +404,18 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
           <View className='exploration-detail-heading'><View>{editing ? <View className='exploration-edit'><Input value={renameName} onInput={(event) => setRenameName(event.detail.value)} /><Button className='secondary-button' disabled={creating} onClick={() => { setEditing(false); setEditingTrackId(undefined); editingTrackIdRef.current = undefined; setRenameName(history.track.name) }}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome} onClick={saveEditingTrack}>保存</Button></View> : <Text className='exploration-detail-title'>{history.track.name}</Text>}</View>{!editing && <View className='exploration-manage'><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={beginEditingTrack}>改名</Button><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => setConfirmDelete(true)}>删除主线</Button></View>}</View>
           {detailLoading && <Text className='exploration-refreshing'>正在更新…</Text>}
           <View className={`action-context-summary exploration-description-card ${descriptionEditing ? 'editing' : ''}`}>
-            {descriptionEditing ? <View className='detail-content-editor'>
-              <Textarea className='detail-content-input' value={descriptionDraft} maxlength={1000} autoFocus onInput={(event) => setDescriptionDraft(event.detail.value)} placeholder='记录这段长期兴趣与历程的描述' disabled={descriptionSaving} />
-              <View className='detail-content-editor-actions'><Button className='action-button secondary' disabled={descriptionSaving} onClick={() => cancelDescriptionEditing()}>取消</Button><Button className='action-button primary' disabled={descriptionSaving} onClick={() => void saveDescription()}>保存</Button></View>
-            </View> : <View className='action-context-card clickable' role='button' onClick={beginDescriptionEditing}><Text className='detail-content-heading'>描述</Text><Text className={`action-context-inline-value ${history.track.description ? '' : 'muted'}`}>{history.track.description || '点击此处添加描述'}</Text></View>}
+            <div className={`action-context-card action-context-content ${descriptionEditing ? 'editing' : ''} ${descriptionEditing ? '' : 'clickable'}`} ref={descriptionEditing ? descriptionEditorRef : undefined} role={descriptionEditing ? undefined : 'button'} tabIndex={descriptionEditing ? undefined : 0} onMouseDown={(event) => { if (!descriptionEditing) { event.preventDefault(); beginDescriptionEditing() } }} onKeyDown={(event) => { if (!descriptionEditing && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); beginDescriptionEditing() } }}>
+              <View className='detail-content-heading'>
+                <Text className='detail-content-label'>描述：</Text>
+                {!descriptionEditing && <Text className={`action-context-inline-value ${history.track.description ? '' : 'muted'}`}>{history.track.description || '点击此处添加描述'}</Text>}
+                {!descriptionEditing && <Button className='detail-content-edit' onClick={beginDescriptionEditing}><Text>{history.track.description ? '编辑' : '添加说明'}</Text></Button>}
+                {descriptionEditing && <View className='detail-content-editor'>
+                  <textarea ref={descriptionInputRef} className='detail-content-input' rows={1} value={descriptionDraft} maxLength={1000} placeholder='记录这段长期兴趣与历程的描述' onInput={(event) => { resizeDescriptionEditor(event.currentTarget); updateDescriptionDraft(event.currentTarget.value) }} />
+                </View>}
+              </View>
+              {descriptionEditing && descriptionSaveError && <View className='detail-content-save-feedback error'><Text>{descriptionSaveError}</Text>{!descriptionSaveUnknownOutcome && <Button className='detail-content-retry' disabled={descriptionSaving} onClick={retrySaveDescription}>重试</Button>}</View>}
+            </div>
           </View>
-          <View className='exploration-section'><Text className='exploration-section-title'>当前关联事项</Text>{history.currentAssociatedItems.every((group) => group.items.length === 0) ? <Text className='exploration-empty-copy'>还没有关联行动。</Text> : currentStatuses.map((status) => { const group = history.currentAssociatedItems.find((value) => value.status === status); return group?.items.length ? <View key={status} className='exploration-current-group'><Text className='exploration-group-title'>{statusLabels[status]}</Text>{group.items.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />)}{group.hasMore && group.moreLocator && <Button className='exploration-inline-button' onClick={() => apiClient.listItemsByExplorationTrackAndStatus(group.moreLocator!.explorationTrackId, group.moreLocator!.status).then((items) => onOpenItems(group.moreLocator!.status, items)).catch((cause) => setError(messageOf(cause, '暂时无法载入该状态下的事项。')))}>查看该状态下的事项</Button>}</View> : null })}</View>
           <View className='exploration-section exploration-capture'><Text className='exploration-section-title'>在「{history.track.name}」下记下想做的事</Text><View className='item-title-input-wrap'><Input className='exploration-capture-input' value={draft} onInput={(event) => { const next = event.detail.value; if (acceptsItemTitleInput(next)) { setDraft(next); setDraftTitleLimitReached(false) } else setDraftTitleLimitReached(true) }} placeholder='例如：预约一次线下二胡体验课' disabled={creating} /><Text className='item-title-counter'>{itemTitleGraphemeCount(draft)}/{ITEM_TITLE_MAX_GRAPHEMES}</Text></View>{draftTitleLimitReached && <Text className='item-title-limit-notice'>标题最多20个字符</Text>}<View className='exploration-capture-actions'><Button className='primary-button' disabled={creating || unknownOutcome || !draft.trim()} onClick={() => capture()}>开始记录</Button></View></View>
           <View className='exploration-section'><View className='exploration-history-heading'><Text className='exploration-section-title'>{historyView === 'history' ? '长期探索历史' : '已放弃记录'}</Text>{history.abandonedHistory.length > 0 && <Button className='exploration-inline-button exploration-history-toggle' onClick={() => setHistoryView((view) => view === 'history' ? 'abandoned' : 'history')}>{historyView === 'history' ? '查看已放弃记录' : '查看长期探索历史'}</Button>}</View>{visibleHistory?.length ? visibleHistory.map((item) => <TrackItem key={item.item.id} item={item} onOpen={onOpenItem} />) : <Text className='exploration-empty-copy'>{historyView === 'history' ? '当前还没有可回看的长期探索历史。' : '当前还没有已放弃记录。'}</Text>}</View>
         </View>}

@@ -2370,13 +2370,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           setFilter(locator.status)
           void refresh(locator.itemId).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '无法重新读取事项'))
         }}
-        onOpenItems={(status, locatedItems) => {
-          setActiveModule('actions')
-          setShowTrash(false)
-          setFilter(status)
-          setItems(locatedItems)
-          setSelectedId(undefined)
-        }}
       /></View>}
 
       {isAdministrator && !managementAccessDenied && (primaryModule === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration') || administrationMounted) && <PlatformAdministration
@@ -2551,33 +2544,33 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
               {explorationSelectorOpen && canModifySelectedItemExploration && <View className='item-exploration-selector'><Text className='item-exploration-selector-heading'>归入长期探索</Text><View className='item-exploration-selector-options'>{selectableExplorationTracks.map((track) => <Button key={track.id} className='exploration-inline-button' disabled={itemExplorationSaving} onClick={() => void assignSelectedItemToExplorationTrack(track.id)}>{track.name}</Button>)}{selectableExplorationTracks.length === 0 && <Text className='item-exploration-copy'>还没有可选长期探索。</Text>}</View><Button className='exploration-inline-button item-exploration-selector-cancel' disabled={itemExplorationSaving} onClick={() => setExplorationSelectorOpen(false)}>取消</Button></View>}
             </View>}
             {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
-            {!showTrash && selectedItem.status === 'reviewed' && <View className='review-result-card'>
-              <Text className='review-result-label'>复盘结果</Text>
-              {selectedReviewLoading ? <Text className='review-result-empty'>正在读取复盘结果…</Text>
-                : selectedReview ? <>
-                  {selectedReview.actualAction.trim() && selectedReview.actualAction.trim() !== selectedReview.result.trim() && <View className='review-result-section'><Text className='review-result-section-label'>做了什么</Text><Text className='review-result-value'>{selectedReview.actualAction}</Text></View>}
-                  <View className='review-result-section'><Text className='review-result-section-label'>结果 / 发现</Text><Text className='review-result-value'>{selectedReview.result.trim() || selectedReview.actualAction.trim() || '未记录结果'}</Text></View>
-                </> : <Text className='review-result-empty'>未找到该事项的复盘记录。</Text>}
-            </View>}
-            {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>
-              <Text>✓ 进行中</Text>
-              <Text>现在先从一个小动作开始。</Text>
-            </View>}
             {!showTrash && (!contentBelowFacts || selectedItem.status === 'reviewed') && <View className={`action-context-summary ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
               <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => { if (contentEditingItemId !== selectedItem.id) { event.preventDefault(); openContentEditor() } }} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
                 <View className='detail-content-heading'>
                   <Text className='detail-content-label'>补充：</Text>
                   {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '点击此处添加补充说明，把这件事拆解为具体的物理下一步……'}</Text>}
                   {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
+                  {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
+                    <textarea ref={contentInputRef} className='detail-content-input' rows={1} value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => { resizeContentEditor(event.currentTarget); updateContentDraft(selectedItem.id, event.currentTarget.value) }} />
+                  </View>}
                 </View>
-                {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
-                  <textarea ref={contentInputRef} className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => { resizeContentEditor(event.currentTarget); updateContentDraft(selectedItem.id, event.currentTarget.value) }} />
-                  {contentSaveError && <View className='detail-content-save-feedback error'><Text>{contentSaveError}</Text>{!contentSaveUnknownOutcome && <Button className='detail-content-retry' disabled={contentSavingItemId === selectedItem.id} onClick={retrySaveItemContent}>重试</Button>}</View>}
-                </View>}
+                {contentEditingItemId === selectedItem.id && contentSaveError && <View className='detail-content-save-feedback error'><Text>{contentSaveError}</Text>{!contentSaveUnknownOutcome && <Button className='detail-content-retry' disabled={contentSavingItemId === selectedItem.id} onClick={retrySaveItemContent}>重试</Button>}</View>}
               </div>
             </View>}
-
-
+            {!showTrash && selectedItem.status === 'reviewed' && <View className='review-result-card'>
+              {selectedReviewLoading ? <Text className='review-result-empty'>正在读取复盘结果…</Text>
+                : selectedReview ? <>
+                  {selectedReview.actualAction.trim() && selectedReview.actualAction.trim() !== selectedReview.result.trim() && <View className='review-result-section'><Text className='review-result-section-label'>做了什么</Text><Text className='review-result-value'>{selectedReview.actualAction}</Text></View>}
+                  <View className='review-result-section'><Text className='review-result-section-label'>复盘结果</Text><Text className='review-result-value'>{selectedReview.result.trim() || selectedReview.actualAction.trim() || '未记录结果'}</Text></View>
+                  {selectedReview.effective.trim() && selectedReview.effective !== defaultEffective && <View className='review-result-section'><Text className='review-result-section-label'>有效 / 舒服</Text><Text className='review-result-value'>{selectedReview.effective}</Text></View>}
+                  {selectedReview.incompatible.trim() && selectedReview.incompatible !== defaultIncompatible && <View className='review-result-section'><Text className='review-result-section-label'>阻力 / 不舒服</Text><Text className='review-result-value'>{selectedReview.incompatible}</Text></View>}
+                  {selectedReview.newIdeas.trim() && <View className='review-result-section'><Text className='review-result-section-label'>产生新想法</Text><Text className='review-result-value'>{selectedReview.newIdeas}</Text></View>}
+                </> : <Text className='review-result-empty'>未找到该事项的复盘记录。</Text>}
+            </View>}
+            {!showTrash && startFeedbackVisible(startedFeedbackItemId, selectedItem) && <View className='started-feedback' role='status'>
+              <Text>✓ 进行中</Text>
+              <Text>现在先从一个小动作开始。</Text>
+            </View>}
             {(selectedItem.status === 'doing' || selectedItem.status === 'waiting_review' || selectedItem.status === 'reviewed') && methodContextAvailable && <View className='method-application-context'>
               <Text className='method-label'>本次行动使用的方法</Text>
               <Text>{methodApplicationContextResult.version.title} v{methodApplicationContextResult.application.methodVersion}</Text>
@@ -2660,11 +2653,11 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
                   <Text className='detail-content-label'>补充：</Text>
                   {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '点击此处添加补充说明，把这件事拆解为具体的物理下一步……'}</Text>}
                   {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
+                  {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
+                    <textarea ref={contentInputRef} className='detail-content-input' rows={1} value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => { resizeContentEditor(event.currentTarget); updateContentDraft(selectedItem.id, event.currentTarget.value) }} />
+                  </View>}
                 </View>
-                {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
-                  <textarea ref={contentInputRef} className='detail-content-input' value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => { resizeContentEditor(event.currentTarget); updateContentDraft(selectedItem.id, event.currentTarget.value) }} />
-                  {contentSaveError && <View className='detail-content-save-feedback error'><Text>{contentSaveError}</Text>{!contentSaveUnknownOutcome && <Button className='detail-content-retry' disabled={contentSavingItemId === selectedItem.id} onClick={retrySaveItemContent}>重试</Button>}</View>}
-                </View>}
+                {contentEditingItemId === selectedItem.id && contentSaveError && <View className='detail-content-save-feedback error'><Text>{contentSaveError}</Text>{!contentSaveUnknownOutcome && <Button className='detail-content-retry' disabled={contentSavingItemId === selectedItem.id} onClick={retrySaveItemContent}>重试</Button>}</View>}
               </div>
             </View>}
 
