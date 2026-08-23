@@ -117,7 +117,7 @@ describe.runIf(enabled)('MySQL common audit fields', () => {
 
   it('keeps the audit fields intact through the latest Schema migration', async () => {
     const [[row]] = await migrator.query<Array<RowDataPacket & { version: number }>>('SELECT MAX(version) AS version FROM schema_migrations')
-    expect(row!.version).toBe(9)
-    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBe(9)
+    expect(row!.version).toBe(21)
+    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBe(21)
   })
 })

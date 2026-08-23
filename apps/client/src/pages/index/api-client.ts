@@ -46,6 +46,8 @@ import type {
   AiConversationSnapshot,
   AiStreamEvent,
   DailyNote,
+  MoodEntry,
+  MoodEntryInput,
 } from '@knowledge-base/contracts'
 import { clearDesktopSessionToken, readDesktopSessionToken, saveDesktopSessionToken } from '../../desktop/desktop-native-bridge'
 
@@ -437,6 +439,13 @@ export const apiClient = {
   listDailyNotes: () => request<DailyNote[]>('/daily-notes'),
   updateDailyNote: (id: string, content: string) => request<DailyNote>(`/daily-notes/${encodeURIComponent(id)}`, { method: 'PUT', body: json({ content }) }),
   appendTodayDailyNote: (content: string) => request<DailyNote>('/daily-notes/today/append', { method: 'POST', body: json({ content }) }),
+  listMoodEntries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
+    const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
+    return request<MoodEntry[]>(`/mood-entries${query}`, { signal })
+  },
+  createMoodEntry: (input: MoodEntryInput) => request<MoodEntry>('/mood-entries', { method: 'POST', body: json(input) }),
+  updateMoodEntry: (id: string, input: MoodEntryInput) => request<MoodEntry>(`/mood-entries/${encodeURIComponent(id)}`, { method: 'PUT', body: json(input) }),
+  deleteMoodEntry: (id: string) => request<{ deleted: boolean }>(`/mood-entries/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   streamDailyNoteAi: async function* (id: string, command: string, draft: string, signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
     const response = await fetch(apiUrl(`/daily-notes/${encodeURIComponent(id)}/ai/stream`), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ command, draft }), signal })
     if (!response.ok || !response.body) throw new Error('Daily note AI stream failed')

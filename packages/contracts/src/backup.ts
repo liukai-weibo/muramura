@@ -14,6 +14,7 @@ import type {
 } from './reviews-and-methods'
 import type { AiConversationSnapshot, AiPreference } from './ai'
 import type { DailyNote } from './daily-notes'
+import type { MoodEntry } from './mood'
 /**
  * 备份文档是跨版本的持久化契约。旧版本继续保留原始形状，新增版本只能通过
  * 新的判别值扩展，恢复方不得根据展示文本推断缺失的可信字段。
@@ -46,6 +47,7 @@ export interface BackupDataV3 extends BackupData {
 }
 export interface BackupDataV4 extends BackupDataV3 { dailyNotes: DailyNote[] }
 export interface BackupDataV5 extends BackupDataV4 {}
+export interface BackupDataV6 extends BackupDataV5 { moodEntries: MoodEntry[] }
 
 export interface BackupDocumentV1 {
   format: 'knowledge-base-backup'
@@ -72,10 +74,11 @@ export interface BackupDocumentV3 {
 }
 export interface BackupDocumentV4 { format: 'knowledge-base-backup'; version: 4; exportedAt: string; appVersion: string; data: BackupDataV4 }
 export interface BackupDocumentV5 { format: 'knowledge-base-backup'; version: 5; exportedAt: string; appVersion: string; data: BackupDataV5 }
+export interface BackupDocumentV6 { format: 'knowledge-base-backup'; version: 6; exportedAt: string; appVersion: string; data: BackupDataV6 }
 
-export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5
+export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5 | BackupDocumentV6
 
 export interface BackupRepository {
-  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5>
-  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5): Promise<void>
+  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6>
+  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6): Promise<void>
 }

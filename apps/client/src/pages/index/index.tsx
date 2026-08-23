@@ -62,7 +62,7 @@ const moreStatusNavigation: Array<{ label: string; status: ItemStatus }> = [
 
 type MethodMode = 'none' | 'create' | 'validate'
 type ContentModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration' | 'aiConfiguration'
-type PrimaryModule = 'home' | 'workbench' | 'dailyNotes' | 'ai' | 'me'
+type PrimaryModule = 'home' | 'workbench' | 'dailyNotes' | 'mood' | 'ai' | 'me'
 type WorkbenchTab = 'actions' | 'explorations' | 'methods'
 type MyTab = 'profile' | 'insights' | 'storage' | 'administration' | 'aiConfiguration'
 type GlobalTool = 'search' | 'capture'
@@ -85,6 +85,7 @@ const moduleLabels: Record<ContentModule, string> = {
 
 const primaryModuleLabels: Record<PrimaryModule, string> = {
   dailyNotes: '手记',
+  mood: '情绪',
   home: '首页',
   workbench: '灵感todo',
   ai: '圈圈 AI 助手',
@@ -186,6 +187,8 @@ interface AuthenticatedWorkspaceProps {
   onToggleColorTheme: () => void
 }
 
+import { MoodPage } from './features/mood/mood-page'
+
 function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, logoutError, onLogout, onConfirmLogoutOutcome, onPasswordChanged, colorTheme, onToggleColorTheme }: AuthenticatedWorkspaceProps) {
   const dailyNoteFlushRef = useRef<(() => Promise<boolean>)>()
   const application = apiClient
@@ -233,6 +236,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const isAdministrator = hasAdministratorRole(session.user.roles)
   const [explorationMounted, setExplorationMounted] = useState(false)
   const [dailyNotesMounted, setDailyNotesMounted] = useState(false)
+  const [moodMounted, setMoodMounted] = useState(false)
   const [aiMounted, setAiMounted] = useState(false)
   const [explorationFactsVersion, setExplorationFactsVersion] = useState(0)
   const [restoreFactsVersion, setRestoreFactsVersion] = useState(0)
@@ -291,6 +295,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
     if (activeModule === 'administration' || activeModule === 'aiConfiguration') setAdministrationMounted(true)
     if (primaryModule === 'dailyNotes') setDailyNotesMounted(true)
+    if (primaryModule === 'mood') setMoodMounted(true)
     if (primaryModule === 'ai') setAiMounted(true)
   }, [activeModule, primaryModule])
   useEffect(() => {
@@ -2219,6 +2224,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           >{module === 'home' && <Text className='navigation-home-icon' aria-hidden='true'>🏠</Text>}{module === 'workbench' && <Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' />}{module === 'ai' && <Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' />}<Text>{label}</Text></View>)}
           <View className={`navigation-item navigation-transition navigation-item-workbench ${primaryModule === 'workbench' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('workbench') }}><Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' /><Text>灵感todo</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-dailyNotes ${primaryModule === 'dailyNotes' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('dailyNotes') }}><Image className='navigation-daily-note-icon' src={dailyNoteCatIconUrl} mode='aspectFit' /><Text>手记</Text>{dailyNoteEmpty && <Text className='navigation-daily-note-badge' aria-label='今日尚未记录' />}</View>
+          <View className={`navigation-item navigation-transition navigation-item-mood ${primaryModule === 'mood' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('mood') }}><Text className='navigation-mood-icon'>☁</Text><Text>情绪</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-ai ${primaryModule === 'ai' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('ai') }}><Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' /><Text>圈圈 AI 助手</Text></View>
         </View>
         <View className='navigation-group navigation-group-account'>
@@ -2293,6 +2299,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           onOpenDailyNotes={() => openPrimaryModule('dailyNotes')}
         />}
         {dailyNotesMounted && <View className={`module-retained ${primaryModule === 'dailyNotes' ? '' : 'module-retained-hidden'}`}><DailyNotesPage onFlushReady={(flush) => { dailyNoteFlushRef.current = flush }} onItemsChanged={async () => { await refresh() }} onItemCreated={(item) => { setItems(current => current.some(entry => entry.id === item.id) ? current : [item, ...current]) }} /></View>}
+        {moodMounted && <View className={`module-retained ${primaryModule === 'mood' ? '' : 'module-retained-hidden'}`}><MoodPage colorTheme={colorTheme} /></View>}
 
         {reviewNotePrompt && <View className='review-note-prompt' role='dialog' aria-modal='true' aria-label='写入手记'>
           <View className='review-note-prompt-card'><Text>是否将本条行动写入手记？</Text><Text>将追加事项标题和本次复盘内容，不会改写已有记录。</Text><View><Button className='action-button secondary' onClick={() => setReviewNotePrompt(undefined)}>暂不写入</Button><Button className='action-button primary' onClick={() => void apiClient.appendTodayDailyNote(`事项：${reviewNotePrompt.title}\n\n${reviewNotePrompt.content}`).then(() => { window.dispatchEvent(new CustomEvent('daily-note-content-changed')); setReviewNotePrompt(undefined); setMessage('已写入手记') }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '写入手记失败'))}>写入手记</Button></View></View>
