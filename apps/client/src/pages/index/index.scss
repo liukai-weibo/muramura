@@ -1790,12 +1790,12 @@ button:not(:disabled):active { transform: translateY(1px); }
 .restore-cancel-button.disabled { cursor: not-allowed; opacity: 0.46; }
 
 .methods-panel.module-panel { margin-top: 0; }
-.methods-panel { width: 100%; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.methods-panel { display: flex; width: 100%; max-width: none; min-height: 0; margin: 0; padding: 0; flex-direction: column; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .methods-page-header { display: flex; align-items: flex-end; justify-content: space-between; box-sizing: border-box; width: 100%; margin: 0 0 12px; padding: 0 4px; gap: 16px; }
 .methods-page-header > view { display: flex; flex-direction: column; }
 .methods-page-header > text { color: #91897e; font-size: 12px; }
 .methods-empty { display: flex; align-items: center; grid-column: 1 / -1; padding: 34px; color: #91897e; font-size: 14px; }
-.methods-workbench { display: grid; box-sizing: border-box; width: 100%; min-width: 0; grid-template-columns: minmax(0, 34%) minmax(0, 66%); height: clamp(660px, calc(150dvh - 330px), 840px); margin: 0; overflow: hidden; border: 1px solid #ded8cd; border-radius: 18px; background: #fffdf9; box-shadow: 0 10px 30px rgba(53, 47, 38, 0.055); }
+.methods-workbench { display: grid; box-sizing: border-box; width: 100%; min-width: 0; min-height: 0; grid-template-columns: minmax(0, 34%) minmax(0, 66%); height: clamp(660px, calc(150dvh - 330px), 840px); margin: 0; overflow: hidden; border: 1px solid #ded8cd; border-radius: 18px; background: #fffdf9; box-shadow: 0 10px 30px rgba(53, 47, 38, 0.055); }
 .method-list-pane { display: flex; min-height: 0; padding: 18px; overflow-y: auto; overscroll-behavior: contain; flex-direction: column; border-right: 1px solid #ded8cd; background: #fffdf9; }
 .method-search-input { display: flex; align-items: center; box-sizing: border-box; width: 100%; height: 44px; min-height: 44px; max-height: 44px; padding: 0 13px; overflow: hidden; border: 1px solid #d8d0c4; border-radius: 999px; background: #fffdf9; font-size: 14px; }
 .method-search-input input { box-sizing: border-box; height: 42px !important; min-height: 42px; max-height: 42px; padding: 0 !important; font-size: 14px; line-height: normal !important; }
@@ -1808,8 +1808,8 @@ button:not(:disabled):active { transform: translateY(1px); }
 .method-list-meta { margin-top: 6px; color: #81796e; font-size: 12px; }
 .method-list-summary { margin-top: 7px; overflow: hidden; color: #625a50; font-size: 13px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
 .method-list-empty { display: block; margin: 18px 4px; color: #91897e; font-size: 13px; }
-.method-detail-pane { min-width: 0; overflow-y: auto; background: #fffdf9; }
-.method-detail { padding: 28px; }
+.method-detail-pane { min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: #fffdf9; }
+.method-detail { min-height: max-content; padding: 28px 28px 64px; }
 .method-detail-empty { display: flex; box-sizing: border-box; height: 100%; padding: 28px; flex-direction: column; justify-content: center; color: #91897e; }
 .method-detail-empty text:first-child { margin-bottom: 8px; color: #413c35; font-size: 20px; font-weight: 800; }
 .method-detail-empty text:last-child { max-width: 420px; color: #91897e; font-size: 14px; font-weight: 400; line-height: 1.65; }
@@ -2806,6 +2806,12 @@ button:not(:disabled):active { transform: translateY(1px); }
 }
 
 @media (min-width: 721px) {
+  .methods-panel { height: 100%; }
+  .methods-workbench { flex: 1 1 auto; height: auto; }
+  .methods-workbench > .method-list-pane,
+  .methods-workbench > .method-detail-pane { height: 100%; min-height: 0; }
+  .method-detail-pane { scroll-padding-bottom: 64px; }
+
   .experimental-ai-page { height: 100%; min-height: 0; padding-bottom: 8px; }
   .experimental-ai-composer-shell { flex: 0 0 auto; margin-bottom: 0; }
   .experimental-ai-conversation-drawer { padding-bottom: 8px; -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 10px), transparent 100%); mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 10px), transparent 100%); }

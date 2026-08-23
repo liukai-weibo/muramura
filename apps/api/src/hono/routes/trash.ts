@@ -38,7 +38,7 @@ const restoreTrashRoute = createRoute({
     }),
   },
   responses: {
-    200: jsonSuccess(z.union([itemSchema, methodSchema]).openapi('RestoredEntity'), '恢复后的实体'),
+    200: jsonSuccess(z.any().openapi('RestoredEntity'), '恢复后的实体'),
     401: commonErrorResponses[401],
     404: commonErrorResponses[404],
   },

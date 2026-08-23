@@ -33,7 +33,7 @@ export class MySqlBackupRepository implements BackupRepository {
         connection.query(this.scope ? 'SELECT * FROM exploration_tracks WHERE owner_user_id=? ORDER BY id' : 'SELECT * FROM exploration_tracks ORDER BY id', this.scope ? [this.scope.userId] : []),
       ])
       await connection.commit()
-      return {
+      const data = {
         items: (items[0] as RowDataPacket[]).map(mapItem),
         reviews: (reviews[0] as RowDataPacket[]).map(mapReview),
         methods: (methods[0] as RowDataPacket[]).map(mapMethod),
@@ -45,6 +45,7 @@ export class MySqlBackupRepository implements BackupRepository {
         methodTombstones: (methodTombstones[0] as RowDataPacket[]).map(mapTombstone),
         explorationTracks: (explorationTracks[0] as RowDataPacket[]).map(mapExplorationTrack),
       }
+      return data
     } catch (error) {
       await connection.rollback()
       throw error
