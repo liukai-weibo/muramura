@@ -4,7 +4,7 @@ CREATE TABLE mood_entries (
   entry_date DATE NOT NULL,
   content VARCHAR(2000) NOT NULL,
   mood_level TINYINT NOT NULL,
-  tags TEXT NOT NULL DEFAULT '[]',
+  tags TEXT NOT NULL,
   response TEXT NULL,
   created_at DATETIME(3) NOT NULL,
   updated_at DATETIME(3) NOT NULL,
