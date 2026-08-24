@@ -16,6 +16,7 @@ import {
   AiKnowledgeOverviewApplicationService,
   AiPreferenceApplicationService,
   DailyNoteApplicationService,
+  MealEntryApplicationService,
   MoodEntryApplicationService,
 } from '@knowledge-base/application'
 import {
@@ -35,6 +36,7 @@ import {
   MySqlAiConversationRepository,
   MySqlAiPreferenceRepository,
   MySqlDailyNoteRepository,
+  MySqlMealEntryRepository,
   MySqlMoodEntryRepository,
   type MySqlConnectionConfig,
 } from '@knowledge-base/storage-mysql'
@@ -79,6 +81,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const aiPreferenceRepository = userId ? new MySqlAiPreferenceRepository(pool, { userId }) : undefined
   const dailyNoteRepository = userId ? new MySqlDailyNoteRepository(pool, { userId }) : undefined
   const moodEntryRepository = userId ? new MySqlMoodEntryRepository(pool, { userId }) : undefined
+  const mealEntryRepository = userId ? new MySqlMealEntryRepository(pool, { userId }) : undefined
   const aiDashboard = new DashboardApplicationService(new MySqlDashboardRepository(pool, scope))
   const aiExplorations = new ExplorationTrackApplicationService(explorationTracks, explorationTracks)
   const aiItems = new ItemApplicationService(items, explorationTracks)
@@ -105,9 +108,10 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     trash: new TrashApplicationService(items, methods, explorationTracks, trashPurge),
     search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
-    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository),
+    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository),
     dailyNotes: dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository) : undefined,
     moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository) : undefined,
+    meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository) : undefined,
     aiConfig,
     aiConversation: aiConversationRepository ? new AiConversationApplicationService(aiConversationRepository) : undefined,
     aiPreferences,

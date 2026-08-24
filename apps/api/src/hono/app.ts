@@ -26,6 +26,7 @@ import { createReviewRoutes } from './routes/reviews'
 import { createTrashRoutes } from './routes/trash'
 import { createAiRoutes } from './routes/ai'
 import { createDailyNoteRoutes } from './routes/daily-notes'
+import { createMealEntryRoutes } from './routes/meals'
 import { createMoodEntryRoutes } from './routes/mood-entries'
 import { createRootHonoServices, type RootHonoServices } from './services'
 
@@ -51,6 +52,7 @@ function buildBusinessApiV1Routes(root: RootHonoServices) {
     .route('/dashboard', createDashboardRoutes())
     .route('/daily-notes', createDailyNoteRoutes())
     .route('/mood-entries', createMoodEntryRoutes())
+    .route('/meal-entries', createMealEntryRoutes())
     .route('/', createAiRoutes())
 }
 

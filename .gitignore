@@ -49,7 +49,10 @@ knowledge-base-before-restore-*.json
 
 # Logs
 *.log
+*.err
+*.out
 logs/
+artifacts/
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*

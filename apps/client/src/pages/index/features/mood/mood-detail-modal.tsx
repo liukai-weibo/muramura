@@ -58,12 +58,6 @@ export function MoodDetailModal({ entry, colorTheme, onClose, onEdit, onDelete }
           {entry.content.includes('\n') && <Text style={{ fontSize: 13, lineHeight: 1.6, marginTop: 6, whiteSpace: 'pre-wrap' }}>{entry.content.slice(firstLine(entry.content).length).trim()}</Text>}
         </View>
 
-        {entry.tags.length > 0 && (
-          <View style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {entry.tags.map(tag => <Text key={tag} className='mood-card-tag'>#{tag}</Text>)}
-          </View>
-        )}
-
         {entry.response && (
           <View style={{ padding: 10, border: '1px solid var(--cream-line)', borderRadius: 12, background: 'var(--cream-soft-surface)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
             <Text style={{ fontSize: 11, color: 'var(--cream-hint)', marginBottom: 4 }}>感受对策</Text>

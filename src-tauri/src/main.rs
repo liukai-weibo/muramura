@@ -134,9 +134,7 @@ fn main() {
                     if event.state() == ShortcutState::Pressed {
                         show_main_window(app);
                         let name = shortcut.to_string().to_ascii_uppercase().replace(' ', "");
-                        if name == "CTRL+SHIFT+M" {
-                            let _ = app.emit("desktop-quick-note-shortcut", ());
-                        } else if name == "CTRL+SHIFT+J" {
+                        if name == "CTRL+SHIFT+J" {
                             let _ = app.emit("desktop-daily-note-shortcut", ());
                         }
                     }

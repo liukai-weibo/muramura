@@ -46,6 +46,8 @@ import type {
   AiConversationSnapshot,
   AiStreamEvent,
   DailyNote,
+  MealDayInput,
+  MealEntry,
   MoodEntry,
   MoodEntryInput,
 } from '@knowledge-base/contracts'
@@ -446,6 +448,11 @@ export const apiClient = {
   createMoodEntry: (input: MoodEntryInput) => request<MoodEntry>('/mood-entries', { method: 'POST', body: json(input) }),
   updateMoodEntry: (id: string, input: MoodEntryInput) => request<MoodEntry>(`/mood-entries/${encodeURIComponent(id)}`, { method: 'PUT', body: json(input) }),
   deleteMoodEntry: (id: string) => request<{ deleted: boolean }>(`/mood-entries/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  listMealEntries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
+    const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
+    return request<MealEntry[]>(`/meal-entries${query}`, { signal })
+  },
+  saveMealDay: (input: MealDayInput) => request<MealEntry[]>(`/meal-entries/${encodeURIComponent(input.entryDate)}`, { method: 'PUT', body: json(input) }),
   streamDailyNoteAi: async function* (id: string, command: string, draft: string, signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
     const response = await fetch(apiUrl(`/daily-notes/${encodeURIComponent(id)}/ai/stream`), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ command, draft }), signal })
     if (!response.ok || !response.body) throw new Error('Daily note AI stream failed')

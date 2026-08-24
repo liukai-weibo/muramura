@@ -3,7 +3,7 @@ import { Text, View } from '@tarojs/components'
 import type { MoodEntry, MoodEntryInput, MoodLevel } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
 import type { ColorTheme } from '../../display-effect-preference'
-import { MoodCalendar } from './mood-calendar'
+import { MoodCalendar, type MoodCalendarMode } from './mood-calendar'
 import { MoodCard } from './mood-card'
 import { MoodRecordModal } from './mood-record-modal'
 import { MoodDetailModal } from './mood-detail-modal'
@@ -27,6 +27,8 @@ const filterOptions: Array<{ value: MoodLevel | 'all'; label: string }> = [
 
 export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
   const now = new Date()
+  const [view, setView] = useState<MoodCalendarMode>('month')
+  const [filterOpen, setFilterOpen] = useState(false)
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [entries, setEntries] = useState<MoodEntry[]>([])
@@ -42,10 +44,10 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
     setLoading(true)
     setError('')
     try {
-      const list = await apiClient.listMoodEntries(
-        { from: formatLocalDate(year, month, 1), to: formatLocalDate(year, month, daysInMonth(year, month)) },
-        signal,
-      )
+      const range = view === 'year'
+        ? { from: formatLocalDate(year, 1, 1), to: formatLocalDate(year, 12, 31) }
+        : { from: formatLocalDate(year, month, 1), to: formatLocalDate(year, month, daysInMonth(year, month)) }
+      const list = await apiClient.listMoodEntries(range, signal)
       if (generation !== generationRef.current) return
       setEntries(list)
     } catch (e: unknown) {
@@ -55,7 +57,7 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
     } finally {
       if (generation === generationRef.current) setLoading(false)
     }
-  }, [year, month])
+  }, [view, year, month])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -68,6 +70,11 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
   const handleMonthChange = (nextYear: number, nextMonth: number) => {
     setYear(nextYear)
     setMonth(nextMonth)
+    setSelectedDate(undefined)
+  }
+
+  const handleSwitchView = (nextView: MoodCalendarMode) => {
+    setView(nextView)
     setSelectedDate(undefined)
   }
 
@@ -95,6 +102,9 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
   }
 
   const activeFilter = filterOptions.find(option => option.value === filterLevel) ?? filterOptions[0]!
+  const periodHint = view === 'year'
+    ? `当前年：${year} 年${selectedDate ? (' · 已选中 ' + selectedDate.slice(5)) : ''}`
+    : `当前月：${year} 年 ${month} 月${selectedDate ? (' · 已选中 ' + selectedDate.slice(5)) : ''}`
 
   return (
     <View className='mood-page'>
@@ -108,16 +118,61 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
           >
             <Text>＋ 新建情绪记录</Text>
           </View>
+          <View className='mood-view-toggle' role='tablist' aria-label='日历视图切换'>
+            <View
+              role='tab'
+              aria-selected={view === 'year'}
+              className={`mood-view-toggle-item ${view === 'year' ? 'active' : ''}`}
+              onClick={() => handleSwitchView('year')}
+            >
+              <Text>年视图</Text>
+            </View>
+            <View
+              role='tab'
+              aria-selected={view === 'month'}
+              className={`mood-view-toggle-item ${view === 'month' ? 'active' : ''}`}
+              onClick={() => handleSwitchView('month')}
+            >
+              <Text>月视图</Text>
+            </View>
+          </View>
         </View>
         <View className='mood-toolbar-actions'>
-          <Text className='mood-toolbar-hint'>当前月：{year} 年 {month} 月{selectedDate ? (' · 已选中 ' + selectedDate.slice(5)) : ''}</Text>
-          <View className='mood-filter-trigger' role='button' aria-haspopup='true'>
-            <Text>{activeFilter.label} ▾</Text>
+          <Text className='mood-toolbar-hint'>{periodHint}</Text>
+          <View className='mood-filter-wrap'>
+            <View
+              className={`mood-filter-trigger ${filterOpen ? 'open' : ''}`}
+              role='button'
+              aria-haspopup='listbox'
+              aria-expanded={filterOpen}
+              onClick={() => setFilterOpen(open => !open)}
+            >
+              <Text>{activeFilter.label} ▾</Text>
+            </View>
+            {filterOpen && (
+              <>
+                <View className='mood-filter-backdrop' onClick={() => setFilterOpen(false)} />
+                <View className='mood-filter-menu' role='listbox' aria-label='按情绪等级筛选'>
+                  {filterOptions.map(option => (
+                    <View
+                      key={option.value}
+                      role='option'
+                      aria-selected={option.value === filterLevel}
+                      className={`mood-filter-menu-item ${option.value === filterLevel ? 'active' : ''}`}
+                      onClick={() => { setFilterLevel(option.value); setFilterOpen(false) }}
+                    >
+                      <Text>{option.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
           </View>
         </View>
       </View>
 
       <MoodCalendar
+        mode={view}
         year={year}
         month={month}
         entries={entries}
@@ -131,7 +186,7 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
       {loading && <View className='mood-empty'><Text>正在读取情绪记录…</Text></View>}
       {!loading && error && <View className='mood-empty'><Text>{error}</Text></View>}
       {!loading && !error && visibleEntries.length === 0 && (
-        <View className='mood-empty'><Text>{entries.length === 0 ? '这个月还没有情绪记录，随手记一笔吧。' : '当前筛选下没有记录。'}</Text></View>
+        <View className='mood-empty'><Text>{entries.length === 0 ? (view === 'year' ? '这一年还没有情绪记录，随手记一笔吧。' : '这个月还没有情绪记录，随手记一笔吧。') : '当前筛选下没有记录。'}</Text></View>
       )}
 
       <View className='mood-card-grid'>
@@ -142,6 +197,7 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
 
       {modal.kind === 'create' && (
         <MoodRecordModal
+          initialDate={selectedDate ?? todayLocalDate()}
           colorTheme={colorTheme}
           onClose={() => setModal({ kind: 'none' })}
           onSave={handleSave}

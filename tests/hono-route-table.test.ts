@@ -52,6 +52,7 @@ const expectedRouteTable = [
   'GET /api/v1/items/:id/exploration-track',
   'GET /api/v1/items/:id/status-events',
   'GET /api/v1/items/trash',
+  'GET /api/v1/meal-entries',
   'GET /api/v1/method-applications/:id/context',
   'GET /api/v1/method-source-displays',
   'GET /api/v1/methods',
@@ -109,6 +110,7 @@ const expectedRouteTable = [
   'PUT /api/v1/ai/preferences/:id',
   'PUT /api/v1/daily-notes/:id',
   'PUT /api/v1/items/:id/exploration-track',
+  'PUT /api/v1/meal-entries/:entryDate',
   'PUT /api/v1/mood-entries/:id',
 ]
 

@@ -55,6 +55,7 @@ export type ReviewErrorCode =
 export type BackupErrorCode = 'INVALID_BACKUP' | 'BACKUP_OWNERSHIP_CONFLICT'
 export type DailyNoteErrorCode = 'DAILY_NOTE_INVALID' | 'DAILY_NOTE_NOT_FOUND'
 export type MoodEntryErrorCode = 'MOOD_ENTRY_INVALID' | 'MOOD_ENTRY_NOT_FOUND'
+export type MealEntryErrorCode = 'MEAL_ENTRY_INVALID'
 
 export type AuthErrorCode =
   | 'AUTH_CREDENTIALS_FORMAT_INVALID'
@@ -92,6 +93,7 @@ export type BusinessErrorCode =
   | ExplorationTrackErrorCode
   | InitialOwnerClaimErrorCode
   | ItemErrorCode
+  | MealEntryErrorCode
   | MethodErrorCode
   | MoodEntryErrorCode
   | PlatformAdministrationErrorCode
@@ -140,6 +142,7 @@ export const businessErrorCategoryByCode = {
   DAILY_NOTE_NOT_FOUND: 'not-found',
   MOOD_ENTRY_INVALID: 'validation',
   MOOD_ENTRY_NOT_FOUND: 'not-found',
+  MEAL_ENTRY_INVALID: 'validation',
   AUTH_CREDENTIALS_FORMAT_INVALID: 'validation',
   AUTH_INVALID_CREDENTIALS: 'unauthorized',
   AUTH_CURRENT_PASSWORD_INVALID: 'unauthorized',
@@ -209,6 +212,7 @@ export const publicBusinessErrorCodes = [
   'DAILY_NOTE_NOT_FOUND',
   'MOOD_ENTRY_INVALID',
   'MOOD_ENTRY_NOT_FOUND',
+  'MEAL_ENTRY_INVALID',
   'AUTH_CURRENT_PASSWORD_INVALID',
 ] as const satisfies readonly BusinessErrorCode[]
 

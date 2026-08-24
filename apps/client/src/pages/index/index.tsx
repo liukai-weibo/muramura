@@ -14,8 +14,7 @@ import { DesktopAuthTitleBar, DesktopTitleBar } from '../../desktop/desktop-titl
 import { exitDesktopApplication, installDesktopShortcuts, isTauriDesktop } from '../../desktop/desktop-native-bridge'
 import { HomeDashboard } from './home-dashboard'
 import { DailyNotesPage } from './features/daily-notes/daily-notes-page'
-import { QuickNoteFab } from './features/quick-note/quick-note-fab'
-import { readColorTheme, readDisplayEffectMode, readQuickNoteFabVisible, saveColorTheme, saveQuickNoteFabVisible, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
+import { readColorTheme, readDisplayEffectMode, saveColorTheme, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
 import './index.scss'
 import './cream-ui-theme.scss'
 import '../../assets/help'
@@ -62,8 +61,8 @@ const moreStatusNavigation: Array<{ label: string; status: ItemStatus }> = [
 
 type MethodMode = 'none' | 'create' | 'validate'
 type ContentModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration' | 'aiConfiguration'
-type PrimaryModule = 'home' | 'workbench' | 'dailyNotes' | 'mood' | 'ai' | 'me'
-type WorkbenchTab = 'actions' | 'explorations' | 'methods'
+type PrimaryModule = 'home' | 'workbench' | 'dailyNotes' | 'ai' | 'me'
+type WorkbenchTab = 'actions' | 'explorations' | 'methods' | 'mood' | 'meals'
 type MyTab = 'profile' | 'insights' | 'storage' | 'administration' | 'aiConfiguration'
 type GlobalTool = 'search' | 'capture'
 type NavigationTarget =
@@ -85,7 +84,6 @@ const moduleLabels: Record<ContentModule, string> = {
 
 const primaryModuleLabels: Record<PrimaryModule, string> = {
   dailyNotes: '手记',
-  mood: '情绪',
   home: '首页',
   workbench: '灵感todo',
   ai: '圈圈 AI 助手',
@@ -188,6 +186,10 @@ interface AuthenticatedWorkspaceProps {
 }
 
 import { MoodPage } from './features/mood/mood-page'
+import { MoodRecordModal } from './features/mood/mood-record-modal'
+import { MealsPage } from './features/meals/meals-page'
+import { MealDayModal } from './features/meals/meal-day-modal'
+import { todayLocalDate } from './features/mood/mood-levels'
 
 function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, logoutError, onLogout, onConfirmLogoutOutcome, onPasswordChanged, colorTheme, onToggleColorTheme }: AuthenticatedWorkspaceProps) {
   const dailyNoteFlushRef = useRef<(() => Promise<boolean>)>()
@@ -224,8 +226,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('actions')
   const [myTab, setMyTab] = useState<MyTab>('profile')
   const [displayEffectMode, setDisplayEffectMode] = useState<DisplayEffectMode>(readDisplayEffectMode)
-  const [quickNoteFabVisible, setQuickNoteFabVisible] = useState(readQuickNoteFabVisible)
-  const [quickNoteOpenRequest, setQuickNoteOpenRequest] = useState(0)
   const [dailyNoteEmpty, setDailyNoteEmpty] = useState(false)
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine)
   const navigationInitializedRef = useRef(false)
@@ -237,6 +237,9 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [explorationMounted, setExplorationMounted] = useState(false)
   const [dailyNotesMounted, setDailyNotesMounted] = useState(false)
   const [moodMounted, setMoodMounted] = useState(false)
+  const [mealsMounted, setMealsMounted] = useState(false)
+  const [homeMoodCreateOpen, setHomeMoodCreateOpen] = useState(false)
+  const [homeMealsOpen, setHomeMealsOpen] = useState(false)
   const [aiMounted, setAiMounted] = useState(false)
   const [explorationFactsVersion, setExplorationFactsVersion] = useState(0)
   const [restoreFactsVersion, setRestoreFactsVersion] = useState(0)
@@ -262,16 +265,12 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   useEffect(() => {
     if (!isTauriDesktop()) return
     let active = true
-    let unlistenQuick: (() => void) | undefined
     let unlistenDaily: (() => void) | undefined
     void import('@tauri-apps/api/event').then(async ({ listen }) => {
-      const [quick, daily] = await Promise.all([
-        listen('desktop-quick-note-shortcut', () => { if (active) setQuickNoteOpenRequest(value => value + 1) }),
-        listen('desktop-daily-note-shortcut', () => { if (active) openPrimaryModuleRef.current?.('dailyNotes') }),
-      ])
-      if (active) { unlistenQuick = quick; unlistenDaily = daily } else { quick(); daily() }
+      unlistenDaily = await listen('desktop-daily-note-shortcut', () => { if (active) openPrimaryModuleRef.current?.('dailyNotes') })
+      if (!active) unlistenDaily()
     })
-    return () => { active = false; unlistenQuick?.(); unlistenDaily?.() }
+    return () => { active = false; unlistenDaily?.() }
   }, [])
   useEffect(() => {
     if (!isTauriDesktop()) return
@@ -295,9 +294,10 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     if (activeModule === 'explorations' || activeModule === 'settings') setExplorationMounted(true)
     if (activeModule === 'administration' || activeModule === 'aiConfiguration') setAdministrationMounted(true)
     if (primaryModule === 'dailyNotes') setDailyNotesMounted(true)
-    if (primaryModule === 'mood') setMoodMounted(true)
+    if (primaryModule === 'workbench' && workbenchTab === 'mood') setMoodMounted(true)
+    if (primaryModule === 'workbench' && workbenchTab === 'meals') setMealsMounted(true)
     if (primaryModule === 'ai') setAiMounted(true)
-  }, [activeModule, primaryModule])
+  }, [activeModule, primaryModule, workbenchTab])
   useEffect(() => {
     const handleOnline = () => setIsBrowserOnline(true)
     const handleOffline = () => setIsBrowserOnline(false)
@@ -2073,7 +2073,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     if (primaryModule === 'dailyNotes' && target !== 'dailyNotes') void dailyNoteFlushRef.current?.()
     requestLeaveAllDrafts(() => {
       setPrimaryModule(target)
-      if (target === 'workbench') setActiveModule(workbenchTab)
+      if (target === 'workbench' && workbenchTab !== 'mood' && workbenchTab !== 'meals') setActiveModule(workbenchTab)
       else if (target === 'ai') setActiveModule('ai')
       else if (target === 'me' && (myTab === 'insights' || myTab === 'storage')) setActiveModule(myTab === 'insights' ? 'insights' : 'settings')
       else if (target === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration')) setActiveModule(myTab)
@@ -2085,7 +2085,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
     requestLeaveAllDrafts(() => {
       setWorkbenchTab(tab)
       setPrimaryModule('workbench')
-      setActiveModule(tab)
+      if (tab !== 'mood' && tab !== 'meals') setActiveModule(tab)
     })
   }
 
@@ -2224,7 +2224,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           >{module === 'home' && <Text className='navigation-home-icon' aria-hidden='true'>🏠</Text>}{module === 'workbench' && <Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' />}{module === 'ai' && <Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' />}<Text>{label}</Text></View>)}
           <View className={`navigation-item navigation-transition navigation-item-workbench ${primaryModule === 'workbench' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('workbench') }}><Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' /><Text>灵感todo</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-dailyNotes ${primaryModule === 'dailyNotes' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('dailyNotes') }}><Image className='navigation-daily-note-icon' src={dailyNoteCatIconUrl} mode='aspectFit' /><Text>手记</Text>{dailyNoteEmpty && <Text className='navigation-daily-note-badge' aria-label='今日尚未记录' />}</View>
-          <View className={`navigation-item navigation-transition navigation-item-mood ${primaryModule === 'mood' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('mood') }}><Text className='navigation-mood-icon'>☁</Text><Text>情绪</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-ai ${primaryModule === 'ai' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('ai') }}><Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' /><Text>圈圈 AI 助手</Text></View>
         </View>
         <View className='navigation-group navigation-group-account'>
@@ -2233,9 +2232,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
         <View className='navigation-account'>
           <View><Text className='navigation-account-label'>当前账户</Text><Text className='navigation-account-name'>{session.user.username}</Text></View>
-            <View role='switch' aria-checked={quickNoteFabVisible} className={`navigation-quick-note-toggle ${quickNoteFabVisible ? 'is-on' : ''}`} onClick={() => { const visible = !quickNoteFabVisible; setQuickNoteFabVisible(visible); saveQuickNoteFabVisible(visible) }}>
-            <Text>速记悬浮球</Text><Text className='navigation-quick-note-switch' aria-hidden='true' />
-          </View>
           <Button className='navigation-logout control-transition' disabled={logoutBusy || logoutUnknownOutcome} onClick={onLogout}>{logoutBusy ? '正在退出…' : '退出'}</Button>
           {logoutError && <Text className='navigation-account-error'>{logoutError}</Text>}
           {logoutUnknownOutcome && <Button className='navigation-session-confirm control-transition' disabled={logoutBusy} onClick={onConfirmLogoutOutcome}>重新读取当前会话</Button>}
@@ -2250,7 +2246,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           colorTheme={colorTheme}
           onToggleColorTheme={onToggleColorTheme}
           searchContent={desktopSearchControl}
-          workbenchTabs={primaryModule === 'workbench' ? ([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
+          workbenchTabs={primaryModule === 'workbench' ? ([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
         />
         <View className={`global-header ${primaryModule === 'workbench' && workbenchTab === 'actions' ? 'global-header-actions' : ''}`}>
           <View><Text className='global-module-title'>{primaryModuleLabels[primaryModule]}</Text>{(managementAccessNotice && primaryModule === 'workbench' || restoring && primaryModule === 'workbench') && <Text className='global-message'>{managementAccessNotice || '正在安全恢复数据，请勿离开'}</Text>}</View>
@@ -2282,7 +2278,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
 
         {primaryModule === 'workbench' && !isTauriDesktop() && <View className='fast-ui-tabs workbench-tabs' role='tablist'>
-          {([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
+          {([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
         </View>}
         {primaryModule === 'me' && <View className='fast-ui-tabs' role='tablist'>
           {([['profile', '账户'], ['insights', '观察'], ['storage', '数据工具'], ...(isAdministrator && !managementAccessDenied ? [['administration', '管理区域'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['aiConfiguration', 'AI 参数'] as [MyTab, string]] : [])] as Array<[MyTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${myTab === tab ? 'active' : ''}`} role='tab' aria-selected={myTab === tab} onClick={() => openMyTab(tab)}><Text>{label}</Text></View>)}
@@ -2297,9 +2293,14 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           onOpenBacklog={(status) => navigateTo({ type: 'backlog', status })}
           onOpenCapture={openCapture}
           onOpenDailyNotes={() => openPrimaryModule('dailyNotes')}
+          onOpenMoodCreate={() => setHomeMoodCreateOpen(true)}
+          onOpenMeals={() => setHomeMealsOpen(true)}
         />}
         {dailyNotesMounted && <View className={`module-retained ${primaryModule === 'dailyNotes' ? '' : 'module-retained-hidden'}`}><DailyNotesPage onFlushReady={(flush) => { dailyNoteFlushRef.current = flush }} onItemsChanged={async () => { await refresh() }} onItemCreated={(item) => { setItems(current => current.some(entry => entry.id === item.id) ? current : [item, ...current]) }} /></View>}
-        {moodMounted && <View className={`module-retained ${primaryModule === 'mood' ? '' : 'module-retained-hidden'}`}><MoodPage colorTheme={colorTheme} /></View>}
+        {(moodMounted && primaryModule === 'workbench' && workbenchTab === 'mood') && <View className='module-retained'><MoodPage colorTheme={colorTheme} /></View>}
+        {(mealsMounted && primaryModule === 'workbench' && workbenchTab === 'meals') && <View className='module-retained'><MealsPage colorTheme={colorTheme} /></View>}
+        {homeMealsOpen && <MealDayModal initialDate={todayLocalDate()} onClose={() => setHomeMealsOpen(false)} onSaved={() => { setHomeMealsOpen(false); setMessage('已记录今日三餐') }} />}
+        {homeMoodCreateOpen && <MoodRecordModal initialDate={todayLocalDate()} colorTheme={colorTheme} onClose={() => setHomeMoodCreateOpen(false)} onSave={async (input) => { await apiClient.createMoodEntry(input); setHomeMoodCreateOpen(false); setMessage('已记录今日情绪') }} onReloadData={() => setHomeMoodCreateOpen(false)} />}
 
         {reviewNotePrompt && <View className='review-note-prompt' role='dialog' aria-modal='true' aria-label='写入手记'>
           <View className='review-note-prompt-card'><Text>是否将本条行动写入手记？</Text><Text>将追加事项标题和本次复盘内容，不会改写已有记录。</Text><View><Button className='action-button secondary' onClick={() => setReviewNotePrompt(undefined)}>暂不写入</Button><Button className='action-button primary' onClick={() => void apiClient.appendTodayDailyNote(`事项：${reviewNotePrompt.title}\n\n${reviewNotePrompt.content}`).then(() => { window.dispatchEvent(new CustomEvent('daily-note-content-changed')); setReviewNotePrompt(undefined); setMessage('已写入手记') }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '写入手记失败'))}>写入手记</Button></View></View>
@@ -2829,7 +2830,6 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
       </View>}
         </View>
       </View>
-      <QuickNoteFab visible={quickNoteFabVisible} openRequest={quickNoteOpenRequest} onOpenDailyNotes={() => openPrimaryModule('dailyNotes')} />
     </View>
   )
 }

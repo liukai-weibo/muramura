@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMonthGrid, formatLocalDate } from '../apps/client/src/pages/index/features/mood/mood-levels'
+import { buildMonthDays, buildMonthGrid, formatLocalDate } from '../apps/client/src/pages/index/features/mood/mood-levels'
 
 describe('buildMonthGrid', () => {
   it('returns 42 cells for any month', () => {
@@ -39,6 +39,38 @@ describe('buildMonthGrid', () => {
       expect(nextMonthCells[0]!.year).toBe(2027)
       expect(nextMonthCells[0]!.month).toBe(1)
     }
+  })
+})
+
+describe('buildMonthDays', () => {
+  it('returns offset placeholders then current-month days only', () => {
+    // August 2026: 1st is Saturday -> Monday-start offset = 5
+    const days = buildMonthDays(2026, 8)
+    const placeholders = days.filter(cell => cell.isPlaceholder)
+    const current = days.filter(cell => !cell.isPlaceholder)
+    expect(placeholders).toHaveLength(5)
+    expect(current).toHaveLength(31)
+    expect(current[0]!.day).toBe(1)
+    expect(current[30]!.day).toBe(31)
+    // no cross-month day numbers (e.g. no 30/31 from July, no 1 from September)
+    expect(days.every(cell => cell.isPlaceholder || cell.day >= 1 && cell.day <= 31)).toBe(true)
+  })
+
+  it('February has no days 30 or 31', () => {
+    const days = buildMonthDays(2026, 2)
+    const current = days.filter(cell => !cell.isPlaceholder)
+    expect(current.length).toBe(28)
+    expect(current.every(cell => cell.day <= 28)).toBe(true)
+  })
+
+  it('all placeholders precede current-month days', () => {
+    const days = buildMonthDays(2026, 12)
+    const count = days.filter(cell => cell.isPlaceholder).length
+    const prefix = days.slice(0, count)
+    const rest = days.slice(count)
+    expect(prefix.every(cell => cell.isPlaceholder)).toBe(true)
+    expect(rest.length).toBeGreaterThan(0)
+    expect(rest.every(cell => !cell.isPlaceholder)).toBe(true)
   })
 })
 

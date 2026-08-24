@@ -383,6 +383,7 @@ export const backupDocumentSchema: z.ZodType<BackupDocument> = z.discriminatedUn
   z.object({ format: z.literal('knowledge-base-backup'), version: z.literal(4), exportedAt: z.string(), appVersion: z.string(), data: backupDataV3Schema.extend({ dailyNotes: z.array(z.any()) }) }),
   z.object({ format: z.literal('knowledge-base-backup'), version: z.literal(5), exportedAt: z.string(), appVersion: z.string(), data: backupDataV3Schema.extend({ dailyNotes: z.array(z.any()) }) }),
   z.object({ format: z.literal('knowledge-base-backup'), version: z.literal(6), exportedAt: z.string(), appVersion: z.string(), data: backupDataV3Schema.extend({ dailyNotes: z.array(z.any()), moodEntries: z.array(z.any()) }) }),
+  z.object({ format: z.literal('knowledge-base-backup'), version: z.literal(7), exportedAt: z.string(), appVersion: z.string(), data: backupDataV3Schema.extend({ dailyNotes: z.array(z.any()), moodEntries: z.array(z.any()), mealEntries: z.array(z.any()) }) }),
 ]).openapi('BackupDocument')
 
 /**

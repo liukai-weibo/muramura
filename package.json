@@ -20,7 +20,7 @@
     "browser:open": "playwright open http://127.0.0.1:10086",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:mysql:integration": "vitest run --no-file-parallelism tests/mysql-m1.integration.test.ts tests/mysql-m2a.integration.test.ts tests/mysql-m2b.integration.test.ts tests/mysql-m3a.integration.test.ts tests/mysql-m3b.integration.test.ts tests/mysql-m3c.integration.test.ts tests/mysql-m4a.integration.test.ts tests/mysql-m4b.integration.test.ts tests/mysql-m4c.integration.test.ts tests/mysql-m5a.integration.test.ts tests/api-m5b.integration.test.ts tests/mysql-s1-exploration-tracks.integration.test.ts tests/mysql-s2-exploration-tracks.integration.test.ts",
+    "test:mysql:integration": "vitest run --no-file-parallelism tests/mysql-m1.integration.test.ts tests/mysql-m2a.integration.test.ts tests/mysql-m2b.integration.test.ts tests/mysql-m3a.integration.test.ts tests/mysql-m3b.integration.test.ts tests/mysql-m3c.integration.test.ts tests/mysql-m4a.integration.test.ts tests/mysql-m4b.integration.test.ts tests/mysql-m4c.integration.test.ts tests/mysql-m5a.integration.test.ts tests/api-m5b.integration.test.ts tests/mysql-s1-exploration-tracks.integration.test.ts tests/mysql-s2-exploration-tracks.integration.test.ts tests/mysql-meals.integration.test.ts",
     "test:watch": "vitest"
   },
   "devDependencies": {

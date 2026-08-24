@@ -3,7 +3,6 @@ export type ColorTheme = 'light' | 'dark'
 
 const storageKey = 'marumaru.display-effect'
 const colorThemeStorageKey = 'marumaru.color-theme'
-const quickNoteFabVisibleStorageKey = 'marumaru.quick-note-fab-visible'
 
 function getStorage(): Storage | undefined {
   try {
@@ -43,21 +42,5 @@ export function saveColorTheme(theme: ColorTheme) {
     getStorage()?.setItem(colorThemeStorageKey, theme)
   } catch {
     // Theme preferences must never prevent the workspace from rendering.
-  }
-}
-
-export function readQuickNoteFabVisible(): boolean {
-  try {
-    return getStorage()?.getItem(quickNoteFabVisibleStorageKey) !== 'false'
-  } catch {
-    return true
-  }
-}
-
-export function saveQuickNoteFabVisible(visible: boolean) {
-  try {
-    getStorage()?.setItem(quickNoteFabVisibleStorageKey, String(visible))
-  } catch {
-    // Display preferences must never prevent the workspace from rendering.
   }
 }

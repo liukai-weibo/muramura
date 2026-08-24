@@ -9,7 +9,7 @@ function firstLine(value: string): string {
 }
 
 function formatMonthDay(dateStr: string): string {
-  const date = new Date(`${dateStr}T00:00:00`)
+  const date = new Date(dateStr + 'T00:00:00')
   return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' }).format(date)
 }
 
@@ -28,11 +28,6 @@ export function MoodCard({ entry, colorTheme, onOpen }: MoodCardProps) {
         <Text className='mood-card-title'>{firstLine(entry.content)}</Text>
         <Text className='mood-card-date'>{formatMonthDay(entry.entryDate)}</Text>
       </View>
-      {entry.tags.length > 0 && (
-        <View className='mood-card-tags'>
-          {entry.tags.map(tag => <Text key={tag} className='mood-card-tag'>#{tag}</Text>)}
-        </View>
-      )}
     </View>
   )
 }
