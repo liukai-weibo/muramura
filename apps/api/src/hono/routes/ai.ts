@@ -99,6 +99,13 @@ export function createAiRoutes() {
       await services.aiPreferences.deleteMine(context.req.param('id'))
       return context.body(null, 204)
     })
+    .get('/experimental/ai-config-status', async (context: any) => {
+      const services = requireServices(context)
+      if (!services.aiConfig) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI configuration unavailable')
+      let metadata
+      try { metadata = await services.aiConfig.load() } catch (error) { mapAiConfigFailure(error) }
+      return context.json({ configured: Boolean(metadata?.apiKeyConfigured) }, 200)
+    })
     .get('/experimental/ai-conversation', async (context: any) => {
       const services = requireServices(context)
       if (!services.aiConversation) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI conversation unavailable')
@@ -198,11 +205,41 @@ export function createAiRoutes() {
       }
       return response
     })
+
+    .post('/experimental/ai-chat/stream-ephemeral', async (context: any) => {
+      const services = requireServices(context)
+      if (!services.ai) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI configuration unavailable')
+      const body = await jsonObject(context)
+      const messages = body.messages
+      if (!Array.isArray(messages) || messages.length === 0 || messages.some((entry) => !entry || (entry as any).role !== 'user' && (entry as any).role !== 'assistant' || typeof (entry as any).content !== 'string')) throw new ApiError(400, 'VALIDATION_FAILED', 'system messages are server-owned')
+      const last = messages[messages.length - 1] as AiChatMessage
+      if (last.role !== 'user' || !last.content.trim()) throw new ApiError(400, 'VALIDATION_FAILED', 'last message must be a user message')
+      const actor = context.get('actor')
+      const streamKey = `${actor.id}:ephemeral:${crypto.randomUUID()}`
+      const streamController = activeStreams.begin(streamKey, context.req.raw.signal)
+      const stream = services.ai.stream(messages as AiChatMessage[], streamController.signal, actor, context.get('requestId'))
+      const readable = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const encoder = new TextEncoder()
+          try { for await (const event of stream) controller.enqueue(encoder.encode(sse(event))) }
+          catch { /* stream terminated */ } finally { activeStreams.finish(streamKey, streamController); controller.close() }
+        },
+      })
+      const response = new Response(readable, { headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' } })
+      const origin = context.req.header('origin')
+      if (origin) {
+        response.headers.set('access-control-allow-origin', origin)
+        response.headers.set('access-control-allow-credentials', 'true')
+        response.headers.set('access-control-expose-headers', 'x-kb-session-token')
+        response.headers.set('vary', 'origin')
+      }
+      return response
+    })
 }
 
 async function updateConversation(context: any, action: 'archive' | 'restore' | 'delete') {
   const services = requireServices(context)
-      if (!services.aiConversation) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI conversation unavailable')
+  if (!services.aiConversation) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI conversation unavailable')
   const result = action === 'archive' ? await services.aiConversation.archiveConversation(context.req.param('id')) : action === 'restore' ? await services.aiConversation.restoreConversation(context.req.param('id')) : await services.aiConversation.deleteConversation(context.req.param('id'))
   if (!result) throw new ApiError(404, 'NOT_FOUND', 'AI conversation not found')
   return context.json(result, 200)

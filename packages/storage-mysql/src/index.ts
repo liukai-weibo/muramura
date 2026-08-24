@@ -9,7 +9,7 @@ export {
 } from './platform-administration-repository'
 export { MySqlInitialOwnerClaimRepository, type MySqlInitialOwnerClaimRepositoryTestHooks } from './initial-owner-claim-repository'
 
-export const MYSQL_REQUIRED_SCHEMA_VERSION = 22
+export const MYSQL_REQUIRED_SCHEMA_VERSION = 23
 
 export const MYSQL_SCHEMA_AUDIT_EXCLUDED_TABLES = ['schema_migrations'] as const
 
@@ -343,6 +343,7 @@ export { MySqlAiPreferenceRepository } from './ai-preference-repository'
 export { MySqlDailyNoteRepository } from './daily-note-repository'
 export { MySqlMealEntryRepository } from './meal-entry-repository'
 export { MySqlMoodEntryRepository } from './mood-entry-repository'
+export { MySqlDailySummaryRepository } from './daily-summary-repository'
 export { MySqlMethodRepository, type MySqlMethodRepositoryTestHooks } from './method-repository'
 export { MySqlTrashPurgeRepository } from './trash-purge-repository'
 export { MySqlMethodApplicationRepository, type MySqlMethodApplicationRepositoryTestHooks } from './method-application-repository'

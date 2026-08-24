@@ -28,6 +28,7 @@ import { createAiRoutes } from './routes/ai'
 import { createDailyNoteRoutes } from './routes/daily-notes'
 import { createMealEntryRoutes } from './routes/meals'
 import { createMoodEntryRoutes } from './routes/mood-entries'
+import { createDailySummaryRoutes } from './routes/daily-summaries'
 import { createRootHonoServices, type RootHonoServices } from './services'
 
 /**
@@ -53,6 +54,7 @@ function buildBusinessApiV1Routes(root: RootHonoServices) {
     .route('/daily-notes', createDailyNoteRoutes())
     .route('/mood-entries', createMoodEntryRoutes())
     .route('/meal-entries', createMealEntryRoutes())
+    .route('/daily-summaries', createDailySummaryRoutes())
     .route('/', createAiRoutes())
 }
 

@@ -46,6 +46,7 @@ import type {
   AiConversationSnapshot,
   AiStreamEvent,
   DailyNote,
+  DailySummary,
   MealDayInput,
   MealEntry,
   MoodEntry,
@@ -453,6 +454,12 @@ export const apiClient = {
     return request<MealEntry[]>(`/meal-entries${query}`, { signal })
   },
   saveMealDay: (input: MealDayInput) => request<MealEntry[]>(`/meal-entries/${encodeURIComponent(input.entryDate)}`, { method: 'PUT', body: json(input) }),
+  listDailySummaries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
+    const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
+    return request<DailySummary[]>(`/daily-summaries${query}`, { signal })
+  },
+  getDailySummary: (entryDate: string, signal?: AbortSignal) => request<DailySummary | null>(`/daily-summaries/${encodeURIComponent(entryDate)}`, { signal }),
+  upsertDailySummary: (entryDate: string, content: string) => request<DailySummary>(`/daily-summaries/${encodeURIComponent(entryDate)}`, { method: 'PUT', body: json({ content }) }),
   streamDailyNoteAi: async function* (id: string, command: string, draft: string, signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
     const response = await fetch(apiUrl(`/daily-notes/${encodeURIComponent(id)}/ai/stream`), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ command, draft }), signal })
     if (!response.ok || !response.body) throw new Error('Daily note AI stream failed')
@@ -508,6 +515,34 @@ export const apiClient = {
     let response: Response
     try {
       response = await fetch(apiUrl('/experimental/ai-chat/stream'), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ messages, ...(conversationId ? { conversationId } : {}) }), signal })
+    } catch (cause) {
+      const detail = cause instanceof Error && cause.message ? `：${cause.message}` : ''
+      throw new Error(`AI 流请求未能连接本地 API${detail}`)
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => undefined) as { error?: { message?: string; requestId?: string } } | undefined
+      throw new Error(`AI 流请求失败（HTTP ${response.status}）${body?.error?.message ? `：${body.error.message}` : ''}${body?.error?.requestId ? ` [${body.error.requestId}]` : ''}`)
+    }
+    if (!response.body) throw new Error('AI stream failed')
+    const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ''
+    const parse = function* (chunk: string): Generator<AiStreamEvent> {
+      const data = chunk.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('\n')
+      if (data) yield JSON.parse(data) as AiStreamEvent
+    }
+    while (true) {
+      const next = await reader.read(); if (next.done) break
+      buffer += decoder.decode(next.value, { stream: true })
+      const chunks = buffer.split(/\r?\n\r?\n/); buffer = chunks.pop() ?? ''
+      for (const chunk of chunks) yield* parse(chunk)
+    }
+    if (buffer.trim()) yield* parse(buffer)
+  },
+  getAiConfigStatus: (signal?: AbortSignal) => request<{ configured: boolean }>('/experimental/ai-config-status', { signal }),
+  streamExperimentalAiChatEphemeral: async function* (messages: AiChatMessage[], signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
+    if (messages.some((message) => message.role === 'system')) throw new Error('system messages are server-owned')
+    let response: Response
+    try {
+      response = await fetch(apiUrl('/experimental/ai-chat/stream-ephemeral'), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ messages }), signal })
     } catch (cause) {
       const detail = cause instanceof Error && cause.message ? `：${cause.message}` : ''
       throw new Error(`AI 流请求未能连接本地 API${detail}`)
