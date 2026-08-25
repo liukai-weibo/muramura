@@ -76,10 +76,17 @@ export function createDailyNoteRoutes() {
         await services.dailyNotes.setAiConversationId(note.id, conversationId)
       }
       const facts = command === 'daily_actions' ? await services.dailyNotes.listActionFactsForDate(note.entryDate) : []
-      const userContent = [
-        `这是 ${note.entryDate} 的个人小记专属请求：${aiCommands[command]}`,
-        '当前编辑器草稿（可能尚未保存）：', draft || '（空）',
+      const moodFacts = await services.moodEntries?.listRange(note.entryDate, note.entryDate) ?? []
+      const mealFacts = await services.meals?.listRange(note.entryDate, note.entryDate) ?? []
+      const dayFacts = [
         command === 'daily_actions' ? `服务端筛选的当天事项事实：\n${JSON.stringify(facts)}` : '',
+        moodFacts.length ? `当天情绪：\n${JSON.stringify(moodFacts.map(e => ({ level: e.moodLevel, content: e.content })))}` : '',
+        mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, feeling: e.feeling })))}` : '',
+      ].filter(Boolean).join('\n\n')
+      const userContent = [
+        `这是 ${note.entryDate} 的个人小记专属请求：${aiCommands[command]}`,,
+        '当前编辑器草稿（可能尚未保存）：', draft || '（空）',,
+        dayFacts,
       ].filter(Boolean).join('\n\n')
       const actor = context.get('actor')
       const activeConversationId = conversationId!
@@ -130,10 +137,17 @@ export function createDailyNoteRoutes() {
         await services.dailyNotes.setAiConversationId(note.id, conversationId)
       }
       const facts = await services.dailyNotes.listActionFactsForDate(note.entryDate)
+      const moodFacts = await services.moodEntries?.listRange(note.entryDate, note.entryDate) ?? []
+      const mealFacts = await services.meals?.listRange(note.entryDate, note.entryDate) ?? []
+      const dayFacts = [
+        `鏈嶅姟绔寜涓婃捣鏃ユ湡绛涢€夌殑浠婃棩琛屽姩浜嬪疄锛歕n${JSON.stringify(facts)}`,
+        moodFacts.length ? `当天情绪：\n${JSON.stringify(moodFacts.map(e => ({ level: e.moodLevel, content: e.content })))}` : '',
+        mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, feeling: e.feeling })))}` : '',
+      ].filter(Boolean).join('\n\n')
       const userContent = [
         `褰撳墠鏄 ${note.entryDate} 鐨勬墜璁伴噸鏂板鐩樿姹傦細${message.trim()}`,
         '褰撳墠缂栬緫鍣ㄧ殑鏈€鏂拌崏绋匡紙鏈潵鍙兘杩樻湭淇濆瓨锛夛細', draft.trim() || '锛堢┖锛?',
-        `鏈嶅姟绔寜涓婃捣鏃ユ湡绛涢€夌殑浠婃棩琛屽姩浜嬪疄锛歕n${JSON.stringify(facts)}`,
+        dayFacts,
       ].join('\n\n')
       const actor = context.get('actor')
       const activeConversationId = conversationId!
