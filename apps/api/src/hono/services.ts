@@ -19,6 +19,7 @@ import {
   MealEntryApplicationService,
   MoodEntryApplicationService,
   DailySummaryApplicationService,
+  DailyDietRecommendationApplicationService,
 } from '@knowledge-base/application'
 import {
   createMySqlPool,
@@ -40,6 +41,7 @@ import {
   MySqlMealEntryRepository,
   MySqlMoodEntryRepository,
   MySqlDailySummaryRepository,
+  MySqlDailyDietRecommendationRepository,
   type MySqlConnectionConfig,
 } from '@knowledge-base/storage-mysql'
 import { createFileSecretStore, createProtectedSecretStore, SecretStoreUnavailableError, type SecretStore } from '../../../../packages/storage-secrets/src/index'
@@ -85,6 +87,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const moodEntryRepository = userId ? new MySqlMoodEntryRepository(pool, { userId }) : undefined
   const mealEntryRepository = userId ? new MySqlMealEntryRepository(pool, { userId }) : undefined
   const dailySummaryRepository = userId ? new MySqlDailySummaryRepository(pool, { userId }) : undefined
+  const dailyDietRepository = userId ? new MySqlDailyDietRecommendationRepository(pool, { userId }) : undefined
   const aiDashboard = new DashboardApplicationService(new MySqlDashboardRepository(pool, scope))
   const aiExplorations = new ExplorationTrackApplicationService(explorationTracks, explorationTracks)
   const aiItems = new ItemApplicationService(items, explorationTracks)
@@ -95,7 +98,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
       aiConfig,
       new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
       new LoopbackProviderAdapter(),
-      new AiKnowledgeOverviewApplicationService(aiDashboard, aiExplorations, items, methods),
+      new AiKnowledgeOverviewApplicationService(aiDashboard, aiExplorations, items, methods, moodEntryRepository, mealEntryRepository),
       aiConversationRepository,
       diagnostic => console.info('[knowledge-base-ai-latency]', diagnostic),
       aiPreferences,
@@ -111,11 +114,12 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     trash: new TrashApplicationService(items, methods, explorationTracks, trashPurge),
     search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
-    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository),
+    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository, dailyDietRepository),
     dailyNotes: dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository) : undefined,
     moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository) : undefined,
     meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository) : undefined,
     dailySummaries: dailySummaryRepository ? new DailySummaryApplicationService(dailySummaryRepository) : undefined,
+    dailyDiet: dailyDietRepository ? new DailyDietRecommendationApplicationService(dailyDietRepository) : undefined,
     aiConfig,
     aiConversation: aiConversationRepository ? new AiConversationApplicationService(aiConversationRepository) : undefined,
     aiPreferences,

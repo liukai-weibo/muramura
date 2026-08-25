@@ -17,6 +17,7 @@ import type { DailyNote } from './daily-notes'
 import type { MealEntry } from './meals'
 import type { MoodEntry } from './mood'
 import type { DailySummary } from './daily-summary'
+import type { DailyDietRecommendation } from './daily-diet'
 /**
  * 备份文档是跨版本的持久化契约。旧版本继续保留原始形状，新增版本只能通过
  * 新的判别值扩展，恢复方不得根据展示文本推断缺失的可信字段。
@@ -52,6 +53,7 @@ export interface BackupDataV5 extends BackupDataV4 {}
 export interface BackupDataV6 extends BackupDataV5 { moodEntries: MoodEntry[] }
 export interface BackupDataV7 extends BackupDataV6 { mealEntries: MealEntry[] }
 export interface BackupDataV8 extends BackupDataV7 { dailySummaries: DailySummary[] }
+export interface BackupDataV9 extends BackupDataV8 { dailyDietRecommendations: DailyDietRecommendation[] }
 
 export interface BackupDocumentV1 {
   format: 'knowledge-base-backup'
@@ -81,10 +83,11 @@ export interface BackupDocumentV5 { format: 'knowledge-base-backup'; version: 5;
 export interface BackupDocumentV6 { format: 'knowledge-base-backup'; version: 6; exportedAt: string; appVersion: string; data: BackupDataV6 }
 export interface BackupDocumentV7 { format: 'knowledge-base-backup'; version: 7; exportedAt: string; appVersion: string; data: BackupDataV7 }
 export interface BackupDocumentV8 { format: 'knowledge-base-backup'; version: 8; exportedAt: string; appVersion: string; data: BackupDataV8 }
+export interface BackupDocumentV9 { format: 'knowledge-base-backup'; version: 9; exportedAt: string; appVersion: string; data: BackupDataV9 }
 
-export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5 | BackupDocumentV6 | BackupDocumentV7 | BackupDocumentV8
+export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5 | BackupDocumentV6 | BackupDocumentV7 | BackupDocumentV8 | BackupDocumentV9
 
 export interface BackupRepository {
-  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8>
-  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8): Promise<void>
+  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9>
+  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9): Promise<void>
 }

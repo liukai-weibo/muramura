@@ -31,7 +31,8 @@
 .home-daily-note-action > taro-button-core > button { display: flex !important; align-items: center; justify-content: center; line-height: 1 !important; }
 .home-daily-note-modal-actions > .home-daily-note-save { border-color: #e94781 !important; background: #e94781 !important; color: #fffafd !important; }
 .home-daily-note-modal-backdrop { position: fixed; z-index: 90; inset: 0; display: flex; padding: 24px; align-items: center; justify-content: center; background: rgba(43, 40, 37, .28); }.home-daily-note-modal { width: min(100%, 440px); padding: 22px; border: 1px solid #eae6e0; border-radius: 22px; background: #fffdfa; box-shadow: 0 20px 48px rgba(42, 35, 27, .2); }.home-daily-note-modal-title { display: block; color: #2b2825; font-size: 18px; font-weight: 850; }.home-daily-note-modal-hint { display: block; margin-top: 5px; color: #948e86; font-size: 11px; }.home-daily-note-modal-input { display: block; width: 100%; min-height: 148px; margin-top: 18px; padding: 14px; box-sizing: border-box; border: 1px solid #eae6e0; border-radius: 14px; background: #faf8f5; color: #2c2823; font-size: 14px; line-height: 1.7; outline: none; resize: none; }.home-daily-note-modal-input:focus { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .2); }.home-daily-note-modal-error { display: block; margin-top: 8px; color: #a94f58; font-size: 12px; }.home-daily-note-modal-actions { display: flex; justify-content: stretch; gap: 10px; margin-top: 16px; }.home-daily-note-modal-actions > button, .home-daily-note-modal-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; }.home-daily-note-modal-actions > .home-daily-note-cancel { border: 1px solid #eae6e0 !important; background: #fff !important; color: #544f49 !important; }.home-daily-note-modal-actions > .home-daily-note-save { border: 1px solid #e7a6b5 !important; background: #d98495 !important; color: #fffafd !important; }
-.home-checkin-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.home-checkin-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.home-dynamic-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .home-mood-card { position: relative; display: flex; min-width: 0; min-height: 112px; padding: 20px 22px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 20px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F6E8C8 0%, #D5E2C8 100%); }
 .home-mood-card-glow { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(circle at 22% 30%, rgba(255, 255, 255, .35) 0%, rgba(255, 255, 255, 0) 55%); }
 .home-mood-card-copy { position: relative; display: flex; min-width: 0; flex-direction: column; }
@@ -81,6 +82,7 @@
   .home-dashboard { height: auto; padding: 18px 16px 92px; overflow: visible; }
   .home-primary-row { grid-template-columns: minmax(0, 1fr); }
   .home-checkin-row { grid-template-columns: minmax(0, 1fr); }
+  .home-dynamic-row { grid-template-columns: minmax(0, 1fr); }
   .home-hero-section { min-height: 0; padding: 24px; flex-direction: column; gap: 18px; }
   .home-hero-title { font-size: 26px; }
   .home-hero-status { min-width: 0; padding: 14px 0 0; border-top: 1px solid rgba(93, 75, 58, .12); border-left: 0; }
@@ -97,16 +99,16 @@
 }
 @media (min-width: 721px) and (max-width: 900px) { .home-primary-row { grid-template-columns: minmax(0, 1fr); }.home-daily-note-card { margin-top: 0; } }
 
-/* 今日状态小结卡片（第三格，与情绪/三餐同规格） */
-.home-daily-summary-card { position: relative; display: flex; min-width: 0; min-height: 112px; padding: 20px 22px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 14px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F3E7D2 0%, #E4DCBF 100%); }
+/* 近期状态小结卡片（第三格，与情绪/三餐同规格） */
+.home-daily-summary-card { position: relative; display: flex; min-width: 0; min-height: 260px; padding: 22px 24px; box-sizing: border-box; align-items: stretch; justify-content: space-between; gap: 14px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F3E7D2 0%, #E4DCBF 100%); }
 .home-daily-summary-card-glow { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(circle at 22% 30%, rgba(255, 255, 255, .35) 0%, rgba(255, 255, 255, 0) 55%); }
-.home-daily-summary-card-copy { position: relative; display: flex; min-width: 0; flex-direction: column; }
-.home-daily-summary-card-kicker { color: rgba(43, 40, 37, .62); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
-.home-daily-summary-card-title, .home-daily-summary-card-content { margin-top: 7px; color: #2b2825; font-size: 20px; font-weight: 850; letter-spacing: 0; line-height: 1.3; overflow: hidden; }
-.home-daily-summary-card-content { font-size: 13px; font-weight: 600; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.home-daily-summary-card-copy { position: relative; display: flex; min-width: 0; height: 100%; flex: 1; flex-direction: column; justify-content: space-between; }
+.home-daily-summary-card-kicker { color: rgba(43, 40, 37, .62); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+.home-daily-summary-card-title, .home-daily-summary-card-content { margin-top: 6px; color: #2b2825; font-size: 22px; font-weight: 850; letter-spacing: 0; line-height: 1.3; overflow: hidden; }
+.home-daily-summary-card-content { margin-top: 10px; font-size: 15px; font-weight: 600; line-height: 1.75; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
 .home-daily-summary-card-hint { margin-top: 7px; color: rgba(43, 40, 37, .55); font-size: 13px; font-weight: 600; }
-.home-daily-summary-card-description { margin-top: 6px; color: rgba(43, 40, 37, .66); font-size: 12px; line-height: 1.55; }
-.home-daily-summary-card-action { position: relative; flex: 0 0 auto; color: rgba(43, 40, 37, .86); font-size: 12px; font-weight: 800; }
+.home-daily-summary-card-description { margin-top: 6px; color: rgba(43, 40, 37, .66); font-size: 13px; line-height: 1.55; }
+.home-daily-summary-card-action { position: relative; flex: 0 0 auto; align-self: center; color: rgba(43, 40, 37, .86); font-size: 12px; font-weight: 800; }
 .home-daily-summary-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(120, 90, 60, .16), 0 4px 10px rgba(0, 0, 0, .06); }
 .home-daily-summary-card:hover .home-daily-summary-card-glow { opacity: .85; }
 .app-shell[data-color-theme='dark'] .home-daily-summary-card { background-image: linear-gradient(120deg, #8A7B58 0%, #6E7350 100%); border-color: rgba(255, 255, 255, .1); }
@@ -115,3 +117,22 @@
 .app-shell[data-color-theme='dark'] .home-daily-summary-card-description { color: rgba(255, 253, 250, .72); }
 .app-shell[data-color-theme='dark'] .home-daily-summary-card-action { color: rgba(255, 253, 250, .9); }
 .app-shell[data-color-theme='dark'] .home-daily-summary-card-hint { color: rgba(255, 253, 250, .7); }
+
+/* 今日饮食推荐卡片（暖橙奶油渐变，与状态小结同规格） */
+.home-daily-diet-card { position: relative; display: flex; min-width: 0; min-height: 260px; padding: 22px 24px; box-sizing: border-box; align-items: stretch; justify-content: space-between; gap: 14px; overflow: hidden; border: 1px solid rgba(150, 110, 60, .18); border-radius: 22px; box-shadow: 0 6px 20px rgba(150, 110, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F5E3C8 0%, #EAD4A8 100%); }
+.home-daily-diet-card-glow { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(circle at 24% 34%, rgba(255, 255, 255, .4) 0%, rgba(255, 255, 255, 0) 55%); }
+.home-daily-diet-card-copy { position: relative; display: flex; min-width: 0; height: 100%; flex: 1; flex-direction: column; justify-content: space-between; }
+.home-daily-diet-card-kicker { color: rgba(70, 52, 30, .6); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+.home-daily-diet-card-title, .home-daily-diet-card-content { margin-top: 6px; color: #3f3428; font-size: 22px; font-weight: 850; letter-spacing: 0; line-height: 1.3; overflow: hidden; }
+.home-daily-diet-card-content { margin-top: 10px; font-size: 15px; font-weight: 600; line-height: 1.75; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
+.home-daily-diet-card-hint { margin-top: 7px; color: rgba(70, 52, 30, .55); font-size: 13px; font-weight: 600; }
+.home-daily-diet-card-description { margin-top: 6px; color: rgba(70, 52, 30, .66); font-size: 13px; line-height: 1.55; }
+.home-daily-diet-card-action { position: relative; flex: 0 0 auto; align-self: center; color: rgba(70, 52, 30, .86); font-size: 12px; font-weight: 800; }
+.home-daily-diet-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(150, 110, 60, .16), 0 4px 10px rgba(0, 0, 0, .06); }
+.home-daily-diet-card:hover .home-daily-diet-card-glow { opacity: .85; }
+.app-shell[data-color-theme='dark'] .home-daily-diet-card { background-image: linear-gradient(120deg, #8A764F 0%, #6E6A48 100%); border-color: rgba(255, 255, 255, .1); }
+.app-shell[data-color-theme='dark'] .home-daily-diet-card-kicker { color: rgba(255, 253, 250, .62); }
+.app-shell[data-color-theme='dark'] .home-daily-diet-card-title, .app-shell[data-color-theme='dark'] .home-daily-diet-card-content { color: #fffdfa; }
+.app-shell[data-color-theme='dark'] .home-daily-diet-card-description { color: rgba(255, 253, 250, .72); }
+.app-shell[data-color-theme='dark'] .home-daily-diet-card-action { color: rgba(255, 253, 250, .9); }
+.app-shell[data-color-theme='dark'] .home-daily-diet-card-hint { color: rgba(255, 253, 250, .7); }

@@ -7,6 +7,7 @@ import {
   type BackupDataV6,
   type BackupDataV7,
   type BackupDataV8,
+  type BackupDataV9,
   type BackupDocument,
   type BackupRepository,
   type ItemStatusEvent,
@@ -18,6 +19,7 @@ import {
   type MealEntryBackupStore,
   type MoodEntryBackupStore,
   type DailySummaryBackupStore,
+  type DailyDietRecommendationBackupStore,
 } from '@knowledge-base/contracts'
 import { BusinessError, createId } from '@knowledge-base/domain'
 
@@ -98,7 +100,7 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
   try { value = JSON.parse(input) }
   catch { throw invalidBackup('备份文件不是有效的 JSON') }
   if (!isRecord(value) || value.format !== 'knowledge-base-backup') throw invalidBackup('这不是本系统的备份文件')
-  if (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4 && value.version !== 5 && value.version !== 6 && value.version !== 7 && value.version !== 8) throw invalidBackup(`不支持的备份版本：${String(value.version)}`)
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4 && value.version !== 5 && value.version !== 6 && value.version !== 7 && value.version !== 8 && value.version !== 9) throw invalidBackup(`不支持的备份版本：${String(value.version)}`)
   if (!isRecord(value.data)) throw invalidBackup('备份缺少 data 数据区')
 
   const requiredCollectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
@@ -137,7 +139,9 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
     ? value.data.methodTombstones as MethodTombstone[]
     : []
   const normalizedData: BackupData = { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents, methodTombstones: parsedMethodTombstones }
-  const document: BackupDocument = value.version === 8
+  const document: BackupDocument = value.version === 9
+    ? { ...rawDocument, version: 9, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV9['dailyNotes'] : [], moodEntries: Array.isArray(value.data.moodEntries) ? value.data.moodEntries as BackupDataV9['moodEntries'] : [], mealEntries: Array.isArray(value.data.mealEntries) ? value.data.mealEntries as BackupDataV9['mealEntries'] : [], dailySummaries: Array.isArray(value.data.dailySummaries) ? value.data.dailySummaries as BackupDataV9['dailySummaries'] : [], dailyDietRecommendations: Array.isArray(value.data.dailyDietRecommendations) ? value.data.dailyDietRecommendations as BackupDataV9['dailyDietRecommendations'] : [] } }
+    : value.version === 8
     ? { ...rawDocument, version: 8, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV8['dailyNotes'] : [], moodEntries: Array.isArray(value.data.moodEntries) ? value.data.moodEntries as BackupDataV8['moodEntries'] : [], mealEntries: Array.isArray(value.data.mealEntries) ? value.data.mealEntries as BackupDataV8['mealEntries'] : [], dailySummaries: Array.isArray(value.data.dailySummaries) ? value.data.dailySummaries as BackupDataV8['dailySummaries'] : [] } }
     : value.version === 7
     ? { ...rawDocument, version: 7, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV7['dailyNotes'] : [], moodEntries: Array.isArray(value.data.moodEntries) ? value.data.moodEntries as BackupDataV7['moodEntries'] : [], mealEntries: Array.isArray(value.data.mealEntries) ? value.data.mealEntries as BackupDataV7['mealEntries'] : [] } }
@@ -214,7 +218,7 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
 }
 
 export class BackupApplicationService {
-  constructor(private readonly repository: BackupRepository, private readonly aiConversations?: AiConversationBackupStore, private readonly aiPreferences?: AiPreferenceBackupStore, private readonly dailyNotes?: DailyNoteBackupStore, private readonly moodEntries?: MoodEntryBackupStore, private readonly mealEntries?: MealEntryBackupStore, private readonly dailySummaries?: DailySummaryBackupStore) {}
+  constructor(private readonly repository: BackupRepository, private readonly aiConversations?: AiConversationBackupStore, private readonly aiPreferences?: AiPreferenceBackupStore, private readonly dailyNotes?: DailyNoteBackupStore, private readonly moodEntries?: MoodEntryBackupStore, private readonly mealEntries?: MealEntryBackupStore, private readonly dailySummaries?: DailySummaryBackupStore, private readonly dailyDietRecommendations?: DailyDietRecommendationBackupStore) {}
 
   async createBackup(): Promise<BackupDocument> {
     const data = await this.repository.exportData()
@@ -224,9 +228,10 @@ export class BackupApplicationService {
     if (this.moodEntries && 'explorationTracks' in data) (data as BackupDataV6).moodEntries = await this.moodEntries.exportBackup()
     if (this.mealEntries && 'explorationTracks' in data) (data as BackupDataV7).mealEntries = await this.mealEntries.exportBackup()
     if (this.dailySummaries && 'explorationTracks' in data) (data as BackupDataV8).dailySummaries = await this.dailySummaries.exportBackup()
+    if (this.dailyDietRecommendations && 'explorationTracks' in data) (data as BackupDataV9).dailyDietRecommendations = await this.dailyDietRecommendations.exportBackup()
     return {
       format: 'knowledge-base-backup',
-      version: 'dailySummaries' in data ? 8 : 'mealEntries' in data ? 7 : 'moodEntries' in data ? 6 : 'dailyNotes' in data ? 5 : 'explorationTracks' in data ? 3 : 2,
+      version: 'dailyDietRecommendations' in data ? 9 : 'dailySummaries' in data ? 8 : 'mealEntries' in data ? 7 : 'moodEntries' in data ? 6 : 'dailyNotes' in data ? 5 : 'explorationTracks' in data ? 3 : 2,
       exportedAt: new Date().toISOString(),
       appVersion: '0.1.0',
       data,
@@ -245,7 +250,8 @@ export class BackupApplicationService {
     if (this.dailyNotes) await this.dailyNotes.replaceBackup(document.version === 4 || document.version === 5 || document.version === 6 || document.version === 7 ? document.data.dailyNotes : [])
     if (this.moodEntries) await this.moodEntries.replaceBackup(document.version === 6 || document.version === 7 ? document.data.moodEntries : [])
     if (this.mealEntries) await this.mealEntries.replaceBackup(document.version === 7 || document.version === 8 ? document.data.mealEntries : [])
-    if (this.dailySummaries) await this.dailySummaries.replaceBackup(document.version === 8 ? document.data.dailySummaries : [])
+    if (this.dailySummaries) await this.dailySummaries.replaceBackup(document.version === 8 || document.version === 9 ? document.data.dailySummaries : [])
+    if (this.dailyDietRecommendations) await this.dailyDietRecommendations.replaceBackup(document.version === 9 ? document.data.dailyDietRecommendations : [])
   }
 
   async restoreBackupSafely(document: BackupDocument, preserveCurrent: (backup: BackupDocument) => void | Promise<void>): Promise<void> {

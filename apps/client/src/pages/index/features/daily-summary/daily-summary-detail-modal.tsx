@@ -67,10 +67,10 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
   }
 
   return (
-    <View className='daily-summary-modal-backdrop' role='dialog' aria-modal='true' aria-label='今日状态小结' onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <View className='daily-summary-modal-backdrop' role='dialog' aria-modal='true' aria-label='近期状态小结' onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <View className='daily-summary-modal-card'>
         <View className='daily-summary-modal-heading'>
-          <Text className='daily-summary-modal-title'>今日状态小结</Text>
+          <Text className='daily-summary-modal-title'>近期状态小结</Text>
           <View className='daily-summary-modal-close' onClick={onClose}><Text>✕</Text></View>
         </View>
 
@@ -85,8 +85,8 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
             <View className='daily-summary-modal-empty'><Text className='daily-summary-modal-error'>AI 尚未配置，无法生成状态小结。请在「我 → AI 参数」中配置后重试。</Text></View>
           ) : (
             <View className='daily-summary-modal-empty'>
-              <Text className='daily-summary-modal-empty-text'>今天还没有状态小结。</Text>
-              <Text className='daily-summary-modal-empty-hint'>可以基于你的手记/事项/复盘，自动生成一份今日状态小结。</Text>
+              <Text className='daily-summary-modal-empty-text'>最近还没有状态小结。</Text>
+              <Text className='daily-summary-modal-empty-hint'>可以基于你的手记/事项/复盘，自动生成一份近期状态小结。</Text>
             </View>
           )}
         </View>
@@ -94,7 +94,7 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
         {!summary && !loading && !error && (
           <View className='daily-summary-modal-actions'>
             <Button className='daily-summary-modal-generate' disabled={generating} onClick={handleGenerate} style={{ width: '100%' }}>
-              {generating ? '生成中…' : aiUnavailable ? '已配置后重试' : '生成今日状态小结'}
+              {generating ? '生成中…' : aiUnavailable ? '已配置后重试' : '生成近期状态小结'}
             </Button>
           </View>
         )}

@@ -47,6 +47,7 @@ import type {
   AiStreamEvent,
   DailyNote,
   DailySummary,
+  DailyDietRecommendation,
   MealDayInput,
   MealEntry,
   MoodEntry,
@@ -460,6 +461,12 @@ export const apiClient = {
   },
   getDailySummary: (entryDate: string, signal?: AbortSignal) => request<DailySummary | null>(`/daily-summaries/${encodeURIComponent(entryDate)}`, { signal }),
   upsertDailySummary: (entryDate: string, content: string) => request<DailySummary>(`/daily-summaries/${encodeURIComponent(entryDate)}`, { method: 'PUT', body: json({ content }) }),
+  listDailyDietRecommendations: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
+    const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
+    return request<DailyDietRecommendation[]>(`/daily-diet${query}`, { signal })
+  },
+  getDailyDietRecommendation: (entryDate: string, signal?: AbortSignal) => request<DailyDietRecommendation | null>(`/daily-diet/${encodeURIComponent(entryDate)}`, { signal }),
+  upsertDailyDietRecommendation: (entryDate: string, content: string) => request<DailyDietRecommendation>(`/daily-diet/${encodeURIComponent(entryDate)}`, { method: 'PUT', body: json({ content }) }),
   streamDailyNoteAi: async function* (id: string, command: string, draft: string, signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
     const response = await fetch(apiUrl(`/daily-notes/${encodeURIComponent(id)}/ai/stream`), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ command, draft }), signal })
     if (!response.ok || !response.body) throw new Error('Daily note AI stream failed')

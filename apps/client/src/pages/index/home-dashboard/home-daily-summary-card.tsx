@@ -7,23 +7,23 @@ interface HomeDailySummaryCardProps {
   onOpen: () => void
 }
 
-const PREVIEW_LENGTH = 44
+const PREVIEW_LENGTH = 150
 
 export function HomeDailySummaryCard({ summary, loading, onOpen }: HomeDailySummaryCardProps) {
   const preview = summary ? summary.content.replace(/\s+/g, ' ').slice(0, PREVIEW_LENGTH) : undefined
   return (
-    <View className={`home-daily-summary-card card-transition${loading ? ' is-loading' : ''}`} role='button' aria-label='今日状态小结' onClick={onOpen}>
+    <View className={`home-daily-summary-card card-transition${loading ? ' is-loading' : ''}`} role='button' aria-label='近期状态小结' onClick={onOpen}>
       <View className='home-daily-summary-card-glow' aria-hidden='true' />
       <View className='home-daily-summary-card-copy'>
-        <Text className='home-daily-summary-card-kicker'>今日状态小结</Text>
+        <Text className='home-daily-summary-card-kicker'>近期状态小结</Text>
         {preview ? (
           <Text className='home-daily-summary-card-content'>{preview}{summary && summary.content.length > PREVIEW_LENGTH ? '…' : ''}</Text>
         ) : loading ? (
           <Text className='home-daily-summary-card-hint'>生成中…</Text>
         ) : (
-          <Text className='home-daily-summary-card-title'>今天过得怎么样？</Text>
+          <Text className='home-daily-summary-card-title'>最近状态怎么样？</Text>
         )}
-        <Text className='home-daily-summary-card-description'>{preview ? '查看今日状态小结' : '自动总结你的今日状态与要点'}</Text>
+        <Text className='home-daily-summary-card-description'>{preview ? '查看近期状态小结' : '自动总结你的近期状态与要点'}</Text>
       </View>
       <Text className='home-daily-summary-card-action' aria-hidden='true'>查看 →</Text>
     </View>

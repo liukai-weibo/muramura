@@ -27,6 +27,7 @@
 - 自动生成一天最多一次，`generateStartedRef` + 当天日期做幂等；手动生成不受限（计划批准）。真实库 admin 用户 2026-08-24 已有自动生成记录（真实数据，保留）。
 
 ## 迭代记录
+- 2026-08-24 AI 知识范围扩展：圈圈助手上下文注入全日期情绪/三餐（AiKnowledgeOverview 扩展 + formatKnowledgeContext，不注入每日状态小结）；手记侧 AI 按 entryDate 只取当日情绪/三餐（daily-notes.ts 两个流端点拼接 dayFacts），AI 层零改动。
 - 2026-08-24 体验收敛：弹窗暂时移除日期前后切换，固定只看今天（initialDate 接口保留兼容，SCSS 导航样式保留待恢复）。
 
 ## 当前进度
