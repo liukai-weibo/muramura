@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import type { DailySummary } from '@knowledge-base/contracts'
 import { apiClient, isApiClientAbort } from '../../api-client'
+import { ExperimentalAiMarkdown } from '../../experimental-ai/components/experimental-ai-markdown'
 import { SUMMARY_PROMPT } from './daily-summary-auto'
 import { todayLocalDate } from '../mood/mood-levels'
 
@@ -78,7 +79,7 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
           {loading ? (
             <Text className='daily-summary-modal-hint'>加载中…</Text>
           ) : summary ? (
-            <View className='daily-summary-modal-content'>{summary.content.split('\n').map((line, index) => <Text key={index} style={{ display: 'block' }}>{line || '\u00a0'}</Text>)}</View>
+            <View className='daily-summary-modal-content'><ExperimentalAiMarkdown content={summary.content} /></View>
           ) : error ? (
             <View className='daily-summary-modal-empty'><Text className='daily-summary-modal-error'>{error}</Text></View>
           ) : aiUnavailable ? (

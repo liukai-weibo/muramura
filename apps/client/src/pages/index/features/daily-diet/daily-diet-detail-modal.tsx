@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import type { DailyDietRecommendation } from '@knowledge-base/contracts'
 import { apiClient, isApiClientAbort } from '../../api-client'
+import { ExperimentalAiMarkdown } from '../../experimental-ai/components/experimental-ai-markdown'
 import { buildDietPrompt } from './daily-diet-auto'
 import { todayLocalDate } from '../mood/mood-levels'
 
@@ -78,7 +79,7 @@ export function DailyDietDetailModal({ initialDate, onClose, onChanged }: DailyD
           {loading ? (
             <Text className='daily-diet-modal-hint'>加载中…</Text>
           ) : recommendation ? (
-            <View className='daily-diet-modal-content'>{recommendation.content.split('\n').map((line, index) => <Text key={index} style={{ display: 'block' }}>{line || '\u00a0'}</Text>)}</View>
+            <View className='daily-diet-modal-content'><ExperimentalAiMarkdown content={recommendation.content} /></View>
           ) : error ? (
             <View className='daily-diet-modal-empty'><Text className='daily-diet-modal-error'>{error}</Text></View>
           ) : aiUnavailable ? (
