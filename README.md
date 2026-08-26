@@ -26,7 +26,7 @@ MaruMaru（圈圈）将下面这条个人运行闭环落在一个本地优先的
 - 全部业务数据按当前会话用户隔离，跨用户资源统一不可见。
 - 支持平台管理员查看脱敏用户列表、授予或撤销他人的管理员角色、撤销他人的全部会话。
 - 平台管理员不能绕过业务 owner scope，也不能查看密码、密码哈希、Cookie、Token 或会话秘密。
-- 平台管理员可通过「安全审计中心」按用户、功能模块、时间、操作类型与关键词查看内容变更与操作日志并导出 CSV。
+- 平台管理员可通过「安全审计中心」按用户、功能模块、时间、操作类型与关键词查看内容变更与操作日志并导出 CSV；审计快照以中文可读展示，点击可查看完整内容弹窗，复盘/小结等 AI 生成类内容支持 Markdown 渲染。
 - 提供移动网页版 `#/pages/mobile/index`，复刻手记与事项的轻量操作；桌面工作台入口 `#/pages/index/index` 保持独立。
 - 提供 H5 AI 对话，支持 SSE 流式回复、分块增量 Markdown 解析、Worker 异步处理和长消息虚拟列表。
 - 圈圈 AI 可按当前用户读取全部可用历史手记、当天手记、事项状态、全日期情绪与三餐以及工作台摘要；AI 会话与业务数据按用户隔离。
@@ -60,7 +60,7 @@ Taro + React + TypeScript H5
 - 页面：桌面工作台 `#/pages/index/index` 与移动手记/事项页 `#/pages/mobile/index` 共用认证和 API，不共用桌面布局样式。
 - API：当前实际启动入口为 `apps/api/src/main.ts`，运行 Hono + `@hono/node-server`，提供 OpenAPI 与 Scalar 文档。
 - Application / Repository 分层：页面不直接访问数据库。
-- 数据库：MySQL 8.4，Migration 001–025；当前运行版本以 API `/health` 为准。
+- 数据库：MySQL 8.4，Migration 001–027；当前运行版本以 API `/health` 为准。
 - 部署：Docker Compose，MySQL 与应用使用独立容器，应用容器同时运行 loopback API 与 Nginx H5。
 - H5 通过同源 `/api` 代理访问 loopback API，浏览器不直接连接 MySQL。
 
@@ -227,7 +227,7 @@ docker compose stop
 系统不会自动把第一个注册用户设为管理员。首次部署流程是：
 
 ```text
-完成 Migration 001–025
+完成 Migration 001–027
 → 用户通过 H5 正常注册
 → 该用户获得 member
 → 使用显式 userId 受控授予首位 platform_admin
