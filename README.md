@@ -26,6 +26,7 @@ MaruMaru（圈圈）将下面这条个人运行闭环落在一个本地优先的
 - 全部业务数据按当前会话用户隔离，跨用户资源统一不可见。
 - 支持平台管理员查看脱敏用户列表、授予或撤销他人的管理员角色、撤销他人的全部会话。
 - 平台管理员不能绕过业务 owner scope，也不能查看密码、密码哈希、Cookie、Token 或会话秘密。
+- 平台管理员可通过「安全审计中心」按用户、功能模块、时间、操作类型与关键词查看内容变更与操作日志并导出 CSV。
 - 提供移动网页版 `#/pages/mobile/index`，复刻手记与事项的轻量操作；桌面工作台入口 `#/pages/index/index` 保持独立。
 - 提供 H5 AI 对话，支持 SSE 流式回复、分块增量 Markdown 解析、Worker 异步处理和长消息虚拟列表。
 - 圈圈 AI 可按当前用户读取全部可用历史手记、当天手记、事项状态、全日期情绪与三餐以及工作台摘要；AI 会话与业务数据按用户隔离。
@@ -38,7 +39,7 @@ MaruMaru（圈圈）将下面这条个人运行闭环落在一个本地优先的
 
 - 在线账户与单用户数据隔离 V0 已完成产品验收、Git 归档并封板。
 - 平台角色与最小权限管理 V1 已完成产品验收、真实运行接入、Git 归档并封板。
-- 当前源码要求 MySQL Schema 至少为版本 24；实际运行版本以 API `/health` 返回值为准。今日小记及其 AI 专属会话依赖 Migration 017–018；每日状态小结依赖 Migration 023；今日饮食推荐依赖 Migration 024（含 Schema 24）。云 / UAT 环境未完成对应迁移前不应宣称对应能力可用。
+- 当前源码要求 MySQL Schema 至少为版本 27；实际运行版本以 API `/health` 返回值为准。今日小记及其 AI 专属会话依赖 Migration 017–018；每日状态小结依赖 Migration 023；今日饮食推荐依赖 Migration 024；安全审计中心依赖 Migration 025（含 Schema 25），二期枚举扩展依赖 Migration 027（含 Schema 27）；首页自定义 AI 卡片依赖 Migration 026（含 Schema 26）。云 / UAT 环境未完成对应迁移前不应宣称对应能力可用。
 - 所有用户固定拥有 `member`；`platform_admin` 是可选附加角色。
 - 系统不会创建默认管理员，也没有默认管理员密码。
 
@@ -59,7 +60,7 @@ Taro + React + TypeScript H5
 - 页面：桌面工作台 `#/pages/index/index` 与移动手记/事项页 `#/pages/mobile/index` 共用认证和 API，不共用桌面布局样式。
 - API：当前实际启动入口为 `apps/api/src/main.ts`，运行 Hono + `@hono/node-server`，提供 OpenAPI 与 Scalar 文档。
 - Application / Repository 分层：页面不直接访问数据库。
-- 数据库：MySQL 8.4，Migration 001–024；当前运行版本以 API `/health` 为准。
+- 数据库：MySQL 8.4，Migration 001–025；当前运行版本以 API `/health` 为准。
 - 部署：Docker Compose，MySQL 与应用使用独立容器，应用容器同时运行 loopback API 与 Nginx H5。
 - H5 通过同源 `/api` 代理访问 loopback API，浏览器不直接连接 MySQL。
 
@@ -226,7 +227,7 @@ docker compose stop
 系统不会自动把第一个注册用户设为管理员。首次部署流程是：
 
 ```text
-完成 Migration 001–024
+完成 Migration 001–025
 → 用户通过 H5 正常注册
 → 该用户获得 member
 → 使用显式 userId 受控授予首位 platform_admin
