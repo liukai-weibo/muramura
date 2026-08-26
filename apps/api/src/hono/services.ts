@@ -20,6 +20,8 @@ import {
   MoodEntryApplicationService,
   DailySummaryApplicationService,
   DailyDietRecommendationApplicationService,
+  HomeAiCardApplicationService,
+  ScopedActivityAuditRecorder,
 } from '@knowledge-base/application'
 import {
   createMySqlPool,
@@ -42,6 +44,8 @@ import {
   MySqlMoodEntryRepository,
   MySqlDailySummaryRepository,
   MySqlDailyDietRecommendationRepository,
+  MySqlActivityAuditRepository,
+  MySqlHomeAiCardRepository,
   type MySqlConnectionConfig,
 } from '@knowledge-base/storage-mysql'
 import { createFileSecretStore, createProtectedSecretStore, SecretStoreUnavailableError, type SecretStore } from '../../../../packages/storage-secrets/src/index'
@@ -57,6 +61,7 @@ export function createRootHonoServices(config: MySqlConnectionConfig) {
     config,
     auth: new AuthenticationApplicationService(new MySqlAuthRepository(pool)),
     platformAdministration: new PlatformAdministrationApplicationService(new MySqlPlatformAdministrationRepository(pool)),
+    platformAudit: new MySqlActivityAuditRepository(pool),
     ...createScopedHonoServices(pool, undefined, aiConfig),
     aiConfig,
   }
@@ -73,8 +78,10 @@ function createSecretStore(name: string, filePath?: string): SecretStore {
   }
 }
 
-export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?: AiConfigManager) {
+export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?: AiConfigManager, actorUsername?: string) {
   const scope = userId ? { userId } : undefined
+  const auditRepository = new MySqlActivityAuditRepository(pool)
+  const auditRecorder = userId ? new ScopedActivityAuditRecorder(auditRepository, { userId, username: actorUsername }) : undefined
   const items = new MySqlItemRepository(pool, undefined, scope)
   const methods = new MySqlMethodRepository(pool, undefined, scope)
   const reviews = new MySqlReviewRepository(pool, scope)
@@ -88,11 +95,12 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const mealEntryRepository = userId ? new MySqlMealEntryRepository(pool, { userId }) : undefined
   const dailySummaryRepository = userId ? new MySqlDailySummaryRepository(pool, { userId }) : undefined
   const dailyDietRepository = userId ? new MySqlDailyDietRecommendationRepository(pool, { userId }) : undefined
+  const homeAiCardRepository = userId ? new MySqlHomeAiCardRepository(pool, { userId }) : undefined
   const aiDashboard = new DashboardApplicationService(new MySqlDashboardRepository(pool, scope))
-  const aiExplorations = new ExplorationTrackApplicationService(explorationTracks, explorationTracks)
-  const aiItems = new ItemApplicationService(items, explorationTracks)
-  const aiMethods = new MethodLifecycleApplicationService(methods)
-  const aiPreferences = aiPreferenceRepository ? new AiPreferenceApplicationService(aiPreferenceRepository) : undefined
+  const aiExplorations = new ExplorationTrackApplicationService(explorationTracks, explorationTracks, auditRecorder)
+  const aiItems = new ItemApplicationService(items, explorationTracks, auditRecorder)
+  const aiMethods = new MethodLifecycleApplicationService(methods, auditRecorder)
+  const aiPreferences = aiPreferenceRepository ? new AiPreferenceApplicationService(aiPreferenceRepository, auditRecorder) : undefined
   const ai = userId && aiConfig && aiConversationRepository && aiPreferenceRepository
     ? new AiChatApplicationService(
       aiConfig,
@@ -106,24 +114,26 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     )
     : undefined
   return {
-    items: new ItemApplicationService(items, explorationTracks),
-    explorationTracks: new ExplorationTrackApplicationService(explorationTracks, explorationTracks),
-    reviews: new ReviewApplicationService(reviews, methods, new MySqlReviewWorkflowRepository(pool, undefined, scope)),
-    methods: new MethodLifecycleApplicationService(methods),
-    methodApplications: new MethodApplicationService(methodApplications),
-    trash: new TrashApplicationService(items, methods, explorationTracks, trashPurge),
-    search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
+    items: new ItemApplicationService(items, explorationTracks, auditRecorder),
+    explorationTracks: new ExplorationTrackApplicationService(explorationTracks, explorationTracks, auditRecorder),
+    reviews: new ReviewApplicationService(reviews, methods, new MySqlReviewWorkflowRepository(pool, undefined, scope), auditRecorder),
+    methods: new MethodLifecycleApplicationService(methods, auditRecorder),
+    methodApplications: new MethodApplicationService(methodApplications, auditRecorder),
+    trash: new TrashApplicationService(items, methods, explorationTracks, trashPurge, auditRecorder),
+    search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope), auditRecorder),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
-    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository, dailyDietRepository),
-    dailyNotes: dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository) : undefined,
-    moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository) : undefined,
-    meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository) : undefined,
-    dailySummaries: dailySummaryRepository ? new DailySummaryApplicationService(dailySummaryRepository) : undefined,
-    dailyDiet: dailyDietRepository ? new DailyDietRecommendationApplicationService(dailyDietRepository) : undefined,
+    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository, dailyDietRepository, homeAiCardRepository),
+    dailyNotes: dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository, auditRecorder) : undefined,
+    moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository, auditRecorder) : undefined,
+    meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository, auditRecorder) : undefined,
+    dailySummaries: dailySummaryRepository ? new DailySummaryApplicationService(dailySummaryRepository, auditRecorder) : undefined,
+    dailyDiet: dailyDietRepository ? new DailyDietRecommendationApplicationService(dailyDietRepository, auditRecorder) : undefined,
+    homeAiCards: homeAiCardRepository ? new HomeAiCardApplicationService(homeAiCardRepository, auditRecorder) : undefined,
     aiConfig,
-    aiConversation: aiConversationRepository ? new AiConversationApplicationService(aiConversationRepository) : undefined,
+    aiConversation: aiConversationRepository ? new AiConversationApplicationService(aiConversationRepository, auditRecorder) : undefined,
     aiPreferences,
     ai,
+    platformAuditRef: auditRepository,
   }
 }
 

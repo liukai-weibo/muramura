@@ -1,6 +1,7 @@
-import type { DailySummary, DailySummaryInput, DailySummaryRepository } from '@knowledge-base/contracts'
+import type { ActivityAuditRecorder, DailySummary, DailySummaryInput, DailySummaryRepository } from '@knowledge-base/contracts'
 import { DAILY_SUMMARY_CONTENT_MAX_LENGTH } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
+import { safeAuditRecord } from './audit'
 
 function todayLocal(): string {
   const d = new Date()
@@ -19,7 +20,10 @@ function invalid(message: string): BusinessError<string> {
 }
 
 export class DailySummaryApplicationService {
-  constructor(private readonly repository: DailySummaryRepository) {}
+  constructor(
+    private readonly repository: DailySummaryRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
+  ) {}
 
   async listRange(from?: string, to?: string): Promise<DailySummary[]> {
     if (from !== undefined && !isDateValid(from)) throw invalid('起始日期格式无效')
@@ -38,6 +42,8 @@ export class DailySummaryApplicationService {
     const content = typeof input.content === 'string' ? input.content.trim() : ''
     if (!content) throw invalid('状态小结内容不能为空')
     if (content.length > DAILY_SUMMARY_CONTENT_MAX_LENGTH) throw invalid('状态小结内容超出长度限制')
-    return this.repository.upsertForDate({ entryDate: input.entryDate, content })
+    const saved = await this.repository.upsertForDate({ entryDate: input.entryDate, content })
+    await safeAuditRecord(this.auditRecorder, { module: 'daily_summary', action: 'update', entityId: saved.id, snapshot: JSON.stringify({ entryDate: saved.entryDate, content: saved.content }) })
+    return saved
   }
 }

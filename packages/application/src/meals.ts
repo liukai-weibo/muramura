@@ -1,5 +1,6 @@
-import type { MealDayInput, MealEntry, MealEntryRepository, MealType } from '@knowledge-base/contracts'
+import type { ActivityAuditRecorder, MealDayInput, MealEntry, MealEntryRepository, MealType } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
+import { safeAuditRecord } from './audit'
 
 const MEAL_TYPE_SET: ReadonlySet<string> = new Set(['breakfast', 'lunch', 'dinner'])
 const MAX_CONTENT = 1000
@@ -22,7 +23,7 @@ function invalid(message: string): BusinessError<string> {
 }
 
 export class MealEntryApplicationService {
-  constructor(private readonly repository: MealEntryRepository) {}
+  constructor(private readonly repository: MealEntryRepository, private readonly auditRecorder?: ActivityAuditRecorder) {}
 
   listRange(from?: string, to?: string): Promise<MealEntry[]> {
     return this.repository.listRange(from, to)
@@ -44,6 +45,12 @@ export class MealEntryApplicationService {
       if (typeof feeling !== 'number' || !Number.isFinite(feeling) || feeling < 1 || feeling > 5) throw invalid('餐后感受须为 1-5')
       return { mealType: slot.mealType as MealType, content, feeling: Math.round(feeling) }
     })
-    return this.repository.saveDay({ entryDate, meals })
+    const saved = await this.repository.saveDay({ entryDate, meals })
+    await safeAuditRecord(this.auditRecorder, {
+      module: 'meal',
+      action: 'update',
+      snapshot: JSON.stringify({ entryDate, meals: saved.map((meal) => ({ mealType: meal.mealType, content: meal.content, feeling: meal.feeling })) }),
+    })
+    return saved
   }
 }

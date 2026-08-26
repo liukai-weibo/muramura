@@ -1,4 +1,5 @@
 import type {
+  ActivityAuditRecorder,
   DashboardReport,
   DashboardRepository,
   DashboardSnapshot,
@@ -6,6 +7,7 @@ import type {
   SearchRepository,
   SearchResult,
 } from '@knowledge-base/contracts'
+import { safeAuditRecord } from './audit'
 
 export class DashboardApplicationService {
   constructor(private readonly repository: DashboardRepository) {}
@@ -103,10 +105,14 @@ export function buildDashboardReport(snapshot: DashboardSnapshot, window: Dashbo
 }
 
 export class SearchApplicationService {
-  constructor(private readonly repository: SearchRepository) {}
+  constructor(private readonly repository: SearchRepository, private readonly auditRecorder?: ActivityAuditRecorder) {}
 
-  search(query: string): Promise<SearchResult[]> {
+  async search(query: string): Promise<SearchResult[]> {
     const normalized = query.trim()
-    return normalized ? this.repository.search(normalized) : Promise.resolve([])
+    const results = normalized ? await this.repository.search(normalized) : []
+    if (normalized) {
+      await safeAuditRecord(this.auditRecorder, { module: 'search', action: 'search', snapshot: JSON.stringify({ query: normalized }) })
+    }
+    return results
   }
 }

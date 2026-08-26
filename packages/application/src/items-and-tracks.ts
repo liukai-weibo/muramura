@@ -1,4 +1,5 @@
 import type {
+  ActivityAuditRecorder,
   CreateItemInput,
   CurrentAssociatedStatus,
   ExplorationTrack,
@@ -20,6 +21,7 @@ import {
   normalizeItemTitle,
 } from '@knowledge-base/domain'
 import { trashCutoff } from './trash'
+import { safeAuditRecord } from './audit'
 
 export interface CaptureIdeaInput {
   title?: string
@@ -70,31 +72,57 @@ export class ExplorationTrackApplicationService {
   constructor(
     private readonly repository: ExplorationTrackRepository,
     private readonly workflow: ExplorationTrackWorkflowRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
   ) {}
 
-  createExplorationTrack(name: string): Promise<ExplorationTrack> {
+  async createExplorationTrack(name: string): Promise<ExplorationTrack> {
     const createdAt = new Date().toISOString()
-    return this.repository.create({ id: createId(), ...normalizeExplorationTrackName(name), createdAt })
+    const created = await this.repository.create({ id: createId(), ...normalizeExplorationTrackName(name), createdAt })
+    await safeAuditRecord(this.auditRecorder, { module: 'exploration_track', action: 'create', entityId: created.id, snapshot: JSON.stringify({ name: created.name }) })
+    return created
   }
 
-  renameExplorationTrack(id: string, name: string): Promise<ExplorationTrack> {
-    return this.repository.rename(id, { ...normalizeExplorationTrackName(name), updatedAt: new Date().toISOString() })
+  async renameExplorationTrack(id: string, name: string): Promise<ExplorationTrack> {
+    const renamed = await this.repository.rename(id, { ...normalizeExplorationTrackName(name), updatedAt: new Date().toISOString() })
+    await safeAuditRecord(this.auditRecorder, { module: 'exploration_track', action: 'update', entityId: renamed.id, snapshot: JSON.stringify({ name: renamed.name }) })
+    return renamed
   }
 
-  updateExplorationTrackDescription(id: string, description: string): Promise<ExplorationTrack> {
+  async updateExplorationTrackDescription(id: string, description: string): Promise<ExplorationTrack> {
     if (!this.repository.updateDescription) throw new BusinessError('EXPLORATION_TRACK_NOT_FOUND', '长期探索描述暂不可更新')
-    return this.repository.updateDescription(id, { description, updatedAt: new Date().toISOString() })
+    const updated = await this.repository.updateDescription(id, { description, updatedAt: new Date().toISOString() })
+    await safeAuditRecord(this.auditRecorder, { module: 'exploration_track', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ description: updated.description }) })
+    return updated
   }
 
-  deleteExplorationTrack(id: string): Promise<void> { return this.repository.softDelete(id, new Date().toISOString()) }
-  restoreExplorationTrack(id: string): Promise<ExplorationTrack> { return this.repository.restore(id, new Date().toISOString()) }
+  async deleteExplorationTrack(id: string): Promise<void> {
+    const before = await this.repository.getById(id)
+    await this.repository.softDelete(id, new Date().toISOString())
+    if (before) await safeAuditRecord(this.auditRecorder, { module: 'exploration_track', action: 'delete', entityId: before.id, snapshot: JSON.stringify({ name: before.name }) })
+  }
+
+  async restoreExplorationTrack(id: string): Promise<ExplorationTrack> {
+    const restored = await this.repository.restore(id, new Date().toISOString())
+    await safeAuditRecord(this.auditRecorder, { module: 'exploration_track', action: 'restore', entityId: restored.id, snapshot: JSON.stringify({ name: restored.name }) })
+    return restored
+  }
+
   listActiveExplorationTracks() { return this.repository.listActive() }
   listSelectableExplorationTracks() { return this.repository.listSelectable() }
   listDeletedExplorationTracks() { return this.repository.listDeleted() }
   getExplorationTrackHistory(id: string) { return this.repository.getHistory(id) }
   getItemExplorationTrackContext(itemId: string) { return this.repository.getItemContext(itemId) }
-  assignItemToExplorationTrack(itemId: string, trackId: string) { return this.workflow.assignItemToExplorationTrack(itemId, trackId) }
-  removeItemFromExplorationTrack(itemId: string) { return this.workflow.removeItemFromExplorationTrack(itemId) }
+  async assignItemToExplorationTrack(itemId: string, trackId: string) {
+    const result = await this.workflow.assignItemToExplorationTrack(itemId, trackId)
+    await safeAuditRecord(this.auditRecorder, { module: 'item', action: 'assign', entityId: itemId, snapshot: JSON.stringify({ itemId, trackId }) })
+    return result
+  }
+  async removeItemFromExplorationTrack(itemId: string) {
+    const before = await this.repository.getItemContext(itemId)
+    await this.workflow.removeItemFromExplorationTrack(itemId)
+    const removedTrackId = before && 'track' in before ? before.track.id : undefined
+    await safeAuditRecord(this.auditRecorder, { module: 'item', action: 'remove', entityId: itemId, snapshot: JSON.stringify({ itemId, ...(removedTrackId ? { removedTrackId } : {}) }) })
+  }
   listItemsByExplorationTrackAndStatus(trackId: string, status: CurrentAssociatedStatus) { return this.repository.listItemsByTrackAndStatus(trackId, status) }
 
   createItemWithExplorationTrack(input: CreateItemInput, selection: ExplorationTrackSelection): Promise<Item> {
@@ -110,18 +138,25 @@ export class ItemApplicationService {
   constructor(
     private readonly repository: ItemRepository,
     private readonly explorationWorkflow?: ExplorationTrackWorkflowRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
   ) {}
 
-  createIdea(input: CaptureIdeaInput): Promise<Item> {
+  async createIdea(input: CaptureIdeaInput): Promise<Item> {
     const enteredTitle = normalizeItemTitle(input.title ?? '')
     const enteredContent = input.content?.trim() ?? ''
     const title = normalizeItemTitle(enteredTitle || enteredContent.split(/\r?\n/, 1)[0] || '')
     assertItemTitleLength(title)
     // New captures are immediately actionable; saveForLater remains accepted for old clients only.
     const capture = { title, content: enteredTitle ? enteredContent : '', status: 'doing' as const }
-    if (!input.explorationTrack) return this.repository.create(capture)
-    if (!this.explorationWorkflow) throw new BusinessError('EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE', '探索主线工作流不可用')
-    return this.explorationWorkflow.createItemWithExplorationTrack({ ...capture, id: createId(), createdAt: new Date().toISOString() }, prepareExplorationTrackSelection(input.explorationTrack))
+    let created: Item
+    if (!input.explorationTrack) {
+      created = await this.repository.create(capture)
+    } else {
+      if (!this.explorationWorkflow) throw new BusinessError('EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE', '探索主线工作流不可用')
+      created = await this.explorationWorkflow.createItemWithExplorationTrack({ ...capture, id: createId(), createdAt: new Date().toISOString() }, prepareExplorationTrackSelection(input.explorationTrack))
+    }
+    await safeAuditRecord(this.auditRecorder, { module: 'item', action: 'create', entityId: created.id, snapshot: JSON.stringify({ title: created.title, content: created.content }) })
+    return created
   }
 
   async listItems(): Promise<Item[]> {
@@ -152,20 +187,30 @@ export class ItemApplicationService {
     throw new BusinessError('INVALID_ITEM_STATUS_TRANSITION', '事项创建后即为进行中，无需单独开始执行')
   }
 
-  updateItemContent(id: string, content: string): Promise<Item> {
-    return this.repository.updateContent(id, { content })
+  async updateItemContent(id: string, content: string): Promise<Item> {
+    const updated = await this.repository.updateContent(id, { content })
+    await safeAuditRecord(this.auditRecorder, { module: 'item', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ title: updated.title, content: updated.content }) })
+    return updated
   }
 
-  changeStatus(id: string, status: ItemStatus): Promise<Item> {
-    return this.repository.changeStatus(id, status)
+  async changeStatus(id: string, status: ItemStatus): Promise<Item> {
+    const updated = await this.repository.changeStatus(id, status)
+    await safeAuditRecord(this.auditRecorder, { module: 'item', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ status: updated.status }) })
+    return updated
   }
 
-  deleteItem(id: string): Promise<void> {
-    return this.repository.delete(id)
+  async deleteItem(id: string): Promise<void> {
+    const before = await this.repository.getById(id)
+    await this.repository.delete(id)
+    if (before) {
+      await safeAuditRecord(this.auditRecorder, { module: 'item', action: 'delete', entityId: before.id, snapshot: JSON.stringify({ title: before.title, content: before.content }) })
+    }
   }
 
-  restoreItem(id: string): Promise<Item> {
-    return this.repository.restore(id)
+  async restoreItem(id: string): Promise<Item> {
+    const restored = await this.repository.restore(id)
+    await safeAuditRecord(this.auditRecorder, { module: 'item', action: 'update', entityId: restored.id, snapshot: JSON.stringify({ title: restored.title }) })
+    return restored
   }
 
   actionsFor(item: Item): readonly ItemAction[] {

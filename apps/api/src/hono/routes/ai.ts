@@ -1,5 +1,5 @@
-import type { AiChatMessage, AiConversationMessageStatus } from '@knowledge-base/contracts'
-import { AiConfigError } from '@knowledge-base/application'
+import type { AiChatMessage, AiConversationMessageStatus, ActivityAuditRepository } from '@knowledge-base/contracts'
+import { AiConfigError, ScopedActivityAuditRecorder } from '@knowledge-base/application'
 import { requireServices } from '../auth-middleware'
 import { ApiError } from '../errors'
 import { createOpenApiApp } from '../openapi'
@@ -29,6 +29,15 @@ function parsePage(context: any): { limit?: number; beforeSequence?: number } {
 }
 
 function sse(event: unknown): string { return `data: ${JSON.stringify(event)}\n\n` }
+
+async function recordAiConfigAudit(repository: ActivityAuditRepository | undefined, actor: { id: string; username?: string } | undefined, action: 'update' | 'delete', snapshot: Record<string, unknown>): Promise<void> {
+  if (!repository || !actor) return
+  try {
+    await new ScopedActivityAuditRecorder(repository, { userId: actor.id, username: actor.username }).record({ module: 'ai_config', action, snapshot: JSON.stringify(snapshot) })
+  } catch (error) {
+    console.warn('[activity-audit] ai-config record skipped:', error instanceof Error ? error.message : String(error))
+  }
+}
 
 const activeStreams = new ConversationActiveStreams()
 
@@ -67,6 +76,7 @@ export function createAiRoutes() {
       let metadata
       try { metadata = await services.aiConfig?.replace(input) } catch (error) { mapAiConfigFailure(error) }
       if (!metadata) throw new ApiError(503, 'MYSQL_UNAVAILABLE', 'AI configuration unavailable')
+      await recordAiConfigAudit(services.platformAuditRef, actor, 'update', { serviceName: input.serviceName, modelName: input.modelName, baseUrl: input.baseUrl })
       return context.json(metadata, 200)
     })
     .delete('/admin/experimental/ai-config', async (context: any) => {
@@ -74,6 +84,7 @@ export function createAiRoutes() {
       if (!actor?.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', 'administrator required')
       const services = requireServices(context)
       try { await services.aiConfig?.clear() } catch (error) { mapAiConfigFailure(error) }
+      await recordAiConfigAudit(services.platformAuditRef, actor, 'delete', {})
       return context.body(null, 204)
     })
     .get('/ai/preferences', async (context: any) => {

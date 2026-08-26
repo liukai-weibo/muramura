@@ -4,6 +4,7 @@ import { reportUnexpectedFailure } from '../api-errors'
 import {
   requireAuthenticatedSession,
   requireAdministrator,
+  requirePlatformAdministrator,
 } from './auth-middleware'
 import { errorResponse, mapFailure } from './errors'
 import { enforceBodyLimit, requestContext } from './http'
@@ -30,6 +31,8 @@ import { createMealEntryRoutes } from './routes/meals'
 import { createMoodEntryRoutes } from './routes/mood-entries'
 import { createDailySummaryRoutes } from './routes/daily-summaries'
 import { createDailyDietRoutes } from './routes/daily-diet'
+import { createHomeAiCardRoutes } from './routes/home-ai-cards'
+import { createAuditRoutes } from './routes/audit'
 import { createRootHonoServices, type RootHonoServices } from './services'
 
 /**
@@ -42,6 +45,7 @@ function buildBusinessApiV1Routes(root: RootHonoServices) {
   return createOpenApiApp()
     .route('/account', createAccountRoutes(root))
     .route('/admin', createAdminRoutes(root))
+    .route('/admin/audit', createAuditRoutes(root))
     .route('/items', createItemRoutes())
     .route('/exploration-tracks', createExplorationTrackRoutes())
     .route('/reviews', createReviewRoutes())
@@ -57,6 +61,7 @@ function buildBusinessApiV1Routes(root: RootHonoServices) {
     .route('/meal-entries', createMealEntryRoutes())
     .route('/daily-summaries', createDailySummaryRoutes())
     .route('/daily-diet', createDailyDietRoutes())
+    .route('/home-ai-cards', createHomeAiCardRoutes())
     .route('/', createAiRoutes())
 }
 
@@ -65,6 +70,7 @@ function buildProtectedApiV1Routes(root: RootHonoServices) {
   return createOpenApiApp()
     .use('*', requireAuthenticatedSession(root))
     .use('/admin/*', requireAdministrator())
+    .use('/admin/audit/*', requirePlatformAdministrator())
     .route('/', buildBusinessApiV1Routes(root))
 }
 

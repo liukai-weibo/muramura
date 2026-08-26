@@ -1,5 +1,6 @@
-import type { MoodEntry, MoodEntryInput, MoodEntryRepository, MoodLevel } from '@knowledge-base/contracts'
+import type { ActivityAuditRecorder, MoodEntry, MoodEntryInput, MoodEntryRepository, MoodLevel } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
+import { safeAuditRecord } from './audit'
 
 const MOOD_LEVEL_SET = new Set<number>([1, 2, 3, 4, 5])
 const MAX_CONTENT = 2000
@@ -30,7 +31,7 @@ function isDateValid(dateStr: string): boolean {
 }
 
 export class MoodEntryApplicationService {
-  constructor(private readonly repository: MoodEntryRepository) {}
+  constructor(private readonly repository: MoodEntryRepository, private readonly auditRecorder?: ActivityAuditRecorder) {}
 
   listRange(from?: string, to?: string): Promise<MoodEntry[]> {
     return this.repository.listRange(from, to)
@@ -43,7 +44,9 @@ export class MoodEntryApplicationService {
     if (entryDate > todayLocal()) {
       throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪记录日期不能晚于今天')
     }
-    return this.repository.create({ ...input, entryDate, tags: normalizeTags(input.tags) })
+    const created = await this.repository.create({ ...input, entryDate, tags: normalizeTags(input.tags) })
+    await safeAuditRecord(this.auditRecorder, { module: 'mood', action: 'create', entityId: created.id, snapshot: JSON.stringify({ content: created.content, moodLevel: created.moodLevel, tags: created.tags }) })
+    return created
   }
 
   async updateMine(id: string, input: MoodEntryInput): Promise<MoodEntry> {
@@ -54,12 +57,17 @@ export class MoodEntryApplicationService {
     }
     const updated = await this.repository.updateMine(id, { ...input, entryDate, tags: normalizeTags(input.tags) })
     if (!updated) throw new BusinessError('MOOD_ENTRY_NOT_FOUND', 'not-found', '情绪记录不存在')
+    await safeAuditRecord(this.auditRecorder, { module: 'mood', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ content: updated.content, moodLevel: updated.moodLevel, tags: updated.tags }) })
     return updated
   }
 
   async deleteMine(id: string): Promise<void> {
+    const before = (await this.repository.listRange()).find((entry) => entry.id === id)
     const deleted = await this.repository.deleteMine(id)
     if (!deleted) throw new BusinessError('MOOD_ENTRY_NOT_FOUND', 'not-found', '情绪记录不存在')
+    if (before) {
+      await safeAuditRecord(this.auditRecorder, { module: 'mood', action: 'delete', entityId: before.id, snapshot: JSON.stringify({ content: before.content, moodLevel: before.moodLevel, tags: before.tags }) })
+    }
   }
 
   private validateInput(input: MoodEntryInput): void {
