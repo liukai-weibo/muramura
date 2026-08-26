@@ -156,13 +156,13 @@ describe('activity audit extended capture (phase 2)', () => {
 
   it('records review complete, method create and method lifecycle actions', async () => {
     const { repository, recorded } = createRecorder()
-    const review = { id: 'review-1', itemId: 'item-1', actualAction: '执行', result: '成功', createdAt: '2026-08-25T00:00:00.000Z', updatedAt: '2026-08-25T00:00:00.000Z' }
+    const review = { id: 'review-1', itemId: 'item-1', actualAction: '执行', result: '成功', effective: '很有效', incompatible: '暂未标记阻力或不舒服', newIdeas: '产生了一个新想法', createdAt: '2026-08-25T00:00:00.000Z', updatedAt: '2026-08-25T00:00:00.000Z' }
     const workflow = { complete: async () => ({ item: { id: 'item-1' }, review, method: undefined, createdIdea: undefined }) }
     const recorder = new ScopedActivityAuditRecorder(repository, { userId: 'actor-review' })
     const service = new ReviewApplicationService({} as never, {} as never, workflow as never, recorder)
     await service.completeReview({ itemId: 'item-1', actualAction: '执行', result: '成功' } as never)
     expect(recorded[0]).toMatchObject({ module: 'review', action: 'complete', entityId: 'review-1' })
-    expect(JSON.parse(recorded[0]!.snapshot!)).toMatchObject({ itemId: 'item-1', actualAction: '执行', result: '成功' })
+    expect(JSON.parse(recorded[0]!.snapshot!)).toEqual({ actualAction: '执行', result: '成功', effective: '很有效', newIdeas: '产生了一个新想法' })
 
     const methodAppRepo = { createItem: async () => ({ id: 'new-item', title: '方法事项', content: '' }) }
     const methodService = new MethodApplicationService(methodAppRepo as never, recorder)
@@ -194,18 +194,15 @@ describe('activity audit extended capture (phase 2)', () => {
     ])
   })
 
-  it('records daily summary and daily diet upserts', async () => {
+  it('does not audit daily summary and daily diet upserts (AI-only content, no user structure)', async () => {
     const { repository, recorded } = createRecorder()
-    const recorder = new ScopedActivityAuditRecorder(repository, { userId: 'actor-daily' })
     const summaryRepo = { listRange: async () => [], getByDate: async () => undefined, upsertForDate: async () => ({ id: 's1', entryDate: '2026-08-25', content: '小结', createdAt: 'x' }) }
-    const summaryService = new DailySummaryApplicationService(summaryRepo as never, recorder)
+    const summaryService = new DailySummaryApplicationService(summaryRepo as never)
     await summaryService.upsertForDate({ entryDate: '2026-08-25', content: '小结' })
-    expect(recorded[0]).toMatchObject({ module: 'daily_summary', action: 'update' })
-    expect(JSON.parse(recorded[0]!.snapshot!)).toMatchObject({ entryDate: '2026-08-25' })
     const dietRepo = { listRange: async () => [], getByDate: async () => undefined, upsertForDate: async () => ({ id: 'd1', entryDate: '2026-08-25', content: '推荐', createdAt: 'x' }) }
-    const dietService = new DailyDietRecommendationApplicationService(dietRepo as never, recorder)
+    const dietService = new DailyDietRecommendationApplicationService(dietRepo as never)
     await dietService.upsertForDate({ entryDate: '2026-08-25', content: '推荐' })
-    expect(recorded[1]).toMatchObject({ module: 'daily_diet', action: 'update' })
+    expect(recorded).toHaveLength(0)
   })
 
   it('records home AI card create/update/delete and cache upsert', async () => {
@@ -214,8 +211,8 @@ describe('activity audit extended capture (phase 2)', () => {
     const cardRepo = {
       list: async () => [],
       get: async () => undefined,
-      create: async () => ({ id: 'card-1', cardTitle: '健身', cardTheme: 'green', cardSize: 'medium', cardPrompt: '', isHidden: false, sortIndex: 0 }),
-      update: async () => ({ id: 'card-1', cardTitle: '健身2', cardTheme: 'green', cardSize: 'medium', cardPrompt: '', isHidden: false, sortIndex: 0 }),
+      create: async () => ({ id: 'card-1', cardTitle: '健身', aiPrompt: '提示', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily', isHidden: false, sortIndex: 0 }),
+      update: async () => ({ id: 'card-1', cardTitle: '健身2', aiPrompt: '提示2', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily', isHidden: false, sortIndex: 0 }),
       delete: async () => true,
       listCaches: async () => [], getCache: async () => undefined,
       upsertCache: async () => ({ id: 'cache-1', cardId: 'card-1', cacheDate: '2026-08-25', aiOutput: 'x' }),
@@ -223,8 +220,10 @@ describe('activity audit extended capture (phase 2)', () => {
     const service = new HomeAiCardApplicationService(cardRepo as never, recorder)
     await service.create({ cardTitle: '健身', aiPrompt: '提示', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily' } as never)
     expect(recorded[0]).toMatchObject({ module: 'home_ai_card', action: 'create' })
-    await service.update('card-1', { cardTitle: '健身2', aiPrompt: '提示', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily' } as never)
+    expect(JSON.parse(recorded[0]!.snapshot!)).toEqual({ cardTitle: '健身', aiPrompt: '提示', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily' })
+    await service.update('card-1', { cardTitle: '健身2', aiPrompt: '提示2', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily' } as never)
     expect(recorded[1]).toMatchObject({ module: 'home_ai_card', action: 'update' })
+    expect(JSON.parse(recorded[1]!.snapshot!)).toEqual({ cardTitle: '健身2', aiPrompt: '提示2', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily' })
     await service.upsertCache('card-1', '2026-08-25', '输出')
     expect(recorded[2]).toMatchObject({ module: 'home_ai_card', action: 'update', entityId: 'card-1' })
     await service.delete('card-1')

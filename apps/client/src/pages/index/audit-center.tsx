@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
-import type { ActivityAuditEventPage, AuditAction, AuditModule } from '@knowledge-base/contracts'
+import type { ActivityAuditEvent, ActivityAuditEventPage, AuditAction, AuditModule } from '@knowledge-base/contracts'
 import { apiClient, isApiClientAbort, type ActivityAuditQuery, type ApiClientError } from './api-client'
 
 const PAGE_SIZE = 20
@@ -47,15 +47,15 @@ interface AuditCenterProps {
 }
 
 interface FilterDraft {
-  actorQuery: string
+  /** 合并搜索：用户名 / 用户 ID / 快照内容任一匹配。 */
+  search: string
   modules: AuditModule[]
   actions: AuditAction[]
   from: string
   to: string
-  keyword: string
 }
 
-const emptyDraft = (): FilterDraft => ({ actorQuery: '', modules: [], actions: [], from: '', to: '', keyword: '' })
+const emptyDraft = (): FilterDraft => ({ search: '', modules: [], actions: [], from: '', to: '' })
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
@@ -71,18 +71,7 @@ function formatTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(date)
 }
 
-function snapshotPreview(snapshot: string): string {
-  if (!snapshot) return '—'
-  try {
-    const parsed = JSON.parse(snapshot) as Record<string, unknown>
-    if (parsed && typeof parsed === 'object') {
-      const content = typeof parsed.content === 'string' ? parsed.content : typeof parsed.query === 'string' ? parsed.query : typeof parsed.title === 'string' ? parsed.title : undefined
-      if (content !== undefined && content !== '') return content
-      return JSON.stringify(parsed)
-    }
-  } catch { /* fall through */ }
-  return snapshot
-}
+import { snapshotPreview, snapshotPretty } from './audit-snapshot-preview'
 
 export function AuditCenter({ authenticationContext, visible }: AuditCenterProps) {
   const [snapshot, setSnapshot] = useState<ActivityAuditEventPage>()
@@ -93,6 +82,7 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState<{ kind: 'error' | 'refresh-error'; message: string; requestId?: string }>()
   const [exporting, setExporting] = useState(false)
+  const [snapshotView, setSnapshotView] = useState<ActivityAuditEvent>()
 
   const readAbortRef = useRef<AbortController>()
   const readGenerationRef = useRef(0)
@@ -104,18 +94,23 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
     return () => { mountedRef.current = false; readAbortRef.current?.abort() }
   }, [])
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSnapshotView(undefined) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const appliedRef = useRef(applied)
   appliedRef.current = applied
   const pageRef = useRef(page)
   pageRef.current = page
 
   const buildQuery = (pageValue: number, filter: FilterDraft): ActivityAuditQuery => ({
-    actorQuery: filter.actorQuery.trim() || undefined,
+    search: filter.search.trim() || undefined,
     modules: filter.modules.length ? filter.modules : undefined,
     actions: filter.actions.length ? filter.actions : undefined,
     from: filter.from || undefined,
     to: filter.to || undefined,
-    keyword: filter.keyword.trim() || undefined,
     page: pageValue,
     pageSize: PAGE_SIZE,
   })
@@ -184,12 +179,11 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
     setExporting(true)
     try {
       const url = apiClient.buildActivityAuditExportUrl({
-        actorQuery: applied.actorQuery.trim() || undefined,
+        search: applied.search.trim() || undefined,
         modules: applied.modules.length ? applied.modules : undefined,
         actions: applied.actions.length ? applied.actions : undefined,
         from: applied.from || undefined,
         to: applied.to || undefined,
-        keyword: applied.keyword.trim() || undefined,
       })
       window.open(url, '_blank', 'noopener')
     } finally {
@@ -200,7 +194,7 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
   const refreshing = listState === 'refreshing'
   const reading = refreshing || listState === 'initial-loading'
   const pages = snapshot ? Math.max(1, Math.ceil(snapshot.total / PAGE_SIZE)) : 1
-  const hasFilter = Boolean(draft.actorQuery.trim() || draft.modules.length || draft.actions.length || draft.from || draft.to || draft.keyword.trim())
+  const hasFilter = Boolean(draft.search.trim() || draft.modules.length || draft.actions.length || draft.from || draft.to)
 
   return <View className={'audit-center ' + (visible ? '' : 'audit-center-hidden')}>
     <View className='audit-center-header'>
@@ -211,12 +205,12 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
     <View className='audit-center-filter' role='group' aria-label='审计筛选'>
       <input
         className='audit-center-text-input'
-        aria-label='按用户筛选'
-        value={draft.actorQuery}
-        maxLength={80}
+        aria-label='搜索'
+        value={draft.search}
+        maxLength={120}
         disabled={reading}
-        placeholder='按用户名 / 用户 ID 筛选'
-        onInput={(event) => setDraft((current) => ({ ...current, actorQuery: event.currentTarget.value }))}
+        placeholder='搜索用户名 / 用户 ID / 内容快照'
+        onInput={(event) => { const value = event.currentTarget.value; setDraft((current) => ({ ...current, search: value })) }}
         onKeyDown={(event) => { if (event.key === 'Enter' && !reading) submitFilter() }}
       />
       <View className='audit-center-filter-group'>
@@ -229,14 +223,11 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
       </View>
       <View className='audit-center-filter-group'>
         <Text className='audit-center-filter-label'>时间</Text>
-        <input className='audit-center-text-input' aria-label='开始日期' value={draft.from} maxLength={10} disabled={reading} placeholder='YYYY-MM-DD' onInput={(event) => setDraft((current) => ({ ...current, from: event.currentTarget.value }))} />
+        <input className='audit-center-text-input' type='date' aria-label='开始日期' value={draft.from} disabled={reading} onInput={(event) => { const value = event.currentTarget.value; setDraft((current) => ({ ...current, from: value })) }} />
         <Text className='audit-center-filter-sep'>至</Text>
-        <input className='audit-center-text-input' aria-label='结束日期' value={draft.to} maxLength={10} disabled={reading} placeholder='YYYY-MM-DD' onInput={(event) => setDraft((current) => ({ ...current, to: event.currentTarget.value }))} />
+        <input className='audit-center-text-input' type='date' aria-label='结束日期' value={draft.to} disabled={reading} onInput={(event) => { const value = event.currentTarget.value; setDraft((current) => ({ ...current, to: value })) }} />
       </View>
-      <View className='audit-center-filter-group'>
-        <Text className='audit-center-filter-label'>关键词</Text>
-        <input className='audit-center-text-input' aria-label='按内容关键词筛选' value={draft.keyword} maxLength={120} disabled={reading} placeholder='快照内容关键词' onInput={(event) => setDraft((current) => ({ ...current, keyword: event.currentTarget.value }))} onKeyDown={(event) => { if (event.key === 'Enter' && !reading) submitFilter() }} />
-      </View>
+
       <View className='audit-center-filter-actions'>
         {hasFilter && <Button className='platform-administration-clear' disabled={reading} onClick={clearFilter}>清除</Button>}
         <Button className='platform-administration-search-button' disabled={reading} onClick={submitFilter}>筛选</Button>
@@ -260,7 +251,7 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
               <Text className={'audit-event-module audit-event-module-' + event.module}>{moduleLabel[event.module]}</Text>
               <Text className={'audit-event-action audit-event-action-' + event.action}>{actionLabel[event.action]}</Text>
               <Text className='audit-event-entity'>{event.entityId || '—'}</Text>
-              <Text className='audit-event-snapshot'>{snapshotPreview(event.snapshot)}</Text>
+              <Button className='audit-event-snapshot' aria-label='查看完整内容快照' onClick={() => setSnapshotView(event)}><Text>{snapshotPreview(event.snapshot)}</Text></Button>
             </View>)}
           </View>}
           <View className='platform-administration-pagination'>
@@ -271,5 +262,18 @@ export function AuditCenter({ authenticationContext, visible }: AuditCenterProps
             </View>
           </View>
         </>}
+
+    {snapshotView && <View className='audit-snapshot-backdrop' role='dialog' aria-modal='true' aria-label='内容快照详情' onClick={(event) => { if (event.target === event.currentTarget) setSnapshotView(undefined) }}>
+      <View className='audit-snapshot-dialog'>
+        <View className='audit-snapshot-heading'>
+          <View><Text className='audit-snapshot-title'>内容快照详情</Text><Text className='audit-snapshot-meta'>{formatTime(snapshotView.createdAt)} · {snapshotView.actorUsername || snapshotView.actorUserId} · {moduleLabel[snapshotView.module]} / {actionLabel[snapshotView.action]}{snapshotView.entityId ? ` · ${snapshotView.entityId}` : ''}</Text></View>
+          <View className='audit-snapshot-close' onClick={() => setSnapshotView(undefined)}><Text>✕</Text></View>
+        </View>
+        <View className='audit-snapshot-body'>
+          {snapshotView.snapshot ? <Text className='audit-snapshot-content'>{snapshotPretty(snapshotView.snapshot)}</Text> : <Text className='audit-snapshot-empty'>（无快照内容）</Text>}
+        </View>
+        <Text className='audit-snapshot-footnote'>点击弹窗外部或按 Esc 关闭</Text>
+      </View>
+    </View>}
   </View>
 }

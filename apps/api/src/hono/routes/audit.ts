@@ -31,6 +31,7 @@ const querySchema = z.object({
   from: z.string().regex(datePattern).optional(),
   to: z.string().regex(datePattern).optional(),
   keyword: z.string().optional(),
+  search: z.string().optional(),
   page: z.string().optional(),
   pageSize: z.string().optional(),
 })
@@ -40,7 +41,7 @@ const listEventsRoute = createRoute({
   path: '/events',
   tags: ['Admin'],
   summary: '列出内容审计事件',
-  description: '仅平台管理员。按 actorQuery（用户 ID/昵称模糊）、modules/actions（逗号分隔枚举）、from/to（YYYY-MM-DD）与 keyword（快照全文）组合筛选，分页返回。',
+  description: '仅平台管理员。按 actorQuery（用户 ID/昵称模糊）、modules/actions（逗号分隔枚举）、from/to（YYYY-MM-DD）、keyword（快照全文）与 search（用户/昵称/快照全文任一匹配）组合筛选，分页返回。',
   request: { query: querySchema },
   responses: {
     200: jsonSuccess(auditEventPageSchema, '审计事件分页'),
@@ -62,6 +63,7 @@ export function createAuditRoutes(root: RootHonoServices) {
           from: query.from,
           to: query.to,
           keyword: query.keyword,
+          search: query.search,
           page: parsePositiveInt(query.page, 1),
           pageSize: parsePageSize(query.pageSize),
         }),
@@ -77,6 +79,7 @@ export function createAuditRoutes(root: RootHonoServices) {
         from: isDate(query.from) ? query.from : undefined,
         to: isDate(query.to) ? query.to : undefined,
         keyword: query.keyword,
+        search: query.search,
       })
       const csv = '\uFEFF' + toCsv(events)
       return context.body(csv, 200, {

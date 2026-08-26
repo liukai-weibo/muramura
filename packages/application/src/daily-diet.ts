@@ -1,7 +1,6 @@
-import type { ActivityAuditRecorder, DailyDietRecommendation, DailyDietRecommendationInput, DailyDietRecommendationRepository } from '@knowledge-base/contracts'
+import type { DailyDietRecommendation, DailyDietRecommendationInput, DailyDietRecommendationRepository } from '@knowledge-base/contracts'
 import { DAILY_DIET_CONTENT_MAX_LENGTH } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
-import { safeAuditRecord } from './audit'
 
 function todayLocal(): string {
   const d = new Date()
@@ -22,7 +21,6 @@ function invalid(message: string): BusinessError<string> {
 export class DailyDietRecommendationApplicationService {
   constructor(
     private readonly repository: DailyDietRecommendationRepository,
-    private readonly auditRecorder?: ActivityAuditRecorder,
   ) {}
 
   async listRange(from?: string, to?: string): Promise<DailyDietRecommendation[]> {
@@ -43,7 +41,7 @@ export class DailyDietRecommendationApplicationService {
     if (!content) throw invalid('饮食推荐内容不能为空')
     if (content.length > DAILY_DIET_CONTENT_MAX_LENGTH) throw invalid('饮食推荐内容超出长度限制')
     const saved = await this.repository.upsertForDate({ entryDate: input.entryDate, content })
-    await safeAuditRecord(this.auditRecorder, { module: 'daily_diet', action: 'update', entityId: saved.id, snapshot: JSON.stringify({ entryDate: saved.entryDate, content: saved.content }) })
+    // 今日饮食推荐为纯 AI 生成内容（无用户结构化输入），审计无信息量，不记录
     return saved
   }
 }

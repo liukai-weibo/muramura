@@ -43,7 +43,7 @@
 .daily-diet-modal-close:hover { background: rgba(120, 90, 60, .08); }
 
 .daily-diet-modal-body { min-height: 120px; padding: 14px; box-sizing: border-box; border: 1px solid var(--cream-line); border-radius: 16px; background: var(--cream-canvas); }
-.daily-diet-modal-content { color: var(--cream-ink); font-size: 14px; line-height: 1.75; white-space: pre-wrap; }
+.daily-diet-modal-content { color: var(--cream-ink); font-size: 14px; line-height: 1.75; }
 .daily-diet-modal-hint { color: var(--cream-hint); font-size: 13px; }
 .daily-diet-modal-empty { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px; }
 .daily-diet-modal-empty-text { color: var(--cream-hint); font-size: 13px; }

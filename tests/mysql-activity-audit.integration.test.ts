@@ -60,9 +60,10 @@ describe.runIf(mysqlIntegrationEnabled)('activity audit MySQL repository', () =>
       await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'item', action: 'create', entityId: 'item-1', snapshot: JSON.stringify({ title: '第一条' }) })
       await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'mood', action: 'update', entityId: 'mood-1', snapshot: JSON.stringify({ content: '心情不错' }) })
       await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'search', action: 'search', snapshot: JSON.stringify({ query: '方法' }) })
+      await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'meal', action: 'create', entityId: 'meal-1', snapshot: JSON.stringify({ entryDate: '2026-08-26', meals: [{ mealType: 'breakfast', content: '喝粥', feeling: 3 }] }) })
 
       const page = await repository.list({ page: 1, pageSize: 2 })
-      expect(page.total).toBe(3)
+      expect(page.total).toBe(4)
       expect(page.items).toHaveLength(2)
       expect(page.items[0]!.module).toBe('search')
       expect(page.items[0]!.actorUsername).toBe('audit-owner')
@@ -80,8 +81,32 @@ describe.runIf(mysqlIntegrationEnabled)('activity audit MySQL repository', () =>
       const actor = await repository.list({ actorQuery: 'audit-owner', page: 1, pageSize: 20 })
       expect(actor.total).toBe(3)
 
+      // search 合并语义：用户名 OR 快照内容任一匹配
+      const byActor = await repository.list({ search: 'audit-owner', page: 1, pageSize: 20 })
+      expect(byActor.total).toBe(4)
+      const bySnapshot = await repository.list({ search: '第一条', page: 1, pageSize: 20 })
+      expect(bySnapshot.total).toBe(1)
+      expect(bySnapshot.items[0]).toMatchObject({ entityId: 'item-1' })
+      const byQuery = await repository.list({ search: '方法', page: 1, pageSize: 20 })
+      expect(byQuery.total).toBe(1)
+      expect(byQuery.items[0]).toMatchObject({ module: 'search' })
+
+      // 中文枚举值展开：搜'早餐'命中 mealType=breakfast 的快照（存储值+中文标签均可命中）
+      const byChineseBreakfast = await repository.list({ search: '早餐', page: 1, pageSize: 20 })
+      expect(byChineseBreakfast.total).toBe(1)
+      expect(byChineseBreakfast.items[0]).toMatchObject({ module: 'meal', entityId: 'meal-1' })
+      const byRawBreakfast = await repository.list({ search: 'breakfast', page: 1, pageSize: 20 })
+      expect(byRawBreakfast.total).toBe(1)
+      // 中文字段名展开：搜'餐次类型'命中 mealType 键（值枚举 + 字段名均可命中）
+      const byMealTypeKey = await repository.list({ search: '餐次类型', page: 1, pageSize: 20 })
+      expect(byMealTypeKey.total).toBe(1)
+      expect(byMealTypeKey.items[0]).toMatchObject({ module: 'meal', entityId: 'meal-1' })
+      // 字段名展开对未知记录为 0 结果（不会误匹配）
+      const byCardTitleKey = await repository.list({ search: '卡片标题', page: 1, pageSize: 20 })
+      expect(byCardTitleKey.total).toBe(0)
+
       const all = await repository.listAllMatches({})
-      expect(all).toHaveLength(3)
+      expect(all).toHaveLength(4)
     })
   })
 

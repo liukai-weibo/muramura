@@ -319,6 +319,8 @@ export type ActivityAuditQuery = {
   from?: string
   to?: string
   keyword?: string
+  /** 合并搜索：用户名 / 用户 ID / 快照内容任一匹配。 */
+  search?: string
   page: number
   pageSize: number
 }
@@ -468,6 +470,7 @@ export const apiClient = {
     if (input.from) search.set('from', input.from)
     if (input.to) search.set('to', input.to)
     if (input.keyword?.trim()) search.set('keyword', input.keyword.trim())
+    if (input.search?.trim()) search.set('search', input.search.trim())
     return parseActivityAuditEventPage(await request<unknown>(`/admin/audit/events?${search.toString()}`, { signal }), input.page, input.pageSize)
   },
   buildActivityAuditExportUrl: (input: Omit<ActivityAuditQuery, 'page' | 'pageSize'>): string => {
@@ -478,6 +481,7 @@ export const apiClient = {
     if (input.from) search.set('from', input.from)
     if (input.to) search.set('to', input.to)
     if (input.keyword?.trim()) search.set('keyword', input.keyword.trim())
+    if (input.search?.trim()) search.set('search', input.search.trim())
     const query = search.toString()
     return `${apiOrigin}/api/v1/admin/audit/export${query ? `?${query}` : ''}`
   },
