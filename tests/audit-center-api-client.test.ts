@@ -54,6 +54,15 @@ describe('audit center API client', () => {
     await expect(apiClient.listActivityAuditEvents({ page: 1, pageSize: 20 })).rejects.toThrow('审计事件响应结构无效。')
   })
 
+  it('passes the merged search parameter to the list request', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(page([eventWithEntity])), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await apiClient.listActivityAuditEvents({ search: '张三', page: 1, pageSize: 20 })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/admin/audit/events?page=1&pageSize=20&search=%E5%BC%A0%E4%B8%89', expect.objectContaining({ credentials: 'same-origin' }))
+    const exportUrl = apiClient.buildActivityAuditExportUrl({ search: '快照内容', modules: ['item'], from: '2026-08-01' })
+    expect(exportUrl).toBe('/api/v1/admin/audit/export?modules=item&from=2026-08-01&search=%E5%BF%AB%E7%85%A7%E5%86%85%E5%AE%B9')
+  })
+
   it('accepts the newly extended module/action enums', async () => {
     const extended = {
       id: 'event-3', actorUserId: 'actor-1', actorUsername: '张三',

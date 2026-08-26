@@ -18,6 +18,18 @@ import { assertItemTitleLength, normalizeItemTitle } from '@knowledge-base/domai
 import { trashCutoff } from './trash'
 import { safeAuditRecord } from './audit'
 
+/** 复盘未标记哨兵文案（与前端表单默认值一致）；审计只记录用户实际填写内容，哨兵与空值不记。 */
+const REVIEW_DEFAULT_EFFECTIVE = '暂未标记有效或舒服之处'
+const REVIEW_DEFAULT_INCOMPATIBLE = '暂未标记阻力或不舒服'
+
+function reviewEffectiveIsUserInput(value: string): boolean {
+  return Boolean(value.trim()) && value.trim() !== REVIEW_DEFAULT_EFFECTIVE
+}
+
+function reviewIncompatibleIsUserInput(value: string): boolean {
+  return Boolean(value.trim()) && value.trim() !== REVIEW_DEFAULT_INCOMPATIBLE
+}
+
 export class ReviewApplicationService {
   constructor(
     private readonly reviewRepository: ReviewRepository,
@@ -35,7 +47,18 @@ export class ReviewApplicationService {
       adjustment: input.adjustment ?? '',
       newIdeas: input.newIdeas ?? '',
     })
-    await safeAuditRecord(this.auditRecorder, { module: 'review', action: 'complete', entityId: result.review.id, snapshot: JSON.stringify({ itemId: result.review.itemId, actualAction: result.review.actualAction, result: result.review.result }) })
+    await safeAuditRecord(this.auditRecorder, {
+      module: 'review',
+      action: 'complete',
+      entityId: result.review.id,
+      snapshot: JSON.stringify({
+        actualAction: result.review.actualAction,
+        result: result.review.result,
+        ...(reviewEffectiveIsUserInput(result.review.effective) ? { effective: result.review.effective } : {}),
+        ...(reviewIncompatibleIsUserInput(result.review.incompatible) ? { incompatible: result.review.incompatible } : {}),
+        ...(result.review.newIdeas?.trim() ? { newIdeas: result.review.newIdeas } : {}),
+      }),
+    })
     return result
   }
 

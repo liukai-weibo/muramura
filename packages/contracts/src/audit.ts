@@ -57,7 +57,7 @@ export interface ActivityAuditEvent extends Required<Pick<ActivityAuditEventInpu
 }
 
 export interface ActivityAuditEventQuery {
-  /** 用户名/ID 模糊匹配，optional。 */
+  /** 用户名/ID 模糊匹配，optional。与 search 至少提供一个时按 OR 组合。 */
   actorQuery?: string
   modules?: AuditModule[]
   actions?: AuditAction[]
@@ -66,6 +66,8 @@ export interface ActivityAuditEventQuery {
   to?: string
   /** 快照全文 LIKE。 */
   keyword?: string
+  /** 合并搜索：actor_user_id / actor_username / snapshot 任一模糊匹配，optional。与 actorQuery/keyword 的关系为 OR。 */
+  search?: string
   page: number
   pageSize: number
 }
@@ -93,4 +95,70 @@ export interface ActivityAuditEventDraft {
 
 export interface ActivityAuditRecorder {
   record(draft: ActivityAuditEventDraft): Promise<void>
+}
+
+/**
+ * 审计快照常见枚举值 → 中文标签（展示层翻译与搜索等价展开的单一来源）。
+ * 键为快照 JSON 中实际存储的英文枚举值；值为审计中心展示的中文。
+ */
+export const AUDIT_SNAPSHOT_VALUE_LABELS: Record<string, string> = {
+  breakfast: '早餐',
+  lunch: '午餐',
+  dinner: '晚餐',
+  snack: '加餐',
+  small: '小',
+  medium: '中',
+  large: '大',
+  cream: '奶油色',
+  green: '绿色',
+  beige: '米色',
+  daily: '每天',
+  manual: '手动',
+  complete: '完成',
+  pending: '待处理',
+  architecture: '架构',
+  method: '方法',
+  exploration: '探索',
+  daily_note: '手记',
+  item: '事项',
+  search: '搜索',
+}
+
+/**
+ * 审计快照字段名 → 中文标签（展示层翻译与搜索等价展开的单一来源）。
+ * 键为快照 JSON 中实际存储的字段名；值为审计中心展示的中文。
+ */
+export const AUDIT_SNAPSHOT_KEY_LABELS: Record<string, string> = {
+  entryDate: '日期',
+  cacheDate: '缓存日期',
+  cacheId: '缓存ID',
+  actualAction: '做了什么',
+  result: '复盘结果',
+  effective: '有效 / 舒服',
+  incompatible: '阻力 / 不舒服',
+  newIdeas: '产生新想法',
+  cardTitle: '卡片标题',
+  aiPrompt: 'AI提示词',
+  cardSize: '卡片尺寸',
+  cardTheme: '卡片底色',
+  refreshMode: '刷新方式',
+  meals: '餐次',
+  mealType: '餐次类型',
+  content: '内容',
+  feeling: '感受',
+  query: '搜索词',
+  title: '标题',
+  name: '名称',
+  description: '描述',
+  tags: '标签',
+  moodLevel: '情绪等级',
+  type: '类型',
+  id: 'ID',
+  itemId: '事项ID',
+  actorUserId: '用户ID',
+  actorUsername: '用户名',
+  action: '操作',
+  bizType: '业务类型',
+  note: '备注',
+  text: '文本',
 }

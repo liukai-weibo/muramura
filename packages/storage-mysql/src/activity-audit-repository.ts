@@ -1,10 +1,12 @@
 import crypto from 'node:crypto'
-import type {
-  ActivityAuditEvent,
-  ActivityAuditEventInput,
-  ActivityAuditEventPage,
-  ActivityAuditEventQuery,
-  ActivityAuditRepository,
+import {
+  AUDIT_SNAPSHOT_KEY_LABELS,
+  AUDIT_SNAPSHOT_VALUE_LABELS,
+  type ActivityAuditEvent,
+  type ActivityAuditEventInput,
+  type ActivityAuditEventPage,
+  type ActivityAuditEventQuery,
+  type ActivityAuditRepository,
 } from '@knowledge-base/contracts'
 import type { Pool, RowDataPacket } from 'mysql2/promise'
 
@@ -45,8 +47,21 @@ interface AuditReadQuery {
   from?: string
   to?: string
   keyword?: string
+  search?: string
   page?: number
   pageSize?: number
+}
+
+/** 把查询词中含有的中文标签展开为对应快照原文（枚举值如“早餐”→“breakfast”、字段名如“餐次类型”→“mealType”），供全文 LIKE 等价命中。 */
+function expandSnapshotSearchValues(text: string): string[] {
+  const found: string[] = []
+  for (const [storage, chinese] of Object.entries(AUDIT_SNAPSHOT_VALUE_LABELS)) {
+    if (chinese.includes(text)) found.push(storage)
+  }
+  for (const [storage, chinese] of Object.entries(AUDIT_SNAPSHOT_KEY_LABELS)) {
+    if (chinese.includes(text)) found.push(storage)
+  }
+  return found
 }
 
 function filterParams(query: AuditReadQuery): { where: string; params: unknown[] } {
@@ -76,6 +91,13 @@ function filterParams(query: AuditReadQuery): { where: string; params: unknown[]
   if (query.keyword?.trim()) {
     clauses.push('snapshot LIKE ?')
     params.push(`%${query.keyword.trim()}%`)
+  }
+  if (query.search?.trim()) {
+    const text = query.search.trim()
+    const terms = [text, ...expandSnapshotSearchValues(text)]
+    const snapshotClauses = terms.map(() => 'snapshot LIKE ?')
+    clauses.push(`(actor_user_id = ? OR actor_username LIKE ? OR ${snapshotClauses.join(' OR ')})`)
+    params.push(text, `%${text}%`, ...terms.map((term) => `%${term}%`))
   }
   const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''
   return { where, params }

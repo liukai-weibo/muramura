@@ -57,14 +57,14 @@ export class HomeAiCardApplicationService {
     const existing = await this.repository.list()
     if (existing.length >= HOME_AI_CARD_MAX_PER_USER) throw invalid(`首页自定义AI卡片数量已达上限（${HOME_AI_CARD_MAX_PER_USER}）`)
     const created = await this.repository.create(normalized)
-    await safeAuditRecord(this.auditRecorder, { module: 'home_ai_card', action: 'create', entityId: created.id, snapshot: JSON.stringify({ cardTitle: created.cardTitle, cardTheme: created.cardTheme }) })
+    await safeAuditRecord(this.auditRecorder, { module: 'home_ai_card', action: 'create', entityId: created.id, snapshot: JSON.stringify({ cardTitle: created.cardTitle, aiPrompt: created.aiPrompt, cardSize: created.cardSize, cardTheme: created.cardTheme, refreshMode: created.refreshMode }) })
     return created
   }
 
   async update(id: string, input: HomeAiCardInput): Promise<HomeAiCard | undefined> {
     if (!id || !id.trim()) throw invalid('卡片 ID 无效')
     const updated = await this.repository.update(id, this.validateInput(input))
-    if (updated) await safeAuditRecord(this.auditRecorder, { module: 'home_ai_card', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ cardTitle: updated.cardTitle, cardTheme: updated.cardTheme }) })
+    if (updated) await safeAuditRecord(this.auditRecorder, { module: 'home_ai_card', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ cardTitle: updated.cardTitle, aiPrompt: updated.aiPrompt, cardSize: updated.cardSize, cardTheme: updated.cardTheme, refreshMode: updated.refreshMode }) })
     return updated
   }
 
