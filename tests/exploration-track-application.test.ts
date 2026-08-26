@@ -39,8 +39,8 @@ describe('探索主线 S2 Application', () => {
 
     await service.createExplorationTrack('  ＡＢＣ  ')
     expect(calls).toEqual([{ id: expect.any(String), name: 'ABC', normalizedName: 'abc', createdAt: expect.any(String) }])
-    expect(() => service.createExplorationTrack('   ')).toThrow('主线名称不能为空')
-    expect(() => service.createExplorationTrack('𠮷'.repeat(81))).toThrow('主线名称最多 80 个字符')
+    await expect(service.createExplorationTrack('   ')).rejects.toThrow('主线名称不能为空')
+    await expect(service.createExplorationTrack('𠮷'.repeat(81))).rejects.toThrow('主线名称最多 80 个字符')
   })
 
   it('captureIdea 无选择时保持既有 Repository 创建，new 选择委派已规范化 workflow', async () => {

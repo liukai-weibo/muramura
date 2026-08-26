@@ -38,15 +38,15 @@ describe('item title grapheme boundary', () => {
     let creates = 0
     const repository = { create: async (input: CreateItemInput) => { creates += 1; return item(input.title) } } as unknown as ItemRepository
     const service = new ItemApplicationService(repository)
-    expect(() => service.createIdea({ title: twentyOne })).toThrow('标题最多 20 个字符')
-    expect(() => service.createIdea({ content: `${twentyOne}\nbody` })).toThrow('标题最多 20 个字符')
+    await expect(service.createIdea({ title: twentyOne })).rejects.toThrow('标题最多 20 个字符')
+    await expect(service.createIdea({ content: `${twentyOne}\nbody` })).rejects.toThrow('标题最多 20 个字符')
     expect(creates).toBe(0)
   })
 
   it('rejects MethodApplicationService before its repository', async () => {
     let creates = 0
     const repository = { createItem: async () => { creates += 1; return item('unexpected') } } as unknown as MethodApplicationRepository
-    expect(() => new MethodApplicationService(repository).createItem('method', twentyOne)).toThrow('标题最多 20 个字符')
+    await expect(new MethodApplicationService(repository).createItem('method', twentyOne)).rejects.toThrow('标题最多 20 个字符')
     expect(creates).toBe(0)
   })
 })

@@ -1,4 +1,5 @@
 import type {
+  ActivityAuditRecorder,
   CompleteReviewInput,
   CompleteReviewResult,
   Item,
@@ -15,16 +16,18 @@ import type {
 } from '@knowledge-base/contracts'
 import { assertItemTitleLength, normalizeItemTitle } from '@knowledge-base/domain'
 import { trashCutoff } from './trash'
+import { safeAuditRecord } from './audit'
 
 export class ReviewApplicationService {
   constructor(
     private readonly reviewRepository: ReviewRepository,
     private readonly methodRepository: MethodRepository,
     private readonly workflowRepository: ReviewWorkflowRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
   ) {}
 
-  completeReview(input: CompleteReviewInput): Promise<CompleteReviewResult> {
-    return this.workflowRepository.complete({
+  async completeReview(input: CompleteReviewInput): Promise<CompleteReviewResult> {
+    const result = await this.workflowRepository.complete({
       ...input,
       effective: input.effective ?? '',
       incompatible: input.incompatible ?? '',
@@ -32,6 +35,8 @@ export class ReviewApplicationService {
       adjustment: input.adjustment ?? '',
       newIdeas: input.newIdeas ?? '',
     })
+    await safeAuditRecord(this.auditRecorder, { module: 'review', action: 'complete', entityId: result.review.id, snapshot: JSON.stringify({ itemId: result.review.itemId, actualAction: result.review.actualAction, result: result.review.result }) })
+    return result
   }
 
   getReview(reviewId: string): Promise<Review | undefined> {
@@ -60,12 +65,14 @@ export class ReviewApplicationService {
 }
 
 export class MethodApplicationService {
-  constructor(private readonly repository: MethodApplicationRepository) {}
+  constructor(private readonly repository: MethodApplicationRepository, private readonly auditRecorder?: ActivityAuditRecorder) {}
 
-  createItem(methodId: string, title: string, content?: string): Promise<Item> {
+  async createItem(methodId: string, title: string, content?: string): Promise<Item> {
     const normalizedTitle = normalizeItemTitle(title)
     assertItemTitleLength(normalizedTitle)
-    return this.repository.createItem({ methodId, title: normalizedTitle, content })
+    const created = await this.repository.createItem({ methodId, title: normalizedTitle, content })
+    await safeAuditRecord(this.auditRecorder, { module: 'method', action: 'create', entityId: created.id, snapshot: JSON.stringify({ methodId, title: created.title }) })
+    return created
   }
 
   getContextForItem(itemId: string): Promise<MethodApplicationContext | undefined> {
@@ -82,14 +89,17 @@ export class MethodApplicationService {
 }
 
 export class MethodLifecycleApplicationService {
-  constructor(private readonly repository: MethodRepository) {}
+  constructor(private readonly repository: MethodRepository, private readonly auditRecorder?: ActivityAuditRecorder) {}
 
-  moveToTrash(methodId: string): Promise<void> {
-    return this.repository.moveToTrash(methodId)
+  async moveToTrash(methodId: string): Promise<void> {
+    await this.repository.moveToTrash(methodId)
+    await safeAuditRecord(this.auditRecorder, { module: 'method', action: 'delete', entityId: methodId })
   }
 
-  restore(methodId: string): Promise<Method> {
-    return this.repository.restore(methodId)
+  async restore(methodId: string): Promise<Method> {
+    const restored = await this.repository.restore(methodId)
+    await safeAuditRecord(this.auditRecorder, { module: 'method', action: 'restore', entityId: restored.id, snapshot: JSON.stringify({ title: restored.title }) })
+    return restored
   }
 
   async listTrash(): Promise<Method[]> {

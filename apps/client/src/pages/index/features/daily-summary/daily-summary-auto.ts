@@ -9,13 +9,7 @@ import { todayLocalDate } from '../mood/mood-levels'
  * - 生成失败不重试（避免重复消耗），返回 failed 供卡片显示手动按钮。
  */
 
-const SUMMARY_PROMPT = [
-  '请基于你掌握的我最近的记录（手记/事项/复盘/方法），写一份简洁的「近期状态小结」：',
-  '- 一两句话概括当前状态',
-  '- 点出 1-2 个今日值得关注的要点或待办',
-  '- 语气温和、具体，不空泛',
-  '总字数控制在 200 字以内，用换行分段。',
-].join('\n')
+const SUMMARY_PROMPT = '分析下我最近的状态'
 
 const LAST_SEEN_DATE_KEY = 'marumaru.daily-summary.last-seen-date'
 let documentStartKey = todayLocalDate()

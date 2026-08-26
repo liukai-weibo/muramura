@@ -1,4 +1,5 @@
 import type {
+  ActivityAuditRecorder,
   ExplorationTrackRepository,
   ItemRepository,
   MethodRepository,
@@ -8,6 +9,7 @@ import type {
   TrashPurgeRepository,
 } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
+import { safeAuditRecord } from './audit'
 
 export const TRASH_RETENTION_DAYS = 30
 
@@ -28,6 +30,7 @@ export class TrashApplicationService {
     private readonly methodRepository: MethodRepository,
     private readonly explorationTrackRepository: ExplorationTrackRepository,
     private readonly purgeRepository?: TrashPurgeRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
   ) {}
 
   async listTrashEntries(filter: TrashFilter): Promise<TrashEntry[]> {
@@ -50,12 +53,16 @@ export class TrashApplicationService {
     ])
   }
 
-  purge(entries: readonly TrashPurgeEntry[]): Promise<void> {
+  async purge(entries: readonly TrashPurgeEntry[]): Promise<void> {
     if (!entries.length) throw new BusinessError('TRASH_EMPTY_SELECTION', '至少选择一条回收站记录')
     if (!this.purgeRepository) throw new BusinessError('TRASH_EMPTY_SELECTION', '回收站永久删除能力不可用')
     const keys = entries.map((entry) => `${entry.type}:${entry.id}`)
     if (new Set(keys).size !== keys.length) throw new BusinessError('TRASH_DUPLICATE_SELECTION', '回收站记录不能重复选择')
-    return this.purgeRepository.purge(entries)
+    await this.purgeRepository.purge(entries)
+    for (const entry of entries) {
+      const module = entry.type === 'item' ? 'item' as const : entry.type === 'method' ? 'method' as const : 'exploration_track' as const
+      await safeAuditRecord(this.auditRecorder, { module, action: 'purge', entityId: entry.id, snapshot: JSON.stringify({ type: entry.type }) })
+    }
   }
 
 }

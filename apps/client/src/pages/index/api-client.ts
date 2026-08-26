@@ -48,10 +48,17 @@ import type {
   DailyNote,
   DailySummary,
   DailyDietRecommendation,
+  HomeAiCard,
+  HomeAiCardCache,
+  HomeAiCardInput,
   MealDayInput,
   MealEntry,
   MoodEntry,
   MoodEntryInput,
+  ActivityAuditEvent,
+  ActivityAuditEventPage,
+  AuditAction,
+  AuditModule,
 } from '@knowledge-base/contracts'
 import { clearDesktopSessionToken, readDesktopSessionToken, saveDesktopSessionToken } from '../../desktop/desktop-native-bridge'
 
@@ -211,6 +218,12 @@ function hasExactKeys(value: Record<string, unknown>, expected: string[]): boole
   return keys.length === expected.length && keys.every((key, index) => key === [...expected].sort()[index])
 }
 
+function hasKeysWithOptional(value: Record<string, unknown>, required: string[], optional: readonly string[]): boolean {
+  const keys = Object.keys(value)
+  const allowed = new Set([...required, ...optional])
+  return required.every(key => keys.includes(key)) && keys.every(key => allowed.has(key))
+}
+
 function parseAuthUser(value: unknown): AuthUser {
   if (!isRecord(value) || !hasExactKeys(value, ['id', 'username', 'roles', 'createdAt'])
     || typeof value.id !== 'string' || value.id.length === 0
@@ -297,6 +310,60 @@ async function parseUnknownSessionsWrite(promise: Promise<unknown>): Promise<Adm
     if (error instanceof ApiClientUnknownOutcomeError || (error as ApiClientError).status !== undefined) throw error
     throw new ApiClientUnknownOutcomeError()
   }
+}
+
+export type ActivityAuditQuery = {
+  actorQuery?: string
+  modules?: AuditModule[]
+  actions?: AuditAction[]
+  from?: string
+  to?: string
+  keyword?: string
+  page: number
+  pageSize: number
+}
+
+const auditModulesOrder = ['daily_note', 'mood', 'meal', 'item', 'search', 'exploration_track', 'method', 'review', 'daily_summary', 'daily_diet', 'home_ai_card', 'ai_preference', 'ai_conversation', 'ai_config'] as const
+const auditActionsOrder = ['create', 'update', 'delete', 'search', 'assign', 'remove', 'restore', 'purge', 'archive', 'complete', 'append'] as const
+
+function parseActivityAuditEvent(value: unknown): ActivityAuditEvent {
+  if (!isRecord(value)
+    || !hasKeysWithOptional(value, ['id', 'actorUserId', 'actorUsername', 'module', 'action', 'snapshot', 'riskLevel', 'createdAt'], ['entityId'])
+    || typeof value.id !== 'string' || value.id.length === 0
+    || typeof value.actorUserId !== 'string' || value.actorUserId.length === 0
+    || typeof value.actorUsername !== 'string'
+    || typeof value.module !== 'string' || !(auditModulesOrder as readonly string[]).includes(value.module)
+    || typeof value.action !== 'string' || !(auditActionsOrder as readonly string[]).includes(value.action)
+    || !(value.entityId === undefined || typeof value.entityId === 'string')
+    || typeof value.snapshot !== 'string'
+    || typeof value.riskLevel !== 'string'
+    || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))) {
+    throw new Error('审计事件响应结构无效。')
+  }
+  return {
+    id: value.id,
+    actorUserId: value.actorUserId,
+    actorUsername: value.actorUsername,
+    module: value.module as AuditModule,
+    action: value.action as AuditAction,
+    ...(value.entityId === undefined ? {} : { entityId: value.entityId as string }),
+    snapshot: value.snapshot,
+    riskLevel: value.riskLevel,
+    createdAt: value.createdAt,
+  } as ActivityAuditEvent
+}
+
+function parseActivityAuditEventPage(value: unknown, expectedPage: number, expectedPageSize: number): ActivityAuditEventPage {
+  if (!isRecord(value) || !hasExactKeys(value, ['items', 'page', 'pageSize', 'total'])
+    || !Number.isSafeInteger(value.page) || value.page !== expectedPage || expectedPage < 1
+    || !Number.isSafeInteger(value.pageSize) || value.pageSize !== expectedPageSize
+    || !Number.isSafeInteger(value.total) || (value.total as number) < 0
+    || !Array.isArray(value.items)) {
+    throw new Error('审计中心列表响应结构无效。')
+  }
+  const items = value.items.map(parseActivityAuditEvent)
+  if (new Set(items.map((item) => item.id)).size !== items.length) throw new Error('审计中心列表包含重复条目。')
+  return { items, page: expectedPage, pageSize: expectedPageSize, total: value.total as number }
 }
 
 const operationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -392,6 +459,28 @@ export const apiClient = {
       '账号恢复响应目标不匹配。',
     )
   },
+  listActivityAuditEvents: async (input: ActivityAuditQuery, signal?: AbortSignal) => {
+    if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new Error('审计中心请求参数无效。')
+    const search = new URLSearchParams({ page: String(input.page), pageSize: String(input.pageSize) })
+    if (input.actorQuery?.trim()) search.set('actorQuery', input.actorQuery.trim())
+    if (input.modules?.length) search.set('modules', input.modules.join(','))
+    if (input.actions?.length) search.set('actions', input.actions.join(','))
+    if (input.from) search.set('from', input.from)
+    if (input.to) search.set('to', input.to)
+    if (input.keyword?.trim()) search.set('keyword', input.keyword.trim())
+    return parseActivityAuditEventPage(await request<unknown>(`/admin/audit/events?${search.toString()}`, { signal }), input.page, input.pageSize)
+  },
+  buildActivityAuditExportUrl: (input: Omit<ActivityAuditQuery, 'page' | 'pageSize'>): string => {
+    const search = new URLSearchParams()
+    if (input.actorQuery?.trim()) search.set('actorQuery', input.actorQuery.trim())
+    if (input.modules?.length) search.set('modules', input.modules.join(','))
+    if (input.actions?.length) search.set('actions', input.actions.join(','))
+    if (input.from) search.set('from', input.from)
+    if (input.to) search.set('to', input.to)
+    if (input.keyword?.trim()) search.set('keyword', input.keyword.trim())
+    const query = search.toString()
+    return `${apiOrigin}/api/v1/admin/audit/export${query ? `?${query}` : ''}`
+  },
   listItems: (signal?: AbortSignal) => request<Item[]>('/items', { signal }),
   listTrash: (signal?: AbortSignal) => request<Item[]>('/items/trash', { signal }),
   createIdea: (input: { title?: string; content?: string; saveForLater?: boolean; explorationTrack?: ExplorationTrackSelection }, signal?: AbortSignal) => request<Item>('/items', { method: 'POST', body: json(input), signal }),
@@ -467,6 +556,12 @@ export const apiClient = {
   },
   getDailyDietRecommendation: (entryDate: string, signal?: AbortSignal) => request<DailyDietRecommendation | null>(`/daily-diet/${encodeURIComponent(entryDate)}`, { signal }),
   upsertDailyDietRecommendation: (entryDate: string, content: string) => request<DailyDietRecommendation>(`/daily-diet/${encodeURIComponent(entryDate)}`, { method: 'PUT', body: json({ content }) }),
+  listHomeAiCards: (signal?: AbortSignal) => request<HomeAiCard[]>('/home-ai-cards', { signal }),
+  createHomeAiCard: (input: HomeAiCardInput) => request<HomeAiCard>('/home-ai-cards', { method: 'POST', body: json(input) }),
+  updateHomeAiCard: (cardId: string, input: HomeAiCardInput) => request<HomeAiCard>(`/home-ai-cards/${encodeURIComponent(cardId)}`, { method: 'PUT', body: json(input) }),
+  deleteHomeAiCard: (cardId: string) => request<{ deleted: boolean }>(`/home-ai-cards/${encodeURIComponent(cardId)}`, { method: 'DELETE' }),
+  listHomeAiCardCaches: (cacheDate: string, signal?: AbortSignal) => request<HomeAiCardCache[]>(`/home-ai-cards/caches?date=${encodeURIComponent(cacheDate)}`, { signal }),
+  upsertHomeAiCardCache: (cardId: string, cacheDate: string, aiOutput: string) => request<HomeAiCardCache>(`/home-ai-cards/${encodeURIComponent(cardId)}/caches/${encodeURIComponent(cacheDate)}`, { method: 'PUT', body: json({ aiOutput }) }),
   streamDailyNoteAi: async function* (id: string, command: string, draft: string, signal?: AbortSignal): AsyncGenerator<AiStreamEvent> {
     const response = await fetch(apiUrl(`/daily-notes/${encodeURIComponent(id)}/ai/stream`), { method: 'POST', credentials: apiCredentials, headers: { 'content-type': 'application/json', ...(desktopTransport && desktopSessionToken ? { authorization: `Bearer ${desktopSessionToken}` } : {}) }, body: json({ command, draft }), signal })
     if (!response.ok || !response.body) throw new Error('Daily note AI stream failed')

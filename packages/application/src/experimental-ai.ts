@@ -1,8 +1,9 @@
-import type { AiChatMessage, AiConfigInput, AiConfigMetadata, AiConversation, AiConversationRepository, AiConversationSnapshot, AiConversationSummary, AiKnowledgeOverviewReader, AiPreference, AiStreamEvent, AuthUser, DailyNoteRepository, SearchResult } from '@knowledge-base/contracts'
+import type { ActivityAuditRecorder, AiChatMessage, AiConfigInput, AiConfigMetadata, AiConversation, AiConversationRepository, AiConversationSnapshot, AiConversationSummary, AiKnowledgeOverviewReader, AiPreference, AiStreamEvent, AuthUser, DailyNoteRepository, SearchResult } from '@knowledge-base/contracts'
 import type { SecretStore } from '../../storage-secrets/src/index'
 import { STRONG_STRATEGIST_PROMPT } from './ai-prompts/strong-strategist-prompt'
 import { AI_BUSINESS_SEMANTICS, AI_KNOWLEDGE_CONCEPTS, AI_RESPONSE_POLICY } from './ai-prompts/ai-policy'
 import { formatKnowledgeContext } from './ai-context'
+import { safeAuditRecord } from './audit'
 
 export const AI_PROVIDER_TIMEOUT_MS = 300_000
 export const AI_KNOWLEDGE_CONTEXT_MAX_CHARS = 24_000
@@ -30,7 +31,10 @@ export function buildAiSystemMessage(): AiChatMessage {
 
 export class AiConfigError extends Error { constructor(readonly code: 'invalid' | 'unavailable' | 'write-failed') { super(code) } }
 export class AiConversationApplicationService {
-  constructor(private readonly repository: AiConversationRepository) {}
+  constructor(
+    private readonly repository: AiConversationRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
+  ) {}
   async getDefault(input: { limit?: number; beforeSequence?: number } = {}): Promise<AiConversationSnapshot> {
     const conversation = await this.repository.getOrCreateDefault()
     const limit = input.limit === undefined ? undefined : Math.max(1, Math.min(100, Math.floor(input.limit)))
@@ -59,6 +63,9 @@ export class AiConversationApplicationService {
   async append(input: Parameters<AiConversationRepository['appendMessage']>[0]) {
     if (!input.content || input.content.length > 12000) throw new Error('AI message content is invalid')
     const message = await this.repository.appendMessage(input)
+    if (input.role === 'user') {
+      await safeAuditRecord(this.auditRecorder, { module: 'ai_conversation', action: 'append', entityId: input.conversationId, snapshot: JSON.stringify({ role: input.role, content: Array.from(input.content.trim()).slice(0, 200).join('') + (Array.from(input.content.trim()).length > 200 ? '…' : '') }) })
+    }
     if (input.role === 'user' && this.repository.updateConversationTitle) {
       const conversation = await this.getConversation(input.conversationId)
       if (conversation && (conversation.title === '新会话' || conversation.title === '默认会话')) {
@@ -69,13 +76,38 @@ export class AiConversationApplicationService {
     return message
   }
   async listConversations(includeDeleted = false): Promise<AiConversation[]> { return this.repository.listConversations ? this.repository.listConversations(includeDeleted) : [await this.repository.getOrCreateDefault()] }
-  async createConversation(title = '新会话', kind: import('@knowledge-base/contracts').AiConversationKind = 'general'): Promise<AiConversation> { if (!this.repository.createConversation) return this.repository.getOrCreateDefault(); return this.repository.createConversation(title, kind) }
+  async createConversation(title = '新会话', kind: import('@knowledge-base/contracts').AiConversationKind = 'general'): Promise<AiConversation> {
+    if (!this.repository.createConversation) return this.repository.getOrCreateDefault()
+    const created = await this.repository.createConversation(title, kind)
+    await safeAuditRecord(this.auditRecorder, { module: 'ai_conversation', action: 'create', entityId: created.id, snapshot: JSON.stringify({ title: created.title, kind: created.kind }) })
+    return created
+  }
   async getConversation(id: string, includeDeleted = false): Promise<AiConversation | undefined> { if (this.repository.getConversation) return this.repository.getConversation(id, includeDeleted); const conversation = await this.repository.getDefault(); return conversation?.id === id ? conversation : undefined }
-  async updateConversationTitle(id: string, title: string): Promise<AiConversation | undefined> { return this.repository.updateConversationTitle?.(id, title) }
-  async archiveConversation(id: string): Promise<AiConversation | undefined> { return this.repository.archiveConversation?.(id) }
-  async restoreConversation(id: string): Promise<AiConversation | undefined> { return this.repository.restoreConversation?.(id) }
-  async deleteConversation(id: string): Promise<AiConversation | undefined> { return this.repository.deleteConversation?.(id) }
-  async purgeConversation(id: string): Promise<boolean> { return this.repository.purgeConversation?.(id) ?? false }
+  async updateConversationTitle(id: string, title: string): Promise<AiConversation | undefined> {
+    const updated = await this.repository.updateConversationTitle?.(id, title)
+    if (updated) await safeAuditRecord(this.auditRecorder, { module: 'ai_conversation', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ title: updated.title }) })
+    return updated
+  }
+  async archiveConversation(id: string): Promise<AiConversation | undefined> {
+    const archived = await this.repository.archiveConversation?.(id)
+    if (archived) await safeAuditRecord(this.auditRecorder, { module: 'ai_conversation', action: 'archive', entityId: archived.id, snapshot: JSON.stringify({ title: archived.title }) })
+    return archived
+  }
+  async restoreConversation(id: string): Promise<AiConversation | undefined> {
+    const restored = await this.repository.restoreConversation?.(id)
+    if (restored) await safeAuditRecord(this.auditRecorder, { module: 'ai_conversation', action: 'restore', entityId: restored.id, snapshot: JSON.stringify({ title: restored.title }) })
+    return restored
+  }
+  async deleteConversation(id: string): Promise<AiConversation | undefined> {
+    const deleted = await this.repository.deleteConversation?.(id)
+    if (deleted) await safeAuditRecord(this.auditRecorder, { module: 'ai_conversation', action: 'delete', entityId: deleted.id, snapshot: JSON.stringify({ title: deleted.title }) })
+    return deleted
+  }
+  async purgeConversation(id: string): Promise<boolean> {
+    const purged = await this.repository.purgeConversation?.(id) ?? false
+    if (purged) await safeAuditRecord(this.auditRecorder, { module: 'ai_conversation', action: 'purge', entityId: id })
+    return purged
+  }
 }
 export function aiChatCompletionsUrl(baseUrl: string): URL {
   const url = new URL(baseUrl)

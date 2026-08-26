@@ -1,0 +1,104 @@
+/* 首页自定义 AI 卡片（cream 奶油线稿规范，三档尺寸 + 内置三套底色） */
+
+/* ---- 卡片本体 ---- */
+.home-ai-card { position: relative; display: flex; min-width: 0; padding: 22px 24px; box-sizing: border-box; align-items: stretch; justify-content: space-between; gap: 14px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; }
+.home-ai-card-glow { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(circle at 22% 30%, rgba(255, 255, 255, .35) 0%, rgba(255, 255, 255, 0) 55%); }
+.home-ai-card-copy { position: relative; display: flex; min-width: 0; height: 100%; flex: 1; flex-direction: column; justify-content: space-between; }
+.home-ai-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.home-ai-card-kicker { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(43, 40, 37, .62); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+.home-ai-card-edit { flex: 0 0 auto; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 9999px; cursor: pointer; opacity: .72; }
+.home-ai-card-edit:hover { opacity: 1; background: rgba(120, 90, 60, .1); }
+.home-ai-card-title, .home-ai-card-content, .home-ai-card-hint, .home-ai-card-failed { margin-top: 10px; color: #2b2825; font-size: 15px; font-weight: 600; line-height: 1.75; overflow: hidden; }
+.home-ai-card-content { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.home-ai-card-title { font-size: 16px; font-weight: 750; color: rgba(43, 40, 37, .72); }
+.home-ai-card-hint { color: rgba(43, 40, 37, .5); font-size: 13px; font-weight: 600; }
+.home-ai-card-failed { color: #ad5965; font-size: 13px; font-weight: 700; }
+.home-ai-card-description { margin-top: 6px; color: rgba(43, 40, 37, .66); font-size: 13px; line-height: 1.55; }
+.home-ai-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(120, 90, 60, .16), 0 4px 10px rgba(0, 0, 0, .06); }
+.home-ai-card:hover .home-ai-card-glow { opacity: .85; }
+
+/* ---- 三档尺寸 ---- */
+.home-ai-card.size-small { min-height: 120px; padding: 16px 20px; }
+.home-ai-card.size-small .home-ai-card-content { -webkit-line-clamp: 2; font-size: 13px; }
+.home-ai-card.size-medium { min-height: 260px; }
+.home-ai-card.size-large { grid-column: span 2; min-height: 260px; }
+
+/* ---- 内置三套底色 ---- */
+.home-ai-card.theme-cream { background-image: linear-gradient(120deg, #F3E7D2 0%, #E4DCBF 100%); border-color: rgba(120, 90, 60, .16); }
+.home-ai-card.theme-green { background-image: linear-gradient(120deg, #F0E8C8 0%, #CBDFC3 100%); border-color: rgba(100, 130, 80, .18); }
+.home-ai-card.theme-beige { background-image: linear-gradient(120deg, #F6E0C8 0%, #EED9CF 100%); border-color: rgba(140, 100, 60, .16); }
+
+/* ---- dark 主题 ---- */
+.app-shell[data-color-theme='dark'] .home-ai-card.theme-cream { background-image: linear-gradient(120deg, #8A7B58 0%, #6E7350 100%); border-color: rgba(255, 255, 255, .1); }
+.app-shell[data-color-theme='dark'] .home-ai-card.theme-green { background-image: linear-gradient(120deg, #75805A 0%, #54705A 100%); border-color: rgba(255, 255, 255, .1); }
+.app-shell[data-color-theme='dark'] .home-ai-card.theme-beige { background-image: linear-gradient(120deg, #8F7660 0%, #7A6356 100%); border-color: rgba(255, 255, 255, .1); }
+.app-shell[data-color-theme='dark'] .home-ai-card-kicker, .app-shell[data-color-theme='dark'] .home-ai-card-description { color: rgba(255, 253, 250, .72); }
+.app-shell[data-color-theme='dark'] .home-ai-card-title, .app-shell[data-color-theme='dark'] .home-ai-card-content { color: #fffdfa; }
+.app-shell[data-color-theme='dark'] .home-ai-card-title { color: rgba(255, 253, 250, .8); }
+.app-shell[data-color-theme='dark'] .home-ai-card-hint { color: rgba(255, 253, 250, .55); }
+.app-shell[data-color-theme='dark'] .home-ai-card-failed { color: #f2b8c0; }
+.app-shell[data-color-theme='dark'] .home-ai-card-edit:hover { background: rgba(255, 255, 255, .12); }
+
+/* ---- 添加占位卡（虚线奶油卡） ---- */
+.home-ai-card-add { position: relative; display: flex; min-width: 0; min-height: 260px; padding: 22px 24px; box-sizing: border-box; align-items: center; justify-content: center; gap: 8px; border: 1.5px dashed #cfc4b5; border-radius: 22px; background: rgba(255, 255, 255, .4); color: rgba(43, 40, 37, .6); cursor: pointer; text-align: center; }
+.home-ai-card-add:hover { background: rgba(255, 255, 255, .72); color: #2b2825; }
+.home-ai-card-add-text { font-size: 14px; font-weight: 750; }
+.app-shell[data-color-theme='dark'] .home-ai-card-add { border-color: rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .04); color: rgba(255, 253, 250, .7); }
+.app-shell[data-color-theme='dark'] .home-ai-card-add:hover { background: rgba(255, 255, 255, .1); color: #fffdfa; }
+
+/* ---- 编辑弹窗 ---- */
+.home-ai-card-editor-backdrop, .home-ai-card-detail-backdrop { position: fixed; z-index: 90; inset: 0; display: flex; padding: 24px; align-items: center; justify-content: center; background: rgba(43, 40, 37, .28); }
+.home-ai-card-editor-card { width: min(100%, 480px); max-height: 88vh; display: flex; flex-direction: column; padding: 22px; box-sizing: border-box; border: 1px solid #eae6e0; border-radius: 22px; background: #fffdfa; box-shadow: 0 20px 48px rgba(42, 35, 27, .2); }
+.home-ai-card-editor-heading, .home-ai-card-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.home-ai-card-editor-title, .home-ai-card-detail-title { color: #2b2825; font-size: 18px; font-weight: 850; }
+.home-ai-card-editor-close, .home-ai-card-detail-close { color: #74695e; cursor: pointer; font-size: 14px; font-weight: 750; padding: 4px 8px; border-radius: 10px; }
+.home-ai-card-editor-close:hover, .home-ai-card-detail-close:hover { background: rgba(120, 90, 60, .08); }
+.home-ai-card-editor-body { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; overflow-y: auto; }
+.home-ai-card-editor-field { display: flex; flex-direction: column; gap: 6px; }
+.home-ai-card-editor-label { color: #4c4638; font-size: 13px; font-weight: 750; }
+.home-ai-card-editor-input { width: 100%; min-height: 40px; padding: 0 14px; box-sizing: border-box; border: 1px solid var(--cream-line, #eae6e0); border-radius: 12px; background: #faf8f5; color: #2c2823; font-size: 14px; outline: none; }
+.home-ai-card-editor-textarea { width: 100%; min-height: 110px; padding: 12px 14px; box-sizing: border-box; border: 1px solid var(--cream-line, #eae6e0); border-radius: 12px; background: #faf8f5; color: #2c2823; font-size: 14px; line-height: 1.7; outline: none; resize: none; }
+.home-ai-card-editor-input:focus, .home-ai-card-editor-textarea:focus { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .2); }
+.home-ai-card-editor-hint { color: #948e86; font-size: 11px; line-height: 1.6; }
+.home-ai-card-editor-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-ai-card-editor-option { display: flex; align-items: center; min-height: 34px; padding: 0 12px; box-sizing: border-box; border: 1px solid #eae6e0; border-radius: 9999px; background: #faf8f5; color: #544f49; font-size: 12px; font-weight: 700; cursor: pointer; }
+.home-ai-card-editor-option.selected { border-color: #dfc984; background: #f0e3bb; color: #4c4638; }
+.home-ai-card-editor-option.theme-option-cream { background: linear-gradient(120deg, #F3E7D2 0%, #E4DCBF 100%); }
+.home-ai-card-editor-option.theme-option-green { background: linear-gradient(120deg, #F0E8C8 0%, #CBDFC3 100%); }
+.home-ai-card-editor-option.theme-option-beige { background: linear-gradient(120deg, #F6E0C8 0%, #EED9CF 100%); }
+.home-ai-card-editor-error { color: #ad5965; font-size: 12px; line-height: 1.6; }
+.home-ai-card-editor-actions { display: flex; gap: 10px; margin-top: 18px; }
+.home-ai-card-editor-actions > button, .home-ai-card-editor-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; min-height: 40px; border-radius: 9999px !important; font-size: 13px !important; font-weight: 750 !important; }
+.home-ai-card-editor-cancel { border: 1px solid #eae6e0 !important; background: #fff !important; color: #544f49 !important; }
+.home-ai-card-editor-save { border: 1px solid #dfc984 !important; background: #f0e3bb !important; color: #4c4638 !important; }
+.home-ai-card-editor-save[disabled] { opacity: .55; }
+
+/* ---- 详情弹窗 ---- */
+.home-ai-card-detail-card { width: min(100%, 520px); max-height: 88vh; display: flex; flex-direction: column; padding: 22px; box-sizing: border-box; border: 1px solid #eae6e0; border-radius: 22px; background: #fffdfa; box-shadow: 0 20px 48px rgba(42, 35, 27, .2); }
+.home-ai-card-detail-body { min-height: 120px; margin-top: 14px; padding: 14px; box-sizing: border-box; overflow-y: auto; border: 1px solid var(--cream-line, #eae6e0); border-radius: 16px; background: var(--cream-canvas, #faf8f5); }
+.home-ai-card-detail-content { color: #2b2825; font-size: 14px; line-height: 1.75; white-space: pre-wrap; }
+.home-ai-card-detail-hint { color: #948e86; font-size: 13px; }
+.home-ai-card-detail-empty { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px; }
+.home-ai-card-detail-empty-text { color: #948e86; font-size: 13px; }
+.home-ai-card-detail-empty-hint { color: #948e86; font-size: 12px; line-height: 1.6; }
+.home-ai-card-detail-error { color: #ad5965; font-size: 12px; line-height: 1.6; }
+.home-ai-card-detail-actions { display: flex; gap: 10px; margin-top: 16px; }
+.home-ai-card-detail-actions > button, .home-ai-card-detail-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; min-height: 40px; border-radius: 9999px !important; font-size: 13px !important; font-weight: 750 !important; }
+.home-ai-card-detail-refresh { border: 1px solid #dfc984 !important; background: #f0e3bb !important; color: #4c4638 !important; }
+.home-ai-card-detail-delete { border: 1px solid #ecc5cb !important; background: #fbeef0 !important; color: #a94f58 !important; }
+.home-ai-card-detail-refresh[disabled], .home-ai-card-detail-delete[disabled] { opacity: .55; }
+.home-ai-card-detail-footnote { display: block; margin-top: 12px; color: #948e86; font-size: 11px; line-height: 1.6; }
+
+/* ---- 删除确认 ---- */
+.home-ai-card-delete-confirm-backdrop { position: fixed; z-index: 95; inset: 0; display: flex; padding: 24px; align-items: center; justify-content: center; background: rgba(43, 40, 37, .32); }
+.home-ai-card-delete-confirm-card { width: min(100%, 400px); padding: 24px; box-sizing: border-box; border: 1px solid #eae6e0; border-radius: 22px; background: #fffdfa; box-shadow: 0 20px 48px rgba(42, 35, 27, .2); }
+.home-ai-card-delete-confirm-title { display: block; color: #2b2825; font-size: 17px; font-weight: 850; }
+.home-ai-card-delete-confirm-hint { display: block; margin-top: 8px; color: #948e86; font-size: 13px; line-height: 1.6; }
+.home-ai-card-delete-confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
+.home-ai-card-delete-confirm-actions > button, .home-ai-card-delete-confirm-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; min-height: 40px; border-radius: 9999px !important; font-size: 13px !important; font-weight: 750 !important; }
+
+@media (max-width: 720px) {
+  .home-ai-card.size-large { grid-column: span 1; }
+  .home-ai-card-add { min-height: 120px; }
+  .home-ai-card-editor-backdrop, .home-ai-card-detail-backdrop { padding: 16px; }
+}

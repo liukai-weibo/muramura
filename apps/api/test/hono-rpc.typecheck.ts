@@ -63,5 +63,5 @@ type _MethodContextStatusIsTyped = Assert<Equal<
 >>
 type _SearchResultTypeIsTyped = Assert<Equal<SearchResponse[number]['type'], 'item' | 'review' | 'method' | 'daily-note' | 'exploration-track'>>
 type _DashboardMetricIsTyped = Assert<Equal<DashboardResponse['metrics']['newItems'], number>>
-type _BackupVersionIsTyped = Assert<Equal<BackupResponse['version'], 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9>>
+type _BackupVersionIsTyped = Assert<Equal<BackupResponse['version'], 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10>>
 type _TrashEntryTitleIsTyped = Assert<Equal<TrashResponse[number]['title'], string>>
