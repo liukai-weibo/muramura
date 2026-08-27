@@ -228,7 +228,7 @@ export function createAiRoutes() {
       const actor = context.get('actor')
       const streamKey = `${actor.id}:ephemeral:${crypto.randomUUID()}`
       const streamController = activeStreams.begin(streamKey, context.req.raw.signal)
-      const stream = services.ai.stream(messages as AiChatMessage[], streamController.signal, actor, context.get('requestId'))
+      const stream = services.ai.stream(messages as AiChatMessage[], streamController.signal, actor, context.get('requestId'), undefined, 'ephemeral')
       const readable = new ReadableStream<Uint8Array>({
         async start(controller) {
           const encoder = new TextEncoder()

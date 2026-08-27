@@ -22,8 +22,10 @@ interface HomeDashboardProps {
   onOpenDailyDiet: () => void
   dailySummary?: DailySummary
   dailySummaryLoading?: boolean
+  dailySummaryStreamPreview?: string
   dailyDiet?: DailyDietRecommendation
   dailyDietLoading?: boolean
+  dailyDietStreamPreview?: string
   homeAiCards?: HomeAiCard[]
   homeAiCardPreviews?: Record<string, string>
   homeAiCardLoading?: boolean
@@ -33,7 +35,7 @@ interface HomeDashboardProps {
   onAddHomeAiCard: () => void
 }
 
-export function HomeDashboard({ items, onOpenItem, onOpenBacklog, onOpenCapture, onOpenDailyNotes, onOpenMoodCreate, onOpenMeals, onOpenDailySummary, onOpenDailyDiet, dailySummary, dailySummaryLoading, dailyDiet, dailyDietLoading, homeAiCards = [], homeAiCardPreviews = {}, homeAiCardLoading = false, homeAiCardFailed = false, onOpenHomeAiCard, onEditHomeAiCard, onAddHomeAiCard }: HomeDashboardProps) {
+export function HomeDashboard({ items, onOpenItem, onOpenBacklog, onOpenCapture, onOpenDailyNotes, onOpenMoodCreate, onOpenMeals, onOpenDailySummary, onOpenDailyDiet, dailySummary, dailySummaryLoading, dailySummaryStreamPreview, dailyDiet, dailyDietLoading, dailyDietStreamPreview, homeAiCards = [], homeAiCardPreviews = {}, homeAiCardLoading = false, homeAiCardFailed = false, onOpenHomeAiCard, onEditHomeAiCard, onAddHomeAiCard }: HomeDashboardProps) {
   const focusItem = items.filter((item) => item.status === 'doing' && !item.deletedAt).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
 
   return <View className='home-dashboard'>
@@ -46,8 +48,8 @@ export function HomeDashboard({ items, onOpenItem, onOpenBacklog, onOpenCapture,
       <HomeMealCard onOpenMeals={onOpenMeals} />
     </View>
     <View className='home-dynamic-row'>
-      <HomeDailySummaryCard summary={dailySummary} loading={dailySummaryLoading} onOpen={onOpenDailySummary} />
-      <HomeDailyDietCard recommendation={dailyDiet} loading={dailyDietLoading} onOpen={onOpenDailyDiet} />
+      <HomeDailySummaryCard summary={dailySummary} loading={dailySummaryLoading} streamPreview={dailySummaryStreamPreview} onOpen={onOpenDailySummary} />
+      <HomeDailyDietCard recommendation={dailyDiet} loading={dailyDietLoading} streamPreview={dailyDietStreamPreview} onOpen={onOpenDailyDiet} />
     </View>
     <View className='home-custom-ai-row'>
       {homeAiCards.filter(card => !card.isHidden).map(card => (

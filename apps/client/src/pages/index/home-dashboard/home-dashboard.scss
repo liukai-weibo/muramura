@@ -91,6 +91,10 @@
   .home-widgets-section, .home-guides-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .home-widget { min-height: 104px; }
   .home-hero-copy { max-width: none; padding-bottom: 0; }.home-hero-actions { position: static; min-height: 40px; margin-top: 24px; }.home-daily-note-card { min-height: 150px; }.home-daily-note-preview { max-width: 100%; }.home-daily-note-actions { position: static; height: 40px; min-height: 40px; justify-content: flex-end; margin-top: 16px; }
+
+/* 首页卡片流式生成光标 */
+.generation-cursor { display: inline-block; margin-left: 1px; color: #8c6b49; font-weight: 800; animation: generation-cursor-blink 1s steps(1) infinite; }
+@keyframes generation-cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
   .home-mood-card, .home-meal-card { min-height: 0; padding: 20px 22px; }
   .home-mood-card-title, .home-meal-card-title { font-size: 20px; }
   .home-mood-card-description, .home-meal-card-description { font-size: 12px; }

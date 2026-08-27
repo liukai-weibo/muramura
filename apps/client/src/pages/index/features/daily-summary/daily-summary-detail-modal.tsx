@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import type { DailySummary } from '@knowledge-base/contracts'
-import { apiClient, isApiClientAbort } from '../../api-client'
+import { apiClient } from '../../api-client'
 import { ExperimentalAiMarkdown } from '../../experimental-ai/components/experimental-ai-markdown'
-import { SUMMARY_PROMPT } from './daily-summary-auto'
 import { todayLocalDate } from '../mood/mood-levels'
 
 interface DailySummaryDetailModalProps {
   /** 保留接口兼容（index.tsx 仍传入）；当前固定展示今天，忽略该值 */
   initialDate?: string
+  /** 页面级生成状态：弹窗关闭后生成仍在后台，重开弹窗继续显示实时草稿 */
+  generating?: boolean
+  draft?: string
+  aiUnavailable?: boolean
+  onGenerate?: () => void
   onClose: () => void
   onChanged?: () => void
 }
 
-export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: DailySummaryDetailModalProps) {
+export function DailySummaryDetailModal({ initialDate, onClose, onChanged, generating = false, draft, aiUnavailable = false, onGenerate }: DailySummaryDetailModalProps) {
   const today = todayLocalDate()
   const [summary, setSummary] = useState<DailySummary | undefined>()
   const [loading, setLoading] = useState(false)
-  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
-  const [aiUnavailable, setAiUnavailable] = useState(false)
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -31,7 +33,6 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
     let cancelled = false
     setLoading(true)
     setError('')
-    setAiUnavailable(false)
     setSummary(undefined)
     apiClient.getDailySummary(today)
       .then((value) => { if (!cancelled) setSummary(value ?? undefined) })
@@ -40,32 +41,7 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
     return () => { cancelled = true }
   }, [today])
 
-  const handleGenerate = async () => {
-    if (generating) return
-    setGenerating(true)
-    setError('')
-    setAiUnavailable(false)
-    const controller = new AbortController()
-    let output = ''
-    try {
-      const status = await apiClient.getAiConfigStatus()
-      if (!status.configured) { setAiUnavailable(true); return }
-      for await (const event of apiClient.streamExperimentalAiChatEphemeral([{ role: 'user', content: SUMMARY_PROMPT }], controller.signal)) {
-        if (event.type === 'token') output += event.content
-        if (event.type === 'incomplete' || event.type === 'error') { setError('生成未完成，请稍后重试') ; return }
-      }
-      if (!output.trim()) { setError('生成结果为空，请稍后重试'); return }
-      await apiClient.upsertDailySummary(today, output.trim())
-      const saved = await apiClient.getDailySummary(today)
-      setSummary(saved ?? undefined)
-      onChanged?.()
-    } catch (cause: unknown) {
-      if (isApiClientAbort(cause) || (cause instanceof Error && cause.name === 'AbortError')) return
-      setError(cause instanceof Error ? cause.message : '生成失败')
-    } finally {
-      setGenerating(false)
-    }
-  }
+  // 生成交由页面级任务（onGenerate），弹窗只负责展示流式草稿与结果；关闭弹窗不会中断后台生成。
 
   return (
     <View className='daily-summary-modal-backdrop' role='dialog' aria-modal='true' aria-label='近期状态小结' onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
@@ -78,12 +54,19 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
         <View className='daily-summary-modal-body'>
           {loading ? (
             <Text className='daily-summary-modal-hint'>加载中…</Text>
+          ) : draft ? (
+            <View className='daily-summary-modal-live'>
+              <Text className='daily-summary-modal-live-text'>{draft}</Text>
+              <Text className='generation-cursor' aria-hidden='true'>▍</Text>
+            </View>
           ) : summary ? (
             <View className='daily-summary-modal-content'><ExperimentalAiMarkdown content={summary.content} /></View>
           ) : error ? (
             <View className='daily-summary-modal-empty'><Text className='daily-summary-modal-error'>{error}</Text></View>
           ) : aiUnavailable ? (
             <View className='daily-summary-modal-empty'><Text className='daily-summary-modal-error'>AI 尚未配置，无法生成状态小结。请在「我 → AI 参数」中配置后重试。</Text></View>
+          ) : generating ? (
+            <View className='daily-summary-modal-empty'><Text className='daily-summary-modal-hint'>生成中…</Text></View>
           ) : (
             <View className='daily-summary-modal-empty'>
               <Text className='daily-summary-modal-empty-text'>最近还没有状态小结。</Text>
@@ -92,10 +75,10 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged }: Dai
           )}
         </View>
 
-        {!summary && !loading && !error && (
+        {!loading && !error && (
           <View className='daily-summary-modal-actions'>
-            <Button className='daily-summary-modal-generate' disabled={generating} onClick={handleGenerate} style={{ width: '100%' }}>
-              {generating ? '生成中…' : aiUnavailable ? '已配置后重试' : '生成近期状态小结'}
+            <Button className='daily-summary-modal-generate' disabled={generating} onClick={onGenerate} style={{ width: '100%' }}>
+              {generating ? (draft ? '生成中…' : '生成中…') : aiUnavailable ? '已配置后重试' : summary ? '重新生成' : '生成近期状态小结'}
             </Button>
           </View>
         )}
