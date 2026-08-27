@@ -47,7 +47,7 @@
 .daily-summary-modal-nav-button[disabled] { opacity: .45; }
 .daily-summary-modal-date { color: var(--cream-body); font-size: 13px; font-weight: 700; }
 
-.daily-summary-modal-body { min-height: 120px; padding: 14px; box-sizing: border-box; border: 1px solid var(--cream-line); border-radius: 16px; background: var(--cream-canvas); }
+.daily-summary-modal-body { min-height: 120px; max-height: min(46vh, 460px); overflow-y: auto; padding: 14px; box-sizing: border-box; border: 1px solid var(--cream-line); border-radius: 16px; background: var(--cream-canvas); }
 .daily-summary-modal-content { color: var(--cream-ink); font-size: 14px; line-height: 1.75; }
 .daily-summary-modal-live { display: flex; gap: 2px; color: var(--cream-ink); font-size: 14px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
 .daily-summary-modal-live-text { flex: 1; min-width: 0; white-space: pre-wrap; }
@@ -60,4 +60,3 @@
 .daily-summary-modal-actions { display: flex; }
 .daily-summary-modal-generate { margin: 0 !important; min-height: 40px; border: 1px solid #dfc984 !important; border-radius: 9999px !important; background: #f0e3bb !important; color: #4c4638 !important; font-size: 13px !important; font-weight: 750 !important; }
 .daily-summary-modal-generate[disabled] { opacity: .55; }
-.daily-summary-modal-footnote { color: var(--cream-hint); font-size: 11px; line-height: 1.6; }

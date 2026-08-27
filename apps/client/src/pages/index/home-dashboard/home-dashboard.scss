@@ -111,7 +111,7 @@
 .home-daily-summary-card-copy { position: relative; display: flex; min-width: 0; height: 100%; flex: 1; flex-direction: column; justify-content: space-between; }
 .home-daily-summary-card-kicker { color: rgba(43, 40, 37, .62); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
 .home-daily-summary-card-title, .home-daily-summary-card-content { margin-top: 6px; color: #2b2825; font-size: 22px; font-weight: 850; letter-spacing: 0; line-height: 1.3; overflow: hidden; }
-.home-daily-summary-card-content { margin-top: 10px; font-size: 15px; font-weight: 600; line-height: 1.75; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
+.home-daily-summary-card-content { margin-top: 10px; font-size: 15px; font-weight: 600; line-height: 1.75; max-height: 230px; overflow: hidden; }
 .home-daily-summary-card-hint { margin-top: 7px; color: rgba(43, 40, 37, .55); font-size: 13px; font-weight: 600; }
 .home-daily-summary-card-description { margin-top: 6px; color: rgba(43, 40, 37, .66); font-size: 13px; line-height: 1.55; }
 .home-daily-summary-card-action { position: relative; flex: 0 0 auto; align-self: center; color: rgba(43, 40, 37, .86); font-size: 12px; font-weight: 800; }
@@ -130,7 +130,7 @@
 .home-daily-diet-card-copy { position: relative; display: flex; min-width: 0; height: 100%; flex: 1; flex-direction: column; justify-content: space-between; }
 .home-daily-diet-card-kicker { color: rgba(70, 52, 30, .6); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
 .home-daily-diet-card-title, .home-daily-diet-card-content { margin-top: 6px; color: #3f3428; font-size: 22px; font-weight: 850; letter-spacing: 0; line-height: 1.3; overflow: hidden; }
-.home-daily-diet-card-content { margin-top: 10px; font-size: 15px; font-weight: 600; line-height: 1.75; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
+.home-daily-diet-card-content { margin-top: 10px; font-size: 15px; font-weight: 600; line-height: 1.75; max-height: 230px; overflow: hidden; }
 .home-daily-diet-card-hint { margin-top: 7px; color: rgba(70, 52, 30, .55); font-size: 13px; font-weight: 600; }
 .home-daily-diet-card-description { margin-top: 6px; color: rgba(70, 52, 30, .66); font-size: 13px; line-height: 1.55; }
 .home-daily-diet-card-action { position: relative; flex: 0 0 auto; align-self: center; color: rgba(70, 52, 30, .86); font-size: 12px; font-weight: 800; }

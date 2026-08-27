@@ -42,7 +42,7 @@
 .daily-diet-modal-close { color: #74695e; cursor: pointer; font-size: 14px; font-weight: 750; padding: 4px 8px; border-radius: 10px; transition: background-color .2s ease; }
 .daily-diet-modal-close:hover { background: rgba(120, 90, 60, .08); }
 
-.daily-diet-modal-body { min-height: 120px; padding: 14px; box-sizing: border-box; border: 1px solid var(--cream-line); border-radius: 16px; background: var(--cream-canvas); }
+.daily-diet-modal-body { min-height: 120px; max-height: min(46vh, 460px); overflow-y: auto; padding: 14px; box-sizing: border-box; border: 1px solid var(--cream-line); border-radius: 16px; background: var(--cream-canvas); }
 .daily-diet-modal-content { color: var(--cream-ink); font-size: 14px; line-height: 1.75; }
 .daily-diet-modal-live { display: flex; gap: 2px; color: var(--cream-ink); font-size: 14px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
 .daily-diet-modal-live-text { flex: 1; min-width: 0; white-space: pre-wrap; }
@@ -55,4 +55,3 @@
 .daily-diet-modal-actions { display: flex; }
 .daily-diet-modal-generate { margin: 0 !important; min-height: 40px; border: 1px solid #dfc984 !important; border-radius: 9999px !important; background: #f0e3bb !important; color: #4c4638 !important; font-size: 13px !important; font-weight: 750 !important; }
 .daily-diet-modal-generate[disabled] { opacity: .55; }
-.daily-diet-modal-footnote { color: var(--cream-hint); font-size: 11px; line-height: 1.6; }

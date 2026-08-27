@@ -12,12 +12,14 @@ interface DailySummaryDetailModalProps {
   generating?: boolean
   draft?: string
   aiUnavailable?: boolean
+  /** 页面内容变更信号：生成完成落库后递增，弹窗自动重拉最新记录 */
+  refreshTick?: number
   onGenerate?: () => void
   onClose: () => void
   onChanged?: () => void
 }
 
-export function DailySummaryDetailModal({ initialDate, onClose, onChanged, generating = false, draft, aiUnavailable = false, onGenerate }: DailySummaryDetailModalProps) {
+export function DailySummaryDetailModal({ initialDate, onClose, onChanged, generating = false, draft, aiUnavailable = false, refreshTick = 0, onGenerate }: DailySummaryDetailModalProps) {
   const today = todayLocalDate()
   const [summary, setSummary] = useState<DailySummary | undefined>()
   const [loading, setLoading] = useState(false)
@@ -39,7 +41,7 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged, gener
       .catch((cause: unknown) => { if (!cancelled) setError(cause instanceof Error ? cause.message : '加载失败') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [today])
+  }, [today, refreshTick])
 
   // 生成交由页面级任务（onGenerate），弹窗只负责展示流式草稿与结果；关闭弹窗不会中断后台生成。
 
@@ -83,7 +85,6 @@ export function DailySummaryDetailModal({ initialDate, onClose, onChanged, gener
           </View>
         )}
 
-        <Text className='daily-summary-modal-footnote'>小结由 AI 基于你的记录自动生成，可随时点按重新生成。</Text>
       </View>
     </View>
   )
