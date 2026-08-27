@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { snapshotPreview, snapshotPretty } from '../apps/client/src/pages/index/audit-snapshot-preview'
+import { snapshotPreview, snapshotPreviewSegments, snapshotPretty } from '../apps/client/src/pages/index/audit-snapshot-preview'
 
 describe('audit snapshot preview', () => {
   it('previews text-key snapshots', () => {
@@ -28,6 +28,27 @@ describe('audit snapshot preview', () => {
     expect(snapshotPreview('00:39\n7676\n\n凌晨有点想睡觉了')).toBe('00:39\n7676\n\n凌晨有点想睡觉了')
     expect(snapshotPreview('')).toBe('—')
     expect(snapshotPreview('null')).toBe('—')
+  })
+
+  it('splits rich snapshot segments with label/value for bold prefixes', () => {
+    const review = JSON.stringify({ actualAction: '执行', result: '完成', effective: '很有效', newIdeas: '新点子' })
+    expect(snapshotPreviewSegments(review)).toEqual([
+      { label: '做了什么：', value: '执行' },
+      { label: '复盘结果：', value: '完成' },
+      { label: '有效 / 舒服：', value: '很有效' },
+      { label: '产生新想法：', value: '新点子' },
+    ])
+    // review 同值去重后不再出现“做了什么”段
+    expect(snapshotPreviewSegments(JSON.stringify({ actualAction: '执行', result: '执行' }))).toEqual([{ label: '复盘结果：', value: '执行' }])
+  })
+
+  it('splits text/meal/date segments without prefix and empty snapshot as []', () => {
+    expect(snapshotPreviewSegments('{"title":"想开始一段旅行呢","content":"背景"}')).toEqual([{ label: '', value: '想开始一段旅行呢' }, { label: '', value: '背景' }])
+    expect(snapshotPreviewSegments('{"entryDate":"2026-08-26"}')).toEqual([{ label: '', value: '2026-08-26' }])
+    const meal = JSON.stringify({ meals: [{ mealType: 'breakfast', content: '包子', feeling: 3 }, { mealType: 'lunch', content: '面', feeling: 4 }] })
+    expect(snapshotPreviewSegments(meal)).toEqual([{ label: '', value: '早餐：包子 · 午餐：面' }])
+    expect(snapshotPreviewSegments('')).toEqual([])
+    expect(snapshotPreviewSegments('null')).toEqual([])
   })
 
   it('pretty prints object snapshots as readable Chinese key-value lines', () => {

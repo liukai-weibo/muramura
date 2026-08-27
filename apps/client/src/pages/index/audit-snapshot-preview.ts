@@ -18,6 +18,53 @@ function labelValue(value: string): string {
   return AUDIT_SNAPSHOT_VALUE_LABELS[value] ?? value
 }
 
+export interface SnapshotPreviewSegment {
+  /** 字段前缀（如 "做了什么："）；无前缀的纯内容段为空串。 */
+  label: string
+  /** 可读值正文。 */
+  value: string
+}
+
+/** 列表快照栏富文本分段：与 snapshotPreview 同序（文本键 → 日期 → 餐次 → 标量键），label/value 分离供前端加粗前缀。 */
+export function snapshotPreviewSegments(snapshot: string): SnapshotPreviewSegment[] {
+  if (!snapshot) return []
+  try {
+    const parsed = JSON.parse(snapshot) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return summarySegments(parsed as Record<string, unknown>)
+    if (parsed === null) return []
+    if (typeof parsed === 'string') return [{ label: '', value: parsed || '—' }]
+    return [{ label: '', value: JSON.stringify(parsed) }]
+  } catch { /* fall through */ }
+  return [{ label: '', value: snapshot }]
+}
+
+function summarySegments(record: Record<string, unknown>): SnapshotPreviewSegment[] {
+  const texts: SnapshotPreviewSegment[] = []
+  for (const key of SNAPSHOT_TEXT_KEYS) {
+    const value = record[key]
+    if (typeof value === 'string' && value.trim()) texts.push({ label: '', value: value.trim() })
+    if (texts.length >= 2) break
+  }
+  if (texts.length) return texts
+  if (Array.isArray(record.meals) && record.meals.length) {
+    const parts = record.meals.map((meal) => {
+      if (meal && typeof meal === 'object') {
+        const content = typeof (meal as Record<string, unknown>).content === 'string' ? (meal as Record<string, unknown>).content : undefined
+        const typeValue: unknown = (meal as Record<string, unknown>).mealType
+        const type = typeof typeValue === 'string' ? typeValue : undefined
+        return content ? (type ? labelValue(type) + '：' + content : content) : JSON.stringify(meal)
+      }
+      return String(meal)
+    })
+    if (parts.length) return [{ label: '', value: parts.join(' · ') }]
+  }
+  const dateValue = typeof record.entryDate === 'string' ? record.entryDate : typeof record.cacheDate === 'string' ? record.cacheDate : undefined
+  if (dateValue) return [{ label: '', value: dateValue }]
+  return reviewEntries(record)
+    .filter(([, value]) => value !== null && typeof value !== 'object')
+    .map(([key, value]) => ({ label: labelKey(key) + '：', value: typeof value === 'string' ? labelValue(value) : String(value) }))
+}
+
 /** 列表快照栏可读摘要：文本键 → 日期 → 餐次 → 标量键串联，避免裸显示压缩 JSON。 */
 export function snapshotPreview(snapshot: string): string {
   if (!snapshot) return '—'
