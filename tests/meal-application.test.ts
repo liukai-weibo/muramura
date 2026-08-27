@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MealEntryApplicationService } from '@knowledge-base/application'
 import type { MealDayInput, MealEntry, MealEntryRepository } from '@knowledge-base/contracts'
+import { utcDatePlusDays } from '../packages/application/src/date-utils'
 
 function createRepository(): { repository: MealEntryRepository; saved: MealDayInput[] } {
   const saved: MealDayInput[] = []
@@ -17,6 +18,14 @@ describe('meal entry application', () => {
     const service = new MealEntryApplicationService(repository)
     await service.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'breakfast', content: '  鸡蛋牛奶 ', feeling: 4 }] })
     expect(saved[0]!.meals[0]!.content).toBe('鸡蛋牛奶')
+  })
+
+  it('allows UTC-today+1 (local today across timezones) and still rejects UTC+2', async () => {
+    const { repository, saved } = createRepository()
+    const service = new MealEntryApplicationService(repository)
+    await expect(service.saveDay({ entryDate: utcDatePlusDays(1), meals: [{ mealType: 'lunch', content: '饭', feeling: 3 }] })).resolves.toBeDefined()
+    await expect(service.saveDay({ entryDate: utcDatePlusDays(2), meals: [{ mealType: 'lunch', content: '饭', feeling: 3 }] })).rejects.toMatchObject({ code: 'MEAL_ENTRY_INVALID' })
+    expect(saved).toHaveLength(1)
   })
 
   it('rejects future dates', async () => {

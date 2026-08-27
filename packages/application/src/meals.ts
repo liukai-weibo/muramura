@@ -1,6 +1,7 @@
 import type { ActivityAuditRecorder, MealDayInput, MealEntry, MealEntryRepository, MealType } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { safeAuditRecord } from './audit'
+import { utcDatePlusDays } from './date-utils'
 
 const MEAL_TYPE_SET: ReadonlySet<string> = new Set(['breakfast', 'lunch', 'dinner'])
 const MAX_CONTENT = 1000
@@ -32,7 +33,7 @@ export class MealEntryApplicationService {
   async saveDay(input: MealDayInput): Promise<MealEntry[]> {
     if (!input || !Array.isArray(input.meals)) throw invalid('三餐记录格式无效')
     const entryDate = isDateValid(input.entryDate) ? input.entryDate : todayLocal()
-    if (entryDate > todayLocal()) throw invalid('三餐记录日期不能晚于今天')
+    if (entryDate > utcDatePlusDays(1)) throw invalid('三餐记录日期不能晚于今天')
     if (input.meals.length > MAX_SLOTS) throw invalid('一天最多记录三餐')
     const seen = new Set<string>()
     const meals = input.meals.map(slot => {

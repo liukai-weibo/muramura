@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { HomeAiCardApplicationService } from '../packages/application/src/home-ai-cards'
 import type { HomeAiCard, HomeAiCardCache, HomeAiCardInput, HomeAiCardRepository } from '@knowledge-base/contracts'
+import { utcDatePlusDays } from '../packages/application/src/date-utils'
 
 function inMemoryRepository(): HomeAiCardRepository & { rows: Map<string, HomeAiCard>; caches: HomeAiCardCache[] } {
   const rows = new Map<string, HomeAiCard>()
@@ -94,6 +95,14 @@ describe('home ai card application service', () => {
     const now = new Date()
     const future = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate() + 5).padStart(2, '0')
     await expect(service.upsertCache(card.id, future, 'x')).rejects.toMatchObject({ code: 'HOME_AI_CARD_CACHE_INVALID' })
+  })
+
+  it('allows UTC-today+1 cache date (local today across timezones) and still rejects UTC+2', async () => {
+    const repository = inMemoryRepository()
+    const service = new HomeAiCardApplicationService(repository)
+    const card = await service.create(validInput)
+    await expect(service.upsertCache(card.id, utcDatePlusDays(1), '凌晨缓存内容')).resolves.toBeDefined()
+    await expect(service.upsertCache(card.id, utcDatePlusDays(2), '明天之后')).rejects.toMatchObject({ code: 'HOME_AI_CARD_CACHE_INVALID' })
   })
 
   it('keeps different dates separate and upserts same card+date', async () => {

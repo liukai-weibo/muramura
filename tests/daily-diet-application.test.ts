@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DailyDietRecommendationApplicationService } from '../packages/application/src/daily-diet'
 import type { DailyDietRecommendation, DailyDietRecommendationInput, DailyDietRecommendationRepository } from '@knowledge-base/contracts'
+import { utcDatePlusDays } from '../packages/application/src/date-utils'
 
 function inMemoryRepository(): DailyDietRecommendationRepository & { rows: Map<string, DailyDietRecommendation> } {
   const rows = new Map<string, DailyDietRecommendation>()
@@ -66,6 +67,12 @@ describe('daily diet recommendation application service', () => {
     const now = new Date()
     const future = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate() + 5).padStart(2, '0')
     await expect(service.upsertForDate({ entryDate: future, content: 'x' })).rejects.toMatchObject({ code: 'DIET_RECOMMENDATION_INVALID' })
+  })
+
+  it('allows UTC-today+1 (local today across timezones) and still rejects UTC+2', async () => {
+    const service = new DailyDietRecommendationApplicationService(inMemoryRepository())
+    await expect(service.upsertForDate({ entryDate: utcDatePlusDays(1), content: '凌晨推荐' })).resolves.toBeDefined()
+    await expect(service.upsertForDate({ entryDate: utcDatePlusDays(2), content: '明天之后' })).rejects.toMatchObject({ code: 'DIET_RECOMMENDATION_INVALID' })
   })
 
   it('rejects over-length content', async () => {

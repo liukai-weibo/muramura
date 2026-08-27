@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MoodEntryApplicationService } from '@knowledge-base/application'
 import type { MoodEntry, MoodEntryInput, MoodEntryRepository } from '@knowledge-base/contracts'
+import { utcDatePlusDays } from '../packages/application/src/date-utils'
 
 const entry: MoodEntry = {
   id: 'mood-1',
@@ -48,6 +49,15 @@ describe('mood entry application', () => {
     const { repository } = createRepository()
     const future = '2999-12-31'
     await expect(new MoodEntryApplicationService(repository).create({ content: '事件', moodLevel: 3, entryDate: future })).rejects.toMatchObject({ code: 'MOOD_ENTRY_INVALID' })
+  })
+
+  it('allows UTC-today+1 (local today across timezones) and still rejects UTC+2', async () => {
+    const { repository, calls } = createRepository()
+    const service = new MoodEntryApplicationService(repository)
+    // 东八区凌晨窗口：服务器 UTC 仍是昨天，UTC 今天+1 等于用户本地今天，必须允许
+    await expect(service.create({ content: '凌晨记录', moodLevel: 3, entryDate: utcDatePlusDays(1) })).resolves.toBeDefined()
+    await expect(service.create({ content: '明天之后', moodLevel: 3, entryDate: utcDatePlusDays(2) })).rejects.toMatchObject({ code: 'MOOD_ENTRY_INVALID' })
+    expect(calls.created).toHaveLength(1)
   })
 
   it('defaults entry date to today when omitted', async () => {

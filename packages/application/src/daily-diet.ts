@@ -1,6 +1,7 @@
 import type { DailyDietRecommendation, DailyDietRecommendationInput, DailyDietRecommendationRepository } from '@knowledge-base/contracts'
 import { DAILY_DIET_CONTENT_MAX_LENGTH } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
+import { utcDatePlusDays } from './date-utils'
 
 function todayLocal(): string {
   const d = new Date()
@@ -36,7 +37,7 @@ export class DailyDietRecommendationApplicationService {
 
   async upsertForDate(input: DailyDietRecommendationInput): Promise<DailyDietRecommendation> {
     if (!input || !isDateValid(input.entryDate)) throw invalid('日期格式无效')
-    if (input.entryDate > todayLocal()) throw invalid('饮食推荐日期不能晚于今天')
+    if (input.entryDate > utcDatePlusDays(1)) throw invalid('饮食推荐日期不能晚于今天')
     const content = typeof input.content === 'string' ? input.content.trim() : ''
     if (!content) throw invalid('饮食推荐内容不能为空')
     if (content.length > DAILY_DIET_CONTENT_MAX_LENGTH) throw invalid('饮食推荐内容超出长度限制')

@@ -16,6 +16,7 @@ import {
 } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { safeAuditRecord } from './audit'
+import { utcDatePlusDays } from './date-utils'
 
 function todayLocal(): string {
   const d = new Date()
@@ -87,7 +88,7 @@ export class HomeAiCardApplicationService {
 
   async upsertCache(cardId: string, cacheDate: string, aiOutput: string): Promise<HomeAiCardCache> {
     if (!isDateValid(cacheDate)) throw invalidCache('日期格式无效')
-    if (cacheDate > todayLocal()) throw invalidCache('缓存日期不能晚于今天')
+    if (cacheDate > utcDatePlusDays(1)) throw invalidCache('缓存日期不能晚于今天')
     const content = typeof aiOutput === 'string' ? aiOutput.trim() : ''
     if (!content) throw invalidCache('AI 输出内容不能为空')
     if (content.length > HOME_AI_CARD_OUTPUT_MAX_LENGTH) throw invalidCache('AI 输出内容超出长度限制')

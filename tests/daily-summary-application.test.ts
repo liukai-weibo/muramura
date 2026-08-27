@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DailySummaryApplicationService } from '../packages/application/src/daily-summaries'
 import type { DailySummary, DailySummaryInput, DailySummaryRepository } from '@knowledge-base/contracts'
+import { utcDatePlusDays } from '../packages/application/src/date-utils'
 
 function inMemoryRepository(): DailySummaryRepository & { rows: Map<string, DailySummary> } {
   const rows = new Map<string, DailySummary>()
@@ -66,6 +67,12 @@ describe('daily summary application service', () => {
     const now = new Date()
     const future = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate() + 5).padStart(2, '0')
     await expect(service.upsertForDate({ entryDate: future, content: 'x' })).rejects.toMatchObject({ code: 'DAILY_SUMMARY_INVALID' })
+  })
+
+  it('allows UTC-today+1 (local today across timezones) and still rejects UTC+2', async () => {
+    const service = new DailySummaryApplicationService(inMemoryRepository())
+    await expect(service.upsertForDate({ entryDate: utcDatePlusDays(1), content: '凌晨小结' })).resolves.toBeDefined()
+    await expect(service.upsertForDate({ entryDate: utcDatePlusDays(2), content: '明天之后' })).rejects.toMatchObject({ code: 'DAILY_SUMMARY_INVALID' })
   })
 
   it('rejects over-length content', async () => {

@@ -1,6 +1,7 @@
 import type { ActivityAuditRecorder, MoodEntry, MoodEntryInput, MoodEntryRepository, MoodLevel } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { safeAuditRecord } from './audit'
+import { utcDatePlusDays } from './date-utils'
 
 const MOOD_LEVEL_SET = new Set<number>([1, 2, 3, 4, 5])
 const MAX_CONTENT = 2000
@@ -40,8 +41,8 @@ export class MoodEntryApplicationService {
   async create(input: MoodEntryInput): Promise<MoodEntry> {
     this.validateInput(input)
     const entryDate = input.entryDate && isDateValid(input.entryDate) ? input.entryDate : todayLocal()
-    // entryDate must not be in the future (server-side UTC+8 today)
-    if (entryDate > todayLocal()) {
+    // 上界 = UTC 今天 + 1 天：覆盖任意时区“本地今天”，凌晨窗口（东八区 00:00~07:59 = UTC 前一天）不被误判为未来；本地明天及以上仍拒绝。
+    if (entryDate > utcDatePlusDays(1)) {
       throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪记录日期不能晚于今天')
     }
     const created = await this.repository.create({ ...input, entryDate, tags: normalizeTags(input.tags) })
@@ -52,7 +53,7 @@ export class MoodEntryApplicationService {
   async updateMine(id: string, input: MoodEntryInput): Promise<MoodEntry> {
     this.validateInput(input)
     const entryDate = input.entryDate && isDateValid(input.entryDate) ? input.entryDate : todayLocal()
-    if (entryDate > todayLocal()) {
+    if (entryDate > utcDatePlusDays(1)) {
       throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪记录日期不能晚于今天')
     }
     const updated = await this.repository.updateMine(id, { ...input, entryDate, tags: normalizeTags(input.tags) })
