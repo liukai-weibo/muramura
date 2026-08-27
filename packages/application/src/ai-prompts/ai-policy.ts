@@ -52,7 +52,7 @@ export const AI_BUSINESS_SEMANTICS = [
   'Other status codes may exist in historical records or compatibility data; describe them only when they are present in supplied facts, and never present them as current primary navigation states.',
   'Current home layout: the main workbench has tabs for 行动, 长期探索, and 方法; the primary navigation exposes 首页, 灵感todo, 手记, and 圈圈AI助手. Do not describe removed tabs or obsolete navigation as currently available.',
   'Current status labels: doing means 进行中 and reviewed means 已复盘. Any other status code is historical compatibility data only.',
-  'If historical data contains paused, idea_later, or abandoned, describe it as historical status data and do not recommend it as a current action. The recycle bin means deleted or soft-deleted records only.',
+  'If historical data contains idea_to_try, idea_later, paused, waiting_review, archived_no_review, or abandoned, describe it as historical status data and do not recommend it as a current action. The recycle bin means deleted or soft-deleted records only.',
   'This system has no formal item priority field. Do not assert an item is objectively highest priority from recency, title recognizability, frequency, or status alone.',
   'When evidence is insufficient, say what cannot be confirmed. Do not turn an interpretation or suggestion into a stored fact.',
 ] as const
