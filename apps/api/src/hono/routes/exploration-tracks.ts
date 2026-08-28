@@ -130,6 +130,35 @@ const updateDescriptionRoute = createRoute({
   responses: { 200: jsonSuccess(explorationTrackSchema, '更新后的长期探索'), 400: commonErrorResponses[400], 401: commonErrorResponses[401], 404: commonErrorResponses[404], 415: commonErrorResponses[415] },
 })
 
+const archiveTrackRoute = createRoute({
+  method: 'post',
+  path: '/{id}/archive',
+  tags: ['ExplorationTracks'],
+  summary: '归档探索主线',
+  description: '将探索主线归档：从默认/可选列表收拢，旗下未删除子行动一并归档（显示层，不删除）。',
+  request: { params: idParamSchema },
+  responses: { 204: { description: '已归档' }, 401: commonErrorResponses[401], 404: commonErrorResponses[404] },
+})
+
+const unarchiveTrackRoute = createRoute({
+  method: 'post',
+  path: '/{id}/unarchive',
+  tags: ['ExplorationTracks'],
+  summary: '取消探索主线归档',
+  description: '将已归档探索主线恢复：回到默认/可选列表，旗下子行动一并恢复。',
+  request: { params: idParamSchema },
+  responses: { 200: jsonSuccess(explorationTrackSchema, '恢复后的探索主线'), 401: commonErrorResponses[401], 404: commonErrorResponses[404] },
+})
+
+const dragnet = createRoute({
+  method: 'get',
+  path: '/archived',
+  tags: ['ExplorationTracks'],
+  summary: '列出已归档探索主线',
+  description: '返回已归档、可取消归档的探索主线列表（含最近子行动）。',
+  responses: { 200: jsonSuccess(z.array(explorationTrackListEntrySchema), '已归档探索主线'), 401: commonErrorResponses[401] },
+})
+
 const deleteTrackRoute = createRoute({
   method: 'delete',
   path: '/{id}',
@@ -227,5 +256,31 @@ export function createExplorationTrackRoutes() {
         decodeURIComponent(context.req.valid('param').id),
       )
       return context.body(null, 204)
+    })
+
+    .openapi(dragnet, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.listArchivedExplorationTracks(),
+        200,
+      )
+    })
+
+    .openapi(archiveTrackRoute, async (context) => {
+      const services = requireServices(context)
+      await services.explorationTracks.archiveExplorationTrack(
+        decodeURIComponent(context.req.valid('param').id),
+      )
+      return context.body(null, 204)
+    })
+
+    .openapi(unarchiveTrackRoute, async (context) => {
+      const services = requireServices(context)
+      return context.json(
+        await services.explorationTracks.restoreExplorationTrackFromArchive(
+          decodeURIComponent(context.req.valid('param').id),
+        ),
+        200,
+      )
     })
 }

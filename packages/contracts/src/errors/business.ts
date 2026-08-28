@@ -35,6 +35,8 @@ export type ExplorationTrackErrorCode =
   | 'EXPLORATION_TRACK_STATUS_INVALID'
   | 'EXPLORATION_TRACK_NORMALIZED_NAME_MISSING'
   | 'EXPLORATION_TRACK_WORKFLOW_UNAVAILABLE'
+  | 'EXPLORATION_TRACK_ALREADY_ARCHIVED'
+  | 'EXPLORATION_TRACK_NOT_ARCHIVED'
 
 export type MethodErrorCode =
   | 'METHOD_REQUIRED_FIELDS_MISSING'
@@ -177,6 +179,8 @@ export const businessErrorCategoryByCode = {
   TRASH_EMPTY_SELECTION: 'validation',
   TRASH_DUPLICATE_SELECTION: 'validation',
   EXPLORATION_TRACK_HAS_ITEMS: 'conflict',
+  EXPLORATION_TRACK_ALREADY_ARCHIVED: 'conflict',
+  EXPLORATION_TRACK_NOT_ARCHIVED: 'conflict',
 } as const satisfies Record<BusinessErrorCode, BusinessErrorCategory>
 
 /**

@@ -107,7 +107,20 @@ export class ExplorationTrackApplicationService {
     return restored
   }
 
+  async archiveExplorationTrack(id: string): Promise<void> {
+    const before = await this.repository.getById(id)
+    await this.repository.archive(id, new Date().toISOString())
+    if (before) await safeAuditRecord(this.auditRecorder, { module: 'exploration_track', action: 'archive', entityId: before.id, snapshot: JSON.stringify({ name: before.name }) })
+  }
+
+  async restoreExplorationTrackFromArchive(id: string): Promise<ExplorationTrack> {
+    const restored = await this.repository.restoreFromArchive(id, new Date().toISOString())
+    await safeAuditRecord(this.auditRecorder, { module: 'exploration_track', action: 'restore', entityId: restored.id, snapshot: JSON.stringify({ name: restored.name }) })
+    return restored
+  }
+
   listActiveExplorationTracks() { return this.repository.listActive() }
+  listArchivedExplorationTracks() { return this.repository.listArchived() }
   listSelectableExplorationTracks() { return this.repository.listSelectable() }
   listDeletedExplorationTracks() { return this.repository.listDeleted() }
   getExplorationTrackHistory(id: string) { return this.repository.getHistory(id) }
@@ -139,6 +152,7 @@ export class ItemApplicationService {
     private readonly repository: ItemRepository,
     private readonly explorationWorkflow?: ExplorationTrackWorkflowRepository,
     private readonly auditRecorder?: ActivityAuditRecorder,
+    private readonly archivedExplorationIds?: () => Promise<ReadonlySet<string>>,
   ) {}
 
   async createIdea(input: CaptureIdeaInput): Promise<Item> {
@@ -161,7 +175,13 @@ export class ItemApplicationService {
 
   async listItems(): Promise<Item[]> {
     await this.repository.purgeDeletedBefore(trashCutoff())
-    const items = await this.repository.list()
+    let items = await this.repository.list()
+    if (this.archivedExplorationIds) {
+      const archivedIds = await this.archivedExplorationIds()
+      if (archivedIds.size > 0) {
+        items = items.filter((item) => !item.explorationTrackId || !archivedIds.has(item.explorationTrackId))
+      }
+    }
     return items.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
   }
 

@@ -98,7 +98,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const homeAiCardRepository = userId ? new MySqlHomeAiCardRepository(pool, { userId }) : undefined
   const aiDashboard = new DashboardApplicationService(new MySqlDashboardRepository(pool, scope))
   const aiExplorations = new ExplorationTrackApplicationService(explorationTracks, explorationTracks, auditRecorder)
-  const aiItems = new ItemApplicationService(items, explorationTracks, auditRecorder)
+  const aiItems = new ItemApplicationService(items, explorationTracks, auditRecorder, () => explorationTracks.listArchived().then((entries) => new Set(entries.map((entry) => entry.track.id))))
   const aiMethods = new MethodLifecycleApplicationService(methods, auditRecorder)
   const aiPreferences = aiPreferenceRepository ? new AiPreferenceApplicationService(aiPreferenceRepository, auditRecorder) : undefined
   const ai = userId && aiConfig && aiConversationRepository && aiPreferenceRepository
@@ -114,7 +114,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     )
     : undefined
   return {
-    items: new ItemApplicationService(items, explorationTracks, auditRecorder),
+    items: new ItemApplicationService(items, explorationTracks, auditRecorder, () => explorationTracks.listArchived().then((entries) => new Set(entries.map((entry) => entry.track.id)))),
     explorationTracks: new ExplorationTrackApplicationService(explorationTracks, explorationTracks, auditRecorder),
     reviews: new ReviewApplicationService(reviews, methods, new MySqlReviewWorkflowRepository(pool, undefined, scope), auditRecorder),
     methods: new MethodLifecycleApplicationService(methods, auditRecorder),

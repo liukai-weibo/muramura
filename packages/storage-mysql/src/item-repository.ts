@@ -6,6 +6,7 @@ import { runInMySqlTransaction } from './index'
 
 type ItemRow = RowDataPacket & {
   id: string; title: string; content: string; status: ItemStatus; start_action: string | null
+  exploration_track_id: string | null; archived_at: string | Date | null
   created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null
 }
 type EventRow = RowDataPacket & { id: string; item_id: string; from_status: ItemStatus | null; to_status: ItemStatus; created_at: string | Date }
@@ -18,6 +19,8 @@ const mapItem = (row: ItemRow): Item => ({
   createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
   ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }),
   ...(row.start_action == null ? {} : { startAction: row.start_action }),
+  ...(row.exploration_track_id == null ? {} : { explorationTrackId: row.exploration_track_id }),
+  ...(row.archived_at == null ? {} : { archivedAt: iso(row.archived_at) }),
 })
 const mapEvent = (row: EventRow): ItemStatusEvent => ({
   id: row.id, itemId: row.item_id, ...(row.from_status == null ? {} : { fromStatus: row.from_status }), toStatus: row.to_status, createdAt: iso(row.created_at),

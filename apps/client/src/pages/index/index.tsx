@@ -236,7 +236,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const [searchResults, setSearchResults] = useState<SearchResult[]>()
   const [activeModule, setActiveModule] = useState<ContentModule>('actions')
   const [primaryModule, setPrimaryModule] = useState<PrimaryModule>('home')
-  const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('actions')
+  const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('explorations')
   const [myTab, setMyTab] = useState<MyTab>('profile')
   const [displayEffectMode, setDisplayEffectMode] = useState<DisplayEffectMode>(readDisplayEffectMode)
   const [dailyNoteEmpty, setDailyNoteEmpty] = useState(false)
@@ -2428,7 +2428,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
           colorTheme={colorTheme}
           onToggleColorTheme={onToggleColorTheme}
           searchContent={desktopSearchControl}
-          workbenchTabs={primaryModule === 'workbench' ? ([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
+          workbenchTabs={primaryModule === 'workbench' ? ([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
         />
         <View className={`global-header ${primaryModule === 'workbench' && workbenchTab === 'actions' ? 'global-header-actions' : ''}`}>
           <View><Text className='global-module-title'>{primaryModuleLabels[primaryModule]}</Text>{(managementAccessNotice && primaryModule === 'workbench' || restoring && primaryModule === 'workbench') && <Text className='global-message'>{managementAccessNotice || '正在安全恢复数据，请勿离开'}</Text>}</View>
@@ -2460,7 +2460,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         </View>
 
         {primaryModule === 'workbench' && !isTauriDesktop() && <View className='fast-ui-tabs workbench-tabs' role='tablist'>
-          {([['actions', '行动'], ['explorations', '长期探索'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
+          {([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
         </View>}
         {primaryModule === 'me' && <View className='fast-ui-tabs' role='tablist'>
           {([['profile', '账户'], ['insights', '观察'], ['storage', '数据工具'], ...(isAdministrator && !managementAccessDenied ? [['administration', '管理区域'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['aiConfiguration', 'AI 参数'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['audit', '安全审计'] as [MyTab, string]] : [])] as Array<[MyTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${myTab === tab ? 'active' : ''}`} role='tab' aria-selected={myTab === tab} onClick={() => openMyTab(tab)}><Text>{label}</Text></View>)}

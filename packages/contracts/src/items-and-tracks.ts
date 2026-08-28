@@ -32,6 +32,8 @@ export interface Item {
   deletedAt?: string
   /** 仅用于探索主线级联删除/恢复，不参与普通展示。 */
   explorationTrackCascadeDeletedAt?: string
+  /** 仅用于探索主线归档/取消归档的级联标记，不参与普通展示。 */
+  archivedAt?: string
   startAction?: string
   explorationTrackId?: string
 }
@@ -60,6 +62,8 @@ export interface ExplorationTrack {
   description?: string
   createdAt: string
   updatedAt: string
+  /** 归档时间戳：归档后从默认列表/可选列表收拢，旗下子行动一并归档（显示层，不删除）。 */
+  archivedAt?: string
   deletedAt?: string
 }
 
@@ -174,7 +178,10 @@ export interface ExplorationTrackRepository {
   updateDescription?(id: string, input: { description: string; updatedAt: string }): Promise<ExplorationTrack>
   softDelete(id: string, deletedAt: string): Promise<void>
   restore(id: string, updatedAt: string): Promise<ExplorationTrack>
+  archive(id: string, archivedAt: string): Promise<void>
+  restoreFromArchive(id: string, updatedAt: string): Promise<ExplorationTrack>
   listActive(): Promise<ExplorationTrackListEntry[]>
+  listArchived(): Promise<ExplorationTrackListEntry[]>
   listSelectable(): Promise<ExplorationTrack[]>
   listDeleted(): Promise<DeletedExplorationTrackListEntry[]>
   getHistory(id: string): Promise<ExplorationTrackHistory | undefined>

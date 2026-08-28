@@ -20,16 +20,16 @@ import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { businessError, rethrowDuplicateAsBusinessError } from './errors'
 import { runInMySqlTransaction } from './index'
 
-type TrackRow = RowDataPacket & { id: string; name: string; description: string; normalized_name: string; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null }
+type TrackRow = RowDataPacket & { id: string; name: string; description: string; normalized_name: string; created_at: string | Date; updated_at: string | Date; archived_at: string | Date | null; deleted_at: string | Date | null }
 type ItemRow = RowDataPacket & { id: string; title: string; content: string; status: ItemStatus; start_action: string | null; created_at: string | Date; updated_at: string | Date; deleted_at: string | Date | null; exploration_track_cascade_deleted_at: string | Date | null; exploration_track_id: string | null }
 type ReviewRow = RowDataPacket & { item_id: string; actual_action: string; result: string }
 
 const iso = (value: string | Date) => value instanceof Date ? value.toISOString() : value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`
 const mysqlDateTime = (value: string) => value.replace('T', ' ').replace('Z', '')
-const mapTrack = (row: TrackRow): ExplorationTrack => ({ id: row.id, name: row.name, description: row.description, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }) })
+const mapTrack = (row: TrackRow): ExplorationTrack => ({ id: row.id, name: row.name, description: row.description, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.archived_at == null ? {} : { archivedAt: iso(row.archived_at) }), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }) })
 const mapItem = (row: ItemRow): Item => ({ id: row.id, title: row.title, content: row.content, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.start_action == null ? {} : { startAction: row.start_action }), ...(row.deleted_at == null ? {} : { deletedAt: iso(row.deleted_at) }), ...(row.exploration_track_cascade_deleted_at == null ? {} : { explorationTrackCascadeDeletedAt: iso(row.exploration_track_cascade_deleted_at) }), ...(row.exploration_track_id == null ? {} : { explorationTrackId: row.exploration_track_id }) })
 const currentStatuses: readonly CurrentAssociatedStatus[] = ['doing']
-const trackColumns = 'id, name, description, normalized_name, created_at, updated_at, deleted_at'
+const trackColumns = 'id, name, description, normalized_name, created_at, updated_at, archived_at, deleted_at'
 const itemColumns = 'id, title, content, status, start_action, created_at, updated_at, deleted_at, exploration_track_cascade_deleted_at, exploration_track_id'
 
 export interface MySqlExplorationTrackRepositoryTestHooks {
@@ -105,8 +105,38 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
     })
   }
 
+  async archive(id: string, archivedAt: string): Promise<void> {
+    await runInMySqlTransaction(this.pool, async connection => {
+      const track = await this.lockTrack(connection, id)
+      if (!track || track.deletedAt) throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
+      if (track.archivedAt) throw businessError('EXPLORATION_TRACK_ALREADY_ARCHIVED', '探索主线已归档')
+      const timestamp = mysqlDateTime(archivedAt)
+      await connection.execute(this.scope ? 'UPDATE exploration_tracks SET archived_at=?,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET archived_at=?,updated_at=? WHERE id=?', this.scope ? [timestamp, timestamp, id, this.scope.userId] : [timestamp, timestamp, id])
+      await connection.execute(this.scope ? 'UPDATE items SET archived_at=?,updated_at=? WHERE exploration_track_id=? AND deleted_at IS NULL AND owner_user_id=?' : 'UPDATE items SET archived_at=?,updated_at=? WHERE exploration_track_id=? AND deleted_at IS NULL', this.scope ? [timestamp, timestamp, id, this.scope.userId] : [timestamp, timestamp, id])
+    })
+  }
+
+  async restoreFromArchive(id: string, updatedAt: string): Promise<ExplorationTrack> {
+    return runInMySqlTransaction(this.pool, async connection => {
+      const track = await this.lockTrack(connection, id)
+      if (!track || track.deletedAt) throw businessError('EXPLORATION_TRACK_NOT_FOUND', '探索主线不存在')
+      if (!track.archivedAt) throw businessError('EXPLORATION_TRACK_NOT_ARCHIVED', '探索主线未归档')
+      await connection.execute(this.scope ? 'UPDATE exploration_tracks SET archived_at=NULL,updated_at=? WHERE id=? AND owner_user_id=?' : 'UPDATE exploration_tracks SET archived_at=NULL,updated_at=? WHERE id=?', this.scope ? [mysqlDateTime(updatedAt), id, this.scope.userId] : [mysqlDateTime(updatedAt), id])
+      await connection.execute(this.scope ? 'UPDATE items SET archived_at=NULL,updated_at=? WHERE exploration_track_id=? AND archived_at IS NOT NULL AND owner_user_id=?' : 'UPDATE items SET archived_at=NULL,updated_at=? WHERE exploration_track_id=? AND archived_at IS NOT NULL', this.scope ? [mysqlDateTime(updatedAt), id, this.scope.userId] : [mysqlDateTime(updatedAt), id])
+      const { archivedAt: _archivedAt, ...active } = track
+      return { ...active, updatedAt }
+    })
+  }
   async listActive(): Promise<ExplorationTrackListEntry[]> {
-    const [tracks] = await this.pool.query<TrackRow[]>(this.scope ? `SELECT ${trackColumns} FROM exploration_tracks WHERE deleted_at IS NULL AND owner_user_id=? ORDER BY updated_at DESC,id ASC` : `SELECT ${trackColumns} FROM exploration_tracks WHERE deleted_at IS NULL ORDER BY updated_at DESC,id ASC`, this.scope ? [this.scope.userId] : [])
+    return this.listWithLatest('WHERE deleted_at IS NULL AND archived_at IS NULL', undefined, 'ORDER BY updated_at DESC,id ASC')
+  }
+
+  async listArchived(): Promise<ExplorationTrackListEntry[]> {
+    return this.listWithLatest('WHERE deleted_at IS NULL AND archived_at IS NOT NULL', undefined, 'ORDER BY archived_at DESC,id ASC')
+  }
+
+  private async listWithLatest(whereClause: string, _params: unknown, orderClause: string): Promise<ExplorationTrackListEntry[]> {
+    const [tracks] = await this.pool.query<TrackRow[]>(this.scope ? `SELECT ${trackColumns} FROM exploration_tracks ${whereClause} AND owner_user_id=? ${orderClause}` : `SELECT ${trackColumns} FROM exploration_tracks ${whereClause} ${orderClause}`, this.scope ? [this.scope.userId] : [])
     if (tracks.length === 0) return []
     const trackIds = tracks.map(track => track.id)
     const trackPlaceholders = trackIds.map(() => '?').join(',')
@@ -138,7 +168,7 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
   }
 
   async listSelectable(): Promise<ExplorationTrack[]> {
-    const [rows] = await this.pool.query<TrackRow[]>(this.scope ? `SELECT ${trackColumns} FROM exploration_tracks WHERE deleted_at IS NULL AND owner_user_id=? ORDER BY normalized_name ASC,id ASC` : `SELECT ${trackColumns} FROM exploration_tracks WHERE deleted_at IS NULL ORDER BY normalized_name ASC,id ASC`, this.scope ? [this.scope.userId] : [])
+    const [rows] = await this.pool.query<TrackRow[]>(this.scope ? `SELECT ${trackColumns} FROM exploration_tracks WHERE deleted_at IS NULL AND archived_at IS NULL AND owner_user_id=? ORDER BY normalized_name ASC,id ASC` : `SELECT ${trackColumns} FROM exploration_tracks WHERE deleted_at IS NULL AND archived_at IS NULL ORDER BY normalized_name ASC,id ASC`, this.scope ? [this.scope.userId] : [])
     return rows.map(mapTrack)
   }
 
@@ -196,6 +226,12 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
           throw businessError(
             'EXPLORATION_TRACK_NOT_FOUND',
             '探索主线不存在或已删除',
+          )
+        }
+        if (track.archivedAt) {
+          throw businessError(
+            'EXPLORATION_TRACK_ALREADY_ARCHIVED',
+            '已归档的探索主线不可继续记录',
           )
         }
         trackId = track.id
@@ -259,6 +295,12 @@ export class MySqlExplorationTrackRepository implements ExplorationTrackReposito
         throw businessError(
           'EXPLORATION_TRACK_DELETED',
           '目标探索主线已删除',
+        )
+      }
+      if (track.archivedAt && trackId !== item.exploration_track_id) {
+        throw businessError(
+          'EXPLORATION_TRACK_ALREADY_ARCHIVED',
+          '已归档的探索主线不可继续记录',
         )
       }
       await this.hooks?.beforeItemUpdate?.()

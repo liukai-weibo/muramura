@@ -22,6 +22,8 @@ function repository(): ExplorationTrackRepository {
     softDelete: async () => undefined,
     restore: async id => ({ id, name: '恢复', createdAt: item.createdAt, updatedAt: item.updatedAt }),
     listActive: async () => [], listSelectable: async () => [], listDeleted: async () => [],
+    archive: async () => undefined, restoreFromArchive: async id => ({ id, name: '恢复', createdAt: item.createdAt, updatedAt: item.updatedAt }),
+    listArchived: async () => [],
     getHistory: async () => undefined, getItemContext: async () => undefined,
     listItemsByTrackAndStatus: async () => [],
   }

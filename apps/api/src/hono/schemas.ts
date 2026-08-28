@@ -51,6 +51,7 @@ const explorationTrackObjectSchema = z.object({
   description: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  archivedAt: z.string().optional(),
   deletedAt: z.string().optional(),
 })
 
