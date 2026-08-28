@@ -57,13 +57,13 @@ describe('ai knowledge overview includes mood/meal/daily summaries', () => {
       profile: { username: 'tester', roles: ['member'] as any, createdAt: '2026-01-01T00:00:00.000Z' },
       itemStatusCounts: {},
       items: [], explorations: [], reviews: [], methods: [],
-      moodEntries: [{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错' }],
-      mealEntries: [{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 4 }],
+      moodEntries: [{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错', createdAt: '2026-08-24T05:10:00.000Z' }],
+      mealEntries: [{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 4, createdAt: '2026-08-23T04:05:00.000Z' }],
       dashboard: { metrics: { newItems: 0, startedExecutions: 0, completedReviews: 0, newMethods: 0, methodValidations: 0, methodRevisions: 0, methodApplications: 0 }, backlog: { ideaToTry: 0, doing: 0, waitingReview: 0, paused: 0, ideaLater: 0 }, unreviewedMethodActions: 0, facts: [] },
     } as AiKnowledgeOverview
-    const context = formatKnowledgeContext(overview, '', undefined, [], 24000)
+    const context = formatKnowledgeContext(overview, '', undefined, [], 24000, [], 'UTC')
     expect(context).toContain('Mood entries (all available dates, date is authoritative)')
-    expect(context).toContain('- 2026-08-24 | level 4 | 今天心情不错')
-    expect(context).toContain('- 2026-08-23 | 午餐 | 牛肉面 | feeling 4')
+    expect(context).toContain('- 2026-08-24 05:10 | level 4 | 今天心情不错')
+    expect(context).toContain('- 2026-08-23 04:05 | 午餐 | 牛肉面 | feeling 4')
   })
 })

@@ -38,6 +38,7 @@ export {
 export { AiKnowledgeOverviewApplicationService, formatKnowledgeContext } from './ai-context'
 export { AiPreferenceApplicationService } from './ai-preferences'
 export { DailyNoteApplicationService } from './daily-notes'
+export { formatInTimeZone, formatAnchorPrompt, utcDateToday, utcDatePlusDays } from './date-utils'
 export { MealEntryApplicationService } from './meals'
 export { MoodEntryApplicationService } from './mood'
 export { DailySummaryApplicationService } from './daily-summaries'

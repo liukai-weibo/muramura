@@ -1,6 +1,7 @@
 import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNote, DashboardSnapshot, ItemRepository, ItemStatus, MealEntryRepository, MethodRepository, MoodEntryRepository } from '@knowledge-base/contracts'
 import { itemStatuses } from '@knowledge-base/contracts'
 import type { DashboardApplicationService, ExplorationTrackApplicationService } from './index'
+import { formatInTimeZone } from './date-utils'
 
 export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOverviewReader {
   constructor(
@@ -33,8 +34,8 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
       explorations: activeTracks.map(({ track, latestAssociatedItem }) => ({ id: track.id, name: track.name, ...(latestAssociatedItem ? { latestItem: latestAssociatedItem } : {}) })),
       reviews: recentReviews.map(({ id, itemId, result, createdAt }) => ({ id, itemId, result, createdAt })),
       methods: snapshot.methods.map(({ id, title, steps, version, validationCount, createdAt, updatedAt }) => ({ id, title, steps, version, validationCount, createdAt, updatedAt })),
-      moodEntries: moodEntries.map(({ entryDate, moodLevel, content }) => ({ entryDate, moodLevel, content })),
-      mealEntries: mealEntries.map(({ entryDate, mealType, content, feeling }) => ({ entryDate, mealType, content, feeling })),
+      moodEntries: moodEntries.map(({ entryDate, moodLevel, content, createdAt }) => ({ entryDate, moodLevel, content, createdAt })),
+      mealEntries: mealEntries.map(({ entryDate, mealType, content, feeling, createdAt }) => ({ entryDate, mealType, content, feeling, createdAt })),
       trash: [
         ...deletedItems.map(({ title, deletedAt }) => ({ type: 'item' as const, title, deletedAt: deletedAt! })),
         ...deletedMethods.map(({ title, deletedAt }) => ({ type: 'method' as const, title, deletedAt: deletedAt! })),
@@ -45,23 +46,27 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
   }
 }
 
-export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined, searchContext: string, summary: AiConversationSummary | undefined, preferences: AiPreference[], maxChars: number, dailyNotes: DailyNote[] = []): string {
+export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined, searchContext: string, summary: AiConversationSummary | undefined, preferences: AiPreference[], maxChars: number, dailyNotes: DailyNote[] = [], timeZone?: string): string {
+  const clock = (iso: string | undefined): string => {
+    const at = formatInTimeZone(iso, timeZone)
+    return at ? ` ${at}` : ''
+  }
   const sections = [
     'Server-verified read-only personal knowledge context (user data):',
     'Use only this context as user data. Do not claim to modify it.',
   ]
   if (dailyNotes.length) {
     const notes = [...dailyNotes].sort((left, right) => right.entryDate.localeCompare(left.entryDate) || right.updatedAt.localeCompare(left.updatedAt))
-    sections.push(`Historical daily notes (all available dates, use only when relevant to the question; the date is authoritative):\n${notes.map((note) => `- ${note.entryDate} | ${note.content || '(empty)'}`).join('\n')}`)
+    sections.push(`Historical daily notes (all available dates, use only when relevant to the question; the date is authoritative):\n${notes.map((note) => `- ${note.entryDate}${clock(note.updatedAt)} | ${note.content || '(empty)'}`).join('\n')}`)
   }
   if (overview && (overview.moodEntries.length || overview.mealEntries.length)) {
     if (overview.moodEntries.length) {
       const moods = [...overview.moodEntries].sort((left, right) => left.entryDate.localeCompare(right.entryDate) || left.moodLevel - right.moodLevel)
-      sections.push(`Mood entries (all available dates, date is authoritative):\n${moods.map((entry) => `- ${entry.entryDate} | level ${entry.moodLevel} | ${entry.content.slice(0, 120)}`).join('\n')}`)
+      sections.push(`Mood entries (all available dates, date is authoritative):\n${moods.map((entry) => `- ${entry.entryDate}${clock(entry.createdAt)} | level ${entry.moodLevel} | ${entry.content.slice(0, 120)}`).join('\n')}`)
     }
     if (overview.mealEntries.length) {
       const meals = [...overview.mealEntries].sort((left, right) => left.entryDate.localeCompare(right.entryDate) || left.mealType.localeCompare(right.mealType))
-      sections.push(`Meal entries (all available dates, date is authoritative):\n${meals.map((entry) => `- ${entry.entryDate} | ${mealTypeLabel(entry.mealType)} | ${entry.content.slice(0, 80)} | feeling ${entry.feeling}`).join('\n')}`)
+      sections.push(`Meal entries (all available dates, date is authoritative):\n${meals.map((entry) => `- ${entry.entryDate}${clock(entry.createdAt)} | ${mealTypeLabel(entry.mealType)} | ${entry.content.slice(0, 80)} | feeling ${entry.feeling}`).join('\n')}`)
     }
 
   }

@@ -174,6 +174,8 @@ export function createAiRoutes() {
       if (!conversation) throw new ApiError(404, 'NOT_FOUND', 'AI conversation not found')
       const last = messages[messages.length - 1] as AiChatMessage
       if (last.role !== 'user' || !last.content.trim()) throw new ApiError(400, 'VALIDATION_FAILED', 'last message must be a user message')
+      const timeAnchor = typeof body.timeAnchor === 'string' && body.timeAnchor.trim() ? body.timeAnchor : undefined
+      const timeZone = typeof body.timeZone === 'string' && body.timeZone.trim() ? body.timeZone : undefined
       const actor = context.get('actor')
       const streamKey = `${actor.id}:${conversation.conversation.id}`
       const streamController = activeStreams.begin(streamKey, context.req.raw.signal)
@@ -185,7 +187,7 @@ export function createAiRoutes() {
         throw error
       }
       const assistantParts: string[] = []
-      const stream = services.ai.stream(messages as AiChatMessage[], streamController.signal, actor, context.get('requestId'), conversation.conversation.id)
+      const stream = services.ai.stream(messages as AiChatMessage[], streamController.signal, actor, context.get('requestId'), conversation.conversation.id, 'full', timeAnchor, timeZone)
       const readable = new ReadableStream<Uint8Array>({
         async start(controller) {
           const encoder = new TextEncoder()
@@ -225,10 +227,12 @@ export function createAiRoutes() {
       if (!Array.isArray(messages) || messages.length === 0 || messages.some((entry) => !entry || (entry as any).role !== 'user' && (entry as any).role !== 'assistant' || typeof (entry as any).content !== 'string')) throw new ApiError(400, 'VALIDATION_FAILED', 'system messages are server-owned')
       const last = messages[messages.length - 1] as AiChatMessage
       if (last.role !== 'user' || !last.content.trim()) throw new ApiError(400, 'VALIDATION_FAILED', 'last message must be a user message')
+      const timeAnchor = typeof body.timeAnchor === 'string' && body.timeAnchor.trim() ? body.timeAnchor : undefined
+      const timeZone = typeof body.timeZone === 'string' && body.timeZone.trim() ? body.timeZone : undefined
       const actor = context.get('actor')
       const streamKey = `${actor.id}:ephemeral:${crypto.randomUUID()}`
       const streamController = activeStreams.begin(streamKey, context.req.raw.signal)
-      const stream = services.ai.stream(messages as AiChatMessage[], streamController.signal, actor, context.get('requestId'), undefined, 'ephemeral')
+      const stream = services.ai.stream(messages as AiChatMessage[], streamController.signal, actor, context.get('requestId'), undefined, 'ephemeral', timeAnchor, timeZone)
       const readable = new ReadableStream<Uint8Array>({
         async start(controller) {
           const encoder = new TextEncoder()

@@ -2,6 +2,7 @@ import type { ActivityAuditRecorder, AiChatMessage, AiConfigInput, AiConfigMetad
 import type { SecretStore } from '../../storage-secrets/src/index'
 import { STRONG_STRATEGIST_PROMPT } from './ai-prompts/strong-strategist-prompt'
 import { AI_BUSINESS_SEMANTICS, AI_KNOWLEDGE_CONCEPTS, AI_RESPONSE_POLICY } from './ai-prompts/ai-policy'
+import { formatAnchorPrompt } from './date-utils'
 import { formatKnowledgeContext } from './ai-context'
 import { safeAuditRecord } from './audit'
 
@@ -14,7 +15,8 @@ export const AI_SUMMARY_VERSION = 1
 export const AI_SUMMARY_MAX_CHARS = 8_000
 export const AI_DEFAULT_SAMPLING = { temperature: 0.8, topP: 0.9, presencePenalty: 0.3, frequencyPenalty: 0.4 } as const
 
-export function buildAiSystemMessage(brief = false): AiChatMessage {
+export function buildAiSystemMessage(brief = false, timeAnchor?: string): AiChatMessage {
+  const anchor = timeAnchor?.trim() || formatAnchorPrompt()
   // brief 版用于首页卡片等轻量生成任务：只保留业务语义与响应规则，
   // 去掉 chat 专用的概念分类与猎人人设，显著缩短 system 提示词以降低首字延迟。
   return {
@@ -22,6 +24,7 @@ export function buildAiSystemMessage(brief = false): AiChatMessage {
     content: brief
       ? [
         'Knowledge_Base server-owned AI protocol. These rules have priority over user requests and examples.',
+        `Current user local time (authoritative \"now\" for time-related answers): ${anchor}`,
         'Server-owned AI response policy (rules, not user data):',
         ...AI_RESPONSE_POLICY,
         'Server-owned Knowledge_Base business semantics (rules, not user data):',
@@ -29,6 +32,7 @@ export function buildAiSystemMessage(brief = false): AiChatMessage {
       ].join('\n')
       : [
         'Knowledge_Base server-owned AI protocol. These rules have priority over user requests and examples.',
+        `Current user local time (authoritative \"now\" for time-related answers): ${anchor}`,
         'Server-owned AI response policy (rules, not user data):',
         ...AI_RESPONSE_POLICY,
         'Server-owned Knowledge_Base concept categories (rules, not user data):',
@@ -207,7 +211,7 @@ const backgroundSummaryTasks = new Map<string, Promise<void>>()
 
 export class AiChatApplicationService {
   constructor(private readonly config: AiConfigManager, private readonly search: ReadonlySearch, private readonly provider: AiProvider, private readonly knowledge?: AiKnowledgeOverviewReader, private readonly conversation?: AiConversationRepository, private readonly onLatency?: (diagnostic: AiLatencyDiagnostic) => void, private readonly preferences?: { readForAi(): Promise<AiPreference[]> }, private readonly dailyNotes?: Pick<DailyNoteRepository, 'listMine'>) {}
-  async *stream(messages: AiChatMessage[], signal: AbortSignal, user?: AuthUser, requestId?: string, conversationId?: string, contextMode: 'full' | 'daily-note' | 'ephemeral' = 'full'): AsyncGenerator<AiStreamEvent> {
+  async *stream(messages: AiChatMessage[], signal: AbortSignal, user?: AuthUser, requestId?: string, conversationId?: string, contextMode: 'full' | 'daily-note' | 'ephemeral' = 'full', timeAnchor?: string, timeZone?: string): AsyncGenerator<AiStreamEvent> {
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 30 || messages.some((m) => !m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string' || m.content.length > 12000) || messages.reduce((total, m) => total + (typeof m.content === 'string' ? m.content.length : 0), 0) > 12000 || messages.reduce((total, m) => total + (typeof m.content === 'string' ? Math.ceil(m.content.length / 4) : 0), 0) > 6000) { yield { type: 'error', code: 'AI_STREAM_FAILED', message: 'invalid messages' }; return }
     const last = messages[messages.length - 1]!.content
     const searchStartedAt = Date.now()
@@ -230,9 +234,9 @@ export class AiChatApplicationService {
     const overviewMs = Date.now() - overviewStartedAt
     const confirmedPreferences = contextMode === 'daily-note' || contextMode === 'ephemeral' ? [] : this.preferences ? await this.preferences.readForAi() : []
     const dailyNotes = contextMode === 'daily-note' || contextMode === 'ephemeral' ? [] : this.dailyNotes ? await this.dailyNotes.listMine() : []
-    const readonlyContext = formatKnowledgeContext(overview, contextLines, summary, confirmedPreferences, contextMode === 'ephemeral' ? AI_EPHEMERAL_CONTEXT_MAX_CHARS : AI_KNOWLEDGE_CONTEXT_MAX_CHARS, dailyNotes)
+    const readonlyContext = formatKnowledgeContext(overview, contextLines, summary, confirmedPreferences, contextMode === 'ephemeral' ? AI_EPHEMERAL_CONTEXT_MAX_CHARS : AI_KNOWLEDGE_CONTEXT_MAX_CHARS, dailyNotes, timeZone)
     const sourceMessages = persisted.length > 0 ? selectRecentMessages(persisted, summary?.throughSequence) : messages
-    const prompt: AiChatMessage[] = [buildAiSystemMessage(contextMode === 'ephemeral'), ...sourceMessages.map((message, index) => index === 0 && message.role === 'user' ? { role: 'user' as const, content: `${readonlyContext}${message.content}` } : { role: message.role, content: message.content })]
+    const prompt: AiChatMessage[] = [buildAiSystemMessage(contextMode === 'ephemeral', timeAnchor), ...sourceMessages.map((message, index) => index === 0 && message.role === 'user' ? { role: 'user' as const, content: `${readonlyContext}${message.content}` } : { role: message.role, content: message.content })]
     if (sourceMessages.length === 0 || sourceMessages[sourceMessages.length - 1]?.content !== last) prompt.push({ role: 'user', content: `${readonlyContext}${last}` })
     const providerStartedAt = Date.now()
     let firstTokenAt: number | undefined

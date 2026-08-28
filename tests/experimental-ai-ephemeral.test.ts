@@ -38,8 +38,8 @@ function createMocks() {
   return { calls, config, search, provider, knowledge, conversation, preferences, dailyNotes }
 }
 
-async function drain(service: AiChatApplicationService, mode: 'full' | 'ephemeral' = 'ephemeral') {
-  for await (const _event of service.stream([{ role: 'user', content: '分析下我最近的状态' }], new AbortController().signal, { id: 'u1' } as any, 'req-1', undefined, mode)) { /* consume */ }
+async function drain(service: AiChatApplicationService, mode: 'full' | 'ephemeral' = 'ephemeral', timeAnchor?: string) {
+  for await (const _event of service.stream([{ role: 'user', content: '分析下我最近的状态' }], new AbortController().signal, { id: 'u1' } as any, 'req-1', undefined, mode, timeAnchor)) { /* consume */ }
 }
 
 describe('AI ephemeral generation mode', () => {
@@ -72,6 +72,24 @@ describe('AI ephemeral generation mode', () => {
     const full = buildAiSystemMessage(false).content
     expect(full).toContain('concept categories')
     expect(full).toContain('leading hunter personality')
+  })
+
+  it('injects the client time anchor into the system message', async () => {
+    const m = createMocks()
+    const service = new AiChatApplicationService(m.config as any, m.search, m.provider as any, m.knowledge as any, m.conversation as any, undefined, m.preferences as any, m.dailyNotes as any)
+    await drain(service, 'ephemeral', '现在是 2026-08-27 星期四 13:20')
+    const system = m.calls.providerMessages[0]![0]!.content
+    expect(system).toContain('Current user local time')
+    expect(system).toContain('现在是 2026-08-27 星期四 13:20')
+  })
+
+  it('falls back to a server-generated anchor when timeAnchor is absent', async () => {
+    const m = createMocks()
+    const service = new AiChatApplicationService(m.config as any, m.search, m.provider as any, m.knowledge as any, m.conversation as any, undefined, m.preferences as any, m.dailyNotes as any)
+    await drain(service, 'ephemeral')
+    const system = m.calls.providerMessages[0]![0]!.content
+    expect(system).toContain('Current user local time')
+    expect(system).toMatch(/现在是 /)
   })
 
   it('full mode keeps reading conversation and preferences', async () => {

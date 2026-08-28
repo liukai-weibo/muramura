@@ -65,8 +65,8 @@ export interface AiKnowledgeOverview {
   reviews: Array<Pick<Review, 'id' | 'itemId' | 'result' | 'createdAt'>>
   methods: Array<Pick<Method, 'id' | 'title' | 'steps' | 'version' | 'validationCount' | 'createdAt' | 'updatedAt'>>
   trash?: Array<Pick<TrashEntry, 'type' | 'title' | 'deletedAt'>>
-  moodEntries: Array<Pick<MoodEntry, 'entryDate' | 'moodLevel' | 'content'>>
-  mealEntries: Array<Pick<MealEntry, 'entryDate' | 'mealType' | 'content' | 'feeling'>>
+  moodEntries: Array<Pick<MoodEntry, 'entryDate' | 'moodLevel' | 'content' | 'createdAt'>>
+  mealEntries: Array<Pick<MealEntry, 'entryDate' | 'mealType' | 'content' | 'feeling' | 'createdAt'>>
   dashboard: Pick<DashboardReport, 'metrics' | 'backlog' | 'unreviewedMethodActions' | 'facts'>
 }
 export interface AiKnowledgeOverviewReader { read(user: AuthUser): Promise<AiKnowledgeOverview> }
