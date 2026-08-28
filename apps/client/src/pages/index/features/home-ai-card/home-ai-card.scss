@@ -9,7 +9,9 @@
 .home-ai-card-edit { flex: 0 0 auto; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 9999px; cursor: pointer; opacity: .72; }
 .home-ai-card-edit:hover { opacity: 1; background: rgba(120, 90, 60, .1); }
 .home-ai-card-title, .home-ai-card-content, .home-ai-card-hint, .home-ai-card-failed { margin-top: 10px; color: #2b2825; font-size: 15px; font-weight: 600; line-height: 1.75; overflow: hidden; }
-.home-ai-card-content { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.home-ai-card-content { max-height: 10em; overflow: hidden; overflow-wrap: anywhere; }
+.home-ai-card-content .experimental-ai-markdown-heading { font-weight: 850; margin: 6px 0 2px; }
+.home-ai-card-content-more { display: inline-block; margin-left: 2px; color: rgba(43, 40, 37, .6); font-weight: 700; }
 .home-ai-card-title { font-size: 16px; font-weight: 750; color: rgba(43, 40, 37, .72); }
 .home-ai-card-hint { color: rgba(43, 40, 37, .5); font-size: 13px; font-weight: 600; }
 .home-ai-card-failed { color: #ad5965; font-size: 13px; font-weight: 700; }

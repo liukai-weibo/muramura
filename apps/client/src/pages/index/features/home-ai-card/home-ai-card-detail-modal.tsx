@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Button, Text, View } from '@tarojs/components'
+import { ExperimentalAiMarkdown } from '../../experimental-ai/components/experimental-ai-markdown'
 import type { HomeAiCard } from '@knowledge-base/contracts'
 
 interface HomeAiCardDetailModalProps {
@@ -32,7 +33,7 @@ export function HomeAiCardDetailModal({ card, content, loading, generating, erro
           {loading ? (
             <Text className='home-ai-card-detail-hint'>加载中…</Text>
           ) : content ? (
-            <View className='home-ai-card-detail-content'>{content.split('\n').map((line, index) => <Text key={index} style={{ display: 'block' }}>{line || '\u00a0'}</Text>)}</View>
+            <View className='home-ai-card-detail-content'><ExperimentalAiMarkdown content={content} /></View>
           ) : error ? (
             <View className='home-ai-card-detail-empty'><Text className='home-ai-card-detail-error'>{error}</Text></View>
           ) : (
