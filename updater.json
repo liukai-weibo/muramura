@@ -1,11 +1,11 @@
 {
-  "version": "0.1.24",
-  "notes": "修复用户管理更多菜单被裁剪。",
-  "pub_date": "2026-08-29T17:40:08.788Z",
+  "version": "0.1.25",
+  "notes": "今日饮食推荐提示词更新。",
+  "pub_date": "2026-08-29T18:05:33.739Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3FWU3JHMDJaeHlnQW5YV28vUDNNdERycHFuNTkrREV0amtYZGxOWU5HejBXZXp0THh2UVIxcGZqaEtuSmVPcERMVzhoVmFHeWY4dG5yd3A1Q1dGQlFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDI1MTc4CWZpbGU6TWFydU1hcnVfMC4xLjI0X3g2NC1zZXR1cC5leGUKME5SbjU3UHFhdkNRbUMyaG5yVzFZZlRYU0JLcWVsZk9Pa1YvdS9DRGJqbDl0YStjV3FTM2VMc01HWm5kU0lQV3VzU2YybzZQRERyZy9ZK2pqaUhQRFE9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.24/MaruMaru_0.1.24_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3ZwNzhtMlFGZGVFS1VIczNkWG9CRUhDdnJwY25vVG9nV1NQeVhVVTJxVUJ2RGRoaGhqd1RpeWVKcVBnVFJOcDhkdVFwMVU5SFc5QzlVRjNRVm11UGc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDI2NzEwCWZpbGU6TWFydU1hcnVfMC4xLjI1X3g2NC1zZXR1cC5leGUKeEp1NjY0UlQ3aklLVUxyY1U0L3FJQmVWV2pkWEMzUUVwUVR2VmluNWgzenprQ2pCSDBnMFJqR2d6a1hWYnUwRDBOTUJ6bi9OK2ZtaXNjSDhMWXZvQkE9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.25/MaruMaru_0.1.25_x64-setup.exe"
     }
   }
 }
