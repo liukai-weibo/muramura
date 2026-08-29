@@ -340,7 +340,7 @@ export type ActivityAuditQuery = {
 }
 
 const auditModulesOrder = ['daily_note', 'mood', 'meal', 'item', 'search', 'exploration_track', 'method', 'review', 'daily_summary', 'daily_diet', 'home_ai_card', 'ai_preference', 'ai_conversation', 'ai_config'] as const
-const auditActionsOrder = ['create', 'update', 'delete', 'search', 'assign', 'remove', 'restore', 'purge', 'archive', 'complete', 'append'] as const
+const auditActionsOrder = ['create', 'update', 'delete', 'search', 'assign', 'remove', 'restore', 'purge', 'archive', 'complete', 'append', 'refresh'] as const
 
 function parseActivityAuditEvent(value: unknown): ActivityAuditEvent {
   if (!isRecord(value)

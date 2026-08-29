@@ -143,6 +143,7 @@ const actionLabels: Record<AuditAction, string> = {
   archive: '归档',
   complete: '复盘',
   append: '发送',
+  refresh: '刷新',
 }
 
 function escapeCsv(value: string): string {

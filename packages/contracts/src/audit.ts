@@ -35,6 +35,7 @@ export const auditActions = [
   'archive',
   'complete',
   'append',
+  'refresh',
 ] as const
 export type AuditAction = (typeof auditActions)[number]
 

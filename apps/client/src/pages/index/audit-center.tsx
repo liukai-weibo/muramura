@@ -35,7 +35,7 @@ const actionOptions: Array<{ value: AuditAction; label: string }> = [
 ]
 
 const moduleLabel: Record<AuditModule, string> = { daily_note: '手记', mood: '情绪', meal: '三餐', item: '事项', search: '搜索', exploration_track: '探索轨道', method: '方法', review: '复盘', daily_summary: '状态小结', daily_diet: '饮食推荐', home_ai_card: 'AI 卡片', ai_preference: 'AI 偏好', ai_conversation: 'AI 会话', ai_config: 'AI 配置' }
-const actionLabel: Record<AuditAction, string> = { create: '新建', update: '编辑', delete: '删除', search: '搜索', assign: '分配', remove: '移除', restore: '恢复', purge: '清空', archive: '归档', complete: '复盘', append: '发送' }
+const actionLabel: Record<AuditAction, string> = { create: '新建', update: '编辑', delete: '删除', search: '搜索', assign: '分配', remove: '移除', restore: '恢复', purge: '清空', archive: '归档', complete: '复盘', append: '发送', refresh: '刷新' }
 
 type ListState = 'initial-loading' | 'ready' | 'refreshing' | 'initial-error' | 'refresh-error'
 

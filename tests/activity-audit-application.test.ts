@@ -210,7 +210,7 @@ describe('activity audit extended capture (phase 2)', () => {
     const recorder = new ScopedActivityAuditRecorder(repository, { userId: 'actor-card' })
     const cardRepo = {
       list: async () => [],
-      get: async () => undefined,
+      get: async () => ({ id: 'card-1', cardTitle: '健身', aiPrompt: '提示', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily', isHidden: false, sortIndex: 0 }),
       create: async () => ({ id: 'card-1', cardTitle: '健身', aiPrompt: '提示', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily', isHidden: false, sortIndex: 0 }),
       update: async () => ({ id: 'card-1', cardTitle: '健身2', aiPrompt: '提示2', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily', isHidden: false, sortIndex: 0 }),
       delete: async () => true,
@@ -225,7 +225,8 @@ describe('activity audit extended capture (phase 2)', () => {
     expect(recorded[1]).toMatchObject({ module: 'home_ai_card', action: 'update' })
     expect(JSON.parse(recorded[1]!.snapshot!)).toEqual({ cardTitle: '健身2', aiPrompt: '提示2', cardSize: 'medium', cardTheme: 'green', refreshMode: 'daily' })
     await service.upsertCache('card-1', '2026-08-25', '输出')
-    expect(recorded[2]).toMatchObject({ module: 'home_ai_card', action: 'update', entityId: 'card-1' })
+    expect(recorded[2]).toMatchObject({ module: 'home_ai_card', action: 'refresh', entityId: 'card-1' })
+    expect(JSON.parse(recorded[2]!.snapshot!)).toEqual({ cardTitle: '健身', cacheDate: '2026-08-25' })
     await service.delete('card-1')
     expect(recorded[3]).toMatchObject({ module: 'home_ai_card', action: 'delete' })
   })

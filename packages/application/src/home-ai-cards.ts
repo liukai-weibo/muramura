@@ -93,7 +93,8 @@ export class HomeAiCardApplicationService {
     if (!content) throw invalidCache('AI 输出内容不能为空')
     if (content.length > HOME_AI_CARD_OUTPUT_MAX_LENGTH) throw invalidCache('AI 输出内容超出长度限制')
     const cached = await this.repository.upsertCache(cardId, { cacheDate, aiOutput: content })
-    await safeAuditRecord(this.auditRecorder, { module: 'home_ai_card', action: 'update', entityId: cardId, snapshot: JSON.stringify({ cacheDate, cacheId: cached.id }) })
+    const card = await this.repository.get(cardId)
+    await safeAuditRecord(this.auditRecorder, { module: 'home_ai_card', action: 'refresh', entityId: cardId, snapshot: JSON.stringify({ cardTitle: card?.cardTitle ?? '未知卡片', cacheDate }) })
     return cached
   }
 
