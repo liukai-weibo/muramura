@@ -1,11 +1,11 @@
 {
-  "version": "0.1.19",
-  "notes": "endpoint 改 gh-proxy 实时代理 raw。",
-  "pub_date": "2026-08-29T10:15:38.127Z",
+  "version": "0.1.20",
+  "notes": "验证进度条。",
+  "pub_date": "2026-08-29T10:17:32.002Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L2hmL1hnaXAza0xPVkFORU9Nc08yVkhNY0xWaDRLM3lxenZ3MktWY0xsWHZTUm12SWxnRnJsZHBodFNPZEdMWmZZMTN4Y0dVdWRSTkowcjRKKysrOEFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk4NTA4CWZpbGU6TWFydU1hcnVfMC4xLjE5X3g2NC1zZXR1cC5leGUKZHBobmF5NGhZZFFseG5BQ09aU3dEZ0pUaWUrRUJtMTZWTmltNTU0Y3Q3Zm1rK1llTXF3YUtKb1QycUJBOWxNeVJDS2NuWjdFc2VFKzBGNlVqamNyQlE9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.19/MaruMaru_0.1.19_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3RNYXdhK2hxZUptaDFZMjBDdWxmaGUycFFDYVNTSUVidUw2Z3o1RUxUOXN1VlE5RFFacVpjUjd1aEV1d0NTRjNYUkQyZEg0QVdKa0FSc1BHUXVHNUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk4NjI0CWZpbGU6TWFydU1hcnVfMC4xLjIwX3g2NC1zZXR1cC5leGUKdGk3RXhEN2xydTdMdHRvZjllVFcwTUV4WXBpODJPQm1ibDNBWFc3ZWZMT2kyK3VtVEdGekM1VGJndkp5RTFOUlFIdWJ3UmtYQ3dGelBTVDhqUkluQnc9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.20/MaruMaru_0.1.20_x64-setup.exe"
     }
   }
 }
