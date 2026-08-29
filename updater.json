@@ -1,11 +1,11 @@
 {
-  "version": "0.1.14",
-  "notes": "桌面端新增检查更新；自定义卡片 AI 提示指令编辑框高度修复；刷新生成缓存审计记录为刷新并展示可读卡片标题；修复审计中心报「审计事件响应结果无效」。",
-  "pub_date": "2026-08-29T09:25:17.366Z",
+  "version": "0.1.15",
+  "notes": "检查更新 endpoint 改用 jsDelivr CDN；同步审计刷新/卡片高度/审计校验修复。",
+  "pub_date": "2026-08-29T09:33:52.465Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3NXZitKK21sbnhnS1E1Y2tLWXhLRWZleDgvWkhQZGRTck90MzVsbTR3cXdjVmJVRjRXT05RMitCVUxhenBiLzJSbDF2S0ZFY2VYaWpRSFlrL2JsT1FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk1ODAwCWZpbGU6TWFydU1hcnVfMC4xLjE0X3g2NC1zZXR1cC5leGUKYzcyYk8reEc1NDg5WllaeHJXM04vb1VWcnlCWHpRT0JzbXN2Tkd2VmFJRTg4MzhoQWE0VzQrTjFIQVlpN09lOWR5YVhHNFA2Vnp6T1cvTHpkcWdwRGc9PQo=",
-      "url": "https://github.com/liukai-weibo/muramura/releases/download/v0.1.14/MaruMaru_0.1.14_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3FnTnQyQUc5TUNRZEF0UnhZRnhJNitsNHM3N2tya0RzL01ody92dGk0MFNEbW9KcXNFL2N2ckwzU2d6cmduQlBRZUcxbnlLMC9Vc2xqWURMeVNoTkFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk2MDA4CWZpbGU6TWFydU1hcnVfMC4xLjE1X3g2NC1zZXR1cC5leGUKbkt2a0JYMVZ0SzBvVXErMU9RK3pJYUY0dFE3WEFTOTVablJBUVlUYlhQQ3Avd2pGUXVzdUxtMTR6aldaQUd4MGI0OXVuczdJcU9mclE1UDRNYWRMQ2c9PQo=",
+      "url": "https://github.com/liukai-weibo/muramura/releases/download/v0.1.15/MaruMaru_0.1.15_x64-setup.exe"
     }
   }
 }
