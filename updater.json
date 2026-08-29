@@ -1,11 +1,11 @@
 {
-  "version": "0.1.23",
-  "notes": "复核更新链路。",
-  "pub_date": "2026-08-29T11:10:34.601Z",
+  "version": "0.1.24",
+  "notes": "修复用户管理更多菜单被裁剪。",
+  "pub_date": "2026-08-29T17:40:08.788Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3RWenBnTlkxY1J3RVpvTkltWnhaU2UwRlQ0a0diUnRzWjRZaW16ZnlCNmZmSmFYemNobDVSL0NIZmVEYWhsYzUrSFFDalllOGhZQjBheXhrZGRLWUFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDAxODAxCWZpbGU6TWFydU1hcnVfMC4xLjIzX3g2NC1zZXR1cC5leGUKaFM4eFhRNjNwNGVlRjVRU0NQYWFJa0Y0OERqM0dXMDdsWVdwaVBZVCtoa0QzWmZMRWdpYlBYSkNTdGhYKzkwYmtFS2JHTm4rTlF1aTNJWS90MHM4QVE9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.23/MaruMaru_0.1.23_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3FWU3JHMDJaeHlnQW5YV28vUDNNdERycHFuNTkrREV0amtYZGxOWU5HejBXZXp0THh2UVIxcGZqaEtuSmVPcERMVzhoVmFHeWY4dG5yd3A1Q1dGQlFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDI1MTc4CWZpbGU6TWFydU1hcnVfMC4xLjI0X3g2NC1zZXR1cC5leGUKME5SbjU3UHFhdkNRbUMyaG5yVzFZZlRYU0JLcWVsZk9Pa1YvdS9DRGJqbDl0YStjV3FTM2VMc01HWm5kU0lQV3VzU2YybzZQRERyZy9ZK2pqaUhQRFE9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.24/MaruMaru_0.1.24_x64-setup.exe"
     }
   }
 }
