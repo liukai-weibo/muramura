@@ -1,11 +1,11 @@
 {
-  "version": "0.1.15",
-  "notes": "检查更新 endpoint 改用 jsDelivr CDN；同步审计刷新/卡片高度/审计校验修复。",
-  "pub_date": "2026-08-29T09:33:52.465Z",
+  "version": "0.1.16",
+  "notes": "更新下载经 gh-proxy.com 镜像加速。",
+  "pub_date": "2026-08-29T09:45:12.920Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3FnTnQyQUc5TUNRZEF0UnhZRnhJNitsNHM3N2tya0RzL01ody92dGk0MFNEbW9KcXNFL2N2ckwzU2d6cmduQlBRZUcxbnlLMC9Vc2xqWURMeVNoTkFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk2MDA4CWZpbGU6TWFydU1hcnVfMC4xLjE1X3g2NC1zZXR1cC5leGUKbkt2a0JYMVZ0SzBvVXErMU9RK3pJYUY0dFE3WEFTOTVablJBUVlUYlhQQ3Avd2pGUXVzdUxtMTR6aldaQUd4MGI0OXVuczdJcU9mclE1UDRNYWRMQ2c9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.15/MaruMaru_0.1.15_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3ZVT1Nkc0kvSDlQTXNRa1BrOVpNYUJvT0JWd3M4NUJJcnJ5SGhpK3hvcEJqWHMzNUE0WDZXZTF2dmtJRDN6czRZWFZkZ2xvZXdpUStGSE0wSjNhNUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk2Njg3CWZpbGU6TWFydU1hcnVfMC4xLjE2X3g2NC1zZXR1cC5leGUKR2RMS0xpbUxtTElQeU9zdm9BRkIyVWxieU9JU2daVjZTK0dic2owa3JBWHF5OEZqcjk5UUhTUmFkR2Y2M3BWWFM4azlPOW5xNVBNUDZ6bDRwSlFPQ0E9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.16/MaruMaru_0.1.16_x64-setup.exe"
     }
   }
 }
