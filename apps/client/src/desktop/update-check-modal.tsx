@@ -14,7 +14,11 @@ export function UpdateCheckModal({ onClose }: UpdateCheckModalProps) {
   const [latestVersion, setLatestVersion] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [progress, setProgress] = useState(0)
+  const [received, setReceived] = useState(0)
+  const [total, setTotal] = useState(0)
   const installing = useRef(false)
+
+  const fmtBytes = (n: number) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ceil(n / 1024) + ' KB')
 
   const runCheck = async () => {
     setPhase('checking')
@@ -43,7 +47,11 @@ export function UpdateCheckModal({ onClose }: UpdateCheckModalProps) {
     setPhase('downloading')
     setProgress(0)
     try {
-      await installDesktopUpdate((progressMeta) => setProgress(Math.round(progressMeta.percent)))
+      await installDesktopUpdate((p) => {
+      setReceived(p.received)
+      setTotal(p.total)
+      setProgress(Math.round(p.percent))
+    })
       setPhase('installing')
     } catch {
       installing.current = false
@@ -85,7 +93,7 @@ export function UpdateCheckModal({ onClose }: UpdateCheckModalProps) {
             <View className='update-check-progress-track'>
               <View className='update-check-progress-fill' style={{ width: progress + '%' }} />
             </View>
-            <Text className='update-check-muted'>{progress}%</Text>
+            <Text className='update-check-muted'>{progress}%{total > 0 ? '  ·  ' + fmtBytes(received) + ' / ' + fmtBytes(total) : ''}</Text>
           </>
         )}
 
