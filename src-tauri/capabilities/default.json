@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "MaruMaru desktop window and shortcut permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "global-shortcut:default"]
+  "permissions": ["core:default", "global-shortcut:default", "updater:default"]
 }

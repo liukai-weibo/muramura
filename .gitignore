@@ -72,3 +72,8 @@ desktop.ini
 *.bak
 *.swp
 ~$*
+
+# Tauri updater signing material
+src-tauri/private.key
+src-tauri/private.key.pub
+src-tauri/*.log

@@ -6,6 +6,8 @@ import { ExplorationPrototype } from './exploration-prototype'
 import { PlatformAdministration } from './platform-administration'
 import { AuditCenter } from './audit-center'
 import './audit-center.scss'
+import { UpdateCheckModal } from '../../desktop/update-check-modal'
+import '../../desktop/update-check-modal.scss'
 import { hasAdministratorRole, hasPlatformAdminRole } from './platform-administration-state'
 import { searchCollapseState, searchExitState, searchResultSelectionState, shouldOpenSearchResults } from './search-session-state'
 import { canModifyItemExplorationContext } from './item-exploration-state'
@@ -215,6 +217,7 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
   const backupApplication = apiClient
   const dashboardApplication = apiClient
   const [passwordChangeOpen, setPasswordChangeOpen] = useState(false)
+const [updateCheckOpen, setUpdateCheckOpen] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('')
@@ -2676,7 +2679,9 @@ function AuthenticatedWorkspace({ session, logoutBusy, logoutUnknownOutcome, log
         <Text className='module-description'>查看账户信息、当前登录状态，并在需要时退出登录。</Text>
         <View className='fast-ui-profile-card'><Text>当前角色</Text><Text>{isPlatformAdministrator ? '平台管理员' : isAdministrator ? '普通管理员' : '普通成员'}</Text></View>
         <View className='fast-ui-profile-card'><Text>当前会话</Text><Text>当前浏览器会话已登录。</Text></View>
+        {isTauriDesktop() && <Button className='action-button secondary' onClick={() => setUpdateCheckOpen(true)}>检查更新</Button>}
         <Button className='action-button secondary' onClick={() => setPasswordChangeOpen(true)}>修改密码</Button>
+        {updateCheckOpen && <UpdateCheckModal onClose={() => setUpdateCheckOpen(false)} />}
         {passwordChangeOpen && <View className='account-password-dialog-backdrop' role='dialog' aria-modal='true' aria-label='修改密码'>
           <View className='account-password-dialog'>
           <Text className='account-password-form-title'>修改密码</Text>

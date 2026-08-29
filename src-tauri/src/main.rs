@@ -16,6 +16,11 @@ use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWin
 #[cfg(windows)]
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, IsZoomed};
 
+#[tauri::command]
+fn desktop_app_version(app: tauri::AppHandle) -> Result<String, String> {
+    Ok(app.package_info().version.to_string())
+}
+
 const DESKTOP_SESSION_SERVICE: &str = "com.marumaru.knowledgebase";
 const DESKTOP_SESSION_ACCOUNT: &str = "desktop-bearer-session";
 
@@ -122,7 +127,9 @@ fn main() {
             save_desktop_session_token,
             clear_desktop_session_token,
             exit_app,
+            desktop_app_version,
         ])
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_single_instance::init(|app, _argv, _cwd| {
                 show_main_window(app);

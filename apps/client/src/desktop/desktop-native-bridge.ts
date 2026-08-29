@@ -63,3 +63,47 @@ export function installDesktopShortcuts(handlers: {
   window.addEventListener('keydown', onKeyDown)
   return () => window.removeEventListener('keydown', onKeyDown)
 }
+export interface DesktopUpdateInfo {
+  available: boolean
+  currentVersion: string
+  latestVersion: string
+}
+
+export interface DesktopUpdateProgress {
+  received: number
+  total: number
+  percent: number
+}
+
+export async function getDesktopAppVersion(): Promise<string | undefined> {
+  if (!isTauriDesktop()) return undefined
+  const version = await invoke<string>('desktop_app_version')
+  return typeof version === 'string' && version.trim() ? version.trim() : undefined
+}
+
+export async function checkDesktopUpdate(): Promise<DesktopUpdateInfo | undefined> {
+  if (!isTauriDesktop()) return undefined
+  const update = await checkTauriUpdater()
+  const currentVersion = (await getDesktopAppVersion()) ?? '未知'
+  if (!update) return { available: false, currentVersion, latestVersion: currentVersion }
+  return { available: true, currentVersion, latestVersion: update.version }
+}
+
+export async function installDesktopUpdate(onProgress: (progress: DesktopUpdateProgress) => void): Promise<void> {
+  const update = await checkTauriUpdater()
+  if (!update) return
+  let total = 0
+  await update.downloadAndInstall((event) => {
+    if (event.event === 'Started') {
+      total = event.data.contentLength || 0
+    } else if (event.event === 'Progress') {
+      const received = event.data.chunkLength || 0
+      onProgress({ received, total, percent: total > 0 ? Math.min(100, (received / total) * 100) : 0 })
+    }
+  })
+}
+
+async function checkTauriUpdater() {
+  const { check } = await import('@tauri-apps/plugin-updater')
+  return check()
+}

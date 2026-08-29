@@ -1,0 +1,48 @@
+.app-shell .update-check-dialog-backdrop {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(45, 35, 28, .34);
+}
+.app-shell .update-check-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 420px);
+  padding: 20px;
+  border: 1px solid var(--cream-line);
+  border-radius: 18px;
+  background: var(--cream-surface);
+  box-shadow: 0 20px 56px rgba(52, 39, 29, .24);
+}
+.app-shell .update-check-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-shell .update-check-dialog-title { color: var(--cream-ink); font-size: 14px; font-weight: 700; }
+.app-shell .update-check-dialog-close { color: var(--cream-ink); font-size: 14px; cursor: pointer; }
+.app-shell .update-check-current { color: var(--cream-ink); font-size: 14px; }
+.app-shell .update-check-line { color: var(--cream-ink); font-size: 13px; }
+.app-shell .update-check-muted { color: #8b7d6d; font-size: 12px; }
+.app-shell .update-check-ok { color: #3f7d51; font-size: 13px; }
+.app-shell .update-check-error { color: #b64e61; font-size: 12px; }
+.app-shell .update-check-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.app-shell .update-check-action { margin-top: 6px; }
+.app-shell .update-check-progress-track {
+  height: 8px;
+  border-radius: 4px;
+  background: #eae4da;
+  overflow: hidden;
+}
+.app-shell .update-check-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #d98f9e, #c97889);
+  transition: width .2s ease;
+}
+.app-shell[data-color-theme='dark'] .update-check-dialog { border-color: #4a453f; background: #2d2925; }
+.app-shell[data-color-theme='dark'] .update-check-muted { color: #b7aea1; }
+.app-shell[data-color-theme='dark'] .update-check-progress-track { background: #3a362f; }
