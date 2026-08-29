@@ -1,11 +1,11 @@
 {
-  "version": "0.1.13",
-  "notes": "",
-  "pub_date": "2026-08-28T15:40:20.000Z",
+  "version": "0.1.14",
+  "notes": "桌面端新增检查更新；自定义卡片 AI 提示指令编辑框高度修复；刷新生成缓存审计记录为刷新并展示可读卡片标题；修复审计中心报「审计事件响应结果无效」。",
+  "pub_date": "2026-08-29T09:25:17.366Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3BKeFNUUGw3UVFGTWthUGUvNkJwaE53dUlvWFl0MlA1UlhOclRhRnZ6SXdhbTErMXAydjZYTE4vTjB1UjJmc2NTdFN3MFZBWFBab1k3RSsvT2JkM1EwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTg5OTMwCWZpbGU6TWFydU1hcnVfMC4xLjEzX3g2NC1zZXR1cC5leGUKeU9vZTl6U1dqU2h1RUtzM1k3dGxRNm91aVJVM0c2aUVxUDI3OHlLUE9hcnB0RXVNRmt1ZDE0UHRIWi9Nd2lrMmxrckhjSGUyZUZhSkdVU3NXSnhrQVE9PQo=",
-      "url": "https://github.com/liukai-weibo/muramura/releases/download/v0.1.13/MaruMaru_0.1.13_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L2pnYS9NUnZGYmVSVFdLL2xIK2xWRVZnWnV1Q3Zja1N5RXVKYU56RVAyQmd3MGFPQkRUWk1PYjBXQWhKM0lIVE45OVc0Vkk3djBFQnVVNmkvbWQwMmdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk1NTA0CWZpbGU6TWFydU1hcnVfMC4xLjE0X3g2NC1zZXR1cC5leGUKemIxQ2huNVBmdHVJRENtVEliK09RWHVlLzU3TjFGNmt2TkNydkxrbnpsWjFsejBNWWVkR1ZLMElQWXppc1ZsYWVObk96ejAxMzhLUThsTVJwckllQnc9PQo=",
+      "url": "https://github.com/liukai-weibo/muramura/releases/download/v0.1.14/MaruMaru_0.1.14_x64-setup.exe"
     }
   }
 }
