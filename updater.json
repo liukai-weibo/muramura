@@ -1,11 +1,11 @@
 {
-  "version": "0.1.16",
-  "notes": "更新下载经 gh-proxy.com 镜像加速。",
-  "pub_date": "2026-08-29T09:45:12.920Z",
+  "version": "0.1.17",
+  "notes": "修复下载进度条（分块字节累计）。",
+  "pub_date": "2026-08-29T10:00:40.575Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3ZVT1Nkc0kvSDlQTXNRa1BrOVpNYUJvT0JWd3M4NUJJcnJ5SGhpK3hvcEJqWHMzNUE0WDZXZTF2dmtJRDN6czRZWFZkZ2xvZXdpUStGSE0wSjNhNUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk2Njg3CWZpbGU6TWFydU1hcnVfMC4xLjE2X3g2NC1zZXR1cC5leGUKR2RMS0xpbUxtTElQeU9zdm9BRkIyVWxieU9JU2daVjZTK0dic2owa3JBWHF5OEZqcjk5UUhTUmFkR2Y2M3BWWFM4azlPOW5xNVBNUDZ6bDRwSlFPQ0E9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.16/MaruMaru_0.1.16_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3B5d1E5WkwzVERVRXNHOGZHS0dVU1RRT0JiRXVKNVMxTjMvRzFzbTY0L0JadzFUMXI0U1VCSmw0YUk1SjlOM0JiZGZMcm04emdudmRoUzRVbmlZUGc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3OTk3NjA2CWZpbGU6TWFydU1hcnVfMC4xLjE3X3g2NC1zZXR1cC5leGUKRG02NlRhejAxeTIvQno0VFY0M0FtVjhXN3ErMjJ1ekNTOVc5R1VWbndzNEpYdTkxNFhlT1V4b0JGdmJHMHoyZWQ0THZ6eHRIVWZHbXpIbkNzMFVVRFE9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.17/MaruMaru_0.1.17_x64-setup.exe"
     }
   }
 }

@@ -93,11 +93,12 @@ export async function installDesktopUpdate(onProgress: (progress: DesktopUpdateP
   const update = await checkTauriUpdater()
   if (!update) return
   let total = 0
+  let received = 0
   await update.downloadAndInstall((event) => {
     if (event.event === 'Started') {
       total = event.data.contentLength || 0
     } else if (event.event === 'Progress') {
-      const received = event.data.chunkLength || 0
+      received += event.data.chunkLength || 0
       onProgress({ received, total, percent: total > 0 ? Math.min(100, (received / total) * 100) : 0 })
     }
   })
