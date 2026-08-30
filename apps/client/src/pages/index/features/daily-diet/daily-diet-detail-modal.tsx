@@ -15,11 +15,12 @@ interface DailyDietDetailModalProps {
   /** 页面内容变更信号：生成完成落库后递增，弹窗自动重拉最新记录 */
   refreshTick?: number
   onGenerate?: () => void
+  onOpenProfile?: () => void
   onClose: () => void
   onChanged?: () => void
 }
 
-export function DailyDietDetailModal({ initialDate, onClose, onChanged, generating = false, draft, aiUnavailable = false, refreshTick = 0, onGenerate }: DailyDietDetailModalProps) {
+export function DailyDietDetailModal({ initialDate, onClose, onChanged, generating = false, draft, aiUnavailable = false, refreshTick = 0, onGenerate, onOpenProfile }: DailyDietDetailModalProps) {
   const today = todayLocalDate()
   const [recommendation, setRecommendation] = useState<DailyDietRecommendation | undefined>()
   const [loading, setLoading] = useState(false)
@@ -79,7 +80,8 @@ export function DailyDietDetailModal({ initialDate, onClose, onChanged, generati
 
         {!loading && !error && (
           <View className='daily-diet-modal-actions'>
-            <Button className='daily-diet-modal-generate' disabled={generating} onClick={onGenerate} style={{ width: '100%' }}>
+            <Button className='daily-diet-profile-btn secondary' onClick={onOpenProfile}>个人档案</Button>
+            <Button className='daily-diet-modal-generate' disabled={generating} onClick={onGenerate}>
               {generating ? '生成中…' : aiUnavailable ? '已配置后重试' : recommendation ? '重新生成' : '生成今日推荐'}
             </Button>
           </View>

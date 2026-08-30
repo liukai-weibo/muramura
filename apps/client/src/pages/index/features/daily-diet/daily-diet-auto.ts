@@ -1,5 +1,6 @@
 import type { AiStreamEvent, DailyNote, MealEntry, MoodEntry } from '@knowledge-base/contracts'
 import { apiClient, isApiClientAbort } from '../../api-client'
+import { buildDietProfileSegment, loadDietProfile } from './daily-diet-profile'
 import { todayLocalDate } from '../mood/mood-levels'
 import { startMidnightAutoGenerate } from '../daily-summary/daily-summary-auto'
 
@@ -13,9 +14,10 @@ import { startMidnightAutoGenerate } from '../daily-summary/daily-summary-auto'
 
 /** 角色指令：饮食营养师，只针对饮食，不做整体状态分析。 */
 const DIET_PROMPT = [
-  '你是顶级营养师，我的身高是178cm，体重是81kg。',
+  '你是顶级营养师。',
   '请根据目前时间、最近的饮食习惯，以及我的今日饮食，来分析今日剩余时间的饮食，并给出建议。',
   '尽量简单垂直点说明；推荐饮食时推荐一些简单好记的推荐，别种类太多；',
+  '推荐食材尽量是盒马这类新零售超市、以及普通超市都能买到的常见食材（不必指名品牌、不依赖独家货源）。',
   '末尾不需要问句钩子；结论时不要重复我的基础信息（如身高体重）。',
 ].join('\n')
 
@@ -79,7 +81,9 @@ export async function buildDietPrompt(): Promise<string> {
     '以及手记记录：'
     + (noteLines.length ? '\n' + noteLines.join('\n') : '（没有手记记录）'),
   ].join('\n')
-  return DIET_PROMPT + '\n\n' + context
+  const profileSegment = buildDietProfileSegment(loadDietProfile())
+  const profileBlock = profileSegment ? '\n\n' + profileSegment : ''
+  return DIET_PROMPT + profileBlock + '\n\n' + context
 }
 
 function mealTypeLabel(type: string): string {

@@ -142,3 +142,8 @@
 .app-shell[data-color-theme='dark'] .home-daily-diet-card-description { color: rgba(255, 253, 250, .72); }
 .app-shell[data-color-theme='dark'] .home-daily-diet-card-action { color: rgba(255, 253, 250, .9); }
 .app-shell[data-color-theme='dark'] .home-daily-diet-card-hint { color: rgba(255, 253, 250, .7); }
+
+
+/* 今日饮食推荐 · 配置个人档案角标 */
+.home-daily-diet-config { position: absolute; top: 10px; right: 12px; z-index: 5; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 9999px; color: var(--cream-hint, #948e86); font-size: 13px; line-height: 1; cursor: pointer; transition: background-color .18s ease, color .18s ease; }
+.home-daily-diet-config:hover { color: var(--cream-ink, #302b26); background: rgba(120, 90, 60, .08); }

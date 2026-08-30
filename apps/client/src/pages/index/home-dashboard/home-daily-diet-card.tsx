@@ -8,15 +8,17 @@ interface HomeDailyDietCardProps {
   /** 流式生成预览：生成中未落库时优先展示实时文本 */
   streamPreview?: string
   onOpen: () => void
+  onOpenProfile?: () => void
 }
 
 const PREVIEW_LENGTH = 300
 
-export function HomeDailyDietCard({ recommendation, loading, streamPreview, onOpen }: HomeDailyDietCardProps) {
+export function HomeDailyDietCard({ recommendation, loading, streamPreview, onOpen, onOpenProfile }: HomeDailyDietCardProps) {
   const streamed = streamPreview ? streamPreview.slice(0, PREVIEW_LENGTH) : undefined
   const streaming = Boolean(streamPreview)
   return (
     <View className={`home-daily-diet-card card-transition${loading || streaming ? ' is-loading' : ''}`} role='button' aria-label='今日饮食推荐' onClick={onOpen}>
+      {onOpenProfile && <View className='home-daily-diet-config' role='button' aria-label='配置个人档案' onClick={(event) => { event.stopPropagation(); onOpenProfile() }}><Text>⚙️</Text></View>}
       <View className='home-daily-diet-card-glow' aria-hidden='true' />
       <View className='home-daily-diet-card-copy'>
         <Text className='home-daily-diet-card-kicker'>今日饮食推荐</Text>
