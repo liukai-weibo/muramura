@@ -2484,7 +2484,6 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
           onOpenMeals={() => setHomeMealsOpen(true)}
           onOpenDailySummary={() => setHomeDailySummaryOpen(true)}
           onOpenDailyDiet={() => setHomeDailyDietOpen(true)}
-          onOpenProfile={() => setDietProfileOpen(true)}
           dailySummary={todaySummary}
           dailySummaryLoading={todaySummaryLoading}
           dailySummaryStreamPreview={todaySummaryDraft}

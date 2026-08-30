@@ -1,11 +1,11 @@
 {
-  "version": "0.1.26",
-  "notes": "今日饮食推荐新增个人档案配置与盒马食材偏好。",
-  "pub_date": "2026-08-30T05:27:13.578Z",
+  "version": "0.1.27",
+  "notes": "个人档案弹窗优化与齿轮入口去除。",
+  "pub_date": "2026-08-30T05:34:12.453Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L25FcDVXT3VhKzlIUGM3THpFN0Y3RUFpK2p3dFBjdnQ2UUVRcjlrWWU2eWlUN25CaU1RcXEvbGRKMlRXWmRjL0RCa2FyYUpORHlGQzAzUVExNU5hMlFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDY3NjA5CWZpbGU6TWFydU1hcnVfMC4xLjI2X3g2NC1zZXR1cC5leGUKaSt1UXpVRVpvWkhvenp6R0ZGbWNtbjFOSFM2NWZjT2pwdXJkUHlUdzdEa0hlV1J1T0p5LzUzUWtndllSa3UzNzZBV05MTkhzMmFDN2czenRQajBvQ2c9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.26/MaruMaru_0.1.26_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3ZWdXBWNktsN3crK0traXAwYTNiWmtBY1dldlFQa3hxa0tYWUJRR0QwaWlRSHl4c3JJMTJxZWdjS0pKUjJ2ZTRoa3Q5YUNDRFB0emhxemQzUWthd3dRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDY3OTk1CWZpbGU6TWFydU1hcnVfMC4xLjI3X3g2NC1zZXR1cC5leGUKRUlXS3N3K1g3b3FFN0ZKcGFyeWtXTDZxQXR3UEdYSEQrQXZ6b2FURTN0Y09HMS9MOThDQVY2MHlreCt4ckRmcmJEWGpFb05XOEw5d3pDZFp3b0ZRQ2c9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.27/MaruMaru_0.1.27_x64-setup.exe"
     }
   }
 }
