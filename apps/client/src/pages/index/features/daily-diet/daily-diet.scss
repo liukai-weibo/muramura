@@ -53,8 +53,10 @@
 .daily-diet-modal-error { color: #ad5965; font-size: 12px; line-height: 1.6; }
 
 .daily-diet-modal-actions { display: flex; align-items: center; gap: 10px; }
-.daily-diet-modal-generate { flex: 1 1 0; margin: 0 !important; min-height: 40px; border: 1px solid #dfc984 !important; border-radius: 9999px !important; background: #f0e3bb !important; color: #4c4638 !important; font-size: 13px !important; font-weight: 750 !important; }
+.daily-diet-modal-actions > button, .daily-diet-modal-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; min-height: 40px; border-radius: 9999px !important; font-size: 13px !important; font-weight: 750 !important; }
+.daily-diet-modal-generate { border: 1px solid #dfc984 !important; background: #f0e3bb !important; color: #4c4638 !important; }
 .daily-diet-modal-generate[disabled] { opacity: .55; }
+.daily-diet-modal-actions .daily-diet-profile-btn.secondary { border: 1px solid var(--cream-line) !important; background: transparent !important; color: var(--cream-body) !important; }
 
 
 /* 今日饮食推荐 · 个人档案配置弹窗 */
@@ -64,14 +66,15 @@
 .daily-diet-profile-label { color: var(--cream-hint); font-size: 12px; font-weight: 700; }
 .daily-diet-profile-field-row { display: flex; gap: 10px; margin-top: 2px; }
 .daily-diet-profile-field-row .daily-diet-profile-field { flex: 1 1 0; min-width: 0; }
-.daily-diet-profile-input { width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px; text-align: center; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-canvas); color: var(--cream-ink); font-size: 14px; }
+.daily-diet-profile-input { display: block; box-sizing: border-box; width: 100%; height: 40px; padding: 0; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-canvas); color: var(--cream-ink); font-size: 14px; }
+.daily-diet-profile-input .weui-input, .daily-diet-profile-input input { box-sizing: border-box; width: 100%; height: 38px !important; min-height: 0; max-height: 38px; padding: 0 6px; line-height: 38px; text-align: center; color: inherit; font-size: 14px; background: transparent; }
 .daily-diet-profile-textarea { width: 100%; box-sizing: border-box; min-height: 64px; padding: 10px 12px; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-canvas); color: var(--cream-ink); font-size: 14px; line-height: 1.6; }
 .daily-diet-profile-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .daily-diet-profile-chip { padding: 7px 14px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-canvas); color: var(--cream-body); font-size: 13px; cursor: pointer; transition: background-color .18s ease, border-color .18s ease; }
 .daily-diet-profile-chip:hover { border-color: var(--cream-selection-border, #dfc984); }
 .daily-diet-profile-chip.is-active { border-color: #dfc984; background: #f0e3bb; color: #4c4638; font-weight: 750; }
 .daily-diet-profile-error { color: #ad5965; font-size: 12px; line-height: 1.6; }
-.daily-diet-profile-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
-.daily-diet-profile-btn { margin: 0 !important; min-height: 40px; min-width: 96px; border-radius: 9999px !important; font-size: 13px !important; font-weight: 750 !important; }
+.daily-diet-profile-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.daily-diet-profile-actions > button, .daily-diet-profile-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; min-height: 40px; border-radius: 9999px !important; font-size: 13px !important; font-weight: 750 !important; }
 .daily-diet-profile-btn.secondary { border: 1px solid var(--cream-line) !important; background: transparent !important; color: var(--cream-body) !important; }
 .daily-diet-profile-btn.primary { border: 1px solid #dfc984 !important; background: #f0e3bb !important; color: #4c4638 !important; }
