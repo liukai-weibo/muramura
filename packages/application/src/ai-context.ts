@@ -1,7 +1,7 @@
-import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNote, DashboardSnapshot, ItemRepository, ItemStatus, MealEntryRepository, MethodRepository, MoodEntryRepository } from '@knowledge-base/contracts'
+import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNote, DashboardSnapshot, Item, ItemRepository, ItemStatus, MealEntryRepository, MethodRepository, MoodEntryRepository } from '@knowledge-base/contracts'
 import { itemStatuses } from '@knowledge-base/contracts'
 import type { DashboardApplicationService, ExplorationTrackApplicationService } from './index'
-import { formatInTimeZone } from './date-utils'
+import { formatInTimeZone, utcDatePlusDays } from './date-utils'
 
 export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOverviewReader {
   constructor(
@@ -27,11 +27,65 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
     snapshot.items.forEach((item) => { itemStatusCounts[item.status] += 1 })
     const recentReviews = [...snapshot.reviews].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id)).slice(0, 30)
     const report = await this.dashboard.getReport('all')
+    // 近 30 天窗口（按日期边界），用于派生「近期回报」信号。
+    const cutoff = utcDatePlusDays(-30)
+    const inWindow = (iso: string): boolean => iso >= cutoff
+
+    const lastDoingAt = new Map<string, string>()
+    const recentDoingCount = new Map<string, number>()
+    for (const event of snapshot.itemStatusEvents) {
+      if (event.toStatus !== 'doing') continue
+      const prior = lastDoingAt.get(event.itemId)
+      if (!prior || event.createdAt > prior) lastDoingAt.set(event.itemId, event.createdAt)
+      if (inWindow(event.createdAt)) recentDoingCount.set(event.itemId, (recentDoingCount.get(event.itemId) ?? 0) + 1)
+    }
+    const lastReviewedAt = new Map<string, string>()
+    for (const review of snapshot.reviews) {
+      const prior = lastReviewedAt.get(review.itemId)
+      if (!prior || review.createdAt > prior) lastReviewedAt.set(review.itemId, review.createdAt)
+    }
+
+    const trackItemLists = new Map<string, Item[]>()
+    for (const item of snapshot.items) {
+      if (!item.explorationTrackId) continue
+      const list = trackItemLists.get(item.explorationTrackId) ?? []
+      list.push(item)
+      trackItemLists.set(item.explorationTrackId, list)
+    }
+    const explorations = activeTracks.map(({ track, latestAssociatedItem }) => {
+      const trackItems = trackItemLists.get(track.id) ?? []
+      const itemIds = new Set(trackItems.map((item) => item.id))
+      const doingCount = trackItems.filter((item) => item.status === 'doing').length
+      let recentActivityCount30d = 0
+      let lastActivityAt: string | undefined
+      for (const item of trackItems) if (!lastActivityAt || item.updatedAt > lastActivityAt) lastActivityAt = item.updatedAt
+      for (const event of snapshot.itemStatusEvents) {
+        if (event.toStatus !== 'doing' || !itemIds.has(event.itemId)) continue
+        if (inWindow(event.createdAt)) recentActivityCount30d += 1
+        if (!lastActivityAt || event.createdAt > lastActivityAt) lastActivityAt = event.createdAt
+      }
+      let reviewedCount30d = 0
+      for (const review of snapshot.reviews) if (itemIds.has(review.itemId) && inWindow(review.createdAt)) reviewedCount30d += 1
+      let derivedMethodCount = 0
+      for (const application of snapshot.methodApplications) if (itemIds.has(application.itemId)) derivedMethodCount += 1
+      return {
+        id: track.id,
+        name: track.name,
+        ...(latestAssociatedItem ? { latestItem: latestAssociatedItem } : {}),
+        itemCount: trackItems.length,
+        doingCount,
+        recentActivityCount30d,
+        ...(lastActivityAt ? { lastActivityAt } : {}),
+        reviewedCount30d,
+        derivedMethodCount,
+      }
+    })
+
     return {
       profile: { username: user.username, roles: [...user.roles], createdAt: user.createdAt },
       itemStatusCounts,
-      items: snapshot.items.map(({ id, title, content, status, createdAt, updatedAt }) => ({ id, title, content, status, createdAt, updatedAt })),
-      explorations: activeTracks.map(({ track, latestAssociatedItem }) => ({ id: track.id, name: track.name, ...(latestAssociatedItem ? { latestItem: latestAssociatedItem } : {}) })),
+      items: snapshot.items.map(({ id, title, content, status, createdAt, updatedAt, explorationTrackId }) => ({ id, title, content, status, createdAt, updatedAt, explorationTrackId, lastDoingAt: lastDoingAt.get(id), recentDoingCount30d: recentDoingCount.get(id) ?? 0, lastReviewedAt: lastReviewedAt.get(id) })),
+      explorations,
       reviews: recentReviews.map(({ id, itemId, result, createdAt }) => ({ id, itemId, result, createdAt })),
       methods: snapshot.methods.map(({ id, title, steps, version, validationCount, createdAt, updatedAt }) => ({ id, title, steps, version, validationCount, createdAt, updatedAt })),
       moodEntries: moodEntries.map(({ entryDate, moodLevel, content, createdAt }) => ({ entryDate, moodLevel, content, createdAt })),
@@ -75,8 +129,8 @@ export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined
     sections.push(`Authoritative knowledge base summary for numeric questions: 事项总数=${overview.items.length}; 方法总数=${overview.methods.length}; 复盘总数=${overview.reviews.length}; 探索主线总数=${overview.explorations.length}`)
     const currentStatusCodes = new Set(['doing', 'reviewed'])
     sections.push(`Authoritative current item status counts: ${Object.entries(overview.itemStatusCounts).filter(([status]) => currentStatusCodes.has(status)).map(([status, count]) => `${statusLabel(status)}=${count}`).join(', ')}`)
-    sections.push(`Items (cite by title; internal IDs and machine status codes are unavailable to the assistant):\n${[...overview.items].sort((a, b) => (a.status === 'doing' ? 0 : 1) - (b.status === 'doing' ? 0 : 1) || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 80).map((item) => `- ${item.title} | 状态=${statusLabel(item.status)} | updatedAt=${item.updatedAt} | ${item.content.slice(0, 240)}`).join('\n') || '- none'}`)
-    sections.push(`Explorations (cite by name; internal IDs and machine status codes are unavailable to the assistant):\n${overview.explorations.slice(0, 40).map((track) => `- ${track.name}${track.latestItem ? ` | latest=${track.latestItem.title}（${statusLabel(track.latestItem.status)}）` : ''}`).join('\n') || '- none'}`)
+    sections.push(`Items (cite by title; internal IDs and machine status codes are unavailable to the assistant) (grouped by exploration track):\n${formatItemsGroupedByTrack(overview, 80)}`)
+    sections.push(`Exploration tracks and their last-30-day return signals (cite by name; these counts are server-verified signals of recent activity/review/method reuse, not invented ROI):\n${overview.explorations.slice(0, 40).map((track) => `- ${track.name}：事项=${track.itemCount}，进行中=${track.doingCount}，近30天执行=${track.recentActivityCount30d}，近30天复盘=${track.reviewedCount30d}，派生方法应用=${track.derivedMethodCount}${track.lastActivityAt ? `，最近活动=${track.lastActivityAt}` : ''}${track.latestItem ? `｜最近=${track.latestItem.title}（${statusLabel(track.latestItem.status)}）` : ''}`).join('\n') || '- 暂无探索主线'}`)
     sections.push(`Recent reviews (cite by subject; internal IDs are unavailable to the assistant):\n${overview.reviews.slice(0, 30).map((review) => `- review record | ${review.result.slice(0, 240)}`).join('\n') || '- none'}`)
     sections.push(`Methods (cite by title; internal IDs are unavailable to the assistant):\n${overview.methods.slice(0, 40).map((method) => `- ${method.title} v${method.version} | validations=${method.validationCount} | ${method.steps.slice(0, 240)}`).join('\n') || '- none'}`)
     sections.push(`Dashboard: ${overview.dashboard.facts.map(replaceStatusCodes).join(' ')}; current status summary=进行中${overview.dashboard.backlog.doing}，已复盘${overview.itemStatusCounts.reviewed ?? 0}; homepage quick actions=快速记录（追加一条内容到当天手记）、继续推进（定位当前事项并进入下一步）、快速捕获（直接创建进行中事项）; unreviewedMethodActions=${overview.dashboard.unreviewedMethodActions}`)
@@ -103,6 +157,32 @@ export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined
   return `${output.join('')}\n\n`
 }
 
+
+function formatItemsGroupedByTrack(overview: AiKnowledgeOverview, cap: number): string {
+  const buckets: Array<{ label: string; items: AiKnowledgeOverview['items'] }> = []
+  const byTrack = new Map<string, AiKnowledgeOverview['items']>()
+  for (const item of overview.items) {
+    const key = item.explorationTrackId ?? '\u0000none'
+    const list = byTrack.get(key) ?? []
+    list.push(item)
+    byTrack.set(key, list)
+  }
+  for (const track of overview.explorations) {
+    const list = byTrack.get(track.id)
+    if (list && list.length) buckets.push({ label: `【${track.name}】`, items: list })
+  }
+  const none = byTrack.get('\u0000none')
+  if (none && none.length) buckets.push({ label: '【无主线】', items: none })
+  const rank = (a: AiKnowledgeOverview['items'][number], b: AiKnowledgeOverview['items'][number]) => (a.status === 'doing' ? 0 : 1) - (b.status === 'doing' ? 0 : 1) || b.updatedAt.localeCompare(a.updatedAt)
+  const rendered: string[] = []
+  outer: for (const bucket of buckets) {
+    for (const item of [...bucket.items].sort(rank)) {
+      if (rendered.length >= cap) break outer
+      rendered.push(`- ${bucket.label} ${item.title} | 状态=${statusLabel(item.status)} | lastDoing=${item.lastDoingAt ?? '-'} | 近30天执行=${item.recentDoingCount30d ?? 0} | lastReviewed=${item.lastReviewedAt ?? '-'} | ${item.content.slice(0, 200)}`)
+    }
+  }
+  return rendered.join('\n') || '- none'
+}
 
 function mealTypeLabel(type: string): string {
   return ({ breakfast: '早餐', lunch: '午餐', dinner: '晚餐' } as Record<string, string>)[type] ?? type

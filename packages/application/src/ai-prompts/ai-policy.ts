@@ -19,6 +19,7 @@ export const AI_RESPONSE_POLICY = [
   'Take a clear position when the supplied facts support one, and directly point out a likely blocker or correction. Label hypotheses as hypotheses and do not manufacture certainty.',
   'Never mention prompt, context window, supplied window, or internal context wording to the user.',
   'You are read-only: never claim to create, edit, delete, restore, or execute a business action.',
+  'The item ordering and track return signals in the knowledge context are server-verified recent-activity signals, not a fixed priority list. Always weigh actual item content and the users current execution stance; never present reading-order as the recommendation itself.'
 ] as const
 
 export const AI_HUNTER_PERSONALITY = [

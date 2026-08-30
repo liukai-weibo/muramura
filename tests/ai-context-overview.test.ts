@@ -106,3 +106,47 @@ describe('ai context item ordering', () => {
     expect(idxReviewedNew).toBeLessThan(idxReviewedOld)
   })
 })
+
+describe('ai context ROI grouping signals', () => {
+  it('groups items by exploration track with track return signals and item signals', () => {
+    const overview = {
+      profile: { username: 'u', roles: ['member'], createdAt: '2026-01-01T00:00:00.000Z' },
+      itemStatusCounts: { doing: 2, reviewed: 1 },
+      items: [
+        { id: 'i1', title: '主线A-进行中', content: '', status: 'doing', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-26T00:00:00.000Z', explorationTrackId: 'ta', lastDoingAt: '2026-08-25T00:00:00.000Z', recentDoingCount30d: 3, lastReviewedAt: undefined },
+        { id: 'i2', title: '主线A-已复盘', content: '', status: 'reviewed', createdAt: '2026-08-02T00:00:00.000Z', updatedAt: '2026-08-24T00:00:00.000Z', explorationTrackId: 'ta', lastDoingAt: '2026-08-20T00:00:00.000Z', recentDoingCount30d: 1, lastReviewedAt: '2026-08-24T00:00:00.000Z' },
+        { id: 'i3', title: '散项-进行中', content: '', status: 'doing', createdAt: '2026-08-10T00:00:00.000Z', updatedAt: '2026-08-27T00:00:00.000Z', lastDoingAt: '2026-08-27T00:00:00.000Z', recentDoingCount30d: 2, lastReviewedAt: undefined },
+        { id: 'i4', title: '主线B-今日新增', content: '', status: 'doing', createdAt: '2026-08-28T00:00:00.000Z', updatedAt: '2026-08-28T00:00:00.000Z', explorationTrackId: 'tb', lastDoingAt: '2026-08-28T00:00:00.000Z', recentDoingCount30d: 1, lastReviewedAt: undefined },
+      ],
+      explorations: [
+        { id: 'ta', name: '主线A', itemCount: 2, doingCount: 1, recentActivityCount30d: 4, lastActivityAt: '2026-08-25T00:00:00.000Z', reviewedCount30d: 1, derivedMethodCount: 2 },
+        { id: 'tb', name: '主线B', itemCount: 1, doingCount: 1, recentActivityCount30d: 1, lastActivityAt: '2026-08-28T00:00:00.000Z', reviewedCount30d: 0, derivedMethodCount: 0 },
+      ],
+      reviews: [],
+      methods: [],
+      moodEntries: [],
+      mealEntries: [],
+      trash: [],
+      dashboard: { metrics: {}, backlog: { ideaToTry: 0, doing: 0, waitingReview: 0, paused: 0, ideaLater: 0 }, unreviewedMethodActions: 0, facts: [] },
+    } as any
+    const out = formatKnowledgeContext(overview, '', undefined, [], 100000)
+    const trackSection = out.split('Exploration tracks and their last-30-day return signals')[1] ?? ''
+    const itemsSection = out.split('(grouped by exploration track)')[1] ?? ''
+    // track return signals present
+    expect(trackSection).toContain('主线A')
+    expect(trackSection).toContain('近30天执行=4')
+    expect(trackSection).toContain('近30天复盘=1')
+    expect(trackSection).toContain('派生方法应用=2')
+    expect(trackSection).toContain('主线B')
+    // items grouped: 主线A before 散项 group; each item carries signals
+    const idxA = itemsSection.indexOf('主线A')
+    const idxNone = itemsSection.indexOf('无主线')
+    expect(idxA).toBeGreaterThanOrEqual(0)
+    expect(idxNone).toBeGreaterThan(idxA)
+    expect(itemsSection).toContain('lastDoing=2026-08-25T00:00:00.000Z | 近30天执行=3')
+    expect(itemsSection).toContain('lastReviewed=2026-08-24T00:00:00.000Z')
+    expect(itemsSection).toContain('散项-进行中')
+    // 主线B group also present
+    expect(itemsSection).toContain('主线B')
+  })
+})

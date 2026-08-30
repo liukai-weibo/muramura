@@ -60,8 +60,8 @@ export interface AiConversationRepository {
 export interface AiKnowledgeOverview {
   profile: Pick<AuthUser, 'username' | 'roles' | 'createdAt'>
   itemStatusCounts: Record<string, number>
-  items: Array<Pick<Item, 'id' | 'title' | 'content' | 'status' | 'createdAt' | 'updatedAt'>>
-  explorations: Array<{ id: string; name: string; latestItem?: Pick<Item, 'id' | 'title' | 'status' | 'createdAt'> }>
+  items: Array<Pick<Item, 'id' | 'title' | 'content' | 'status' | 'createdAt' | 'updatedAt' | 'explorationTrackId'> & { lastDoingAt?: string; recentDoingCount30d?: number; lastReviewedAt?: string }>
+  explorations: Array<{ id: string; name: string; latestItem?: Pick<Item, 'id' | 'title' | 'status' | 'createdAt'>; itemCount: number; doingCount: number; recentActivityCount30d: number; lastActivityAt?: string; reviewedCount30d: number; derivedMethodCount: number }>
   reviews: Array<Pick<Review, 'id' | 'itemId' | 'result' | 'createdAt'>>
   methods: Array<Pick<Method, 'id' | 'title' | 'steps' | 'version' | 'validationCount' | 'createdAt' | 'updatedAt'>>
   trash?: Array<Pick<TrashEntry, 'type' | 'title' | 'deletedAt'>>
