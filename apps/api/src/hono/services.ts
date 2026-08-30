@@ -15,6 +15,7 @@ import {
   AiConversationApplicationService,
   AiKnowledgeOverviewApplicationService,
   AiPreferenceApplicationService,
+  DietProfileApplicationService,
   DailyNoteApplicationService,
   MealEntryApplicationService,
   MoodEntryApplicationService,
@@ -39,6 +40,7 @@ import {
   MySqlSearchRepository,
   MySqlAiConversationRepository,
   MySqlAiPreferenceRepository,
+  MySqlDietProfileRepository,
   MySqlDailyNoteRepository,
   MySqlMealEntryRepository,
   MySqlMoodEntryRepository,
@@ -95,6 +97,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const mealEntryRepository = userId ? new MySqlMealEntryRepository(pool, { userId }) : undefined
   const dailySummaryRepository = userId ? new MySqlDailySummaryRepository(pool, { userId }) : undefined
   const dailyDietRepository = userId ? new MySqlDailyDietRecommendationRepository(pool, { userId }) : undefined
+  const dietProfileRepository = userId ? new MySqlDietProfileRepository(pool, { userId }) : undefined
   const homeAiCardRepository = userId ? new MySqlHomeAiCardRepository(pool, { userId }) : undefined
   const aiDashboard = new DashboardApplicationService(new MySqlDashboardRepository(pool, scope))
   const aiExplorations = new ExplorationTrackApplicationService(explorationTracks, explorationTracks, auditRecorder)
@@ -128,6 +131,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository, auditRecorder) : undefined,
     dailySummaries: dailySummaryRepository ? new DailySummaryApplicationService(dailySummaryRepository) : undefined,
     dailyDiet: dailyDietRepository ? new DailyDietRecommendationApplicationService(dailyDietRepository) : undefined,
+    dietProfile: dietProfileRepository ? new DietProfileApplicationService(dietProfileRepository, auditRecorder, userId) : undefined,
     homeAiCards: homeAiCardRepository ? new HomeAiCardApplicationService(homeAiCardRepository, auditRecorder) : undefined,
     aiConfig,
     aiConversation: aiConversationRepository ? new AiConversationApplicationService(aiConversationRepository, auditRecorder) : undefined,

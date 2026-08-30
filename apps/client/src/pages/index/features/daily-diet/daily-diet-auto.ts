@@ -81,7 +81,7 @@ export async function buildDietPrompt(): Promise<string> {
     '以及手记记录：'
     + (noteLines.length ? '\n' + noteLines.join('\n') : '（没有手记记录）'),
   ].join('\n')
-  const profileSegment = buildDietProfileSegment(loadDietProfile())
+  const profileSegment = buildDietProfileSegment(await loadDietProfile())
   const profileBlock = profileSegment ? '\n\n' + profileSegment : ''
   return DIET_PROMPT + profileBlock + '\n\n' + context
 }

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import type { DailyDietProfile } from './daily-diet-profile'
+import type { DietProfileInput } from '@knowledge-base/contracts'
 import { ACTIVITY_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, loadDietProfile, saveDietProfile } from './daily-diet-profile'
 
 interface DailyDietProfileModalProps {
@@ -15,37 +15,62 @@ function toOptionalRaw(value: string): number | undefined {
 }
 
 export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
-  const initial = loadDietProfile()
-  const [height, setHeight] = useState(initial.heightCm != null ? String(initial.heightCm) : '')
-  const [weight, setWeight] = useState(initial.weightKg != null ? String(initial.weightKg) : '')
-  const [age, setAge] = useState(initial.age != null ? String(initial.age) : '')
-  const [gender, setGender] = useState(initial.gender ?? '')
-  const [goal, setGoal] = useState(initial.goal ?? '')
-  const [activity, setActivity] = useState(initial.activity ?? '')
-  const [healthNote, setHealthNote] = useState(initial.healthNote ?? '')
+  const [height, setHeight] = useState('')
+  const [weight, setWeight] = useState('')
+  const [age, setAge] = useState('')
+  const [gender, setGender] = useState('')
+  const [goal, setGoal] = useState('')
+  const [activity, setActivity] = useState('')
+  const [healthNote, setHealthNote] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const save = () => {
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    loadDietProfile().then((p) => {
+      if (cancelled) return
+      setHeight(p.heightCm != null ? String(p.heightCm) : '')
+      setWeight(p.weightKg != null ? String(p.weightKg) : '')
+      setAge(p.age != null ? String(p.age) : '')
+      setGender(p.gender ?? '')
+      setGoal(p.goal ?? '')
+      setActivity(p.activity ?? '')
+      setHealthNote(p.healthNote ?? '')
+    }).finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const save = async () => {
+    if (saving) return
     const h = toOptionalRaw(height)
     const w = toOptionalRaw(weight)
     const a = toOptionalRaw(age)
     if ([h, w, a].some((v) => v !== undefined && Number.isNaN(v))) { setError('身高/体重/年龄需填有效数字（大于 0），或留空。'); return }
-    const profile: DailyDietProfile = {}
-    if (h !== undefined) profile.heightCm = Math.round(h)
-    if (w !== undefined) profile.weightKg = Math.round(w * 10) / 10
-    if (a !== undefined) profile.age = Math.round(a)
-    if (gender) profile.gender = gender as DailyDietProfile['gender']
-    if (goal) profile.goal = goal as DailyDietProfile['goal']
-    if (activity) profile.activity = activity as DailyDietProfile['activity']
+    const input: DietProfileInput = {}
+    if (h !== undefined) input.heightCm = Math.round(h)
+    if (w !== undefined) input.weightKg = Math.round(w * 10) / 10
+    if (a !== undefined) input.age = Math.round(a)
+    if (gender) input.gender = gender as DietProfileInput['gender']
+    if (goal) input.goal = goal as DietProfileInput['goal']
+    if (activity) input.activity = activity as DietProfileInput['activity']
     const note = healthNote.trim()
-    if (note) profile.healthNote = note
-    saveDietProfile(profile)
-    onClose()
+    if (note) input.healthNote = note
+    setSaving(true)
+    setError('')
+    try {
+      await saveDietProfile(input)
+      onClose()
+    } catch {
+      setError('保存失败，请稍后重试。')
+      setSaving(false)
+    }
   }
 
   const chip = (value: string, current: string, onChange: (next: string) => void) => (
     <View
-      className={`daily-diet-profile-chip${current === value ? ' is-active' : ''}`}
+      className={'daily-diet-profile-chip' + (current === value ? ' is-active' : '')}
       onClick={() => onChange(current === value ? '' : value)}
       role='radio'
       aria-checked={current === value}
@@ -62,7 +87,7 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
           <View className='daily-diet-modal-close' onClick={onClose}><Text>✕</Text></View>
         </View>
 
-        <View className='daily-diet-profile-hint'>以下信息只会用于今日饮食推荐，可按需填写；留空的项 AI 不会编造。保存后影响下一次生成的推荐。</View>
+        <View className='daily-diet-profile-hint'>以下信息只会用于今日饮食推荐，可按需填写；留空的项 AI 不会编造。保存后影响下一次生成的推荐，并同步到服务端。</View>
 
         <View className='daily-diet-profile-field-row'>
           <View className='daily-diet-profile-field'>
@@ -103,11 +128,11 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
 
         <View className='daily-diet-profile-actions'>
           <Button className='daily-diet-profile-btn secondary' onClick={onClose}>取消</Button>
-          <Button className='daily-diet-profile-btn primary' onClick={save}>保存</Button>
+          <Button className='daily-diet-profile-btn primary' onClick={() => { void save() }} disabled={saving || loading}>{saving ? '保存中…' : '保存'}</Button>
         </View>
       </View>
     </View>
-  )
+)
 }
 
 function labelFor(value: string): string {

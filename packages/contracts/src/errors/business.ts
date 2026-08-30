@@ -60,6 +60,7 @@ export type MoodEntryErrorCode = 'MOOD_ENTRY_INVALID' | 'MOOD_ENTRY_NOT_FOUND'
 export type MealEntryErrorCode = 'MEAL_ENTRY_INVALID'
 export type DailySummaryErrorCode = 'DAILY_SUMMARY_INVALID'
 export type DailyDietErrorCode = 'DIET_RECOMMENDATION_INVALID'
+export type DietProfileErrorCode = 'DIET_PROFILE_INVALID'
 export type HomeAiCardErrorCode = 'HOME_AI_CARD_INVALID' | 'HOME_AI_CARD_CACHE_INVALID'
 
 export type AuthErrorCode =
@@ -97,6 +98,7 @@ export type BusinessErrorCode =
   | DailyNoteErrorCode
   | DailySummaryErrorCode
   | DailyDietErrorCode
+  | DietProfileErrorCode
   | HomeAiCardErrorCode
   | ExplorationTrackErrorCode
   | InitialOwnerClaimErrorCode
@@ -153,6 +155,7 @@ export const businessErrorCategoryByCode = {
   MEAL_ENTRY_INVALID: 'validation',
   DAILY_SUMMARY_INVALID: 'validation',
   DIET_RECOMMENDATION_INVALID: 'validation',
+  DIET_PROFILE_INVALID: 'validation',
   HOME_AI_CARD_INVALID: 'validation',
   HOME_AI_CARD_CACHE_INVALID: 'validation',
   AUTH_CREDENTIALS_FORMAT_INVALID: 'validation',
@@ -229,6 +232,7 @@ export const publicBusinessErrorCodes = [
   'MEAL_ENTRY_INVALID',
   'DAILY_SUMMARY_INVALID',
   'DIET_RECOMMENDATION_INVALID',
+  'DIET_PROFILE_INVALID',
   'HOME_AI_CARD_INVALID',
   'HOME_AI_CARD_CACHE_INVALID',
   'AUTH_CURRENT_PASSWORD_INVALID',

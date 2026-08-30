@@ -1,26 +1,11 @@
+import type { DietProfile, DietProfileInput } from '@knowledge-base/contracts'
+import { apiClient } from '../../api-client'
+
 /**
- * 今日饮食推荐 · 个人档案（前端本地配置）。
- * 身高/体重/年龄/性别/目标/日常活动量/健康状态为「可单独配置」字段，
- * 拼入今日饮食推荐提示词；仅注入已填项，未填不编造。
+ * 今日饮食推荐 · 个人档案（前端适配器）。
+ * 数据以服务端为准（每用户单行，多端同步），保存走 PUT /daily-diet/profile 并由后端记录审计。
  */
-export interface DailyDietProfile {
-  /** 身高（cm） */
-  heightCm?: number
-  /** 体重（kg） */
-  weightKg?: number
-  /** 年龄（岁） */
-  age?: number
-  gender?: 'male' | 'female' | 'other'
-  goal?: 'lose_fat' | 'gain_muscle' | 'maintain' | 'other'
-  activity?: 'sedentary' | 'light' | 'moderate' | 'high'
-  /** 健康状态 / 忌口 / 过敏 / 慢病（自由文本，可空） */
-  healthNote?: string
-}
-
-export const DIET_PROFILE_STORAGE_KEY = 'mararumu.daily-diet.profile'
-
-/** 当前硬编码身高/体重迁移为配置默认占位（用户可改）。 */
-export const DEFAULT_DIET_PROFILE: DailyDietProfile = { heightCm: 178, weightKg: 81 }
+export const DEFAULT_DIET_PROFILE: DietProfileInput = { heightCm: 178, weightKg: 81 }
 
 export const GENDER_OPTIONS = [
   { value: 'male' as const, label: '男' },
@@ -46,47 +31,23 @@ const GENDER_LABEL: Record<string, string> = { male: '男', female: '女', other
 const GOAL_LABEL: Record<string, string> = { lose_fat: '减脂', gain_muscle: '增肌', maintain: '维持健康', other: '其他' }
 const ACTIVITY_LABEL: Record<string, string> = { sedentary: '久坐', light: '轻度活动', moderate: '中度活动', high: '高强度' }
 
-function toOptionalNumber(value: unknown): number | undefined {
-  const n = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 10) / 10 : undefined
-}
-
-function normalizeProfile(raw: unknown): DailyDietProfile {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_DIET_PROFILE }
-  const o = raw as Record<string, unknown>
-  const profile: DailyDietProfile = {
-    heightCm: toOptionalNumber(o.heightCm),
-    weightKg: toOptionalNumber(o.weightKg),
-    age: toOptionalNumber(o.age),
-  }
-  const gender = typeof o.gender === 'string' ? o.gender : ''
-  if (gender && gender in GENDER_LABEL) profile.gender = gender as DailyDietProfile['gender']
-  const goal = typeof o.goal === 'string' ? o.goal : ''
-  if (goal && goal in GOAL_LABEL) profile.goal = goal as DailyDietProfile['goal']
-  const activity = typeof o.activity === 'string' ? o.activity : ''
-  if (activity && activity in ACTIVITY_LABEL) profile.activity = activity as DailyDietProfile['activity']
-  const note = typeof o.healthNote === 'string' ? o.healthNote.trim() : ''
-  if (note) profile.healthNote = note
-  return profile
-}
-
-/** 读取档案；缺失或异常一律回退默认（身高/体重），其余为空。 */
-export function loadDietProfile(): DailyDietProfile {
+/** 读取个人档案（服务端）；无记录或异常一律回退默认（身高/体重）。 */
+export async function loadDietProfile(): Promise<DietProfileInput> {
   try {
-    const raw = localStorage.getItem(DIET_PROFILE_STORAGE_KEY)
-    return raw ? normalizeProfile(JSON.parse(raw)) : { ...DEFAULT_DIET_PROFILE }
+    const profile = await apiClient.getDietProfile()
+    return profile || { ...DEFAULT_DIET_PROFILE }
   } catch {
     return { ...DEFAULT_DIET_PROFILE }
   }
 }
 
-/** 保存档案；异常静默降级。 */
-export function saveDietProfile(profile: DailyDietProfile): void {
-  try { localStorage.setItem(DIET_PROFILE_STORAGE_KEY, JSON.stringify(normalizeProfile(profile))) } catch { /* ignore */ }
+/** 保存个人档案（服务端，后端记录审计）；异常抛出由调用方处理。 */
+export async function saveDietProfile(input: DietProfileInput): Promise<DietProfile> {
+  return apiClient.upsertDietProfile(input)
 }
 
-/** 把已填档案组装为提示词一段；全空返回空串（不注入）。纯函数、可测。 */
-export function buildDietProfileSegment(profile: DailyDietProfile): string {
+/** 把已填个人档案组装为提示词一段；全空返回空串（不注入）。纯函数、可测。 */
+export function buildDietProfileSegment(profile: Pick<DietProfile, 'heightCm' | 'weightKg' | 'age' | 'gender' | 'goal' | 'activity' | 'healthNote'>): string {
   const parts: string[] = []
   if (profile.heightCm != null) parts.push('身高' + profile.heightCm + 'cm')
   if (profile.weightKg != null) parts.push('体重' + profile.weightKg + 'kg')
