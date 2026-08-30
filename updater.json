@@ -1,11 +1,11 @@
 {
-  "version": "0.1.28",
-  "notes": "个人档案输入居中与按钮组布局修正。",
-  "pub_date": "2026-08-30T05:40:56.301Z",
+  "version": "0.1.29",
+  "notes": "今日饮食推荐「个人档案」改为服务端存储 + 安全审计（多端同步）；配置弹窗异步载入/保存。",
+  "pub_date": "2026-08-30T07:33:07.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L3J0Sit3TUZCZ3lrQWFZWmVhNXZlc004SnU0a3ZqUUZiK0lvbDhMMm9vWHp0OWhJNGswb3ArRFlkOFNDSjlzaXRjT2htR3ZDSVhsbjJoU2JQSVVNRVFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDY4NDE1CWZpbGU6TWFydU1hcnVfMC4xLjI4X3g2NC1zZXR1cC5leGUKKzUvQnI2WEFDR1BpSHdxTSsxNHJ4MTU3T21kVE5xRDI5RklaUGpHbXhDT1Bpa2ZtSjdRVllkM0svMmtEZDJ2QnBRcWRtZ2p5aThIR1NrWlloNFpDQ0E9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.28/MaruMaru_0.1.28_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L2pmTVFreFppUWV1VU85Y0RNcmE1UkJvNS9RbGxDM1R5SVR4akIxVHAvRXdDQnR1aDErcHU3WGNYUzJ4UHhBd2Z1UTk0YjkyTFk1RUhXRFpieTY3cmc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDc1MTA2CWZpbGU6TWFydU1hcnVfMC4xLjI5X3g2NC1zZXR1cC5leGUKM1FRN0VRWFVpNktXdzJHN2FaQmxtcXN2WExmL3cycXdtaVRGcnYxeU5tMXVRWjR6b3VLVS9CTTEweWJTTG5EOGdXWGdOd2R4UmFrcUxtOVVjMkVkQmc9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.29/MaruMaru_0.1.29_x64-setup.exe"
     }
   }
 }
