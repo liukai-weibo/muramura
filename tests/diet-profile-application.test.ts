@@ -1,30 +1,28 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { DietProfileApplicationService } from '../packages/application/src/diet-profile'
-import type { DietProfile, DietProfileRepository, ActivityAuditEventDraft } from '@knowledge-base/contracts'
+import type { DietProfile, DietProfileInput, DietProfileRepository, ActivityAuditEventDraft, ActivityAuditRecorder } from '@knowledge-base/contracts'
 
-function makeService(recorder?: { record: (d: ActivityAuditEventDraft) => Promise<void> }) {
+function makeService() {
+  const drafts: ActivityAuditEventDraft[] = []
   const repo: DietProfileRepository = {
     async getMine(): Promise<DietProfile | undefined> { return undefined },
-    async upsertMine(input): Promise<DietProfile> {
-      return {
-        ...input,
-        createdAt: '2026-08-20T00:00:00.000Z',
-        updatedAt: '2026-08-20T01:00:00.000Z',
-      }
+    async upsertMine(input: DietProfileInput): Promise<DietProfile> {
+      return { ...input, createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T01:00:00.000Z' }
     },
   }
-  const audit = recorder ?? { record: async () => {} }
-  return { service: new DietProfileApplicationService(repo, audit as never, 'user-1'), audit }
+  const recorder: ActivityAuditRecorder = { record: async (d: ActivityAuditEventDraft) => { drafts.push(d) } }
+  const service = new DietProfileApplicationService(repo, recorder, 'user-1')
+  return { service, drafts }
 }
 
 describe('diet profile application service', () => {
   it('upserts a full profile and records daily_diet/update audit', async () => {
-    const record = vi.fn(async () => {})
-    const { service } = makeService({ record })
+    const { service, drafts } = makeService()
     const saved = await service.upsertMine({ heightCm: 178, weightKg: 81, age: 30, gender: 'male', goal: 'lose_fat', activity: 'sedentary', healthNote: '乳糖不耐受' })
     expect(saved.heightCm).toBe(178)
     expect(saved.healthNote).toBe('乳糖不耐受')
-    const draft = record.mock.calls[0][0] as ActivityAuditEventDraft
+    const draft = drafts[0]!
+    expect(draft).toBeDefined()
     expect(draft.module).toBe('daily_diet')
     expect(draft.action).toBe('update')
     expect(draft.entityId).toBe('user-1')
@@ -48,10 +46,13 @@ describe('diet profile application service', () => {
   })
 
   it('records no audit when no recorder is provided', async () => {
-    const service = new DietProfileApplicationService({
-      async getMine() { return undefined },
-      async upsertMine(input) { return { ...input, createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T01:00:00.000Z' } },
-    } as never, undefined, 'user-1')
+    const repo: DietProfileRepository = {
+      async getMine(): Promise<DietProfile | undefined> { return undefined },
+      async upsertMine(input: DietProfileInput): Promise<DietProfile> {
+        return { ...input, createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T01:00:00.000Z' }
+      },
+    }
+    const service = new DietProfileApplicationService(repo, undefined, 'user-1')
     await expect(service.upsertMine({ heightCm: 170 })).resolves.toMatchObject({ heightCm: 170 })
   })
 })

@@ -67,3 +67,42 @@ describe('ai knowledge overview includes mood/meal/daily summaries', () => {
     expect(context).toContain('- 2026-08-23 04:05 | 午餐 | 牛肉面 | feeling 4')
   })
 })
+
+describe('ai context item ordering', () => {
+  it('orders injected items doing-first then by updatedAt desc', () => {
+    const overview = {
+      profile: { username: 'u', roles: ['member'], createdAt: '2026-01-01T00:00:00.000Z' },
+      itemStatusCounts: { doing: 2, reviewed: 2 },
+      items: [
+        { id: '1', title: '旧-已复盘', content: '', status: 'reviewed', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' },
+        { id: '2', title: '新-已复盘', content: '', status: 'reviewed', createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' },
+        { id: '3', title: '进行中-早期', content: '', status: 'doing', createdAt: '2026-07-01T00:00:00.000Z', updatedAt: '2026-07-01T00:00:00.000Z' },
+        { id: '4', title: '进行中-近期', content: '', status: 'doing', createdAt: '2026-08-25T00:00:00.000Z', updatedAt: '2026-08-25T00:00:00.000Z' },
+        { id: '5', title: '历史-以后再说', content: '', status: 'idea_later', createdAt: '2026-08-24T00:00:00.000Z', updatedAt: '2026-08-24T00:00:00.000Z' },
+      ],
+      explorations: [],
+      reviews: [],
+      methods: [],
+      moodEntries: [],
+      mealEntries: [],
+      trash: [],
+      dashboard: { metrics: {}, backlog: { ideaToTry: 0, doing: 0, waitingReview: 0, paused: 0, ideaLater: 0 }, unreviewedMethodActions: 0, facts: [] },
+    } as any
+    const out = formatKnowledgeContext(overview, '', undefined, [], 100000)
+    const itemsSection = out.split('Items (cite by title')[1] ?? ''
+    const idxDoingRecent = itemsSection.indexOf('进行中-近期')
+    const idxDoingEarly = itemsSection.indexOf('进行中-早期')
+    const idxReviewedNew = itemsSection.indexOf('新-已复盘')
+    const idxReviewedOld = itemsSection.indexOf('旧-已复盘')
+    const idxLater = itemsSection.indexOf('历史-以后再说')
+    expect(idxDoingRecent).toBeGreaterThanOrEqual(0)
+    // doing group comes before non-doing group
+    const firstNonDoing = Math.min(idxReviewedNew, idxReviewedOld, idxLater)
+    expect(Math.min(idxDoingRecent, idxDoingEarly)).toBeLessThan(firstNonDoing)
+    // within doing: updatedAt desc
+    expect(idxDoingRecent).toBeLessThan(idxDoingEarly)
+    // within non-doing: later(08-24) -> 新(08-20) -> 旧(08-01) desc
+    expect(idxLater).toBeLessThan(idxReviewedNew)
+    expect(idxReviewedNew).toBeLessThan(idxReviewedOld)
+  })
+})
