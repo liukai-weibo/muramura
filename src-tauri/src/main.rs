@@ -23,6 +23,7 @@ fn desktop_app_version(app: tauri::AppHandle) -> Result<String, String> {
 
 const DESKTOP_SESSION_SERVICE: &str = "com.marumaru.knowledgebase";
 const DESKTOP_SESSION_ACCOUNT: &str = "desktop-bearer-session";
+const DESKTOP_LOGIN_PASSWORD_PREFIX: &str = "login-password:";
 
 fn desktop_session_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(DESKTOP_SESSION_SERVICE, DESKTOP_SESSION_ACCOUNT)
@@ -50,6 +51,40 @@ fn save_desktop_session_token(token: String) -> Result<(), String> {
 #[tauri::command]
 fn clear_desktop_session_token() -> Result<(), String> {
     match desktop_session_entry()?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn desktop_login_password_entry(username: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(DESKTOP_SESSION_SERVICE, &format!("{DESKTOP_LOGIN_PASSWORD_PREFIX}{username}"))
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_desktop_login_password(username: String, password: String) -> Result<(), String> {
+    if username.trim().is_empty() {
+        return Err("username must not be empty".into());
+    }
+    if password.is_empty() {
+        return Err("password must not be empty".into());
+    }
+    desktop_login_password_entry(&username)?.set_password(&password).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn read_desktop_login_password(username: String) -> Result<Option<String>, String> {
+    match desktop_login_password_entry(&username)?.get_password() {
+        Ok(password) if password.is_empty() => Ok(None),
+        Ok(password) => Ok(Some(password)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+#[tauri::command]
+fn clear_desktop_login_password(username: String) -> Result<(), String> {
+    match desktop_login_password_entry(&username)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(error) => Err(error.to_string()),
     }
@@ -126,6 +161,9 @@ fn main() {
             read_desktop_session_token,
             save_desktop_session_token,
             clear_desktop_session_token,
+            read_desktop_login_password,
+            save_desktop_login_password,
+            clear_desktop_login_password,
             exit_app,
             desktop_app_version,
         ])

@@ -15,6 +15,7 @@ import { mergeUpdatedItemContentIntoList } from './item-content-state'
 import ExperimentalAiPage from './experimental-ai'
 import { canOpenStartConfirm, shouldDisplayStartAction, shouldInterceptStartAction, startFeedbackVisible } from './start-confirm-state'
 import { DesktopAuthTitleBar, DesktopTitleBar } from '../../desktop/desktop-title-bar'
+import { loadRememberedAccounts, loadRememberedPassword, recordLogin, saveRememberedAccounts, clearRememberedPassword, saveRememberedPassword, type RememberedAccount } from './remembered-auth-storage'
 import { exitDesktopApplication, installDesktopShortcuts, isTauriDesktop } from '../../desktop/desktop-native-bridge'
 import { HomeDashboard } from './home-dashboard'
 import { DailySummaryDetailModal } from './features/daily-summary/daily-summary-detail-modal'
@@ -3141,6 +3142,9 @@ export default function IndexPage() {
   const [authMode, setAuthMode] = useState<AuthenticationMode>('login')
   const [authUsername, setAuthUsername] = useState('')
   const [authPassword, setAuthPassword] = useState('')
+  const [rememberPassword, setRememberPassword] = useState(false)
+  const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>(loadRememberedAccounts)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [authSubmitting, setAuthSubmitting] = useState(false)
   const [authError, setAuthError] = useState('')
   const [authUnknownOutcome, setAuthUnknownOutcome] = useState(false)
@@ -3151,6 +3155,7 @@ export default function IndexPage() {
   const sessionReadRequestRef = useRef(0)
   const sessionReadAbortRef = useRef<AbortController>()
   const authOperationRef = useRef(0)
+  const authUsernameRef = useRef('')
 
   const enterUnauthenticatedGate = (message = '', preserveDraft = false) => {
     authOperationRef.current += 1
@@ -3166,8 +3171,9 @@ export default function IndexPage() {
     setLogoutBusy(false)
     setLogoutUnknownOutcome(false)
     setLogoutError('')
-    if (!preserveDraft) setAuthPassword('')
+    if (!preserveDraft) { setAuthPassword(''); setRememberPassword(false) }
     setAuthError(message)
+    setAccountMenuOpen(false)
   }
 
   const readCurrentSession = async (source: SessionReadSource): Promise<'authenticated' | 'unauthenticated' | 'failed'> => {
@@ -3220,9 +3226,23 @@ export default function IndexPage() {
     if (authSubmitting || authUnknownOutcome || authNeedsSessionConfirmation) return
     authOperationRef.current += 1
     setAuthMode(mode)
+    setAccountMenuOpen(false)
     setAuthError('')
   }
 
+  const chooseRememberedAccount = (account: RememberedAccount) => {
+    setAccountMenuOpen(false)
+    setAuthError('')
+    setAuthUsername(account.username)
+    authUsernameRef.current = account.username
+    setRememberPassword(account.rememberPassword)
+    if (!account.rememberPassword) { setAuthPassword(''); return }
+    void loadRememberedPassword(account.username).then((password) => {
+      if (password != null && authUsernameRef.current === account.username) setAuthPassword(password)
+    }).catch(() => undefined)
+  }
+
+  useEffect(() => { authUsernameRef.current = authUsername }, [authUsername])
   const submitAuthentication = async () => {
     if (authSubmitting || sessionReading || authUnknownOutcome || authNeedsSessionConfirmation || !authUsername.trim() || authPassword.length < 8) return
     const operationId = authOperationRef.current + 1
@@ -3233,6 +3253,19 @@ export default function IndexPage() {
       if (authMode === 'register') await apiClient.register({ username: authUsername, password: authPassword })
       else await apiClient.login({ username: authUsername, password: authPassword })
       if (operationId !== authOperationRef.current) return
+      const normalizedUsername = authUsername.trim()
+      const rememberThisLogin = authMode === 'login' && rememberPassword
+      const nextAccounts = recordLogin(rememberedAccounts, normalizedUsername, rememberThisLogin)
+      setRememberedAccounts(nextAccounts)
+      saveRememberedAccounts(nextAccounts)
+      if (authMode === 'login') {
+        if (rememberThisLogin) {
+          await saveRememberedPassword(normalizedUsername, authPassword)
+        } else {
+          await clearRememberedPassword(normalizedUsername)
+        }
+      }
+
       setAuthNeedsSessionConfirmation(true)
       await readCurrentSession('after-auth-write')
     } catch (error) {
@@ -3328,11 +3361,31 @@ export default function IndexPage() {
         </View>
         <View className='auth-field'>
           <Text>用户名</Text>
-          <Input value={authUsername} maxlength={80} disabled={authenticationLocked} placeholder='输入用户名' onInput={(event) => setAuthUsername(event.detail.value)} />
+          <View className='auth-username-wrap'>
+            <Input value={authUsername} maxlength={80} disabled={authenticationLocked} placeholder='输入用户名' onClick={() => { if (rememberedAccounts.length && !authenticationLocked && !accountMenuOpen) setAccountMenuOpen(true) }} onInput={(event) => { setAuthUsername(event.detail.value); setAuthError('') }} />
+            {rememberedAccounts.length > 0 && !authenticationLocked && <View className='auth-account-trigger' onClick={() => setAccountMenuOpen(open => !open)}><Text>▾</Text></View>}
+            {accountMenuOpen && rememberedAccounts.length > 0 && (
+              <>
+                <View className='auth-account-menu-backdrop' onClick={() => setAccountMenuOpen(false)} />
+                <View className='auth-account-menu' role='listbox' aria-label='最近账号'>
+                  {rememberedAccounts.map(account => (
+                    <View key={account.username} role='option' aria-selected={account.username === authUsername} className={`auth-account-menu-item ${account.username === authUsername ? 'active' : ''}`} onClick={() => chooseRememberedAccount(account)}>
+                      <Text>{account.username}</Text>
+                      {account.rememberPassword && <Text className='auth-account-menu-mark'>已记住</Text>}
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
         </View>
         <View className='auth-field'>
           <Text>密码</Text>
           <Input value={authPassword} maxlength={256} disabled={authenticationLocked} password placeholder='至少 8 个字符' onInput={(event) => setAuthPassword(event.detail.value)} onConfirm={() => { if (canSubmitAuthentication) void submitAuthentication() }} />
+          {authMode === 'login' && <View className='auth-remember-row' onClick={() => { setAuthError(''); setRememberPassword(checked => !checked) }}>
+            <View className={`auth-remember-checkbox ${rememberPassword ? 'active' : ''}`}><Text>{rememberPassword ? '✓' : ''}</Text></View>
+            <Text>记住密码</Text>
+          </View>}
         </View>
         {authError && <Text className='auth-gate-error'>{authError}</Text>}
         {(authUnknownOutcome || authNeedsSessionConfirmation) ? <View className='auth-confirm-session'>

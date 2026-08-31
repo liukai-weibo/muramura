@@ -1399,3 +1399,14 @@ taro-textarea-core.daily-note-textarea textarea {
 @media (prefers-reduced-motion: reduce) {
   .daily-note-ai-composer, .daily-note-ai-send, .daily-note-ai-send > button { transition: none; }
 }
+/* —— 登录门下拉/记住密码：暗色主题 —— */
+.auth-gate-shell[data-color-theme='dark'] .auth-account-trigger { border-color: #4a453f; background: #2d2925; color: #c9c3bb; }
+.auth-gate-shell[data-color-theme='dark'] .auth-account-trigger:hover { color: #f3efea; }
+.auth-gate-shell[data-color-theme='dark'] .auth-account-menu { border-color: #4a453f; background: #332e2a; box-shadow: 0 20px 55px rgba(18, 15, 12, .32); }
+.auth-gate-shell[data-color-theme='dark'] .auth-account-menu-item { color: #f3efea; }
+.auth-gate-shell[data-color-theme='dark'] .auth-account-menu-item:hover { background: #423a33; }
+.auth-gate-shell[data-color-theme='dark'] .auth-account-menu-item.active { background: #51393f; }
+.auth-gate-shell[data-color-theme='dark'] .auth-account-menu-mark { color: #b7aea3; }
+.auth-gate-shell[data-color-theme='dark'] .auth-remember-row > text { color: #c9c3bb; }
+.auth-gate-shell[data-color-theme='dark'] .auth-remember-checkbox { border-color: #4a453f; background: #2d2925; color: #f3efea; }
+.auth-gate-shell[data-color-theme='dark'] .auth-remember-checkbox.active { border-color: #b96a7b; background: #b96a7b; color: #fff8f4; }

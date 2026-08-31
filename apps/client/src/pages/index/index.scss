@@ -3032,3 +3032,37 @@ button:not(:disabled):active { transform: translateY(1px); }
   .navigation-session-confirm { border-color: #eae6e0; background: #fffaf8; color: #544f49; border-radius: 9999px; }
   .navigation-logout:hover:not([disabled='true']) { border-color: #dfc9bd; background: #fff; color: #2c2823; }
 }
+/* —— 登录门：最近账号下拉 + 记住密码 —— */
+.auth-username-wrap { position: relative; }
+.auth-username-wrap input { padding-right: 42px; }
+.auth-account-trigger {
+  position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border: 1px solid #d7cec1; border-radius: 7px;
+  background: #fefcf8; color: #81796e; font-size: 11px; line-height: 24px; cursor: pointer;
+}
+.auth-account-trigger:hover { color: #302c27; }
+.auth-account-menu-backdrop { position: fixed; z-index: 1049; inset: 0; }
+.auth-account-menu {
+  position: absolute; z-index: 1050; top: calc(100% + 6px); right: 0; left: 0;
+  display: flex; max-height: 280px; padding: 6px; flex-direction: column;
+  border: 1px solid #ddd5c9; border-radius: 14px; background: #fffdf9;
+  box-shadow: 0 20px 55px rgba(58, 50, 40, 0.16); overflow-y: auto;
+}
+.auth-account-menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 12px; flex: 0 0 auto; border-radius: 10px;
+  color: #302c27; font-size: 13px; font-weight: 650; cursor: pointer;
+}
+.auth-account-menu-item:hover { background: #f3eee6; }
+.auth-account-menu-item.active { background: #eee8df; }
+.auth-account-menu-mark { color: #a1958a; font-size: 11px; font-weight: 700; }
+.auth-remember-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; cursor: pointer; }
+.auth-remember-row > text { color: #625b52; font-size: 12px; font-weight: 700; }
+.auth-remember-checkbox {
+  display: flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border: 1px solid #d7cec1; border-radius: 5px;
+  background: #fff; color: #302c27;
+}
+.auth-remember-checkbox text { font-size: 12px; font-weight: 850; line-height: 16px; }
+.auth-remember-checkbox.active { border-color: #302c27; background: #302c27; color: #fff; }

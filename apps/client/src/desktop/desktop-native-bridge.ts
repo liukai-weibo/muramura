@@ -40,6 +40,22 @@ export async function clearDesktopSessionToken(): Promise<void> {
   await invoke('clear_desktop_session_token')
 }
 
+export async function saveRememberedLoginPassword(username: string, password: string): Promise<void> {
+  if (!isTauriDesktop()) return
+  await invoke('save_desktop_login_password', { username, password })
+}
+
+export async function readRememberedLoginPassword(username: string): Promise<string | undefined> {
+  if (!isTauriDesktop()) return undefined
+  const value = await invoke<string | null>('read_desktop_login_password', { username })
+  return typeof value === 'string' && value.trim() ? value : undefined
+}
+
+export async function clearRememberedLoginPassword(username: string): Promise<void> {
+  if (!isTauriDesktop()) return
+  await invoke('clear_desktop_login_password', { username })
+}
+
 export function installDesktopShortcuts(handlers: {
   onNew: () => void
   onSearch: () => void
