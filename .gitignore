@@ -77,3 +77,6 @@ desktop.ini
 src-tauri/private.key
 src-tauri/private.key.pub
 src-tauri/*.log
+
+# 旧签名密钥备份（口令已丢失不应急于删除）
+src-tauri/key-backup-20260831-old/

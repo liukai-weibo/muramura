@@ -1,11 +1,11 @@
 {
-  "version": "0.1.29",
-  "notes": "今日饮食推荐「个人档案」改为服务端存储 + 安全审计（多端同步）；配置弹窗异步载入/保存。",
-  "pub_date": "2026-08-30T07:33:07.000Z",
+  "version": "0.1.30",
+  "notes": "登录页新增「最近账号」下拉框与「记住密码」：成功登录/注册后自动记录最近账号（最多 8 个、最新在前）；桌面端勾选记住密码后密码存系统钥匙串，从下拉框选中账号自动回填；未勾选/取消勾选登录时清除已存密码。\n\n- 桌面端密码存系统钥匙串（keyring），浏览器端降级 localStorage\n- 本版起更换 updater 签名密钥（旧私钥口令丢失，已重签并安全存储新口令）；已装 0.1.29 及更早版本的桌面端因内置旧公钥无法自动校验本版，需手动下载安装一次，此后自动更新恢复",
+  "pub_date": "2026-08-31T22:15:17.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUeTJMU09oRFk5L2pmTVFreFppUWV1VU85Y0RNcmE1UkJvNS9RbGxDM1R5SVR4akIxVHAvRXdDQnR1aDErcHU3WGNYUzJ4UHhBd2Z1UTk0YjkyTFk1RUhXRFpieTY3cmc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MDc1MTA2CWZpbGU6TWFydU1hcnVfMC4xLjI5X3g2NC1zZXR1cC5leGUKM1FRN0VRWFVpNktXdzJHN2FaQmxtcXN2WExmL3cycXdtaVRGcnYxeU5tMXVRWjR6b3VLVS9CTTEweWJTTG5EOGdXWGdOd2R4UmFrcUxtOVVjMkVkQmc9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.29/MaruMaru_0.1.29_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1dvOEpqVzF6U3U4WjZVOGhoOEgvcWlicEFyaitKUTc1YXBhRzRFc2FIK05yUUtzQ0lacDExYjg3d01PNnM5ZWEwcUs2Y2ROaGN3aW9VSGthTkJTcVFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjE0MTMyCWZpbGU6TWFydU1hcnVfMC4xLjMwX3g2NC1zZXR1cC5leGUKK2h2MXJhbm80YnhnQmtuTWlpRXdFbUVTYTR1R0d5UXB3aDBhSEJSL1BqdTVFaUc0SXY4QWxQcno4dklaaitvcDFGN2hyYWxvbjN0aVROYnJ5UUxsQnc9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.30/MaruMaru_0.1.30_x64-setup.exe"
     }
   }
 }
