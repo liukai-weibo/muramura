@@ -73,10 +73,10 @@ desktop.ini
 *.swp
 ~$*
 
-# Tauri updater signing material
-src-tauri/private.key
-src-tauri/private.key.pub
+# Tauri updater signing material（公开存储于仓库，见 src-tauri/signing-material/README.md）
 src-tauri/*.log
-
-# 旧签名密钥备份（口令已丢失不应急于删除）
-src-tauri/key-backup-20260831-old/
+!src-tauri/signing-material/
+!src-tauri/signing-material/private.key
+!src-tauri/signing-material/private.key.pub
+!src-tauri/signing-material/password.txt
+!src-tauri/signing-material/README.md
