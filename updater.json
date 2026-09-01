@@ -1,11 +1,11 @@
 {
-  "version": "0.1.31",
-  "notes": "签名密钥更换后的验证版：以新签名密钥（公钥 49B8A457647EFD7C）重新构建签名，已装 0.1.30 的桌面端可直接自动升级。功能同 v0.1.30（登录页最近账号 + 记住密码）。",
-  "pub_date": "2026-09-01T07:06:17.000Z",
+  "version": "0.1.32",
+  "notes": "修复桌面端「记住密码」不生效：真实写入 Windows 凭据管理器（keyring 启用 windows-native；此前未启用导致凭证只存进程内存、重启即失）。功能同 v0.1.31。",
+  "pub_date": "2026-09-01T07:54:18.000Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1k1KzQ1Q0UybGJkVEdxS0V1bUc5Zm1ZM2RvN1pIVmJpZVl1UHAyWGtmNDFRSHZRcmowZnpGbU1PeFFIRFF0M2VOVzRDb1ZaTjZkcG41Y0FQQnhQL1FjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjQ2MjQ0CWZpbGU6TWFydU1hcnVfMC4xLjMxX3g2NC1zZXR1cC5leGUKQmZEL2dUSUU3ZDN5KzE2ZVVTK1VYUFNjdTFFREhCOEtJUkFzakxJRkZjbVYvdXhrYUIxcDIwWHBRWkxmQmkxOGJUbFF3US8wZHBlN0J2YXFpVmxrQkE9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.31/MaruMaru_0.1.31_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1hTSm5jaG84Um5lSGFtS2hDSzEzZGh1ZWwvMzdlSmxwR1MvVDBOVDVmY2wyNnZqc09rY0tML0xBYnFuY3gvTXd1Q2NEYVhwSzVrVUNhQ0IwVTd1ZFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjQ5MTAwCWZpbGU6TWFydU1hcnVfMC4xLjMyX3g2NC1zZXR1cC5leGUKWHpsd2JpclphQm52WGNQUUxweFJNNWFOdzFrNnF1ZHNIYWoyWGJSU1BWd1FMWGorQjcyTHoxZ3Z5VmxVVGRhcjFlaUp3TDJzd2VTV0NJN1g4bWV5QlE9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.32/MaruMaru_0.1.32_x64-setup.exe"
     }
   }
 }
