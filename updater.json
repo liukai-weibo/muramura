@@ -1,11 +1,11 @@
 {
-  "version": "0.1.32",
-  "notes": "修复桌面端「记住密码」不生效：真实写入 Windows 凭据管理器（keyring 启用 windows-native；此前未启用导致凭证只存进程内存、重启即失）。功能同 v0.1.31。",
-  "pub_date": "2026-09-01T07:54:18.000Z",
-  "platforms": {
-    "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1hTSm5jaG84Um5lSGFtS2hDSzEzZGh1ZWwvMzdlSmxwR1MvVDBOVDVmY2wyNnZqc09rY0tML0xBYnFuY3gvTXd1Q2NEYVhwSzVrVUNhQ0IwVTd1ZFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjQ5MTAwCWZpbGU6TWFydU1hcnVfMC4xLjMyX3g2NC1zZXR1cC5leGUKWHpsd2JpclphQm52WGNQUUxweFJNNWFOdzFrNnF1ZHNIYWoyWGJSU1BWd1FMWGorQjcyTHoxZ3Z5VmxVVGRhcjFlaUp3TDJzd2VTV0NJN1g4bWV5QlE9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.32/MaruMaru_0.1.32_x64-setup.exe"
+    "version": "0.1.33",
+    "notes": "三餐记录「感受」改为「饱腹度」三档：五分饱/七分饱/九分饱（默认未选择，点选中的档位再点取消）；移除「今日三餐整体」星级展示。情绪记录自动同步今日手记（跨端即时通知）。",
+    "pub_date": "2026-09-04T23:36:47.037Z",
+    "platforms": {
+        "windows-x86_64": {
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1hpWEhiZHdxWFFyODZKUEU5RWpQT08zZ2lra2RBNVhKbjNjMzY3M0pIR3ZYaHNkbmtEQ1ZieFhPUjY5WWlwRldXR2pxT2ljd0l3V1AxZ2lxbUVUR1FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NTY0NzYzCWZpbGU6TWFydU1hcnVfMC4xLjMzX3g2NC1zZXR1cC5leGUKRVZZODZWZ3Y1UmxySUd6SkU0Z0xkdlJHQ293N1hkNC9vWFY2c21WejdDVHlkYjA4ODJRYUVHRWkwQTI2TlQwQVN1bStnQUpkNk5jQi9CeHV2VXpkQXc9PQo=",
+            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.33/MaruMaru_0.1.33_x64-setup.exe"
+        }
     }
-  }
 }
