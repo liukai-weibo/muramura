@@ -60,12 +60,13 @@ describe.runIf(mysqlIntegrationEnabled)('activity audit MySQL repository', () =>
       await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'item', action: 'create', entityId: 'item-1', snapshot: JSON.stringify({ title: '第一条' }) })
       await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'mood', action: 'update', entityId: 'mood-1', snapshot: JSON.stringify({ content: '心情不错' }) })
       await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'search', action: 'search', snapshot: JSON.stringify({ query: '方法' }) })
-      await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'meal', action: 'create', entityId: 'meal-1', snapshot: JSON.stringify({ entryDate: '2026-08-26', meals: [{ mealType: 'breakfast', content: '喝粥', feeling: 3 }] }) })
+      await repository.record({ actorUserId: 'audit-owner', actorUsername: 'audit-owner', module: 'meal', action: 'create', entityId: 'meal-1', snapshot: JSON.stringify({ entryDate: '2026-08-26', meals: [{ mealType: 'breakfast', content: '喝粥', feeling: 5 }] }) })
 
       const page = await repository.list({ page: 1, pageSize: 2 })
       expect(page.total).toBe(4)
       expect(page.items).toHaveLength(2)
-      expect(page.items[0]!.module).toBe('search')
+      expect(page.items[0]!.module).toBe('meal')
+      expect(page.items[1]!.module).toBe('search')
       expect(page.items[0]!.actorUsername).toBe('audit-owner')
       expect(page.items[0]!.riskLevel).toBe('normal')
       expect(page.items[0]!.createdAt).toMatch(/Z$/)
@@ -79,7 +80,7 @@ describe.runIf(mysqlIntegrationEnabled)('activity audit MySQL repository', () =>
       expect(keyword.items[0]).toMatchObject({ module: 'item' })
 
       const actor = await repository.list({ actorQuery: 'audit-owner', page: 1, pageSize: 20 })
-      expect(actor.total).toBe(3)
+      expect(actor.total).toBe(4)
 
       // search 合并语义：用户名 OR 快照内容任一匹配
       const byActor = await repository.list({ search: 'audit-owner', page: 1, pageSize: 20 })

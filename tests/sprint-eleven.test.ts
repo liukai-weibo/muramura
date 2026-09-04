@@ -24,20 +24,16 @@ describe('Sprint 11 单事项流转历史', () => {
     const { items } = createServices()
     const first = await items.createIdea({ title: '查看完整流转' })
     const other = await items.createIdea({ title: '其他事项' })
-    await items.changeStatus(first.id, 'doing')
-    await items.changeStatus(first.id, 'paused')
-    await items.changeStatus(first.id, 'doing')
-    await items.changeStatus(other.id, 'doing')
+    await items.changeStatus(first.id, 'reviewed')
+    await items.changeStatus(other.id, 'reviewed')
 
     const events = await items.listStatusEvents(first.id)
 
-    expect(events).toHaveLength(4)
-    expect(events.map(({ itemId }) => itemId)).toEqual(Array(4).fill(first.id))
+    expect(events).toHaveLength(2)
+    expect(events.map(({ itemId }) => itemId)).toEqual(Array(2).fill(first.id))
     expect(events.map(({ fromStatus, toStatus }) => ({ fromStatus, toStatus }))).toEqual([
-      { fromStatus: undefined, toStatus: 'idea_to_try' },
-      { fromStatus: 'idea_to_try', toStatus: 'doing' },
-      { fromStatus: 'doing', toStatus: 'paused' },
-      { fromStatus: 'paused', toStatus: 'doing' },
+      { fromStatus: undefined, toStatus: 'doing' },
+      { fromStatus: 'doing', toStatus: 'reviewed' },
     ])
     expect(events.map(({ createdAt }) => createdAt)).toEqual(
       [...events].map(({ createdAt }) => createdAt).sort(),

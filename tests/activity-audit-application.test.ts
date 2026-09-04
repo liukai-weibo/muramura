@@ -107,7 +107,7 @@ describe('activity audit application capture', () => {
     const mealRepository = { listRange: async () => [], saveDay: async (input: MealDayInput) => input.meals }
     const recorder = new ScopedActivityAuditRecorder(repository, { userId: 'actor-5' })
     const service = new MealEntryApplicationService(mealRepository as never, recorder)
-    await service.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'breakfast', content: '鸡蛋牛奶', feeling: 4 }] })
+    await service.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'breakfast', content: '鸡蛋牛奶', feeling: 7 }] })
     expect(recorded).toHaveLength(1)
     expect(recorded[0]).toMatchObject({ module: 'meal', action: 'update', actorUserId: 'actor-5' })
     expect(JSON.parse(recorded[0]!.snapshot!)).toMatchObject({ entryDate: '2026-08-20' })

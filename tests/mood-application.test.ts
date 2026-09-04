@@ -18,7 +18,7 @@ function createRepository(overrides?: Partial<MoodEntryRepository>): { repositor
   const calls = { created: [] as MoodEntryInput[], updated: [] as Array<{ id: string; input: MoodEntryInput }>, deleted: [] as string[] }
   const repository: MoodEntryRepository = {
     listRange: async () => [entry],
-    create: async input => { calls.created.push(input); return entry },
+    create: async input => { calls.created.push(input); return { ...entry, ...input, id: entry.id, entryDate: input.entryDate ?? entry.entryDate } },
     updateMine: async (id, input) => { calls.updated.push({ id, input }); return entry },
     deleteMine: async id => { calls.deleted.push(id); return true },
     ...overrides,
@@ -94,5 +94,38 @@ describe('mood entry application', () => {
     const { repository } = createRepository()
     const service = new MoodEntryApplicationService(repository)
     await expect(service.listRange('2026-08-01', '2026-08-31')).resolves.toEqual([entry])
+  })
+})
+
+describe('mood entry → today hand-note sync', () => {
+  it('appends content+response to today note when available', async () => {
+    const { repository } = createRepository()
+    const appended: string[] = []
+    const dailyNotes = { appendToday: async (content: string) => { appended.push(content); return entry } }
+    await new MoodEntryApplicationService(repository, undefined, dailyNotes).create({ content: '出门散步，心情不错', moodLevel: 4, response: '下次也要记得多出门' })
+    expect(appended).toHaveLength(1)
+    expect(appended[0]).toBe(['出门散步，心情不错', '感受：下次也要记得多出门'].join('\n'))
+  })
+
+  it('omits response line when response is empty', async () => {
+    const { repository } = createRepository()
+    const appended: string[] = []
+    const dailyNotes = { appendToday: async (content: string) => { appended.push(content); return entry } }
+    await new MoodEntryApplicationService(repository, undefined, dailyNotes).create({ content: '开会开完', moodLevel: 2, response: '   ' })
+    expect(appended).toHaveLength(1)
+    expect(appended[0]).toBe(['开会开完'].join('\n'))
+  })
+
+  it('does not touch hand-note when dailyNotes is not wired', async () => {
+    const { repository, calls } = createRepository()
+    await new MoodEntryApplicationService(repository).create({ content: '事件', moodLevel: 3 })
+    expect(calls.created).toHaveLength(1)
+  })
+
+  it('still saves mood when hand-note append fails (silent degradation)', async () => {
+    const { repository, calls } = createRepository()
+    const dailyNotes = { appendToday: async () => { throw new Error('db down') } }
+    await expect(new MoodEntryApplicationService(repository, undefined, dailyNotes).create({ content: '事件', moodLevel: 3 })).resolves.toBeDefined()
+    expect(calls.created).toHaveLength(1)
   })
 })

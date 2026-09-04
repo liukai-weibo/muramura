@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
 import type { AuthSession, DailyNote, Item, ItemStatus } from '@knowledge-base/contracts'
 import { apiClient, actionsFor, type ApiClientError } from '../index/api-client'
+import { notifyDailyNoteChanged } from '../index/daily-note-sync'
 import './index.scss'
 
 type MobileTab = 'notes' | 'items'
@@ -80,7 +81,7 @@ function MobileNotes() {
       setNotes(current => current.map(note => note.id === saved.id ? saved : note))
       selectedRef.current = saved
       setState('saved')
-      window.dispatchEvent(new CustomEvent('daily-note-content-changed'))
+      notifyDailyNoteChanged()
       return true
     } catch (cause) { setState('error'); setError(errorMessage(cause, '自动保存失败，内容仍保留在编辑器中。')); return false }
   }
@@ -110,7 +111,7 @@ function MobileNotes() {
       if (selectedRef.current?.id === saved.id) {
         setDraft(saved.content); draftRef.current = saved.content; selectedRef.current = saved; pendingRef.current = false; setState('saved')
       }
-      window.dispatchEvent(new CustomEvent('daily-note-content-changed'))
+      notifyDailyNoteChanged()
       setQuickDraft(''); setQuickOpen(false)
     } catch (cause) { setQuickError(errorMessage(cause, '快速记录保存失败，内容仍保留在这里。')) }
     finally { setQuickSaving(false) }

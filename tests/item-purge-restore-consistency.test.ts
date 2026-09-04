@@ -20,7 +20,6 @@ function services() {
 
 async function createMethod(s: ReturnType<typeof services>) {
   const source = await s.items.createIdea({ title: '方法来源' })
-  await s.items.changeStatus(source.id, 'doing')
   return s.reviews.completeReview({ itemId: source.id, ...reviewFields, method: { title: '方法', applicable: '场景', steps: '步骤' } })
 }
 
@@ -34,7 +33,7 @@ describe('事项永久清理与恢复交错', () => {
     const s = services()
     const formed = await createMethod(s)
     const item = await s.applications.createItem(formed.method!.id, '待恢复的历史应用')
-    await s.items.startExecution(item.id, '恢复后仍应保留的启动动作')
+    await s.storage.database.items.update(item.id, { startAction: '恢复后仍应保留的启动动作' })
     await s.reviews.completeReview({ itemId: item.id, ...reviewFields })
     await s.items.deleteItem(item.id)
     await s.storage.database.items.update(item.id, { deletedAt: '2000-01-01T00:00:00.000Z' })

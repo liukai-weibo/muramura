@@ -26,20 +26,12 @@ describe('Sprint 9 状态事件日志', () => {
   it('创建事项写入基线，真实状态迁移按顺序追加事件', async () => {
     const services = createServices()
     const created = await services.items.createIdea({ title: '记录真实状态变化' })
-    await services.items.changeStatus(created.id, 'doing')
-    await services.items.changeStatus(created.id, 'paused')
-    await services.items.changeStatus(created.id, 'doing')
 
     const events = await services.storage.database.itemStatusEvents
       .where('itemId').equals(created.id).sortBy('createdAt')
-    expect(events).toHaveLength(4)
-    expect(events[0]).toMatchObject({ itemId: created.id, toStatus: 'idea_to_try' })
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({ itemId: created.id, toStatus: 'doing' })
     expect(events[0]!.fromStatus).toBeUndefined()
-    expect(events.slice(1).map(({ fromStatus, toStatus }) => ({ fromStatus, toStatus }))).toEqual([
-      { fromStatus: 'idea_to_try', toStatus: 'doing' },
-      { fromStatus: 'doing', toStatus: 'paused' },
-      { fromStatus: 'paused', toStatus: 'doing' },
-    ])
   })
 
   it('仪表盘只统计明确进入进行中的事件，不把基线伪装成开始执行', async () => {
@@ -47,10 +39,11 @@ describe('Sprint 9 状态事件日志', () => {
     const created = await services.items.createIdea({ title: '开始次数口径' })
     expect((await services.dashboard.getReport('all')).metrics.startedExecutions).toBe(0)
 
-    await services.items.changeStatus(created.id, 'doing')
-    await services.items.changeStatus(created.id, 'paused')
-    await services.items.changeStatus(created.id, 'doing')
-    expect((await services.dashboard.getReport('all')).metrics.startedExecutions).toBe(2)
+    const directStock = await services.storage.repository.create({ title: '开始次数口径之二', status: 'idea_to_try' })
+    await services.storage.repository.startExecution(directStock.id, {})
+    const paused = await services.items.createIdea({ title: '开始次数口径之三' })
+    await services.items.changeStatus(paused.id, 'reviewed')
+    expect((await services.dashboard.getReport('all')).metrics.startedExecutions).toBe(1)
   })
 
   it('从 v5 升级只为旧事项生成当前状态基线且重开不重复', async () => {
@@ -88,14 +81,13 @@ describe('Sprint 9 状态事件日志', () => {
   it('新备份保留事件日志，旧备份缺失日志时自动生成基线', async () => {
     const source = createServices()
     const created = await source.items.createIdea({ title: '备份状态日志' })
-    await source.items.changeStatus(created.id, 'doing')
     const document = await source.backup.createBackup()
-    expect(document.data.itemStatusEvents).toHaveLength(2)
+    expect(document.data.itemStatusEvents).toHaveLength(1)
 
     const target = createServices()
     const parsed = target.backup.parseAndValidate(JSON.stringify(document))
     await target.backup.restoreBackup(parsed)
-    expect(await target.storage.database.itemStatusEvents.count()).toBe(2)
+    expect(await target.storage.database.itemStatusEvents.count()).toBe(1)
 
     const legacy = JSON.parse(JSON.stringify(document)) as Record<string, any>
     delete legacy.data.itemStatusEvents

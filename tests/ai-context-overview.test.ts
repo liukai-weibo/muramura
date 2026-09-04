@@ -35,11 +35,11 @@ describe('ai knowledge overview includes mood/meal/daily summaries', () => {
     const service = new AiKnowledgeOverviewApplicationService(
       dashboardStub() as any, explorationsStub() as any, undefined, undefined,
       moodStub([{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错' }]) as any,
-      mealStub([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 4 }]) as any,
+      mealStub([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7 }]) as any,
     )
     const overview = await service.read(user)
     expect(overview.moodEntries).toMatchObject([{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错' }])
-    expect(overview.mealEntries).toMatchObject([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 4 }])
+    expect(overview.mealEntries).toMatchObject([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7 }])
   })
 
   it('drops mood/meal/summary sections when repositories are absent', async () => {
@@ -58,13 +58,13 @@ describe('ai knowledge overview includes mood/meal/daily summaries', () => {
       itemStatusCounts: {},
       items: [], explorations: [], reviews: [], methods: [],
       moodEntries: [{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错', createdAt: '2026-08-24T05:10:00.000Z' }],
-      mealEntries: [{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 4, createdAt: '2026-08-23T04:05:00.000Z' }],
+      mealEntries: [{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7, createdAt: '2026-08-23T04:05:00.000Z' }],
       dashboard: { metrics: { newItems: 0, startedExecutions: 0, completedReviews: 0, newMethods: 0, methodValidations: 0, methodRevisions: 0, methodApplications: 0 }, backlog: { ideaToTry: 0, doing: 0, waitingReview: 0, paused: 0, ideaLater: 0 }, unreviewedMethodActions: 0, facts: [] },
     } as AiKnowledgeOverview
     const context = formatKnowledgeContext(overview, '', undefined, [], 24000, [], 'UTC')
     expect(context).toContain('Mood entries (all available dates, date is authoritative)')
     expect(context).toContain('- 2026-08-24 05:10 | level 4 | 今天心情不错')
-    expect(context).toContain('- 2026-08-23 04:05 | 午餐 | 牛肉面 | feeling 4')
+    expect(context).toContain('- 2026-08-23 04:05 | 午餐 | 牛肉面 | satiety 7分饱')
   })
 })
 

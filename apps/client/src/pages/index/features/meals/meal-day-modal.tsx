@@ -3,7 +3,7 @@ import { Button, Input, Text, View } from '@tarojs/components'
 import type { MealDayInput, MealEntry, MealType } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
 import { formatLocalDateCN } from '../calendar-utils'
-import { mealFeelingColors, mealFeelingLabels, mealTypeEmojis, mealTypeLabels, mealTypeOrder, todayLocalDate } from './meal-levels'
+import { mealFeelingColors, mealFeelingLabels, mealSatietyLevels, mealTypeEmojis, mealTypeLabels, mealTypeOrder, todayLocalDate } from './meal-levels'
 
 interface MealDayModalProps {
   initialDate: string
@@ -17,12 +17,10 @@ interface SlotDraft {
 }
 
 const emptySlots = (): Record<MealType, SlotDraft> => ({
-  breakfast: { content: '', feeling: 3 },
-  lunch: { content: '', feeling: 3 },
-  dinner: { content: '', feeling: 3 },
+  breakfast: { content: '', feeling: 0 },
+  lunch: { content: '', feeling: 0 },
+  dinner: { content: '', feeling: 0 },
 })
-
-const FEELING_LEVELS = [1, 2, 3, 4, 5] as const
 
 export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProps) {
   const [entryDate] = useState(initialDate || todayLocalDate())
@@ -61,7 +59,7 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
   const handleSubmit = async () => {
     const meals: MealDayInput['meals'] = mealTypeOrder
       .map(mealType => ({ mealType, content: slots[mealType].content.trim(), feeling: slots[mealType].feeling }))
-      .filter(slot => slot.content.length > 0 || slot.feeling !== 3)
+      .filter(slot => slot.content.length > 0 || slot.feeling !== 0)
     setBusy(true); setError(''); setUnknownOutcome(false)
     try {
       await apiClient.saveMealDay({ entryDate, meals })
@@ -79,11 +77,7 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
     }
   }
 
-  const hasAny = mealTypeOrder.some(type => slots[type].content.trim().length > 0 || slots[type].feeling !== 3)
-
-  // 纯展示：按三餐感受均值折算当日整体星级，不参与保存，不新增业务字段。
-  const averageFeeling = (slots.breakfast.feeling + slots.lunch.feeling + slots.dinner.feeling) / 3
-  const filledStars = Math.max(1, Math.min(5, Math.round(averageFeeling)))
+  const hasAny = mealTypeOrder.some(type => slots[type].content.trim().length > 0 || slots[type].feeling !== 0)
 
   return (
     <View className='meal-modal-backdrop' role='dialog' aria-modal='true' aria-label='记录一日三餐'>
@@ -115,14 +109,14 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
               onInput={e => setContent(mealType, e.detail.value)}
             />
             <View className='meal-feel-row'>
-              <Text className='meal-feel-caption'>感受</Text>
+              <Text className='meal-feel-caption'>饱腹度</Text>
               <View className='meal-feel-pills'>
-                {FEELING_LEVELS.map(level => (
+                {mealSatietyLevels.map(level => (
                   <View
                     key={level}
                     className={'meal-feel-pill' + (slots[mealType].feeling === level ? ' selected' : '')}
                     style={{ background: mealFeelingColors[level] }}
-                    onClick={() => setFeeling(mealType, level)}
+                    onClick={() => setFeeling(mealType, slots[mealType].feeling === level ? 0 : level)}
                   >
                     <Text>{mealFeelingLabels[level]}</Text>
                   </View>
@@ -136,13 +130,6 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
         {unknownOutcome && (
           <View className='meal-unknown-outcome'>
             <Text>提交结果未确认，未自动重试。请关闭后重新打开确认是否已生效。</Text>
-          </View>
-        )}
-
-        {hasAny && (
-          <View className='meal-avg-stars' aria-hidden='true'>
-            <Text>今日三餐整体：</Text>
-            <Text className='meal-avg-stars-glyph'>{'★'.repeat(filledStars)}{'☆'.repeat(5 - filledStars)}</Text>
           </View>
         )}
 

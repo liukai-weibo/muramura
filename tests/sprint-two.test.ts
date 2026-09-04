@@ -38,8 +38,6 @@ describe('Sprint 2 复盘与方法工作流', () => {
   it('完成复盘并从现实证据形成方法', async () => {
     const { itemApplication, reviewApplication, storage } = createServices()
     const idea = await itemApplication.createIdea({ title: '学习瘦金体' })
-    await itemApplication.changeStatus(idea.id, 'doing')
-
 
     const result = await reviewApplication.completeReview({
       itemId: idea.id,
@@ -68,8 +66,6 @@ describe('Sprint 2 复盘与方法工作流', () => {
   it('允许只完成复盘而不提炼方法', async () => {
     const { itemApplication, reviewApplication } = createServices()
     const item = await itemApplication.createIdea({ title: '完成一次普通实验' })
-    await itemApplication.changeStatus(item.id, 'doing')
-
 
     const result = await reviewApplication.completeReview({ itemId: item.id, ...reviewInput, newIdeas: '' })
 
@@ -82,8 +78,6 @@ describe('Sprint 2 复盘与方法工作流', () => {
   it('只填写实际行动和结果也能完成复盘', async () => {
     const { itemApplication, reviewApplication } = createServices()
     const item = await itemApplication.createIdea({ title: '做一次轻量复盘' })
-    await itemApplication.changeStatus(item.id, 'doing')
-
 
     const result = await reviewApplication.completeReview({
       itemId: item.id,
@@ -104,8 +98,6 @@ describe('Sprint 2 复盘与方法工作流', () => {
   it('缺少实际行动或结果时给出具体提示且不留下半成品', async () => {
     const { itemApplication, reviewApplication, storage } = createServices()
     const item = await itemApplication.createIdea({ title: '验证必填提示' })
-    await itemApplication.changeStatus(item.id, 'doing')
-
 
     await expect(reviewApplication.completeReview({
       itemId: item.id,
@@ -193,13 +185,12 @@ describe('Sprint 2 复盘与方法工作流', () => {
 
   it('拒绝提前或重复完成复盘且不留下半成品', async () => {
     const { itemApplication, reviewApplication, storage } = createServices()
+    const ideaOnly = await storage.repository.create({ title: '提前复盘', status: 'idea_to_try' })
+
+    await expect(reviewApplication.completeReview({ itemId: ideaOnly.id, ...reviewInput })).rejects.toThrow('只有已开始或待复盘事项')
+    expect(await storage.reviewRepository.getByItemId(ideaOnly.id)).toBeUndefined()
+
     const item = await itemApplication.createIdea({ title: '不能提前复盘' })
-
-    await expect(reviewApplication.completeReview({ itemId: item.id, ...reviewInput })).rejects.toThrow('只有已开始或待复盘事项')
-    expect(await storage.reviewRepository.getByItemId(item.id)).toBeUndefined()
-
-    await itemApplication.changeStatus(item.id, 'doing')
-
     const before = await storage.database.itemStatusEvents.where('itemId').equals(item.id).toArray()
     await expect(itemApplication.changeStatus(item.id, 'waiting_review')).rejects.toThrow('不允许从 doing 变更为 waiting_review')
     expect(await storage.database.itemStatusEvents.where('itemId').equals(item.id).toArray()).toEqual(before)

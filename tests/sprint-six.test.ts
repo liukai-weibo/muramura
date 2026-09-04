@@ -57,7 +57,6 @@ describe('Sprint 6 方法复用与行动验证', () => {
     const formed = await createMethod(services)
     const appliedItem = await services.methods.createItem(formed.method!.id, '使用第一版')
     const revisionItem = await services.items.createIdea({ title: '修订方法' })
-    await services.items.changeStatus(revisionItem.id, 'doing')
     await services.reviews.completeReview({
       itemId: revisionItem.id,
       ...reviewFields,

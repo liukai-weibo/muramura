@@ -4,7 +4,7 @@ import type { MealEntry, MealType } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
 import { buildMonthDays, daysInMonth, formatLocalDate, todayLocalDate } from '../calendar-utils'
 import type { ColorTheme } from '../../display-effect-preference'
-import { mealFeelingColors, mealFeelingColorsDark, mealFeelingLabels, mealTypeLabels, mealTypeOrder } from './meal-levels'
+import { mealFeelingColors, mealFeelingColorsDark, mealFeelingLabels, mealSatietyLevels, mealTypeLabels, mealTypeOrder } from './meal-levels'
 import { MealDayModal } from './meal-day-modal'
 import './meals-page.scss'
 
@@ -171,7 +171,7 @@ export function MealsPage({ colorTheme }: { colorTheme: ColorTheme }) {
 
       {view === 'year' && !loading && !error && (
         <View className='meals-legend'>
-          {[1, 2, 3, 4, 5].map(level => (
+          {mealSatietyLevels.map(level => (
             <View key={level} className='meals-legend-item'>
               <View className='meals-legend-swatch' style={{ background: palette[level] }} />
               <Text>{mealFeelingLabels[level]}</Text>

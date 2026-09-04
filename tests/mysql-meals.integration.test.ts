@@ -86,15 +86,15 @@ describe.runIf(mysqlIntegrationEnabled)('meal entries MySQL repository', () => {
       await migrator.query("INSERT INTO users(id, username, password_hash, created_at, updated_at) VALUES ('owner-a', 'owner-a', 'scrypt$redacted', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", [])
 
       const repository = new MySqlMealEntryRepository(app, createScope('owner-a'))
-      const saved = await repository.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'breakfast', content: '牛奶', feeling: 4 }, { mealType: 'lunch', content: '米饭', feeling: 3 }] })
+      const saved = await repository.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'breakfast', content: '牛奶', feeling: 5 }, { mealType: 'lunch', content: '米饭', feeling: 7 }] })
       expect(saved).toHaveLength(2)
 
       // Upsert same meal type, add dinner, drop breakfast
-      const updated = await repository.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'lunch', content: '面条', feeling: 5 }, { mealType: 'dinner', content: '沙拉', feeling: 2 }] })
+      const updated = await repository.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'lunch', content: '面条', feeling: 9 }, { mealType: 'dinner', content: '沙拉', feeling: 7 }] })
       expect(updated).toHaveLength(2)
       expect(updated.map(e => e.mealType).sort()).toEqual(['dinner', 'lunch'])
       expect(updated.find(e => e.mealType === 'lunch')!.content).toBe('面条')
-      expect(updated.find(e => e.mealType === 'lunch')!.feeling).toBe(5)
+      expect(updated.find(e => e.mealType === 'lunch')!.feeling).toBe(9)
     })
   })
 
@@ -106,7 +106,7 @@ describe.runIf(mysqlIntegrationEnabled)('meal entries MySQL repository', () => {
 
       const repository = new MySqlMealEntryRepository(app, createScope('owner-b'))
       await repository.replaceBackup([{
-        id: 'meal-1', entryDate: '2026-08-19', mealType: 'dinner', content: '汤', feeling: 4,
+        id: 'meal-1', entryDate: '2026-08-19', mealType: 'dinner', content: '汤', feeling: 9,
         createdAt: '2026-08-19T12:00:00.000Z', updatedAt: '2026-08-19T12:00:00.000Z',
       }])
       const exported = await repository.exportBackup()

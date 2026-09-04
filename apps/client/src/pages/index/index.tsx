@@ -30,6 +30,7 @@ import './features/daily-summary/daily-summary.scss'
 import './features/daily-diet/daily-diet.scss'
 import './features/home-ai-card/home-ai-card.scss'
 import { DailyNotesPage } from './features/daily-notes/daily-notes-page'
+import { notifyDailyNoteChanged, subscribeDailyNoteChanged } from './daily-note-sync'
 import { readColorTheme, readDisplayEffectMode, saveColorTheme, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
 import './index.scss'
 import './cream-ui-theme.scss'
@@ -447,8 +448,8 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
   useEffect(() => () => resetAutoGenerateGuard(), [])
   useEffect(() => {
     const onChanged = () => { void refreshDailyNoteBadge() }
-    window.addEventListener('daily-note-content-changed', onChanged)
-    return () => window.removeEventListener('daily-note-content-changed', onChanged)
+    const stop = subscribeDailyNoteChanged(onChanged)
+    return () => stop()
   }, [refreshDailyNoteBadge])
   useEffect(() => {
     if (!isTauriDesktop()) return
@@ -2503,7 +2504,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         {(moodMounted && primaryModule === 'workbench' && workbenchTab === 'mood') && <View className='module-retained'><MoodPage colorTheme={colorTheme} /></View>}
         {(mealsMounted && primaryModule === 'workbench' && workbenchTab === 'meals') && <View className='module-retained'><MealsPage colorTheme={colorTheme} /></View>}
         {homeMealsOpen && <MealDayModal initialDate={todayLocalDate()} onClose={() => setHomeMealsOpen(false)} onSaved={() => { setHomeMealsOpen(false); setMessage('已记录今日三餐') }} />}
-        {homeMoodCreateOpen && <MoodRecordModal initialDate={todayLocalDate()} colorTheme={colorTheme} onClose={() => setHomeMoodCreateOpen(false)} onSave={async (input) => { await apiClient.createMoodEntry(input); setHomeMoodCreateOpen(false); setMessage('已记录今日情绪') }} onReloadData={() => setHomeMoodCreateOpen(false)} />}
+        {homeMoodCreateOpen && <MoodRecordModal initialDate={todayLocalDate()} colorTheme={colorTheme} onClose={() => setHomeMoodCreateOpen(false)} onSave={async (input) => { await apiClient.createMoodEntry(input); notifyDailyNoteChanged(); setHomeMoodCreateOpen(false); setMessage('已记录今日情绪') }} onReloadData={() => setHomeMoodCreateOpen(false)} />}
         {homeDailySummaryOpen && <DailySummaryDetailModal initialDate={todayLocalDate()} generating={todaySummaryGenerating} draft={todaySummaryDraft} aiUnavailable={todaySummaryAiUnavailable} refreshTick={summaryChangedAt} onGenerate={() => { void startSummaryGeneration(true) }} onClose={() => setHomeDailySummaryOpen(false)} onChanged={() => { setSummaryChangedAt((v) => v + 1) }} />}
         {homeDailyDietOpen && <DailyDietDetailModal initialDate={todayLocalDate()} generating={todayDietGenerating} draft={todayDietDraft} aiUnavailable={todayDietAiUnavailable} refreshTick={dietChangedAt} onGenerate={() => { void startDietGeneration(true) }} onClose={() => setHomeDailyDietOpen(false)} onOpenProfile={() => setDietProfileOpen(true)} onChanged={() => { setDietChangedAt((v) => v + 1) }} />}
         {dietProfileOpen && <DailyDietProfileModal onClose={() => setDietProfileOpen(false)} />}
@@ -2587,7 +2588,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         </View>}
 
         {reviewNotePrompt && <View className='review-note-prompt' role='dialog' aria-modal='true' aria-label='写入手记'>
-          <View className='review-note-prompt-card'><Text>是否将本条行动写入手记？</Text><Text>将追加事项标题和本次复盘内容，不会改写已有记录。</Text><View><Button className='action-button secondary' onClick={() => setReviewNotePrompt(undefined)}>暂不写入</Button><Button className='action-button primary' onClick={() => void apiClient.appendTodayDailyNote(`事项：${reviewNotePrompt.title}\n\n${reviewNotePrompt.content}`).then(() => { window.dispatchEvent(new CustomEvent('daily-note-content-changed')); setReviewNotePrompt(undefined); setMessage('已写入手记') }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '写入手记失败'))}>写入手记</Button></View></View>
+          <View className='review-note-prompt-card'><Text>是否将本条行动写入手记？</Text><Text>将追加事项标题和本次复盘内容，不会改写已有记录。</Text><View><Button className='action-button secondary' onClick={() => setReviewNotePrompt(undefined)}>暂不写入</Button><Button className='action-button primary' onClick={() => void apiClient.appendTodayDailyNote(`事项：${reviewNotePrompt.title}\n\n${reviewNotePrompt.content}`).then(() => { notifyDailyNoteChanged(); setReviewNotePrompt(undefined); setMessage('已写入手记') }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '写入手记失败'))}>写入手记</Button></View></View>
         </View>}
 
       {activeGlobalTool === 'capture' && <View className='capture-modal-backdrop'>

@@ -19,7 +19,6 @@ function services() {
 
 async function formMethod(s: ReturnType<typeof services>) {
   const item = await s.items.createIdea({ title: '方法来源' })
-  await s.items.changeStatus(item.id, 'doing')
   return s.reviews.completeReview({ itemId: item.id, ...fields, method: { title: '可信方法', applicable: '场景', steps: '步骤' } })
 }
 

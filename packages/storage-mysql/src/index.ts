@@ -245,7 +245,7 @@ export async function runMySqlMigrations(pool: Pool, directory: string): Promise
       try {
         for (const statement of splitStatements(migration.sql)) {
           if (migration.version === 7) await runMigration007Statement(connection, statement)
-          else if (migration.version === 8) await runMigration008Statement(connection, statement)
+          else if (migration.version === 8 || migration.version === 32) await runMigration008Statement(connection, statement)
           else if (migration.version === 9 || migration.version === 12) await runMigration009Statement(connection, statement)
           else await connection.query(statement)
         }

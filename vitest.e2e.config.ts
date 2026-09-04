@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { defineConfig, defaultExclude } from 'vitest/config'
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   resolve: {
@@ -14,8 +14,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
-    exclude: [...defaultExclude, 'tests/**/*.e2e.test.ts', 'tests/**/*-h5-flow.test.ts'],
+    include: ['tests/**/*.e2e.test.ts', 'tests/**/*-h5-flow.test.ts'],
     setupFiles: ['fake-indexeddb/auto'],
+    hookTimeout: 180000,
+    testTimeout: 120000,
   },
 })

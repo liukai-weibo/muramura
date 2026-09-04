@@ -66,7 +66,7 @@ export async function buildDietPrompt(): Promise<string> {
   } catch { notes = [] }
   const mealLines = meals
     .sort((a, b) => a.entryDate.localeCompare(b.entryDate) || a.mealType.localeCompare(b.mealType))
-    .map(m => `- ${m.entryDate} ${mealTypeLabel(m.mealType)}：${m.content ? m.content : '(无)'}${m.feeling ? `（感受 ${m.feeling}/5）` : ''}`)
+    .map(m => `- ${m.entryDate} ${mealTypeLabel(m.mealType)}：${m.content ? m.content : '(无)'}${m.feeling ? `（饱腹度 ${mealSatietyLabel(m.feeling)}）` : ''}`)
   const moodLines = moods
     .sort((a, b) => a.entryDate.localeCompare(b.entryDate))
     .map(m => `- ${m.entryDate}：情绪 ${m.moodLevel}/5${m.content ? '｜' + m.content : ''}`)
@@ -91,6 +91,14 @@ function mealTypeLabel(type: string): string {
   if (type === 'lunch') return '午餐'
   if (type === 'dinner') return '晚餐'
   return type
+}
+
+/** 饱腹度 0 不输出（无记录），5/7/9 输出中文档位文案。 */
+function mealSatietyLabel(feeling: number): string {
+  if (feeling === 5) return '五分饱'
+  if (feeling === 7) return '七分饱'
+  if (feeling === 9) return '九分饱'
+  return String(feeling)
 }
 
 /** 内部：消费流式接口并落库，返回是否成功写入。onToken 用于流式预览（每收到 token 回调当前已生成全文）。 */

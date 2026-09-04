@@ -41,13 +41,13 @@ const createDeletedItemWithReview = async () => {
 describe('SQLite S2 P0 transaction evidence', () => {
   it('preserves independently committed content and status mutations without stale-object overwrite', async () => {
     const bundle = open()
-    const item = await bundle.itemRepository.create({ title: 'x' })
+    const item = await bundle.itemRepository.create({ title: 'x', status: 'idea_to_try' })
     await bundle.itemRepository.updateContent(item.id, { content: 'new content' })
-    await bundle.itemRepository.changeStatus(item.id, 'idea_later')
-    expect(await bundle.itemRepository.getById(item.id)).toMatchObject({ content: 'new content', status: 'idea_later' })
+    await bundle.itemRepository.startExecution(item.id, { startAction: '开始' })
+    expect(await bundle.itemRepository.getById(item.id)).toMatchObject({ content: 'new content', status: 'doing' })
     const events = await bundle.itemRepository.listStatusEvents(item.id)
     expect(events).toHaveLength(2)
-    expect(events[1]).toMatchObject({ fromStatus: 'idea_to_try', toStatus: 'idea_later' })
+    expect(events[1]).toMatchObject({ fromStatus: 'idea_to_try', toStatus: 'doing' })
   })
 
   it('does not revive a deleted item or lose its last content when delete follows content update', async () => {
@@ -61,7 +61,7 @@ describe('SQLite S2 P0 transaction evidence', () => {
 
   it('rolls back start execution completely on event insertion failure', async () => {
     const bundle = open()
-    const item = await bundle.itemRepository.create({ title: 'x' })
+    const item = await bundle.itemRepository.create({ title: 'x', status: 'idea_to_try' })
     const db = raw(bundle.database)
     db.prepare("CREATE TRIGGER fail_start_event BEFORE INSERT ON item_status_events WHEN NEW.to_status = 'doing' BEGIN SELECT RAISE(FAIL, 'fail event'); END").run()
     await expect(bundle.itemRepository.startExecution(item.id, { startAction: 'snapshot' })).rejects.toThrow('fail event')

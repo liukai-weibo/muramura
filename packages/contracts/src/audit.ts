@@ -146,7 +146,7 @@ export const AUDIT_SNAPSHOT_KEY_LABELS: Record<string, string> = {
   meals: '餐次',
   mealType: '餐次类型',
   content: '内容',
-  feeling: '感受',
+  feeling: '饱腹度',
   query: '搜索词',
   title: '标题',
   name: '名称',

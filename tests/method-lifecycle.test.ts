@@ -19,7 +19,6 @@ function services() {
   const fields = { actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '' }
 async function formMethod(s: ReturnType<typeof services>) {
   const item = await s.items.createIdea({ title: '来源' })
-  await s.items.changeStatus(item.id, 'doing')
   return s.reviews.completeReview({ itemId: item.id, ...fields, method: { title: '方法', applicable: '场景', steps: '步骤' } })
 }
 afterEach(async () => { await Promise.all(databases.map((database) => database.delete())); databases.length = 0 })

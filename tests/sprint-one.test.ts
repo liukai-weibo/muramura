@@ -22,7 +22,7 @@ describe('Sprint 1 事项应用服务', () => {
     const activeIdea = await application.createIdea({ title: '学习摄影', content: '先完成一组街拍' })
     const laterIdea = await application.createIdea({ title: '学习木工', saveForLater: true })
 
-    expect(activeIdea.status).toBe('idea_to_try')
+    expect(activeIdea.status).toBe('doing')
     expect(activeIdea.content).toBe('先完成一组街拍')
     expect(laterIdea.status).toBe('idea_later')
     expect((await application.listItems()).map((item) => item.id)).toEqual([laterIdea.id, activeIdea.id])
@@ -41,11 +41,7 @@ describe('Sprint 1 事项应用服务', () => {
     const { application } = createApplication()
     const idea = await application.createIdea({ title: '完成 Sprint 1' })
 
-    expect(application.actionsFor(idea).map((action) => action.status)).toEqual([
-      'doing',
-      'idea_later',
-      'abandoned',
-    ])
+    expect(application.actionsFor(idea).map((action) => action.status)).toEqual([])
 
     const doing = await application.changeStatus(idea.id, 'doing')
     const paused = await application.changeStatus(doing.id, 'paused')

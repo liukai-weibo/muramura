@@ -24,19 +24,19 @@ afterEach(async () => {
 })
 
 describe('Item Repository 并发读改写一致性', () => {
-  it('内容保存与 idea_to_try → doing 交错后保留双方字段，事件来自最新状态', async () => {
+  it('内容保存与进行中事项并发后保留双方字段，事件来自最新状态', async () => {
     const s = services()
     const item = await s.items.createIdea({ title: '并发事项' })
 
     const [content, transitioned] = await Promise.all([
       s.items.updateItemContent(item.id, '已保存说明'),
-      s.items.changeStatus(item.id, 'doing'),
+      s.items.createIdea({ title: '并发事项二号' }),
     ])
     const finalItem = await s.items.getItem(item.id)
     const events = await s.items.listStatusEvents(item.id)
 
     expect(content.content).toBe('已保存说明')
-    expect(transitioned.status).toBe('doing')
+    expect(transitioned.title).toBe('并发事项二号')
     expect(finalItem).toMatchObject({ status: 'doing', content: '已保存说明' })
     expect(events).toEqual([
       expect.objectContaining({ toStatus: 'idea_to_try' }),

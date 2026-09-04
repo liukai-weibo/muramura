@@ -32,7 +32,11 @@ function isDateValid(dateStr: string): boolean {
 }
 
 export class MoodEntryApplicationService {
-  constructor(private readonly repository: MoodEntryRepository, private readonly auditRecorder?: ActivityAuditRecorder) {}
+  constructor(
+    private readonly repository: MoodEntryRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
+    private readonly dailyNotes?: { appendToday(content: string): Promise<unknown> },
+  ) {}
 
   listRange(from?: string, to?: string): Promise<MoodEntry[]> {
     return this.repository.listRange(from, to)
@@ -46,6 +50,7 @@ export class MoodEntryApplicationService {
       throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪记录日期不能晚于今天')
     }
     const created = await this.repository.create({ ...input, entryDate, tags: normalizeTags(input.tags) })
+    await this.syncToHandNote(created)
     await safeAuditRecord(this.auditRecorder, { module: 'mood', action: 'create', entityId: created.id, snapshot: JSON.stringify({ content: created.content, moodLevel: created.moodLevel, tags: created.tags }) })
     return created
   }
@@ -68,6 +73,21 @@ export class MoodEntryApplicationService {
     if (!deleted) throw new BusinessError('MOOD_ENTRY_NOT_FOUND', 'not-found', '情绪记录不存在')
     if (before) {
       await safeAuditRecord(this.auditRecorder, { module: 'mood', action: 'delete', entityId: before.id, snapshot: JSON.stringify({ content: before.content, moodLevel: before.moodLevel, tags: before.tags }) })
+    }
+  }
+
+  /** 情绪记入手记：时间 + 情绪内容 + 可选 `感受：{response}`（不写等级标题行）。失败静默降级，不阻断情绪保存。 */
+    private async syncToHandNote(entry: MoodEntry): Promise<void> {
+    if (!this.dailyNotes) return
+    const lines = [entry.content.trim()]
+    const response = entry.response?.trim()
+    if (response) lines.push('感受：' + response)
+    const body = lines.filter(Boolean).join('\n')
+    if (!body) return
+    try {
+      await this.dailyNotes.appendToday(body)
+    } catch (error) {
+      console.warn('[mood-to-note] skipped:', error instanceof Error ? error.message : String(error))
     }
   }
 

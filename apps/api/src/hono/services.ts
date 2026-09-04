@@ -93,6 +93,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const aiConversationRepository = userId ? new MySqlAiConversationRepository(pool, { userId }) : undefined
   const aiPreferenceRepository = userId ? new MySqlAiPreferenceRepository(pool, { userId }) : undefined
   const dailyNoteRepository = userId ? new MySqlDailyNoteRepository(pool, { userId }) : undefined
+  const dailyNoteService = dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository, auditRecorder) : undefined
   const moodEntryRepository = userId ? new MySqlMoodEntryRepository(pool, { userId }) : undefined
   const mealEntryRepository = userId ? new MySqlMealEntryRepository(pool, { userId }) : undefined
   const dailySummaryRepository = userId ? new MySqlDailySummaryRepository(pool, { userId }) : undefined
@@ -126,8 +127,8 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope), auditRecorder),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
     backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository, dailyDietRepository, homeAiCardRepository),
-    dailyNotes: dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository, auditRecorder) : undefined,
-    moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository, auditRecorder) : undefined,
+    dailyNotes: dailyNoteService,
+    moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository, auditRecorder, dailyNoteService) : undefined,
     meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository, auditRecorder) : undefined,
     dailySummaries: dailySummaryRepository ? new DailySummaryApplicationService(dailySummaryRepository) : undefined,
     dailyDiet: dailyDietRepository ? new DailyDietRecommendationApplicationService(dailyDietRepository) : undefined,

@@ -20,7 +20,6 @@ function createServices() {
 
 async function completeItem(services: ReturnType<typeof createServices>, title: string, offset: number) {
   const item = await services.items.createIdea({ title })
-  await services.items.changeStatus(item.id, 'doing')
   const review = await services.reviews.completeReview({
     itemId: item.id,
     ...reviewFields,

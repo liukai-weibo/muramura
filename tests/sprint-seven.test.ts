@@ -27,7 +27,6 @@ function createServices() {
 
 async function createReviewedMethod(services: ReturnType<typeof createServices>) {
   const item = await services.items.createIdea({ title: '学习瘦金体', content: '建立稳定练字习惯' })
-  await services.items.changeStatus(item.id, 'doing')
   const result = await services.reviews.completeReview({
     itemId: item.id,
     ...reviewFields,
@@ -67,7 +66,6 @@ describe('Sprint 7 全局搜索与快速定位', () => {
     const services = createServices()
     const { result } = await createReviewedMethod(services)
     const revisionItem = await services.items.createIdea({ title: '修订练字方法' })
-    await services.items.changeStatus(revisionItem.id, 'doing')
     await services.reviews.completeReview({
       itemId: revisionItem.id,
       ...reviewFields,

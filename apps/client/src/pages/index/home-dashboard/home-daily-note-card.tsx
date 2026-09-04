@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Image, Text, View } from '@tarojs/components'
 import type { DailyNote } from '@knowledge-base/contracts'
 import { apiClient } from '../api-client'
+import { notifyDailyNoteChanged, subscribeDailyNoteChanged } from '../daily-note-sync'
 
 interface HomeDailyNoteCardProps { onOpenDailyNotes: () => void }
 
@@ -27,19 +28,19 @@ export function HomeDailyNoteCard({ onOpenDailyNotes }: HomeDailyNoteCardProps) 
   useEffect(() => { void refresh().catch(() => setLoaded(true)) }, [])
   useEffect(() => {
     const onChanged = () => { void refresh().catch(() => undefined) }
-    window.addEventListener('daily-note-content-changed', onChanged)
-    return () => window.removeEventListener('daily-note-content-changed', onChanged)
+    const stop = subscribeDailyNoteChanged(onChanged)
+    return () => stop()
   }, [])
   const save = async () => {
     if (saving || !draft.trim()) return
     setSaving(true); setError('')
-    try { setNote(await apiClient.appendTodayDailyNote(draft)); window.dispatchEvent(new CustomEvent('daily-note-content-changed')); setDraft(''); draftRef.current = ''; setModalOpen(false) }
+    try { setNote(await apiClient.appendTodayDailyNote(draft)); notifyDailyNoteChanged(); setDraft(''); draftRef.current = ''; setModalOpen(false) }
     catch { setError('保存失败，内容仍保留在这里') }
     finally { setSaving(false) }
   }
   const saveOnExit = async () => {
     if (saving || !draftRef.current.trim()) return
-    try { setNote(await apiClient.appendTodayDailyNote(draftRef.current)); window.dispatchEvent(new CustomEvent('daily-note-content-changed')); setDraft(''); draftRef.current = ''; setModalOpen(false) }
+    try { setNote(await apiClient.appendTodayDailyNote(draftRef.current)); notifyDailyNoteChanged(); setDraft(''); draftRef.current = ''; setModalOpen(false) }
     catch { setError('退出前保存失败，内容仍保留在快速记录中') }
   }
   useEffect(() => {

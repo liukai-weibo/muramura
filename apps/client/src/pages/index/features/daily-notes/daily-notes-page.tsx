@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import type { DailyNote, Item } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
+import { notifyDailyNoteChanged, subscribeDailyNoteChanged } from '../../daily-note-sync'
 import { isTauriDesktop } from '../../../../desktop/desktop-native-bridge'
 import { DailyNoteAiPanel } from './daily-note-ai-panel'
 
@@ -57,10 +58,10 @@ export function DailyNotesPage({ onFlushReady, onItemsChanged, onItemCreated }: 
         draftRef.current = remote.content
       }).catch(() => undefined)
     }
-    window.addEventListener('daily-note-content-changed', syncExternalChange)
-    return () => window.removeEventListener('daily-note-content-changed', syncExternalChange)
+    const stop = subscribeDailyNoteChanged(syncExternalChange)
+    return () => stop()
   }, [])
-  const flush = useCallback(async () => { if (!pending.current || !selected.current) return true; if (timer.current) clearTimeout(timer.current); setSaving(true); setSaveError(''); try { const saved = await apiClient.updateDailyNote(selected.current.id, draftRef.current); pending.current = false; setNotes(list => list.map(note => note.id === saved.id ? saved : note)); if (saved.content.trim()) window.dispatchEvent(new CustomEvent('daily-note-content-changed')); return true } catch { setSaveError('自动保存失败，内容仍保留在当前编辑器中'); return false } finally { setSaving(false) } }, [])
+  const flush = useCallback(async () => { if (!pending.current || !selected.current) return true; if (timer.current) clearTimeout(timer.current); setSaving(true); setSaveError(''); try { const saved = await apiClient.updateDailyNote(selected.current.id, draftRef.current); pending.current = false; setNotes(list => list.map(note => note.id === saved.id ? saved : note)); if (saved.content.trim()) notifyDailyNoteChanged(); return true } catch { setSaveError('自动保存失败，内容仍保留在当前编辑器中'); return false } finally { setSaving(false) } }, [])
   useEffect(() => { onFlushReady(flush); return () => { void flush() } }, [onFlushReady])
   useEffect(() => {
     if (!isTauriDesktop()) return

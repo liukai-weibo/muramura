@@ -3,6 +3,7 @@ import {
   homeAiCardSizes,
   homeAiCardThemes,
   homeAiCardRefreshModes,
+  MEAL_SATIETY_VALUES,
   type BackupData,
   type BackupDataV3,
   type BackupDataV4,
@@ -215,7 +216,7 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
   if (document.version === 3 || document.version === 4 || document.version === 5 || document.version === 6 || document.version === 7 || document.version === 8) validateV3Data(document.data)
   if ((document.version === 4 || document.version === 5) && document.data.dailyNotes.some(note => !note.id || !/^\d{4}-\d{2}-\d{2}$/.test(note.entryDate) || typeof note.content !== 'string' || !isTimestamp(note.createdAt) || !isTimestamp(note.updatedAt) || (note.aiConversationId !== undefined && !note.aiConversationId))) throw invalidBackup('日记存在无效记录')
   if ((document.version === 6 || document.version === 7) && document.data.moodEntries.some(entry => !entry.id || typeof entry.content !== 'string' || typeof entry.entryDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.entryDate) || typeof entry.moodLevel !== 'number' || entry.moodLevel < 1 || entry.moodLevel > 5 || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt))) throw invalidBackup('情绪记录存在无效记录')
-  if (document.version === 7 && document.data.mealEntries.some(entry => !entry.id || !(entry.mealType === 'breakfast' || entry.mealType === 'lunch' || entry.mealType === 'dinner') || typeof entry.entryDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.entryDate) || typeof entry.content !== 'string' || typeof entry.feeling !== 'number' || entry.feeling < 1 || entry.feeling > 5 || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt))) throw invalidBackup('三餐记录存在无效记录')
+  if (document.version === 7 && document.data.mealEntries.some(entry => !entry.id || !(entry.mealType === 'breakfast' || entry.mealType === 'lunch' || entry.mealType === 'dinner') || typeof entry.entryDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.entryDate) || typeof entry.content !== 'string' || typeof entry.feeling !== 'number' || !Number.isFinite(entry.feeling) || !MEAL_SATIETY_VALUES.has(entry.feeling) || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt))) throw invalidBackup('三餐记录存在无效记录')
   if (document.version === 8 && document.data.dailySummaries.some(entry => !entry.id || typeof entry.entryDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.entryDate) || typeof entry.content !== 'string' || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt))) throw invalidBackup('状态小结存在无效记录')
   if (document.version === 10) {
     const cards = document.data.homeAiCards

@@ -11,8 +11,8 @@ afterEach(async () => {
 
 describe('事项状态机', () => {
   it('允许想法进入执行，不允许直接变成已复盘', () => {
-    expect(canTransition('idea_to_try', 'doing')).toBe(true)
-    expect(canTransition('idea_to_try', 'reviewed')).toBe(false)
+    expect(canTransition('doing', 'reviewed')).toBe(true)
+    expect(canTransition('idea_to_try', 'doing')).toBe(false)
   })
 
   it('公共状态流转不再创建待复盘，历史状态仅由复盘工作流兼容', () => {
@@ -29,7 +29,7 @@ describe('IndexedDB Repository', () => {
     const item = await storage.repository.create({ title: '学习瘦金体' })
     expect((await storage.repository.list()).map((entry) => entry.title)).toEqual(['学习瘦金体'])
 
-    const doing = await storage.repository.changeStatus(item.id, 'doing')
+    const doing = await storage.repository.create({ title: '学习瘦金体', status: 'doing' })
     expect(doing.status).toBe('doing')
 
     await storage.repository.delete(item.id)

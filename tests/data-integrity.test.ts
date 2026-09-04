@@ -24,7 +24,6 @@ function createServices() {
 
 async function createMethod(services: ReturnType<typeof createServices>) {
   const item = await services.items.createIdea({ title: '方法来源事项' })
-  await services.items.changeStatus(item.id, 'doing')
   const completed = await services.reviews.completeReview({
     itemId: item.id,
     ...reviewFields,

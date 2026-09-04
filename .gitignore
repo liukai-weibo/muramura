@@ -80,3 +80,8 @@ src-tauri/*.log
 !src-tauri/signing-material/private.key.pub
 !src-tauri/signing-material/password.txt
 !src-tauri/signing-material/README.md
+
+# session scratch (not committed)
+/.tmp-*
+/.plan-*
+/vt-full*.txt

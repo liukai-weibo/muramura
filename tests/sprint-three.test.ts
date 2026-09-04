@@ -29,7 +29,6 @@ describe('Sprint 3 JSON 备份与恢复', () => {
   it('导出并完整恢复事项、复盘、方法、证据和来源关系', async () => {
     const source = createServices()
     const item = await source.items.createIdea({ title: '验证完整备份' })
-    await source.items.changeStatus(item.id, 'doing')
     await source.reviews.completeReview({
       itemId: item.id,
       actualAction: '执行了一次备份实验',

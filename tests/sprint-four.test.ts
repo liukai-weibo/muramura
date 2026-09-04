@@ -32,7 +32,6 @@ const reviewFields = {
 
 async function createWaitingReviewItem(services: ReturnType<typeof createServices>, title: string) {
   const item = await services.items.createIdea({ title })
-  await services.items.changeStatus(item.id, 'doing')
   return services.items.getItem(item.id)
 }
 

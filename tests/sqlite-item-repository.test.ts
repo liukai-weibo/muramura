@@ -16,7 +16,7 @@ afterEach(() => bundles.splice(0).forEach(({ directory, close }) => { close(); f
 describe('SQLite S2 Item and Review repositories', () => {
   it('persists item state, start action, content and events atomically', async () => {
     const b = bundle()
-    const created = await b.itemRepository.create({ title: ' item ', content: ' note ' })
+    const created = await b.itemRepository.create({ title: ' item ', content: ' note ', status: 'idea_to_try' })
     expect(created.title).toBe('item')
     expect((await b.itemRepository.listStatusEvents(created.id)).map(x => x.toStatus)).toEqual(['idea_to_try'])
     const started = await b.itemRepository.startExecution(created.id, { startAction: ' begin ' })

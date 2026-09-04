@@ -120,7 +120,7 @@ export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined
     }
     if (overview.mealEntries.length) {
       const meals = [...overview.mealEntries].sort((left, right) => left.entryDate.localeCompare(right.entryDate) || left.mealType.localeCompare(right.mealType))
-      sections.push(`Meal entries (all available dates, date is authoritative):\n${meals.map((entry) => `- ${entry.entryDate}${clock(entry.createdAt)} | ${mealTypeLabel(entry.mealType)} | ${entry.content.slice(0, 80)} | feeling ${entry.feeling}`).join('\n')}`)
+      sections.push(`Meal entries (all available dates, date is authoritative):\n${meals.map((entry) => `- ${entry.entryDate}${clock(entry.createdAt)} | ${mealTypeLabel(entry.mealType)} | ${entry.content.slice(0, 80)} | satiety ${entry.feeling === 0 ? '未记录' : `${entry.feeling}分饱`}`).join('\n')}`)
     }
 
   }

@@ -15,18 +15,18 @@ function createServices(now?: () => string) {
   const storage = createIndexedDbRepository(`indexeddb-status-history-${crypto.randomUUID()}`)
   databases.push(storage.database)
   return {
+    st: storage,
     items: new ItemApplicationService(new IndexedDbItemRepository(storage.database, { now })),
     backup: new BackupApplicationService(storage.backupRepository),
   }
 }
 
 async function createRepeatedHistory() {
-  const { items } = createServices(() => fixedTime.toISOString())
-  const item = await items.createIdea({ title: '同毫秒历史' })
-  await items.startExecution(item.id, '立即开始')
-  await items.changeStatus(item.id, 'paused')
-  await items.changeStatus(item.id, 'doing')
-  return items.listStatusEvents(item.id)
+  const { st } = createServices(() => fixedTime.toISOString())
+  const item = await st.repository.create({ title: '同毫秒历史', status: 'idea_to_try' })
+  await st.repository.startExecution(item.id, { startAction: '立即开始' })
+  await st.repository.changeStatus(item.id, 'reviewed')
+  return st.repository.listStatusEvents(item.id)
 }
 
 afterEach(async () => {
@@ -41,14 +41,12 @@ describe('IndexedDB ItemStatusEvent 时间顺序', () => {
     expect(events.map(({ fromStatus, toStatus }) => ({ fromStatus, toStatus }))).toEqual([
       { fromStatus: undefined, toStatus: 'idea_to_try' },
       { fromStatus: 'idea_to_try', toStatus: 'doing' },
-      { fromStatus: 'doing', toStatus: 'paused' },
-      { fromStatus: 'paused', toStatus: 'doing' },
+      { fromStatus: 'doing', toStatus: 'reviewed' },
     ])
     expect(events.map((event) => event.createdAt)).toEqual([
       '2026-07-23T10:00:00.000Z',
       '2026-07-23T10:00:00.001Z',
       '2026-07-23T10:00:00.002Z',
-      '2026-07-23T10:00:00.003Z',
     ])
   })
 
@@ -61,31 +59,29 @@ describe('IndexedDB ItemStatusEvent 时间顺序', () => {
   })
 
   it('仅在各自 Item 内补偿时间，不影响其他事项', async () => {
-    const { items } = createServices(() => fixedTime.toISOString())
+    const { st } = createServices(() => fixedTime.toISOString())
 
-    const first = await items.createIdea({ title: '第一事项' })
-    await items.startExecution(first.id, '开始第一事项')
-    await items.changeStatus(first.id, 'paused')
-    const second = await items.createIdea({ title: '第二事项' })
-    await items.changeStatus(second.id, 'doing')
+    const first = await st.repository.create({ title: '第一事项', status: 'idea_to_try' })
+    await st.repository.startExecution(first.id, { startAction: '开始第一事项' })
+    await st.repository.changeStatus(first.id, 'reviewed')
+    const second = await st.repository.create({ title: '第二事项', status: 'idea_to_try' })
 
-    expect((await items.listStatusEvents(first.id)).map((event) => event.createdAt)).toEqual([
+    expect((await st.repository.listStatusEvents(first.id)).map((event) => event.createdAt)).toEqual([
       '2026-07-23T10:00:00.000Z',
       '2026-07-23T10:00:00.001Z',
       '2026-07-23T10:00:00.002Z',
     ])
-    expect((await items.listStatusEvents(second.id)).map((event) => event.createdAt)).toEqual([
+    expect((await st.repository.listStatusEvents(second.id)).map((event) => event.createdAt)).toEqual([
       '2026-07-23T10:00:00.000Z',
-      '2026-07-23T10:00:00.001Z',
     ])
   })
 
   it('恢复旧备份的同毫秒历史时不改写事件，并以 ID 稳定排序', async () => {
     const source = createServices()
     const target = createServices()
-    const item = await source.items.createIdea({ title: '旧备份事项' })
-    await source.items.changeStatus(item.id, 'doing')
-    await source.items.changeStatus(item.id, 'paused')
+    const item = await source.storage.repository.create({ title: '旧备份事项', status: 'idea_to_try' })
+    await source.storage.repository.startExecution(item.id, { startAction: '启动' })
+    await source.storage.repository.changeStatus(item.id, 'reviewed')
     const document = await source.backup.createBackup()
     const oldEvents = document.data.itemStatusEvents
       .filter((event) => event.itemId === item.id)

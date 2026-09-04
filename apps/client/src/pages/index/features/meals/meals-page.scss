@@ -202,9 +202,6 @@
 .meal-feel-pill.selected { border-color: #e2a8b2; }
 .meal-feel-pill text { color: inherit; }
 
-.meal-avg-stars { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--cream-hint); font-size: 11px; }
-.meal-avg-stars-glyph { color: #d9a441; font-size: 13px; letter-spacing: 1px; }
-
 .meal-unknown-outcome { padding: 10px 12px; border: 1px solid #ead9aa; border-radius: 12px; background: #fff9e9; color: #806b38; font-size: 11px; line-height: 1.5; }
 
 .meal-modal-actions { display: flex; gap: 10px; margin-top: 2px; }

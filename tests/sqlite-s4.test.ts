@@ -14,10 +14,7 @@ const open = () => {
 afterEach(() => resources.splice(0).forEach(({ directory, close }) => { close(); fs.rmSync(directory, { recursive: true, force: true }) }))
 
 const toWaitingReview = async (bundle: ReturnType<typeof open>, title = '待复盘事项') => {
-  const item = await bundle.itemRepository.create({ title, content: '事项说明' })
-  await bundle.itemRepository.changeStatus(item.id, 'idea_later')
-  await bundle.itemRepository.changeStatus(item.id, 'idea_to_try')
-  await bundle.itemRepository.startExecution(item.id)
+  const item = await bundle.itemRepository.create({ title, content: '事项说明', status: 'doing' })
   return item
 }
 const input = (itemId: string) => ({ itemId, actualAction: '实际行动', result: '结果', effective: '有效', incompatible: '', reason: '', adjustment: '', newIdeas: '派生想法\n补充说明' })
@@ -32,8 +29,8 @@ describe('SQLite S4 review workflow, search, and dashboard candidate repositorie
     expect(result.item).toMatchObject({ id: item.id, status: 'reviewed' })
     expect(result.review).toMatchObject({ itemId: item.id, actualAction: '实际行动' })
     expect(result.method).toMatchObject({ title: '方法', version: 1, validationCount: 1 })
-    expect(result.createdIdea).toMatchObject({ title: '派生想法', content: '派生想法\n补充说明', status: 'idea_to_try' })
-    expect(await bundle.itemRepository.listStatusEvents(item.id)).toMatchObject([{ toStatus: 'idea_to_try' }, { toStatus: 'idea_later' }, { toStatus: 'idea_to_try' }, { toStatus: 'doing' }, { fromStatus: 'doing', toStatus: 'reviewed' }])
+    expect(result.createdIdea).toMatchObject({ title: '派生想法', content: '派生想法\n补充说明', status: 'doing' })
+    expect(await bundle.itemRepository.listStatusEvents(item.id)).toMatchObject([{ toStatus: 'doing' }, { fromStatus: 'doing', toStatus: 'reviewed' }])
     const backup = await bundle.backupRepository.exportData()
     expect(backup.methodEvidence).toMatchObject([{ methodId: result.method?.id, reviewId: result.review.id, relation: 'formation', methodVersion: 1 }])
     expect(backup.itemLinks).toMatchObject([{ sourceReviewId: result.review.id, targetItemId: result.createdIdea?.id, type: 'derived_from_review' }])
@@ -67,9 +64,9 @@ describe('SQLite S4 review workflow, search, and dashboard candidate repositorie
 
   it('rejects non-waiting, deleted, duplicate review, invalid method selection, and conflicting method choices without writes', async () => {
     const bundle = open()
-    const nonWaiting = await bundle.itemRepository.create({ title: '未待复盘' })
+    const nonWaiting = await bundle.itemRepository.create({ title: '未待复盘', status: 'idea_to_try' })
     const before = await bundle.backupRepository.exportData()
-    await expect(bundle.reviewWorkflowRepository.complete(input(nonWaiting.id))).rejects.toThrow('只有已开始或待复盘事项可以完成复盘')
+    await expect(bundle.reviewWorkflowRepository.complete(input(nonWaiting.id))).rejects.toThrow('只有进行中事项可以完成复盘')
     expect(await bundle.backupRepository.exportData()).toEqual(before)
 
     const deleted = await toWaitingReview(bundle, '已删除')
@@ -81,7 +78,7 @@ describe('SQLite S4 review workflow, search, and dashboard candidate repositorie
     const complete = await toWaitingReview(bundle, '完成')
     await bundle.reviewWorkflowRepository.complete({ ...input(complete.id), newIdeas: '' })
     const duplicateBefore = await bundle.backupRepository.exportData()
-    await expect(bundle.reviewWorkflowRepository.complete(input(complete.id))).rejects.toThrow('只有已开始或待复盘事项可以完成复盘')
+    await expect(bundle.reviewWorkflowRepository.complete(input(complete.id))).rejects.toThrow('该事项已经完成复盘')
     expect(await bundle.backupRepository.exportData()).toEqual(duplicateBefore)
 
     const conflict = await toWaitingReview(bundle, '冲突')

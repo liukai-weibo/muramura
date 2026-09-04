@@ -29,7 +29,7 @@ describe('事项补充说明', () => {
     const beforeEvents = await s.storage.database.itemStatusEvents.where('itemId').equals(item.id).toArray()
     const updated = await s.items.updateItemContent(item.id, '  新说明  ')
 
-    expect(updated).toMatchObject({ id: item.id, title: item.title, status: 'idea_to_try', createdAt: item.createdAt, content: '新说明' })
+    expect(updated).toMatchObject({ id: item.id, title: item.title, status: 'doing', createdAt: item.createdAt, content: '新说明' })
     expect(updated.updatedAt >= item.updatedAt).toBe(true)
     expect(await s.storage.database.itemStatusEvents.where('itemId').equals(item.id).toArray()).toEqual(beforeEvents)
 
@@ -72,14 +72,12 @@ describe('事项补充说明', () => {
   it('历史状态更新背景不污染复盘、方法证据、方法应用或状态历史', async () => {
     const s = services()
     const source = await s.items.createIdea({ title: '形成方法' })
-    await s.items.changeStatus(source.id, 'doing')
-  const formed = await s.reviews.completeReview({
+    const formed = await s.reviews.completeReview({
       itemId: source.id,
       actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '',
       method: { title: '方法', applicable: '场景', steps: '步骤' },
     })
     const applied = await s.applications.createItem(formed.method!.id, '历史应用')
-    await s.items.changeStatus(applied.id, 'doing')
     await s.reviews.completeReview({ itemId: applied.id, actualAction: '行动', result: '结果', effective: '', incompatible: '', reason: '', adjustment: '', newIdeas: '', existingMethod: { methodId: formed.method!.id } })
 
     const [review, evidence, application, events] = await Promise.all([

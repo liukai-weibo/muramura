@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Text, View } from '@tarojs/components'
 import type { MoodEntry, MoodEntryInput, MoodLevel } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
+import { notifyDailyNoteChanged } from '../../daily-note-sync'
 import type { ColorTheme } from '../../display-effect-preference'
 import { MoodCalendar, type MoodCalendarMode } from './mood-calendar'
 import { MoodCard } from './mood-card'
@@ -92,7 +93,7 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
 
   const handleSave = async (input: MoodEntryInput) => {
     if (modal.kind === 'edit') await apiClient.updateMoodEntry(modal.entry.id, input)
-    else await apiClient.createMoodEntry(input)
+    else { await apiClient.createMoodEntry(input); notifyDailyNoteChanged() }
     await closeModalAndRefresh()
   }
 

@@ -15,7 +15,7 @@ describe('audit snapshot preview', () => {
   })
 
   it('previews meal snapshots by composing meals with Chinese labels', () => {
-    const snapshot = JSON.stringify({ entryDate: '2026-08-26', meals: [{ mealType: 'breakfast', content: '包子', feeling: 3 }, { mealType: 'lunch', content: '面', feeling: 4 }] })
+    const snapshot = JSON.stringify({ entryDate: '2026-08-26', meals: [{ mealType: 'breakfast', content: '包子', feeling: 5 }, { mealType: 'lunch', content: '面', feeling: 7 }] })
     expect(snapshotPreview(snapshot)).toBe('早餐：包子 · 午餐：面')
   })
 
@@ -45,7 +45,7 @@ describe('audit snapshot preview', () => {
   it('splits text/meal/date segments without prefix and empty snapshot as []', () => {
     expect(snapshotPreviewSegments('{"title":"想开始一段旅行呢","content":"背景"}')).toEqual([{ label: '', value: '想开始一段旅行呢' }, { label: '', value: '背景' }])
     expect(snapshotPreviewSegments('{"entryDate":"2026-08-26"}')).toEqual([{ label: '', value: '2026-08-26' }])
-    const meal = JSON.stringify({ meals: [{ mealType: 'breakfast', content: '包子', feeling: 3 }, { mealType: 'lunch', content: '面', feeling: 4 }] })
+    const meal = JSON.stringify({ meals: [{ mealType: 'breakfast', content: '包子', feeling: 5 }, { mealType: 'lunch', content: '面', feeling: 7 }] })
     expect(snapshotPreviewSegments(meal)).toEqual([{ label: '', value: '早餐：包子 · 午餐：面' }])
     expect(snapshotPreviewSegments('')).toEqual([])
     expect(snapshotPreviewSegments('null')).toEqual([])
@@ -57,8 +57,8 @@ describe('audit snapshot preview', () => {
     expect(snapshotPretty('{"cardTitle":"健身","aiPrompt":"提示","cardSize":"medium","refreshMode":"daily"}')).toBe('卡片标题：健身\nAI提示词：提示\n卡片尺寸：中\n刷新方式：每天')
   })
   it('pretty prints arrays and meals with Chinese labels and values', () => {
-    const meal = '{"entryDate":"2026-08-26","meals":[{"mealType":"breakfast","content":"包子","feeling":3}]}'
-    expect(snapshotPretty(meal)).toBe('日期：2026-08-26\n餐次：餐次类型：早餐、内容：包子、感受：3')
+    const meal = '{"entryDate":"2026-08-26","meals":[{"mealType":"breakfast","content":"包子","feeling":5}]}'
+    expect(snapshotPretty(meal)).toBe('日期：2026-08-26\n餐次：餐次类型：早餐、内容：包子、饱腹度：5')
   })
   it('previews review snapshots with Chinese labels and dedupes actualAction', () => {
     const review = JSON.stringify({ actualAction: '执行', result: '执行', effective: '很有效', newIdeas: '新想法' })
