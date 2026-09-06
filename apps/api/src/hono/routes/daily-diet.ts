@@ -26,6 +26,7 @@ const dietProfileSchema = z.object({
   goal: z.enum(['lose_fat', 'gain_muscle', 'maintain', 'other']).optional(),
   activity: z.enum(['sedentary', 'light', 'moderate', 'high']).optional(),
   healthNote: z.string().max(500).optional(),
+  aiPrompt: z.string().max(2000).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -49,6 +50,32 @@ export function createDailyDietRoutes() {
       if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily diet unavailable')
       const query = context.req.valid('query')
       return context.json(await service.listRange(query.from, query.to), 200)
+    })
+    .openapi(createRoute({
+      method: 'get',
+      path: '/profile',
+      tags: ['Daily diet'],
+      responses: { 200: jsonSuccess(dietProfileSchema.nullable(), 'diet profile'), 401: commonErrorResponses[401] },
+    }), async context => {
+      const service = requireServices(context).dietProfile
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'diet profile unavailable')
+      const profile = await service.getMine()
+      return context.json(profile ?? null, 200)
+    })
+    .openapi(createRoute({
+      method: 'put',
+      path: '/profile',
+      tags: ['Daily diet'],
+      middleware: [requireJson],
+      request: {
+        body: { required: true, content: { 'application/json': { schema: dietProfileInputSchema } } },
+      },
+      responses: { 200: jsonSuccess(dietProfileSchema, 'upserted diet profile'), 400: commonErrorResponses[400], 401: commonErrorResponses[401] },
+    }), async context => {
+      const service = requireServices(context).dietProfile
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'diet profile unavailable')
+      const body = await context.req.json()
+      return context.json(await service.upsertMine(body), 200)
     })
     .openapi(createRoute({
       method: 'get',
@@ -79,31 +106,5 @@ export function createDailyDietRoutes() {
       if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily diet unavailable')
       const body = await context.req.json()
       return context.json(await service.upsertForDate({ entryDate: context.req.param('entryDate'), content: body.content }), 200)
-    })
-    .openapi(createRoute({
-      method: 'get',
-      path: '/profile',
-      tags: ['Daily diet'],
-      responses: { 200: jsonSuccess(dietProfileSchema.nullable(), 'diet profile'), 401: commonErrorResponses[401] },
-    }), async context => {
-      const service = requireServices(context).dietProfile
-      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'diet profile unavailable')
-      const profile = await service.getMine()
-      return context.json(profile ?? null, 200)
-    })
-    .openapi(createRoute({
-      method: 'put',
-      path: '/profile',
-      tags: ['Daily diet'],
-      middleware: [requireJson],
-      request: {
-        body: { required: true, content: { 'application/json': { schema: dietProfileInputSchema } } },
-      },
-      responses: { 200: jsonSuccess(dietProfileSchema, 'upserted diet profile'), 400: commonErrorResponses[400], 401: commonErrorResponses[401] },
-    }), async context => {
-      const service = requireServices(context).dietProfile
-      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'diet profile unavailable')
-      const body = await context.req.json()
-      return context.json(await service.upsertMine(body), 200)
     })
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import type { DietProfileInput } from '@knowledge-base/contracts'
+import type { DietProfile, DietProfileInput } from '@knowledge-base/contracts'
 import { ACTIVITY_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, loadDietProfile, saveDietProfile } from './daily-diet-profile'
+import { DEFAULT_DIET_AI_PROMPT } from './daily-diet-auto'
 
 interface DailyDietProfileModalProps {
   onClose: () => void
@@ -14,6 +15,16 @@ function toOptionalRaw(value: string): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : Number.NaN
 }
 
+/** 合并：用户本次填写的字段优先，未填写的沿用服务端当前值，避免部分编辑抹掉已存字段。 */
+function mergeInput(current: DietProfileInput | undefined, field: Partial<DietProfileInput>): DietProfileInput {
+  const base = current && Object.keys(current).length > 0 ? { ...current } : {}
+  return { ...base, ...field }
+}
+
+function isDefaultPrompt(value: string): boolean {
+  return value.trim() === DEFAULT_DIET_AI_PROMPT.trim()
+}
+
 export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
   const [height, setHeight] = useState('')
   const [weight, setWeight] = useState('')
@@ -22,6 +33,8 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
   const [goal, setGoal] = useState('')
   const [activity, setActivity] = useState('')
   const [healthNote, setHealthNote] = useState('')
+  const [aiPrompt, setAiPrompt] = useState(DEFAULT_DIET_AI_PROMPT)
+  const [currentProfile, setCurrentProfile] = useState<DietProfileInput>()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -31,6 +44,7 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
     setLoading(true)
     loadDietProfile().then((p) => {
       if (cancelled) return
+      setCurrentProfile(p)
       setHeight(p.heightCm != null ? String(p.heightCm) : '')
       setWeight(p.weightKg != null ? String(p.weightKg) : '')
       setAge(p.age != null ? String(p.age) : '')
@@ -38,6 +52,7 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
       setGoal(p.goal ?? '')
       setActivity(p.activity ?? '')
       setHealthNote(p.healthNote ?? '')
+      setAiPrompt(p.aiPrompt?.trim() || DEFAULT_DIET_AI_PROMPT)
     }).finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
@@ -48,15 +63,17 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
     const w = toOptionalRaw(weight)
     const a = toOptionalRaw(age)
     if ([h, w, a].some((v) => v !== undefined && Number.isNaN(v))) { setError('身高/体重/年龄需填有效数字（大于 0），或留空。'); return }
-    const input: DietProfileInput = {}
-    if (h !== undefined) input.heightCm = Math.round(h)
-    if (w !== undefined) input.weightKg = Math.round(w * 10) / 10
-    if (a !== undefined) input.age = Math.round(a)
-    if (gender) input.gender = gender as DietProfileInput['gender']
-    if (goal) input.goal = goal as DietProfileInput['goal']
-    if (activity) input.activity = activity as DietProfileInput['activity']
+    const field: Partial<DietProfileInput> = {}
+    if (h !== undefined) field.heightCm = Math.round(h)
+    if (w !== undefined) field.weightKg = Math.round(w * 10) / 10
+    if (a !== undefined) field.age = Math.round(a)
+    if (gender) field.gender = gender as DietProfileInput['gender']
+    if (goal) field.goal = goal as DietProfileInput['goal']
+    if (activity) field.activity = activity as DietProfileInput['activity']
     const note = healthNote.trim()
-    if (note) input.healthNote = note
+    if (note) field.healthNote = note
+    field.aiPrompt = aiPrompt.trim() || DEFAULT_DIET_AI_PROMPT
+    const input = mergeInput(currentProfile, field)
     setSaving(true)
     setError('')
     try {
@@ -67,6 +84,8 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
       setSaving(false)
     }
   }
+
+  const promptCustom = !isDefaultPrompt(aiPrompt)
 
   const chip = (value: string, current: string, onChange: (next: string) => void) => (
     <View
@@ -122,6 +141,20 @@ export function DailyDietProfileModal({ onClose }: DailyDietProfileModalProps) {
         <View className='daily-diet-profile-field'>
           <Text className='daily-diet-profile-label'>健康状态 / 忌口 / 过敏 / 慢病（可留空）</Text>
           <Textarea className='daily-diet-profile-textarea' value={healthNote} onInput={(e) => setHealthNote(e.detail.value)} placeholder='如：乳糖不耐受、血压偏高、不吃辣…' autoHeight />
+        </View>
+
+        <View className='daily-diet-profile-field'>
+          <View className='daily-diet-profile-label-row'>
+            <Text className='daily-diet-profile-label'>AI 提示词</Text>
+            <View className={'daily-diet-profile-badge' + (promptCustom ? ' is-custom' : '')}>
+              <Text>{promptCustom ? '自定义' : '默认'}</Text>
+            </View>
+            {promptCustom && (
+              <Button className='daily-diet-profile-reset' onClick={() => setAiPrompt(DEFAULT_DIET_AI_PROMPT)}>恢复默认</Button>
+            )}
+          </View>
+          <Textarea className='daily-diet-profile-textarea' value={aiPrompt} onInput={(e) => setAiPrompt(e.detail.value)} placeholder='默认使用内置提示词，可在这里修改…' autoHeight maxlength={2000} />
+          <Text className='daily-diet-profile-hint'>默认即内置提示词；修改后为自定义状态，AI 生成按你的提示词进行。「恢复默认」可随时回到内置那一套。</Text>
         </View>
 
         {error && <Text className='daily-diet-profile-error'>{error}</Text>}

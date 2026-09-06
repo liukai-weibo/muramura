@@ -5,6 +5,7 @@
  */
 
 export const DIET_PROFILE_HEALTH_NOTE_MAX = 500
+export const DIET_PROFILE_AI_PROMPT_MAX = 2000
 export const DIET_PROFILE_NUMERIC_MAX = 400
 
 export type DietGender = 'male' | 'female' | 'other'
@@ -19,6 +20,7 @@ export interface DietProfileInput {
   goal?: DietGoal
   activity?: DietActivity
   healthNote?: string
+  aiPrompt?: string
 }
 
 export interface DietProfile {
@@ -29,6 +31,7 @@ export interface DietProfile {
   goal?: DietGoal
   activity?: DietActivity
   healthNote?: string
+  aiPrompt?: string
   createdAt: string
   updatedAt: string
 }

@@ -1,5 +1,5 @@
 import type { ActivityAuditRecorder, DietProfile, DietProfileInput, DietProfileRepository } from '@knowledge-base/contracts'
-import { DIET_PROFILE_HEALTH_NOTE_MAX, DIET_PROFILE_NUMERIC_MAX } from '@knowledge-base/contracts'
+import { DIET_PROFILE_AI_PROMPT_MAX, DIET_PROFILE_HEALTH_NOTE_MAX, DIET_PROFILE_NUMERIC_MAX } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { safeAuditRecord } from './audit'
 
@@ -42,6 +42,8 @@ export class DietProfileApplicationService {
     if (input.activity !== undefined && !ACTIVITIES.has(input.activity)) throw invalid('活动量选项无效')
     const note = typeof input.healthNote === 'string' ? input.healthNote.trim() : undefined
     if (note && [...note].length > DIET_PROFILE_HEALTH_NOTE_MAX) throw invalid('健康状态说明不能超过 ' + DIET_PROFILE_HEALTH_NOTE_MAX + ' 个字符')
+    const aiPrompt = typeof input.aiPrompt === 'string' ? input.aiPrompt.trim() : undefined
+    if (aiPrompt && [...aiPrompt].length > DIET_PROFILE_AI_PROMPT_MAX) throw invalid('AI 提示词不能超过 ' + DIET_PROFILE_AI_PROMPT_MAX + ' 个字符')
     const profile = await this.repository.upsertMine({
       heightCm,
       weightKg,
@@ -50,6 +52,7 @@ export class DietProfileApplicationService {
       goal: input.goal,
       activity: input.activity,
       healthNote: note || undefined,
+      aiPrompt: aiPrompt || undefined,
     })
     await safeAuditRecord(this.auditRecorder, {
       module: 'daily_diet',
@@ -69,6 +72,7 @@ export class DietProfileApplicationService {
     if (profile.goal) out.goal = profile.goal
     if (profile.activity) out.activity = profile.activity
     if (profile.healthNote) out.healthNote = profile.healthNote
+    if (profile.aiPrompt) out.aiPrompt = profile.aiPrompt
     return out
   }
 }

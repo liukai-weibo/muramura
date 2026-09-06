@@ -12,6 +12,7 @@ type DietProfileRow = RowDataPacket & {
   goal: string | null
   activity: string | null
   health_note: string | null
+  ai_prompt: string | null
   created_at: string | Date
   updated_at: string | Date
 }
@@ -26,11 +27,13 @@ const map = (row: DietProfileRow): DietProfile => ({
   goal: (row.goal as DietProfile['goal']) ?? undefined,
   activity: (row.activity as DietProfile['activity']) ?? undefined,
   healthNote: row.health_note ?? undefined,
+  aiPrompt: row.ai_prompt ?? undefined,
   createdAt: iso(row.created_at),
   updatedAt: iso(row.updated_at),
 })
 
-const columns = 'owner_user_id, height_cm, weight_kg, age, gender, goal, activity, health_note, created_at, updated_at'
+// weight_kg 为 DECIMAL，mysql2 默认序列化成字符串；SELECT 时 CAST 成 DOUBLE 保证契约为 number。
+const columns = 'owner_user_id, height_cm, CAST(weight_kg AS DOUBLE) AS weight_kg, age, gender, goal, activity, health_note, ai_prompt, created_at, updated_at'
 
 export class MySqlDietProfileRepository implements DietProfileRepository, DietProfileBackupStore {
   constructor(private readonly pool: Pool, private readonly scope: CurrentUserScope) {}
@@ -43,10 +46,10 @@ export class MySqlDietProfileRepository implements DietProfileRepository, DietPr
   async upsertMine(input: DietProfileInput): Promise<DietProfile> {
     return runInMySqlTransaction(this.pool, async connection => {
       await connection.execute(
-        'INSERT INTO user_diet_profiles(owner_user_id, height_cm, weight_kg, age, gender, goal, activity, health_note, created_at, updated_at)' +
-        ' VALUES(?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))' +
-        ' ON DUPLICATE KEY UPDATE height_cm=VALUES(height_cm), weight_kg=VALUES(weight_kg), age=VALUES(age), gender=VALUES(gender), goal=VALUES(goal), activity=VALUES(activity), health_note=VALUES(health_note), updated_at=UTC_TIMESTAMP(3)',
-        [this.scope.userId, input.heightCm ?? null, input.weightKg ?? null, input.age ?? null, input.gender ?? null, input.goal ?? null, input.activity ?? null, input.healthNote ?? null],
+        'INSERT INTO user_diet_profiles(owner_user_id, height_cm, weight_kg, age, gender, goal, activity, health_note, ai_prompt, created_at, updated_at)' +
+        ' VALUES(?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))' +
+        ' ON DUPLICATE KEY UPDATE height_cm=VALUES(height_cm), weight_kg=VALUES(weight_kg), age=VALUES(age), gender=VALUES(gender), goal=VALUES(goal), activity=VALUES(activity), health_note=VALUES(health_note), ai_prompt=VALUES(ai_prompt), updated_at=UTC_TIMESTAMP(3)',
+        [this.scope.userId, input.heightCm ?? null, input.weightKg ?? null, input.age ?? null, input.gender ?? null, input.goal ?? null, input.activity ?? null, input.healthNote ?? null, input.aiPrompt ?? null],
       )
       const [rows] = await connection.query<DietProfileRow[]>('SELECT ' + columns + ' FROM user_diet_profiles WHERE owner_user_id=?', [this.scope.userId])
       return map(rows[0]!)
@@ -62,8 +65,8 @@ export class MySqlDietProfileRepository implements DietProfileRepository, DietPr
       await connection.execute('DELETE FROM user_diet_profiles WHERE owner_user_id=?', [this.scope.userId])
       for (const value of values) {
         await connection.execute(
-          'INSERT INTO user_diet_profiles(owner_user_id, height_cm, weight_kg, age, gender, goal, activity, health_note, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-          [this.scope.userId, value.heightCm ?? null, value.weightKg ?? null, value.age ?? null, value.gender ?? null, value.goal ?? null, value.activity ?? null, value.healthNote ?? null, new Date(value.createdAt), new Date(value.updatedAt)],
+          'INSERT INTO user_diet_profiles(owner_user_id, height_cm, weight_kg, age, gender, goal, activity, health_note, ai_prompt, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+          [this.scope.userId, value.heightCm ?? null, value.weightKg ?? null, value.age ?? null, value.gender ?? null, value.goal ?? null, value.activity ?? null, value.healthNote ?? null, value.aiPrompt ?? null, new Date(value.createdAt), new Date(value.updatedAt)],
         )
       }
     })

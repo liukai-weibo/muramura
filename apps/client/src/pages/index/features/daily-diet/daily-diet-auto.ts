@@ -21,6 +21,9 @@ const DIET_PROMPT = [
   '末尾不需要问句钩子；结论时不要重复我的基础信息（如身高体重）。',
 ].join('\n')
 
+/** 内置默认 AI 提示词（个人档案里「默认」= 恢复成这一套）。 */
+export const DEFAULT_DIET_AI_PROMPT = DIET_PROMPT
+
 const LAST_SEEN_DATE_KEY = 'marumaru.daily-diet.last-seen-date'
 let documentStartKey = todayLocalDate()
 const generateStartedRef = { current: false }
@@ -81,9 +84,11 @@ export async function buildDietPrompt(): Promise<string> {
     '以及手记记录：'
     + (noteLines.length ? '\n' + noteLines.join('\n') : '（没有手记记录）'),
   ].join('\n')
-  const profileSegment = buildDietProfileSegment(await loadDietProfile())
+  const profile = await loadDietProfile()
+  const profileSegment = buildDietProfileSegment(profile)
   const profileBlock = profileSegment ? '\n\n' + profileSegment : ''
-  return DIET_PROMPT + profileBlock + '\n\n' + context
+  const prompt = profile.aiPrompt?.trim() || DIET_PROMPT
+  return prompt + profileBlock + '\n\n' + context
 }
 
 function mealTypeLabel(type: string): string {

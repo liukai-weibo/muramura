@@ -45,6 +45,21 @@ describe('diet profile application service', () => {
     await expect(service.upsertMine({ healthNote: 'x'.repeat(501) })).rejects.toMatchObject({ code: 'DIET_PROFILE_INVALID' })
   })
 
+  it('accepts aiPrompt within limit, trims it, and rejects overlong prompt', async () => {
+    const { service, drafts } = makeService()
+    const saved = await service.upsertMine({ heightCm: 170, aiPrompt: '  你是我的专属营养师。  ' })
+    expect(saved.aiPrompt).toBe('你是我的专属营养师。')
+    expect(drafts[0]).toBeDefined()
+    expect(JSON.parse(drafts[0]!.snapshot ?? '{}')).toMatchObject({ aiPrompt: '你是我的专属营养师。' })
+    await expect(service.upsertMine({ aiPrompt: 'x'.repeat(2001) })).rejects.toMatchObject({ code: 'DIET_PROFILE_INVALID' })
+  })
+
+  it('stores aiPrompt undefined when blank so server keeps built-in default', async () => {
+    const { service } = makeService()
+    const saved = await service.upsertMine({ aiPrompt: '   ' })
+    expect(saved.aiPrompt).toBeUndefined()
+  })
+
   it('records no audit when no recorder is provided', async () => {
     const repo: DietProfileRepository = {
       async getMine(): Promise<DietProfile | undefined> { return undefined },

@@ -84,8 +84,8 @@ describe.runIf(mysqlIntegrationEnabled)('diet profile MySQL repository', () => {
       await migrator.query("INSERT INTO users(id, username, password_hash, created_at, updated_at) VALUES ('owner-a', 'owner-a', 'scrypt$redacted', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))")
       const repository = new MySqlDietProfileRepository(app, createScope('owner-a'))
       expect(await repository.getMine()).toBeUndefined()
-      const saved = await repository.upsertMine({ heightCm: 178, weightKg: 81, age: 30, gender: 'male', goal: 'lose_fat', activity: 'sedentary', healthNote: '乳糖不耐受' })
-      expect(saved).toMatchObject({ heightCm: 178, weightKg: 81, age: 30, gender: 'male', goal: 'lose_fat', activity: 'sedentary', healthNote: '乳糖不耐受' })
+      const saved = await repository.upsertMine({ heightCm: 178, weightKg: 81, age: 30, gender: 'male', goal: 'lose_fat', activity: 'sedentary', healthNote: '乳糖不耐受', aiPrompt: '你是我的专属营养师。' })
+      expect(saved).toMatchObject({ heightCm: 178, weightKg: 81, age: 30, gender: 'male', goal: 'lose_fat', activity: 'sedentary', healthNote: '乳糖不耐受', aiPrompt: '你是我的专属营养师。' })
       const updated = await repository.upsertMine({ heightCm: 180, weightKg: 82, gender: 'male', goal: 'lose_fat', activity: 'sedentary', healthNote: '乳糖不耐受' })
       expect(updated.heightCm).toBe(180)
       const mine = await repository.getMine()
@@ -94,6 +94,25 @@ describe.runIf(mysqlIntegrationEnabled)('diet profile MySQL repository', () => {
       expect(mine!.updatedAt).toBeTruthy()
       expect(mine!.goal).toBe('lose_fat')
       expect(mine!.healthNote).toBe('乳糖不耐受')
+    })
+  })
+
+  it('round-trips decimal weight and ai prompt via 033 migration', { timeout: 30_000 }, async () => {
+    await withTemporaryDatabase(async ({ app, migrator }) => {
+      const directory = createMigrationDirectory()
+      await runMySqlMigrations(migrator, directory)
+      await migrator.query("INSERT INTO users(id, username, password_hash, created_at, updated_at) VALUES ('owner-dec', 'owner-dec', 'scrypt$redacted', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))")
+      const repository = new MySqlDietProfileRepository(app, createScope('owner-dec'))
+      const saved = await repository.upsertMine({ heightCm: 178, weightKg: 81.5, aiPrompt: '多推荐蔬菜。' })
+      expect(saved.weightKg).toBe(81.5)
+      expect(typeof saved.weightKg).toBe('number')
+      expect(saved.aiPrompt).toBe('多推荐蔬菜。')
+      const mine = await repository.getMine()
+      expect(mine!.weightKg).toBe(81.5)
+      expect(mine!.aiPrompt).toBe('多推荐蔬菜。')
+      // 空 aiPrompt → 清空（走默认）
+      const cleared = await repository.upsertMine({ heightCm: 178, weightKg: 81.5, aiPrompt: undefined })
+      expect(cleared.aiPrompt).toBeUndefined()
     })
   })
 

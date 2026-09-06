@@ -74,6 +74,10 @@
 .daily-diet-profile-chip:hover { border-color: var(--cream-selection-border, #dfc984); }
 .daily-diet-profile-chip.is-active { border-color: #dfc984; background: #f0e3bb; color: #4c4638; font-weight: 750; }
 .daily-diet-profile-error { color: #ad5965; font-size: 12px; line-height: 1.6; }
+.daily-diet-profile-label-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.daily-diet-profile-badge { padding: 2px 10px; border-radius: 9999px; border: 1px solid var(--cream-line); color: var(--cream-hint); font-size: 11px; line-height: 1.6; }
+.daily-diet-profile-badge.is-custom { border-color: #dfc984; background: #f0e3bb; color: #4c4638; font-weight: 750; }
+.daily-diet-profile-reset { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: auto !important; min-width: 0 !important; margin: 0 !important; padding: 2px 12px !important; min-height: 24px !important; border: 1px solid var(--cream-line) !important; border-radius: 9999px !important; background: transparent !important; color: var(--cream-body) !important; font-size: 12px !important; font-weight: 700 !important; line-height: 1.6 !important; }
 .daily-diet-profile-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .daily-diet-profile-actions > button, .daily-diet-profile-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; min-height: 40px; border-radius: 9999px !important; font-size: 13px !important; font-weight: 750 !important; }
 .daily-diet-profile-btn.secondary { border: 1px solid var(--cream-line) !important; background: transparent !important; color: var(--cream-body) !important; }
