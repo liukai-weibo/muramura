@@ -1,11 +1,11 @@
 {
-  "version": "0.1.34",
+  "version": "0.1.35",
   "notes": "今日饮食推荐·个人档案「AI 提示词」可编辑：默认=内置提示词，可自定义，旁边有「恢复默认」一键回到内置那一套（默认/自定义状态徽标）。修复个人档案保存失败（路由顺序导致 400）；体重支持一位小数不截断；部分编辑不再抹掉已存字段。",
-  "pub_date": "2026-09-06T17:21:03.937Z",
+  "pub_date": "2026-09-06T19:02:37.750Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1MwQjRpYjBqTnZPeUxqOG9ZUVhGVUs2eDkrZ0lNUXIxeUpXWWFVaVNxM0hOZ1RZWFFTMHNCbzJMZXgxY09sOUlZelhoOFZic1l2UlJmRXR0TkVVY0FvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NzE1MTE1CWZpbGU6TWFydU1hcnVfMC4xLjM0X3g2NC1zZXR1cC5leGUKZGdsdDBGb2NYQmJGSCtkaUtjWHlHMVJpZ0lFVVArbHZoZmdnYThvaFM3c2RzTnd0RjJWdXFJSUs1ZWhpd01WTkMyUDR4YUxXdktpTTkyRjlGZCs2QXc9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.34/MaruMaru_0.1.34_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1pPZldlVjlIQkkrQS9xd29ibUdLSk4rSWt3Yno0VnpwVzRXaS9PNjA3S0s5NDQvSWd4bU43WHR6enllekJTVWp0UzdMcXBCWTB2M1hzQklDcTRsNEF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NzIxMzExCWZpbGU6TWFydU1hcnVfMC4xLjM1X3g2NC1zZXR1cC5leGUKaTdHTmxsVEthMlRsNVZ2V3dkQkVHdk4xOXNPRGRiTmxEVjhJWi9vNFNpWEZHUW9SSjAzSjg0M3lVVlVFVk9JNWpMR05rZCtEaXY5VjBMQm5vSDlmQkE9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.35/MaruMaru_0.1.35_x64-setup.exe"
     }
   }
 }
