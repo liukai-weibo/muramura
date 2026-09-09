@@ -51,11 +51,9 @@
   box-shadow: 0 14px 36px rgba(75, 61, 45, .1);
 }
 
-.mobile-brand,
-.mobile-app-name { display: block; color: var(--mobile-ink); font-weight: 850; }
+.mobile-brand { display: block; color: var(--mobile-ink); font-weight: 850; }
 
 .mobile-brand { font-size: 44px; }
-.mobile-app-name { font-size: 40px; font-weight: 900; }
 .mobile-auth-title, .mobile-modal-title { display: block; margin-top: 26px; color: var(--mobile-ink); font-size: 34px; font-weight: 800; }
 .mobile-auth-copy { display: block; margin-top: 8px; color: var(--mobile-hint); font-size: 26px; line-height: 1.6; }
 
@@ -147,7 +145,7 @@
 /* ---------- 顶部导航 ---------- */
 .mobile-topbar {
   display: flex;
-  min-height: 104px;
+  min-height: 88px;
   padding: 20px 26px;
   box-sizing: border-box;
   align-items: center;
