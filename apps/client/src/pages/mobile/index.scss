@@ -55,6 +55,7 @@
 .mobile-app-name { display: block; color: var(--mobile-ink); font-weight: 850; }
 
 .mobile-brand { font-size: 44px; }
+.mobile-app-name { font-size: 40px; font-weight: 900; }
 .mobile-auth-title, .mobile-modal-title { display: block; margin-top: 26px; color: var(--mobile-ink); font-size: 34px; font-weight: 800; }
 .mobile-auth-copy { display: block; margin-top: 8px; color: var(--mobile-hint); font-size: 26px; line-height: 1.6; }
 
@@ -65,8 +66,8 @@
   box-sizing: border-box;
   margin-top: 14px;
   padding: 0 16px;
-  border: 1px solid var(--mobile-line);
-  border-radius: 18px;
+  border: 1px solid transparent;
+  border-radius: 20px;
   background: var(--mobile-soft-surface);
   color: var(--mobile-ink);
   font-size: 32px;
@@ -83,7 +84,7 @@
 .mobile-tabbar button,
 .mobile-action-button {
   min-height: 88px;
-  border-radius: 18px;
+  border-radius: 20px;
   box-sizing: border-box;
   font-size: 30px;
 }
@@ -119,6 +120,26 @@
 
 .mobile-small-button:active { transform: scale(.94); }
 
+/* 悬浮快速记录按钮（right-bottom，高于底部 Tab，圆 999px + 阴影 + 按压反馈） */
+.mobile-fab {
+  position: fixed;
+  right: 40px;
+  bottom: calc(200px + env(safe-area-inset-bottom));
+  width: 200px;
+  height: 200px;
+  min-width: 200px;
+  min-height: 200px;
+  border-radius: 999px;
+  font-size: 30px;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(200, 40, 100, .3);
+  margin-top: 0;
+  z-index: 15;
+  transition: transform .12s ease;
+}
+
+.mobile-fab:active { transform: scale(.95); }
+
 .mobile-quiet-button,
 .mobile-link-button {
   padding: 0 26px;
@@ -153,7 +174,9 @@
 }
 
 .mobile-topbar > view:first-child { display: flex; flex-direction: column; min-width: 0; }
-.mobile-topbar .mobile-link-button { padding: 16px 24px; font-size: 26px; }
+.mobile-topbar .mobile-link-button { padding: 16px 24px; font-size: 26px; color: var(--mobile-accent); }
+.mobile-topbar .mobile-link-button:hover,
+.mobile-topbar .mobile-link-button:active { opacity: .72; }
 .mobile-user-name,
 .mobile-section-meta { display: block; margin-top: 6px; color: var(--mobile-hint); }
 .mobile-user-name { font-size: 22px; }
@@ -164,17 +187,17 @@
   height: calc(100% - 212px);
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 20px calc(152px + env(safe-area-inset-bottom));
+  padding: 20px 20px calc(368px + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
-.mobile-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 1rem; }
+.mobile-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 1.25rem 0 1rem; }
 .mobile-section-heading > view:first-child { min-width: 0; }
 .mobile-section-title { display: block; color: var(--mobile-ink); font-size: 36px; font-weight: 850; }
 .mobile-section-meta { font-size: 24px; margin-top: 4px; }
 
 /* ---------- 手记 ---------- */
-.mobile-note-actions { display: flex; align-items: center; gap: 8px; }
+.mobile-note-actions { display: flex; align-items: center; gap: 8px; margin-top: -20px; }
 .mobile-note-actions .mobile-quiet-button,
 .mobile-note-actions .mobile-small-button { flex: 0 0 auto; }
 .mobile-note-actions .mobile-quiet-button { min-height: 88px; padding: 0 14px; font-size: 26px; }
@@ -187,7 +210,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   border: 1px solid var(--mobile-line);
-  border-radius: 18px;
+  border-radius: 20px;
   background: var(--mobile-surface);
   scroll-snap-type: x proximity;
 }
@@ -221,8 +244,8 @@
   box-sizing: border-box;
   padding: 24px;
   resize: none;
-  border: 1px solid var(--mobile-line);
-  border-radius: 18px;
+  border: 1px solid transparent;
+  border-radius: 20px;
   outline: none;
   background: var(--mobile-soft-surface);
   color: var(--mobile-ink);
@@ -376,7 +399,7 @@
   font-weight: 600;
 }
 
-.mobile-tabbar button.active { border-radius: 18px; }
+.mobile-tabbar button.active { border-radius: 20px; }
 
 /* ---------- 弹窗 ---------- */
 .mobile-modal-backdrop {
@@ -399,8 +422,8 @@
   margin-top: 14px;
   padding: 32px 32px;
   box-sizing: border-box;
-  border: 1px solid var(--mobile-line);
-  border-radius: 18px;
+  border: 1px solid transparent;
+  border-radius: 20px;
   outline: none;
   background: var(--mobile-soft-surface);
   color: var(--mobile-ink);
