@@ -85,6 +85,25 @@
   border-radius: 20px;
   box-sizing: border-box;
   font-size: 30px;
+  /* 覆盖 Taro vendor 内置 taro-button-core{width:100%;margin-left:auto;margin-right:auto}：
+     否则退出/持卡按钮会被撑成整行宽并被 auto margin 顶偏，造成与邻元素重叠或不等宽。
+     需要整行宽的地方（新建事项、独立主按钮、筛选、Tab）由各自后续规则显式重设 width:100%。 */
+  width: auto;
+  margin: 0;
+}
+
+/* Taro H5：按钮文字由 -webkit-text-fill-color 渲染，只设 color 可能仍显示为透明；
+   让按钮与后代文字都跟随已声明的 color，消除“透明字”（对齐桌面 platform-administration 既有修法）。
+   用 !important 二次加锁，防止 vendor（taro-button-core 内置 color:#000 / 半透明禁用态）或旧缓存覆盖。 */
+.mobile-page button,
+.mobile-page taro-button-core { -webkit-text-fill-color: currentColor !important; color: inherit !important; }
+.mobile-page button text,
+.mobile-page button taro-text-core,
+.mobile-page taro-button-core text,
+.mobile-page taro-button-core taro-text-core {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+  opacity: 1 !important;
 }
 
 .mobile-primary-button {
@@ -172,6 +191,11 @@
   box-sizing: border-box;
 }
 
+/* 手记 / 事项 Tab 常驻：两个面板同时挂载并保留各自状态，切换只是显隐（display:none），
+   避免每次切换重新卸载 / 重新挂载并重新拉取全量数据造成的零点几秒延迟。 */
+.mobile-content [data-panel] { display: none; }
+.mobile-content [data-panel].is-active { display: block; }
+
 .mobile-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 1.25rem 0 1rem; }
 .mobile-section-heading > view:first-child { min-width: 0; }
 .mobile-section-title { display: block; color: var(--mobile-ink); font-size: 36px; font-weight: 850; }
@@ -258,7 +282,7 @@
 .mobile-filter-row {
   display: grid;
   margin: 1rem 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -267,7 +291,7 @@
   display: flex;
   width: 100%;
   height: 88px;
-  margin-top: 1rem;
+  margin-top: 0;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -347,18 +371,165 @@
   font-size: 22px;
 }
 
-.mobile-item-actions { display: flex; flex-wrap: wrap; margin-top: 24px; gap: 14px; }
+.mobile-item-actions { display: flex; margin-top: 24px; gap: 14px; }
 
 .mobile-action-button {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 88px;
   padding: 0 24px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--mobile-line);
   background: var(--mobile-soft-surface);
   color: var(--mobile-body);
 }
 
 .mobile-action-button.primary { border-color: var(--mobile-accent); background: var(--mobile-accent); color: #fff; }
+.mobile-action-button.secondary { border-color: var(--mobile-line); background: var(--mobile-surface); color: var(--mobile-accent-ink); }
 .mobile-action-button.danger { border-color: #d9939d; color: var(--mobile-accent-ink); }
+
+/* ---------- 长期探索分组 ---------- */
+.mobile-track-section { display: flex; flex-direction: column; gap: 16px; }
+.mobile-track-section + .mobile-track-section { margin-top: 22px; }
+
+.mobile-track-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.mobile-track-heading-muted { opacity: .62; }
+
+.mobile-track-name {
+  min-width: 0;
+  color: var(--mobile-ink);
+  font-size: 30px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.mobile-track-count {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--mobile-accent-soft);
+  color: var(--mobile-accent-ink);
+  font-size: 22px;
+  text-align: center;
+}
+
+.mobile-item-card-title-wrap { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.mobile-item-track-chip {
+  align-self: flex-start;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--mobile-soft-surface);
+  color: var(--mobile-hint);
+  font-size: 22px;
+}
+
+/* ---------- 复盘与调整探索 ---------- */
+.mobile-review-input {
+  display: block;
+  width: 100%;
+  min-height: 200px;
+  margin-top: 14px;
+  padding: 32px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  outline: none;
+  background: var(--mobile-soft-surface);
+  color: var(--mobile-ink);
+  font-family: inherit;
+  font-size: 32px;
+  line-height: 1.6;
+  resize: none;
+}
+
+.mobile-review-input::placeholder { color: #bdb6ad; }
+.mobile-review-input:focus { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .2); }
+
+.mobile-explore-options { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+
+.mobile-explore-option,
+.mobile-explore-remove {
+  display: flex;
+  width: 100%;
+  min-height: 88px;
+  padding: 0 22px;
+  align-items: center;
+  box-sizing: border-box;
+  border: 1px solid var(--mobile-line);
+  border-radius: 20px;
+  background: var(--mobile-surface);
+  color: var(--mobile-body) !important;
+  -webkit-text-fill-color: var(--mobile-body) !important;
+  font-size: 30px;
+}
+
+/* 兜底：taro-button-core 可能被 vendor 样式覆盖 / 旧缓存抢占，用 tag+class+后代双重锁定文字可见性 */
+.mobile-page taro-button-core.mobile-explore-option,
+.mobile-page taro-button-core.mobile-explore-remove {
+  color: var(--mobile-body) !important;
+  -webkit-text-fill-color: var(--mobile-body) !important;
+}
+
+.mobile-page taro-button-core.mobile-explore-option text,
+.mobile-page taro-button-core.mobile-explore-option taro-text-core,
+.mobile-page taro-button-core.mobile-explore-remove text,
+.mobile-page taro-button-core.mobile-explore-remove taro-text-core {
+  color: var(--mobile-body) !important;
+  -webkit-text-fill-color: var(--mobile-body) !important;
+}
+
+.mobile-explore-option:active { background: var(--mobile-soft-surface); }
+
+.mobile-explore-remove {
+  margin-top: 12px;
+  border-color: #d9939d;
+  color: var(--mobile-accent-ink) !important;
+  -webkit-text-fill-color: var(--mobile-accent-ink) !important;
+}
+
+.mobile-page taro-button-core.mobile-explore-remove text,
+.mobile-page taro-button-core.mobile-explore-remove taro-text-core {
+  color: var(--mobile-accent-ink) !important;
+  -webkit-text-fill-color: var(--mobile-accent-ink) !important;
+}
+
+.mobile-review-toggle {
+  display: flex;
+  min-height: 88px;
+  margin-top: 20px;
+  padding: 0 22px;
+  align-items: center;
+  border: 1px solid var(--mobile-line);
+  border-radius: 20px;
+  background: var(--mobile-surface);
+  color: var(--mobile-accent-ink);
+  font-size: 28px;
+}
+
+.mobile-review-result {
+  display: flex;
+  margin-top: 16px;
+  padding: 24px;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 20px;
+  background: var(--mobile-soft-surface);
+}
+
+.mobile-review-result-label { color: var(--mobile-hint); font-size: 24px; }
+.mobile-review-result-text { color: var(--mobile-body); font-size: 30px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mobile-review-result.muted { color: var(--mobile-hint); font-size: 26px; }
 
 .mobile-muted,
 .mobile-empty { display: block; color: var(--mobile-hint); font-size: 28px; line-height: 1.6; }

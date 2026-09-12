@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import type { AuthSession, DailyNote, Item, ItemStatus } from '@knowledge-base/contracts'
-import { apiClient, actionsFor, type ApiClientError } from '../index/api-client'
+import type { AuthSession, DailyNote, ExplorationTrack, Item, ItemExplorationTrackContext } from '@knowledge-base/contracts'
+import { apiClient, type ApiClientError } from '../index/api-client'
 import { notifyDailyNoteChanged } from '../index/daily-note-sync'
 import './index.scss'
 
@@ -9,10 +9,6 @@ type MobileTab = 'notes' | 'items'
 type NoteSaveState = 'loading' | 'saved' | 'saving' | 'error'
 type ItemFilter = 'doing' | 'reviewed'
 
-const statusLabels: Record<ItemStatus, string> = {
-  idea_to_try: '历史状态', idea_later: '历史状态', doing: '进行中', paused: '历史状态',
-  waiting_review: '历史状态', reviewed: '已复盘', archived_no_review: '历史状态', abandoned: '历史状态',
-}
 const statusFilters: Array<{ label: string; value: ItemFilter }> = [
   { label: '进行中', value: 'doing' },
   { label: '已复盘', value: 'reviewed' },
@@ -130,6 +126,8 @@ function MobileNotes() {
 
 function MobileItems() {
   const [items, setItems] = useState<Item[]>([])
+  const [trackNameById, setTrackNameById] = useState<Map<string, string>>(new Map())
+  const [itemTrackContexts, setItemTrackContexts] = useState<Map<string, ItemExplorationTrackContext>>(new Map())
   const [filter, setFilter] = useState<ItemFilter>('doing')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string>()
@@ -138,17 +136,157 @@ function MobileItems() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [saveForLater, setSaveForLater] = useState(false)
-  const refresh = async () => { setLoading(true); setError(''); try { setItems((await apiClient.listItems()).filter(item => !item.deletedAt).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))) } catch (cause) { setError(errorMessage(cause, '暂时无法读取事项。')) } finally { setLoading(false) } }
+  const [reviewOpenItem, setReviewOpenItem] = useState<Item>()
+  const [reviewText, setReviewText] = useState('')
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewError, setReviewError] = useState('')
+  const [exploreOpenItem, setExploreOpenItem] = useState<Item>()
+  const [selectableTracks, setSelectableTracks] = useState<ExplorationTrack[]>([])
+  const [exploreBusy, setExploreBusy] = useState(false)
+  const [exploreLoading, setExploreLoading] = useState(false)
+  const [exploreError, setExploreError] = useState('')
+  const [reviewOpenId, setReviewOpenId] = useState<string>()
+  const [reviewCache, setReviewCache] = useState<Map<string, { status: 'loading' | 'loaded' | 'none' | 'error'; text?: string }>>(new Map())
+
+  const refresh = async () => {
+    setLoading(true); setError('')
+    try {
+      const [all, trackEntries] = await Promise.all([apiClient.listItems(), apiClient.listExplorationTracks()])
+      const active = all.filter(item => !item.deletedAt)
+      const names = new Map<string, string>(trackEntries.map((entry): [string, string] => [entry.track.id, entry.track.name]))
+      const unresolvedIds = active.filter(item => item.explorationTrackId && !names.has(item.explorationTrackId)).map(item => item.id)
+      const contexts = new Map<string, ItemExplorationTrackContext>()
+      await Promise.all(unresolvedIds.map(async id => { try { const context = await apiClient.getItemExplorationTrack(id); if (context) contexts.set(id, context) } catch { /* 解析失败按「关联探索暂不可用」只读展示 */ } }))
+      setItems(active.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)))
+      setTrackNameById(names)
+      setItemTrackContexts(contexts)
+    } catch (cause) { setError(errorMessage(cause, '暂时无法读取事项。')) }
+    finally { setLoading(false) }
+  }
+
   useEffect(() => { void refresh(); const onChanged = () => void refresh(); window.addEventListener('knowledge-base-items-changed', onChanged); return () => window.removeEventListener('knowledge-base-items-changed', onChanged) }, [])
-  const visible = items.filter(item => item.status === filter)
+
+  const doingItems = useMemo(() => items.filter(item => item.status === 'doing'), [items])
+  const reviewedItems = useMemo(() => items.filter(item => item.status === 'reviewed'), [items])
+  const doingSections = useMemo(() => {
+    const order: Array<{ kind: 'track'; trackId: string; name: string; items: Item[] } | { kind: 'broken'; items: Item[] } | { kind: 'ungrouped'; items: Item[] }> = []
+    const trackSectionByTrackId = new Map<string, { kind: 'track'; trackId: string; name: string; items: Item[] }>()
+    for (const item of doingItems) {
+      const trackId = item.explorationTrackId
+      if (!trackId || !trackNameById.has(trackId)) continue
+      let section = trackSectionByTrackId.get(trackId)
+      if (!section) {
+        section = { kind: 'track', trackId, name: trackNameById.get(trackId)!, items: [] }
+        trackSectionByTrackId.set(trackId, section)
+        order.push(section)
+      }
+      section.items.push(item)
+    }
+    const broken = doingItems.filter(item => item.explorationTrackId && !trackNameById.has(item.explorationTrackId))
+    const ungrouped = doingItems.filter(item => !item.explorationTrackId)
+    if (broken.length) order.push({ kind: 'broken', items: broken })
+    if (ungrouped.length) order.push({ kind: 'ungrouped', items: ungrouped })
+    return order
+  }, [doingItems, trackNameById])
   const create = async () => { if (!title.trim() || busyId) return; setBusyId('create'); setError(''); try { await apiClient.createIdea({ title: title.trim(), content: content.trim(), saveForLater }); setTitle(''); setContent(''); setSaveForLater(false); setCreateOpen(false); await refresh(); window.dispatchEvent(new CustomEvent('knowledge-base-items-changed')) } catch (cause) { setError(errorMessage(cause, '创建事项失败，请重试。')) } finally { setBusyId(undefined) } }
-  const changeStatus = async (item: Item, action: { status: ItemStatus; label: string }) => { if (busyId) return; setBusyId(item.id); setError(''); try { if (action.status === 'doing' && item.status === 'idea_to_try') { const startAction = window.prompt('开始执行时，准备先做什么？', item.startAction ?? '') ; if (startAction === null) return; await apiClient.startExecution(item.id, { startAction: startAction.trim() || undefined }) } else await apiClient.changeStatus(item.id, action.status); await refresh() } catch (cause) { setError(errorMessage(cause, '状态更新失败，请重试。')) } finally { setBusyId(undefined) } }
+
+  const trackLabel = (item: Item): string => {
+    const trackId = item.explorationTrackId
+    if (!trackId) return ''
+    const name = trackNameById.get(trackId)
+    if (name) return name
+    return itemTrackContexts.get(item.id)?.status === 'track-deleted' ? '已删除的探索' : '探索暂不可用'
+  }
+  const canAdjustTrack = (item: Item): boolean => {
+    const trackId = item.explorationTrackId
+    if (!trackId) return true
+    return trackNameById.has(trackId) || itemTrackContexts.get(item.id)?.status === 'available'
+  }
+
+  const openReview = (item: Item) => { setReviewOpenItem(item); setReviewText(''); setReviewError('') }
+  const submitReview = async () => {
+    if (!reviewOpenItem || reviewBusy) return
+    const text = reviewText.trim()
+    if (!text) { setReviewError('请填写复盘结果。'); return }
+    setReviewBusy(true); setReviewError('')
+    try {
+      await apiClient.completeReview({ itemId: reviewOpenItem.id, result: text, actualAction: text, effective: '', incompatible: '', reason: '', adjustment: '' })
+      setReviewBusy(false); setReviewOpenItem(undefined); setReviewText('')
+      await refresh(); window.dispatchEvent(new CustomEvent('knowledge-base-items-changed'))
+    } catch (cause) { setReviewBusy(false); setReviewError(errorMessage(cause, '复盘未能完成，请稍后重试。')) }
+  }
+
+  const openExplore = async (item: Item) => {
+    if (exploreBusy) return
+    setExploreOpenItem(item); setSelectableTracks([]); setExploreError(''); setExploreLoading(true)
+    try { setSelectableTracks(await apiClient.listSelectableExplorationTracks()) }
+    catch (cause) { setExploreError(errorMessage(cause, '暂时无法载入可选长期探索。')) }
+    finally { setExploreLoading(false) }
+  }
+  const assignToTrack = async (trackId: string) => {
+    if (!exploreOpenItem || exploreBusy) return
+    setExploreBusy(true); setExploreError('')
+    try {
+      await apiClient.assignItemToExplorationTrack(exploreOpenItem.id, trackId)
+      setExploreBusy(false); setExploreOpenItem(undefined); setSelectableTracks([])
+      await refresh(); window.dispatchEvent(new CustomEvent('knowledge-base-items-changed'))
+    } catch (cause) { setExploreBusy(false); setExploreError(errorMessage(cause, '调整长期探索未完成，请重试。')) }
+  }
+  const removeFromTrack = async () => {
+    if (!exploreOpenItem || exploreBusy) return
+    setExploreBusy(true); setExploreError('')
+    try {
+      await apiClient.removeItemFromExplorationTrack(exploreOpenItem.id)
+      setExploreBusy(false); setExploreOpenItem(undefined); setSelectableTracks([])
+      await refresh(); window.dispatchEvent(new CustomEvent('knowledge-base-items-changed'))
+    } catch (cause) { setExploreBusy(false); setExploreError(errorMessage(cause, '移除长期探索未完成，请重试。')) }
+  }
+
+  const toggleReviewResult = async (item: Item) => {
+    if (reviewOpenId === item.id) { setReviewOpenId(undefined); return }
+    setReviewOpenId(item.id)
+    const cached = reviewCache.get(item.id)
+    if (cached) return
+    setReviewCache(current => new Map(current).set(item.id, { status: 'loading' }))
+    try {
+      const review = await apiClient.getReviewForItem(item.id)
+      setReviewCache(current => new Map(current).set(item.id, { status: review ? 'loaded' : 'none', text: review?.result }))
+    } catch (cause) {
+      setReviewCache(current => new Map(current).set(item.id, { status: 'error' }))
+    }
+  }
+
+  const doingCard = (item: Item) => (
+    <View className='mobile-item-card' key={item.id}>
+      <View className='mobile-item-card-heading'><Text className='mobile-item-title'>{item.title}</Text></View>
+      {item.content && <Text className='mobile-item-content'>{item.content}</Text>}
+      <Text className='mobile-item-time'>更新时间 {formatTime(item.updatedAt)}</Text>
+      <View className='mobile-item-actions'>
+        <Button className='mobile-action-button primary' disabled={busyId === item.id} onClick={() => openReview(item)}>复盘</Button>
+        {canAdjustTrack(item) && <Button className='mobile-action-button secondary' disabled={busyId === item.id} onClick={() => void openExplore(item)}>调整探索</Button>}
+      </View>
+    </View>
+  )
+  const reviewEntry = (id: string) => reviewCache.get(id)
+
   return <View className='mobile-items'>
-    <View className='mobile-section-heading'><View><Text className='mobile-section-title'>事项</Text></View></View>
     <View className='mobile-item-create'><Button className='mobile-create-item-button' onClick={() => setCreateOpen(true)}>＋ 新建事项</Button></View>
     <View className='mobile-filter-row'>{statusFilters.map(option => <Button key={option.value} className={filter === option.value ? 'active' : ''} onClick={() => setFilter(option.value)}>{option.label}</Button>)}</View>
     {error && <View className='mobile-inline-error'><Text>{error}</Text><Button className='mobile-link-button' onClick={() => void refresh()}>重试</Button></View>}
-    {loading ? <Text className='mobile-muted'>正在读取事项…</Text> : visible.length === 0 ? <View className='mobile-empty'><Text>当前没有事项</Text><Text>把下一步写下来，之后再推进。</Text></View> : <View className='mobile-item-list'>{visible.map(item => <View className='mobile-item-card' key={item.id}><View className='mobile-item-card-heading'><Text className='mobile-item-title'>{item.title}</Text><Text className={`mobile-status mobile-status-${item.status}`}>{statusLabels[item.status]}</Text></View>{item.content && <Text className='mobile-item-content'>{item.content}</Text>}<Text className='mobile-item-time'>更新于 {formatTime(item.updatedAt)}</Text><View className='mobile-item-actions'>{actionsFor(item).filter(action => !['idea_later', 'paused'].includes(action.status) && !(action.status === 'abandoned' && (item.status === 'idea_to_try' || item.status === 'doing'))).map(action => <Button key={action.status} disabled={busyId === item.id} className={`mobile-action-button ${action.tone}`} onClick={() => void changeStatus(item, action)}>{action.label}</Button>)}</View></View>)}</View>}
+    {loading
+      ? <Text className='mobile-muted'>正在读取事项…</Text>
+      : filter === 'doing'
+        ? (doingItems.length === 0
+          ? <View className='mobile-empty'><Text>当前没有进行中的事项</Text><Text>把下一步写下来，再标记为进行中。</Text></View>
+          : <View className='mobile-item-list'>{doingSections.map((section, sectionIndex) => <View className='mobile-track-section' key={`${section.kind}-${sectionIndex}`}><View className={`mobile-track-heading ${section.kind === 'broken' || section.kind === 'ungrouped' ? 'mobile-track-heading-muted' : ''}`}><Text className='mobile-track-name'>{section.kind === 'track' ? section.name : section.kind === 'broken' ? '已删除 / 不可用的探索' : '未归入长期探索'}</Text><Text className='mobile-track-count'>{section.items.length}</Text></View>{section.items.map(item => doingCard(item))}</View>)}</View>)
+        : (reviewedItems.length === 0
+          ? <View className='mobile-empty'><Text>还没有已复盘的事项</Text><Text>对进行中的事项点「复盘」会记录到这里。</Text></View>
+          : <View className='mobile-item-list'>{reviewedItems.map(item => <View className='mobile-item-card' key={item.id}><View className='mobile-item-card-heading'><View className='mobile-item-card-title-wrap'>{trackLabel(item) && <Text className='mobile-item-track-chip'>{trackLabel(item)}</Text>}<Text className='mobile-item-title'>{item.title}</Text></View></View>{item.content && <Text className='mobile-item-content'>{item.content}</Text>}<Text className='mobile-item-time'>更新时间 {formatTime(item.updatedAt)}</Text><Button className='mobile-review-toggle' onClick={() => void toggleReviewResult(item)}>{reviewOpenId === item.id ? '收起复盘结果' : '查看复盘结果'}</Button>{reviewOpenId === item.id && (reviewEntry(item.id)?.status === 'loading' ? <Text className='mobile-review-result muted'>正在读取…</Text> : reviewEntry(item.id)?.status === 'error' ? <Text className='mobile-review-result muted'>复盘结果读取失败。</Text> : reviewEntry(item.id)?.status === 'none' ? <Text className='mobile-review-result muted'>暂无复盘记录。</Text> : <View className='mobile-review-result'><Text className='mobile-review-result-label'>复盘结果</Text><Text className='mobile-review-result-text'>{reviewEntry(item.id)?.text}</Text></View>)}</View>)}</View>)}
+
+    {reviewOpenItem && <View className='mobile-modal-backdrop' onClick={() => { if (!reviewBusy) setReviewOpenItem(undefined) }}><View className='mobile-modal' role='dialog' aria-label='完成复盘' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>完成复盘</Text><Text className='mobile-modal-hint'>{reviewOpenItem.title}</Text><Textarea autoFocus className='mobile-review-input' value={reviewText} maxlength={12000} placeholder='写下这次行动的复盘结果…' onInput={event => { setReviewText(event.detail.value); setReviewError('') }} />{reviewError && <Text className='mobile-error'>{reviewError}</Text>}<View className='mobile-modal-actions'><Button className='mobile-quiet-button' disabled={reviewBusy} onClick={() => setReviewOpenItem(undefined)}>取消</Button><Button className='mobile-primary-button' disabled={reviewBusy || !reviewText.trim()} onClick={() => void submitReview()}>{reviewBusy ? '提交中…' : '完成复盘'}</Button></View></View></View>}
+
+    {exploreOpenItem && <View className='mobile-modal-backdrop' onClick={() => { if (!exploreBusy && !exploreLoading) setExploreOpenItem(undefined) }}><View className='mobile-modal' role='dialog' aria-label='调整长期探索' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>调整长期探索</Text><Text className='mobile-modal-hint'>{exploreOpenItem.title}</Text>{exploreLoading ? <Text className='mobile-muted'>正在载入可选长期探索…</Text> : <View className='mobile-explore-options'>{selectableTracks.filter(track => track.id !== exploreOpenItem.explorationTrackId).map(track => <Button key={track.id} className='mobile-explore-option' disabled={exploreBusy} onClick={() => void assignToTrack(track.id)}>{track.name}</Button>)}{selectableTracks.filter(track => track.id !== exploreOpenItem.explorationTrackId).length === 0 && <Text className='mobile-muted'>还没有其他可选长期探索。</Text>}</View>}{exploreOpenItem.explorationTrackId && trackNameById.has(exploreOpenItem.explorationTrackId) && <Button className='mobile-explore-remove' disabled={exploreBusy} onClick={() => void removeFromTrack()}>移除归入</Button>}{exploreError && <Text className='mobile-error'>{exploreError}</Text>}<View className='mobile-modal-actions'><Button className='mobile-quiet-button' disabled={exploreBusy || exploreLoading} onClick={() => setExploreOpenItem(undefined)}>取消</Button></View></View></View>}
+
     {createOpen && <View className='mobile-modal-backdrop' onClick={() => setCreateOpen(false)}><View className='mobile-modal' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>新建事项</Text><Input className='mobile-auth-input' value={title} placeholder='事项标题' onInput={event => setTitle(event.detail.value)} /><Textarea className='mobile-create-content' value={content} maxlength={12000} placeholder='补充说明（可选）' onInput={event => setContent(event.detail.value)} /><View className='mobile-modal-actions'><Button className='mobile-quiet-button' onClick={() => setCreateOpen(false)}>取消</Button><Button className='mobile-primary-button' disabled={!title.trim() || busyId === 'create'} onClick={() => void create()}>{busyId === 'create' ? '创建中…' : '创建'}</Button></View></View></View>}
   </View>
 }
@@ -157,6 +295,13 @@ export default function MobileIndex() {
   const [session, setSession] = useState<AuthSession>()
   const [sessionResolved, setSessionResolved] = useState(false)
   const [tab, setTab] = useState<MobileTab>('notes')
+  const [notesMounted, setNotesMounted] = useState(true)
+  const [itemsMounted, setItemsMounted] = useState(false)
+  const mount = (which: 'notes' | 'items') => {
+    setTab(which)
+    if (which === 'notes') setNotesMounted(true)
+    else setItemsMounted(true)
+  }
   useEffect(() => {
     const viewport = document.querySelector('meta[name="viewport"]')
     if (!viewport) return
@@ -170,5 +315,5 @@ export default function MobileIndex() {
   useEffect(() => { let active = true; void apiClient.getCurrentSession().then(current => { if (active) setSession(current) }).catch(() => undefined).finally(() => { if (active) setSessionResolved(true) }); return () => { active = false } }, [])
   if (!sessionResolved) return <View className='mobile-page mobile-loading'><Text>正在确认登录状态…</Text></View>
   if (!session) return <View className='mobile-page'><MobileLogin onAuthenticated={setSession} /></View>
-  return <View className='mobile-page'><View className='mobile-topbar'><View><Text className='mobile-user-name'>{session.user.username}</Text></View><Button className='mobile-link-button' onClick={() => void apiClient.logout().then(() => setSession(undefined)).catch(() => setSession(undefined))}>退出</Button></View><View className='mobile-content'>{tab === 'notes' ? <MobileNotes /> : <MobileItems />}</View><View className='mobile-tabbar'><Button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')}>手记</Button><Button className={tab === 'items' ? 'active' : ''} onClick={() => setTab('items')}>事项</Button></View></View>
+  return <View className='mobile-page'><View className='mobile-topbar'><View><Text className='mobile-user-name'>{session.user.username}</Text></View><Button className='mobile-link-button' onClick={() => void apiClient.logout().then(() => setSession(undefined)).catch(() => setSession(undefined))}>退出</Button></View><View className='mobile-content'><View data-panel='notes' className={tab === 'notes' ? 'is-active' : ''}>{notesMounted && <MobileNotes />}</View><View data-panel='items' className={tab === 'items' ? 'is-active' : ''}>{itemsMounted && <MobileItems />}</View></View><View className='mobile-tabbar'><Button className={tab === 'notes' ? 'active' : ''} onClick={() => mount('notes')}>手记</Button><Button className={tab === 'items' ? 'active' : ''} onClick={() => mount('items')}>事项</Button></View></View>
 }
