@@ -1,11 +1,11 @@
 {
-  "version": "0.1.36",
-  "notes": "今日饮食推荐的默认提示词更新：建议饮食以简单直接的「1+2+3」型式给出，尽量少用「或」、给你固定选项；默认提示词与个人档案里的「恢复默认」同步（已自定义过提示词的档案，点一次「恢复默认」即可带上新文案）。",
-  "pub_date": "2026-09-08T02:26:59.671Z",
+  "version": "0.1.37",
+  "notes": "手机端体验更新：移除事项页重复标题，修复「复盘 / 调整探索」按钮不等宽与顶栏退出按钮重叠，修复调整探索选项文字透明问题；手记 / 事项切换改为常驻页面，切换不再重新拉取全量数据，反馈更即时。",
+  "pub_date": "2026-09-13T17:01:35.720Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2ZRb0U0S0p0VUpLNlhBRnVOL0NoaThacmsxUWsveWxLTFpySXRhREgzellJZ2M5QWtHbUoxdG5vMnBhV1Q1R2RaUjdkU1VER21NZEVyOVp5L29hRUFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4ODM0MjQ0CWZpbGU6TWFydU1hcnVfMC4xLjM2X3g2NC1zZXR1cC5leGUKSFZuckcyVEJZRFE1eG9UZDZrMFZXOHBmL2tlMzR6dDJHOVgrdUErT2lkU0h5dENzVGRuUzl0cFBYeGU1cmRvbFNwbHRGTzR6bWU0VCtzSkE2SXlHRHc9PQo=",
-      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.36/MaruMaru_0.1.36_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1kwWHYwdy9YNHl2ZTRGeVZzQUczUWpSNjRXTTR4Sjhna0YzVFVZUWI5Qmo4OHIvcEFSUVVRbXZvejExbkRjaXVsM2VJMFRpK0hqWmdtSzJoSkpJeEF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MzE4NTYxCWZpbGU6TWFydU1hcnVfMC4xLjM3X3g2NC1zZXR1cC5leGUKMnFucTdRK1VNQXoxTUJRbUxSNzVUMEJxa1Q3UVFtd3Z0dm14WDIwYm9CWjZjNjZFdFMya05GY3lsSVdmdGdJMUZWZEhyNnEwazk3RWxySU82ZXI4REE9PQo=",
+      "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.37/MaruMaru_0.1.37_x64-setup.exe"
     }
   }
 }
