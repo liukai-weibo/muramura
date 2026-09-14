@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Button, Input, Text, Textarea, View } from '@tarojs/components'
-import type { AuthSession, DailyNote, ExplorationTrack, Item, ItemExplorationTrackContext } from '@knowledge-base/contracts'
+import type { AuthSession, DailyNote, ExplorationTrack, ExplorationTrackListEntry, Item, ItemExplorationTrackContext } from '@knowledge-base/contracts'
 import { apiClient, type ApiClientError } from '../index/api-client'
 import { notifyDailyNoteChanged } from '../index/daily-note-sync'
 import './index.scss'
 
 type MobileTab = 'notes' | 'items'
 type NoteSaveState = 'loading' | 'saved' | 'saving' | 'error'
-type ItemFilter = 'doing' | 'reviewed'
-
-const statusFilters: Array<{ label: string; value: ItemFilter }> = [
-  { label: '进行中', value: 'doing' },
-  { label: '已复盘', value: 'reviewed' },
-]
+type MobileItemsView =
+  | { kind: 'tracks' }
+  | { kind: 'track'; trackId: string; trackName: string }
+  | { kind: 'ungrouped' }
 const shanghaiDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 const formatNoteDate = (date: string) => date === shanghaiDate() ? '今天' : date
 const formatHistoryDate = (date: string) => date === shanghaiDate() ? '今天' : `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`
@@ -124,15 +122,16 @@ function MobileNotes() {
   </View>
 }
 
-function MobileItems() {
+function MobileItems({ view, onViewChange }: { view: MobileItemsView; onViewChange: (next: MobileItemsView) => void }) {
   const [items, setItems] = useState<Item[]>([])
+  const [tracks, setTracks] = useState<ExplorationTrackListEntry[]>([])
   const [trackNameById, setTrackNameById] = useState<Map<string, string>>(new Map())
   const [itemTrackContexts, setItemTrackContexts] = useState<Map<string, ItemExplorationTrackContext>>(new Map())
-  const [filter, setFilter] = useState<ItemFilter>('doing')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string>()
   const [error, setError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [createTrackId, setCreateTrackId] = useState<string>()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [saveForLater, setSaveForLater] = useState(false)
@@ -158,6 +157,7 @@ function MobileItems() {
       const contexts = new Map<string, ItemExplorationTrackContext>()
       await Promise.all(unresolvedIds.map(async id => { try { const context = await apiClient.getItemExplorationTrack(id); if (context) contexts.set(id, context) } catch { /* 解析失败按「关联探索暂不可用」只读展示 */ } }))
       setItems(active.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)))
+      setTracks(trackEntries)
       setTrackNameById(names)
       setItemTrackContexts(contexts)
     } catch (cause) { setError(errorMessage(cause, '暂时无法读取事项。')) }
@@ -167,28 +167,23 @@ function MobileItems() {
   useEffect(() => { void refresh(); const onChanged = () => void refresh(); window.addEventListener('knowledge-base-items-changed', onChanged); return () => window.removeEventListener('knowledge-base-items-changed', onChanged) }, [])
 
   const doingItems = useMemo(() => items.filter(item => item.status === 'doing'), [items])
-  const reviewedItems = useMemo(() => items.filter(item => item.status === 'reviewed'), [items])
-  const doingSections = useMemo(() => {
-    const order: Array<{ kind: 'track'; trackId: string; name: string; items: Item[] } | { kind: 'broken'; items: Item[] } | { kind: 'ungrouped'; items: Item[] }> = []
-    const trackSectionByTrackId = new Map<string, { kind: 'track'; trackId: string; name: string; items: Item[] }>()
+  const doingItemsByTrackId = useMemo(() => {
+    const map = new Map<string, Item[]>()
     for (const item of doingItems) {
       const trackId = item.explorationTrackId
       if (!trackId || !trackNameById.has(trackId)) continue
-      let section = trackSectionByTrackId.get(trackId)
-      if (!section) {
-        section = { kind: 'track', trackId, name: trackNameById.get(trackId)!, items: [] }
-        trackSectionByTrackId.set(trackId, section)
-        order.push(section)
-      }
-      section.items.push(item)
+      const list = map.get(trackId) ?? []
+      list.push(item)
+      map.set(trackId, list)
     }
-    const broken = doingItems.filter(item => item.explorationTrackId && !trackNameById.has(item.explorationTrackId))
-    const ungrouped = doingItems.filter(item => !item.explorationTrackId)
-    if (broken.length) order.push({ kind: 'broken', items: broken })
-    if (ungrouped.length) order.push({ kind: 'ungrouped', items: ungrouped })
-    return order
+    return map
   }, [doingItems, trackNameById])
-  const create = async () => { if (!title.trim() || busyId) return; setBusyId('create'); setError(''); try { await apiClient.createIdea({ title: title.trim(), content: content.trim(), saveForLater }); setTitle(''); setContent(''); setSaveForLater(false); setCreateOpen(false); await refresh(); window.dispatchEvent(new CustomEvent('knowledge-base-items-changed')) } catch (cause) { setError(errorMessage(cause, '创建事项失败，请重试。')) } finally { setBusyId(undefined) } }
+  const brokenDoingItems = useMemo(() => doingItems.filter(item => item.explorationTrackId && !trackNameById.has(item.explorationTrackId)), [doingItems, trackNameById])
+  const ungroupedDoingItems = useMemo(() => doingItems.filter(item => !item.explorationTrackId), [doingItems])
+  const trackDoingCount = (trackId: string) => doingItemsByTrackId.get(trackId)?.length ?? 0
+  const currentTrack = view.kind === 'track' ? tracks.find(entry => entry.track.id === view.trackId)?.track : undefined
+  const currentTrackItems = view.kind === 'track' ? doingItemsByTrackId.get(view.trackId) ?? [] : view.kind === 'ungrouped' ? ungroupedDoingItems : []
+  const create = async () => { if (!title.trim() || busyId) return; setBusyId('create'); setError(''); try { await apiClient.createIdea({ title: title.trim(), content: content.trim(), saveForLater, explorationTrack: createTrackId ? { type: 'existing', trackId: createTrackId } : undefined }); setTitle(''); setContent(''); setSaveForLater(false); setCreateOpen(false); setCreateTrackId(undefined); await refresh(); window.dispatchEvent(new CustomEvent('knowledge-base-items-changed')) } catch (cause) { setError(errorMessage(cause, '创建事项失败，请重试。')) } finally { setBusyId(undefined) } }
 
   const trackLabel = (item: Item): string => {
     const trackId = item.explorationTrackId
@@ -270,24 +265,34 @@ function MobileItems() {
   const reviewEntry = (id: string) => reviewCache.get(id)
 
   return <View className='mobile-items'>
-    <View className='mobile-item-create'><Button className='mobile-create-item-button' onClick={() => setCreateOpen(true)}>＋ 新建事项</Button></View>
-    <View className='mobile-filter-row'>{statusFilters.map(option => <Button key={option.value} className={filter === option.value ? 'active' : ''} onClick={() => setFilter(option.value)}>{option.label}</Button>)}</View>
-    {error && <View className='mobile-inline-error'><Text>{error}</Text><Button className='mobile-link-button' onClick={() => void refresh()}>重试</Button></View>}
-    {loading
-      ? <Text className='mobile-muted'>正在读取事项…</Text>
-      : filter === 'doing'
-        ? (doingItems.length === 0
-          ? <View className='mobile-empty'><Text>当前没有进行中的事项</Text><Text>把下一步写下来，再标记为进行中。</Text></View>
-          : <View className='mobile-item-list'>{doingSections.map((section, sectionIndex) => <View className='mobile-track-section' key={`${section.kind}-${sectionIndex}`}><View className={`mobile-track-heading ${section.kind === 'broken' || section.kind === 'ungrouped' ? 'mobile-track-heading-muted' : ''}`}><Text className='mobile-track-name'>{section.kind === 'track' ? section.name : section.kind === 'broken' ? '已删除 / 不可用的探索' : '未归入长期探索'}</Text><Text className='mobile-track-count'>{section.items.length}</Text></View>{section.items.map(item => doingCard(item))}</View>)}</View>)
-        : (reviewedItems.length === 0
-          ? <View className='mobile-empty'><Text>还没有已复盘的事项</Text><Text>对进行中的事项点「复盘」会记录到这里。</Text></View>
-          : <View className='mobile-item-list'>{reviewedItems.map(item => <View className='mobile-item-card' key={item.id}><View className='mobile-item-card-heading'><View className='mobile-item-card-title-wrap'>{trackLabel(item) && <Text className='mobile-item-track-chip'>{trackLabel(item)}</Text>}<Text className='mobile-item-title'>{item.title}</Text></View></View>{item.content && <Text className='mobile-item-content'>{item.content}</Text>}<Text className='mobile-item-time'>更新时间 {formatTime(item.updatedAt)}</Text><Button className='mobile-review-toggle' onClick={() => void toggleReviewResult(item)}>{reviewOpenId === item.id ? '收起复盘结果' : '查看复盘结果'}</Button>{reviewOpenId === item.id && (reviewEntry(item.id)?.status === 'loading' ? <Text className='mobile-review-result muted'>正在读取…</Text> : reviewEntry(item.id)?.status === 'error' ? <Text className='mobile-review-result muted'>复盘结果读取失败。</Text> : reviewEntry(item.id)?.status === 'none' ? <Text className='mobile-review-result muted'>暂无复盘记录。</Text> : <View className='mobile-review-result'><Text className='mobile-review-result-label'>复盘结果</Text><Text className='mobile-review-result-text'>{reviewEntry(item.id)?.text}</Text></View>)}</View>)}</View>)}
+    {view.kind === 'tracks' ? <>
+      <View className='mobile-item-create'><Button className='mobile-create-item-button' onClick={() => { setCreateTrackId(undefined); setCreateOpen(true) }}>＋ 新建事项</Button></View>
+      {error && <View className='mobile-inline-error'><Text>{error}</Text><Button className='mobile-link-button' onClick={() => void refresh()}>重试</Button></View>}
+      {loading
+        ? <Text className='mobile-muted'>正在读取长期探索…</Text>
+        : <View className='mobile-item-list'>
+          {tracks.length > 0 && tracks.map(entry => <View className='mobile-track-card' key={entry.track.id} onClick={() => onViewChange({ kind: 'track', trackId: entry.track.id, trackName: entry.track.name })}>
+            <View className='mobile-track-card-heading'><Text className='mobile-track-card-name'>{entry.track.name}</Text><Text className='mobile-track-count'>{trackDoingCount(entry.track.id)}</Text></View>
+            {entry.latestAssociatedItem && <Text className='mobile-track-card-recent'>最近：{entry.latestAssociatedItem.title}</Text>}
+          </View>)}
+          {brokenDoingItems.length > 0 && <View className='mobile-track-section mobile-track-section-muted'><View className='mobile-track-heading'><Text className='mobile-track-name'>已删除 / 不可用的探索</Text><Text className='mobile-track-count'>{brokenDoingItems.length}</Text></View>{brokenDoingItems.map(item => doingCard(item))}</View>}
+          {ungroupedDoingItems.length > 0 && <View className='mobile-track-card mobile-ungrouped-card' onClick={() => onViewChange({ kind: 'ungrouped' })}><View className='mobile-track-card-heading'><Text className='mobile-track-card-name'>未归入长期探索</Text><Text className='mobile-track-count'>{ungroupedDoingItems.length}</Text></View><Text className='mobile-track-card-recent'>点击查看 {ungroupedDoingItems.length} 个进行中事项</Text></View>}
+          {tracks.length === 0 && brokenDoingItems.length === 0 && ungroupedDoingItems.length === 0 && <View className='mobile-empty'><Text>当前没有进行中的事项</Text><Text>把下一步写下来，再标记为进行中。</Text></View>}
+        </View>}
+    </> : <>
+      <View className='mobile-track-detail-heading'>
+        <View className='mobile-track-detail-copy'><Text className='mobile-track-detail-name'>{view.kind === 'ungrouped' ? '未归入长期探索' : view.trackName}</Text><Text className='mobile-track-detail-count'>{currentTrackItems.length} 条进行中</Text></View>
+      </View>
+      <View className='mobile-item-create'><Button className='mobile-create-item-button' onClick={() => { if (view.kind === 'track') setCreateTrackId(view.trackId); else setCreateTrackId(undefined); setCreateOpen(true) }}>＋ 新建事项</Button></View>
+      {error && <View className='mobile-inline-error'><Text>{error}</Text><Button className='mobile-link-button' onClick={() => void refresh()}>重试</Button></View>}
+      {loading ? <Text className='mobile-muted'>正在读取事项…</Text> : currentTrackItems.length === 0 ? <View className='mobile-empty'><Text>这里还没有进行中的事项</Text></View> : <View className='mobile-item-list'>{currentTrackItems.map(item => doingCard(item))}</View>}
+    </>}
 
     {reviewOpenItem && <View className='mobile-modal-backdrop' onClick={() => { if (!reviewBusy) setReviewOpenItem(undefined) }}><View className='mobile-modal' role='dialog' aria-label='完成复盘' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>完成复盘</Text><Text className='mobile-modal-hint'>{reviewOpenItem.title}</Text><Textarea autoFocus className='mobile-review-input' value={reviewText} maxlength={12000} placeholder='写下这次行动的复盘结果…' onInput={event => { setReviewText(event.detail.value); setReviewError('') }} />{reviewError && <Text className='mobile-error'>{reviewError}</Text>}<View className='mobile-modal-actions'><Button className='mobile-quiet-button' disabled={reviewBusy} onClick={() => setReviewOpenItem(undefined)}>取消</Button><Button className='mobile-primary-button' disabled={reviewBusy || !reviewText.trim()} onClick={() => void submitReview()}>{reviewBusy ? '提交中…' : '完成复盘'}</Button></View></View></View>}
 
-    {exploreOpenItem && <View className='mobile-modal-backdrop' onClick={() => { if (!exploreBusy && !exploreLoading) setExploreOpenItem(undefined) }}><View className='mobile-modal' role='dialog' aria-label='调整长期探索' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>调整长期探索</Text><Text className='mobile-modal-hint'>{exploreOpenItem.title}</Text>{exploreLoading ? <Text className='mobile-muted'>正在载入可选长期探索…</Text> : <View className='mobile-explore-options'>{selectableTracks.filter(track => track.id !== exploreOpenItem.explorationTrackId).map(track => <Button key={track.id} className='mobile-explore-option' disabled={exploreBusy} onClick={() => void assignToTrack(track.id)}>{track.name}</Button>)}{selectableTracks.filter(track => track.id !== exploreOpenItem.explorationTrackId).length === 0 && <Text className='mobile-muted'>还没有其他可选长期探索。</Text>}</View>}{exploreOpenItem.explorationTrackId && trackNameById.has(exploreOpenItem.explorationTrackId) && <Button className='mobile-explore-remove' disabled={exploreBusy} onClick={() => void removeFromTrack()}>移除归入</Button>}{exploreError && <Text className='mobile-error'>{exploreError}</Text>}<View className='mobile-modal-actions'><Button className='mobile-quiet-button' disabled={exploreBusy || exploreLoading} onClick={() => setExploreOpenItem(undefined)}>取消</Button></View></View></View>}
+    {exploreOpenItem && <View className='mobile-modal-backdrop' onClick={() => { if (!exploreBusy && !exploreLoading) setExploreOpenItem(undefined) }}><View className='mobile-modal mobile-explore-modal' role='dialog' aria-label='调整长期探索' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>调整长期探索</Text><Text className='mobile-modal-hint'>{exploreOpenItem.title}</Text>{exploreLoading ? <Text className='mobile-muted'>正在载入可选长期探索…</Text> : <View className='mobile-explore-scroll'><View className='mobile-explore-options'>{selectableTracks.filter(track => track.id !== exploreOpenItem.explorationTrackId).map(track => <Button key={track.id} className='mobile-explore-option' disabled={exploreBusy} onClick={() => void assignToTrack(track.id)}>{track.name}</Button>)}{selectableTracks.filter(track => track.id !== exploreOpenItem.explorationTrackId).length === 0 && <Text className='mobile-muted'>还没有其他可选长期探索。</Text>}</View></View>}{exploreOpenItem.explorationTrackId && trackNameById.has(exploreOpenItem.explorationTrackId) && <Button className='mobile-explore-remove' disabled={exploreBusy} onClick={() => void removeFromTrack()}>移除归入</Button>}{exploreError && <Text className='mobile-error'>{exploreError}</Text>}<View className='mobile-modal-actions'><Button className='mobile-quiet-button' disabled={exploreBusy || exploreLoading} onClick={() => setExploreOpenItem(undefined)}>取消</Button></View></View></View>}
 
-    {createOpen && <View className='mobile-modal-backdrop' onClick={() => setCreateOpen(false)}><View className='mobile-modal' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>新建事项</Text><Input className='mobile-auth-input' value={title} placeholder='事项标题' onInput={event => setTitle(event.detail.value)} /><Textarea className='mobile-create-content' value={content} maxlength={12000} placeholder='补充说明（可选）' onInput={event => setContent(event.detail.value)} /><View className='mobile-modal-actions'><Button className='mobile-quiet-button' onClick={() => setCreateOpen(false)}>取消</Button><Button className='mobile-primary-button' disabled={!title.trim() || busyId === 'create'} onClick={() => void create()}>{busyId === 'create' ? '创建中…' : '创建'}</Button></View></View></View>}
+    {createOpen && <View className='mobile-modal-backdrop' onClick={() => setCreateOpen(false)}><View className='mobile-modal' onClick={event => event.stopPropagation()}><Text className='mobile-modal-title'>新建事项</Text><Input className='mobile-auth-input' value={title} placeholder='事项标题' onInput={event => setTitle(event.detail.value)} /><Textarea className='mobile-create-content' value={content} maxlength={12000} placeholder='补充说明（可选）' onInput={event => setContent(event.detail.value)} /><View className='mobile-explore-options'><Text className='mobile-create-track-label'>归入长期探索</Text>{tracks.map(entry => <Button key={entry.track.id} className={`mobile-explore-option ${createTrackId === entry.track.id ? 'active' : ''}`} disabled={busyId === 'create'} onClick={() => setCreateTrackId(current => current === entry.track.id ? undefined : entry.track.id)}>{entry.track.name}</Button>)}{tracks.length === 0 && <Text className='mobile-muted'>还没有可选长期探索。</Text>}</View><View className='mobile-modal-actions'><Button className='mobile-quiet-button' onClick={() => setCreateOpen(false)}>取消</Button><Button className='mobile-primary-button' disabled={!title.trim() || busyId === 'create'} onClick={() => void create()}>{busyId === 'create' ? '创建中…' : '创建'}</Button></View></View></View>}
   </View>
 }
 
@@ -297,6 +302,8 @@ export default function MobileIndex() {
   const [tab, setTab] = useState<MobileTab>('notes')
   const [notesMounted, setNotesMounted] = useState(true)
   const [itemsMounted, setItemsMounted] = useState(false)
+  const [itemsView, setItemsView] = useState<MobileItemsView>({ kind: 'tracks' })
+  const itemsDetailOpen = itemsView.kind !== 'tracks'
   const mount = (which: 'notes' | 'items') => {
     setTab(which)
     if (which === 'notes') setNotesMounted(true)
@@ -315,5 +322,5 @@ export default function MobileIndex() {
   useEffect(() => { let active = true; void apiClient.getCurrentSession().then(current => { if (active) setSession(current) }).catch(() => undefined).finally(() => { if (active) setSessionResolved(true) }); return () => { active = false } }, [])
   if (!sessionResolved) return <View className='mobile-page mobile-loading'><Text>正在确认登录状态…</Text></View>
   if (!session) return <View className='mobile-page'><MobileLogin onAuthenticated={setSession} /></View>
-  return <View className='mobile-page'><View className='mobile-topbar'><View><Text className='mobile-user-name'>{session.user.username}</Text></View><Button className='mobile-link-button' onClick={() => void apiClient.logout().then(() => setSession(undefined)).catch(() => setSession(undefined))}>退出</Button></View><View className='mobile-content'><View data-panel='notes' className={tab === 'notes' ? 'is-active' : ''}>{notesMounted && <MobileNotes />}</View><View data-panel='items' className={tab === 'items' ? 'is-active' : ''}>{itemsMounted && <MobileItems />}</View></View><View className='mobile-tabbar'><Button className={tab === 'notes' ? 'active' : ''} onClick={() => mount('notes')}>手记</Button><Button className={tab === 'items' ? 'active' : ''} onClick={() => mount('items')}>事项</Button></View></View>
+  return <View className='mobile-page'><View className='mobile-topbar'><View>{itemsDetailOpen ? <Button className='mobile-back-button' onClick={() => setItemsView({ kind: 'tracks' })}>←</Button> : <Text className='mobile-user-name'>{session.user.username}</Text>}</View><Button className='mobile-link-button' onClick={() => void apiClient.logout().then(() => setSession(undefined)).catch(() => setSession(undefined))}>退出</Button></View><View className='mobile-content'><View data-panel='notes' className={tab === 'notes' ? 'is-active' : ''}>{notesMounted && <MobileNotes />}</View><View data-panel='items' className={tab === 'items' ? 'is-active' : ''}>{itemsMounted && <MobileItems view={itemsView} onViewChange={setItemsView} />}</View></View><View className='mobile-tabbar'><Button className={tab === 'notes' ? 'active' : ''} onClick={() => mount('notes')}>手记</Button><Button className={tab === 'items' ? 'active' : ''} onClick={() => mount('items')}>事项</Button></View></View>
 }

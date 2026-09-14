@@ -177,6 +177,13 @@
 .mobile-topbar .mobile-link-button { padding: 16px 24px; font-size: 26px; color: var(--mobile-accent); }
 .mobile-topbar .mobile-link-button:hover,
 .mobile-topbar .mobile-link-button:active { opacity: .72; }
+.mobile-topbar .mobile-back-button {
+  min-width: 64px;
+  min-height: 64px;
+  padding: 0 16px;
+  font-size: 32px;
+  background: transparent;
+}
 .mobile-user-name,
 .mobile-section-meta { display: block; margin-top: 6px; color: var(--mobile-hint); }
 .mobile-user-name { font-size: 22px; }
@@ -390,6 +397,98 @@
 .mobile-action-button.secondary { border-color: var(--mobile-line); background: var(--mobile-surface); color: var(--mobile-accent-ink); }
 .mobile-action-button.danger { border-color: #d9939d; color: var(--mobile-accent-ink); }
 
+/* ---------- 长期探索两级导航 ---------- */
+.mobile-track-card {
+  display: flex;
+  padding: 28px 30px;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--mobile-line);
+  border-radius: 24px;
+  background: var(--mobile-surface);
+}
+
+.mobile-track-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-track-card-name {
+  min-width: 0;
+  color: var(--mobile-ink);
+  font-size: 34px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.mobile-track-card-recent {
+  display: block;
+  color: var(--mobile-hint);
+  font-size: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-track-detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mobile-back-button {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 64px;
+  min-height: 64px;
+  padding: 0 16px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 18px;
+  background: var(--mobile-soft-surface);
+  color: var(--mobile-link);
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.mobile-track-detail-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.mobile-track-detail-name {
+  min-width: 0;
+  color: var(--mobile-ink);
+  font-size: 34px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.mobile-track-detail-count {
+  color: var(--mobile-hint);
+  font-size: 24px;
+}
+
+.mobile-create-track-label {
+  display: block;
+  margin-top: 18px;
+  color: var(--mobile-ink);
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.mobile-explore-option.active {
+  border-color: var(--mobile-accent);
+  background: var(--mobile-accent-soft);
+  color: var(--mobile-accent-ink) !important;
+  -webkit-text-fill-color: var(--mobile-accent-ink) !important;
+}
+
 /* ---------- 长期探索分组 ---------- */
 .mobile-track-section { display: flex; flex-direction: column; gap: 16px; }
 .mobile-track-section + .mobile-track-section { margin-top: 22px; }
@@ -456,15 +555,34 @@
 .mobile-review-input::placeholder { color: #bdb6ad; }
 .mobile-review-input:focus { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .2); }
 
-.mobile-explore-options { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.mobile-explore-modal { max-height: min(720px, calc(100vh - 72px)); display: flex; flex-direction: column; }
+
+.mobile-explore-scroll {
+  min-height: 0;
+  max-height: 520px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-explore-options {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
 
 .mobile-explore-option,
 .mobile-explore-remove {
   display: flex;
+  min-width: 0;
   width: 100%;
+  max-width: 100%;
   min-height: 88px;
   padding: 0 22px;
   align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
   box-sizing: border-box;
   border: 1px solid var(--mobile-line);
   border-radius: 20px;
@@ -472,6 +590,7 @@
   color: var(--mobile-body) !important;
   -webkit-text-fill-color: var(--mobile-body) !important;
   font-size: 30px;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 兜底：taro-button-core 可能被 vendor 样式覆盖 / 旧缓存抢占，用 tag+class+后代双重锁定文字可见性 */
