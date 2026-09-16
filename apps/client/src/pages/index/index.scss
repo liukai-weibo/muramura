@@ -2569,8 +2569,13 @@ button:not(:disabled):active { transform: translateY(1px); }
 /* Tauri desktop shell: full-bleed panes and integrated window rail. */
 @media (min-width: 721px) {
   html, body, #app, .app-shell { width: 100%; height: 100%; overflow: hidden; }
-  body { user-select: none; -webkit-user-select: none; }
-  input, textarea, .experimental-ai-stream-surface, .experimental-ai-markdown, .method-value, .method-history, .help-document { user-select: text; -webkit-user-select: text; }
+  /* 文字默认允许选取复制；仅框架层（侧边导航、标题栏、标签页、按钮、图标）保持不可选。 */
+  /* Taro vendor 样式在 .taro-app-wrap 上设置了 user-select:none，必须在此显式覆盖，否则整棵子树都不可选。 */
+  body, .taro-app-wrap { user-select: text !important; -webkit-user-select: text !important; }
+  .primary-navigation, .desktop-title-bar, .fast-ui-tabs, .navigation-item, [data-tauri-drag-region], button, taro-button-core, label, img, a { user-select: none !important; -webkit-user-select: none !important; }
+  input, textarea, .experimental-ai-stream-surface, .experimental-ai-markdown, .method-value, .method-history, .help-document { user-select: text !important; -webkit-user-select: text !important; }
+  taro-text-core, taro-view-core { user-select: text; -webkit-user-select: text; }
+  ::selection { background: rgba(255, 156, 174, .32); }
   img, a { -webkit-user-drag: none; }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(0, 0, 0, .15); }

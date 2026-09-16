@@ -1,4 +1,4 @@
-import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Image, Input, Text, Textarea, View } from '@tarojs/components'
 import type { AuthSession, BackupDocument, DailySummary, DailyDietRecommendation, HomeAiCard, HomeAiCardInput, DashboardMetricKey, DashboardReport, DashboardWindow, ExplorationTrack, ExplorationTrackHistory, ExplorationTrackListEntry, Item, ItemExplorationTrackContext, ItemMethodSourceDisplay, ItemStatus, ItemStatusEvent, Method, MethodApplicationContextResult, MethodEvidenceDetail, MethodEvidenceRelation, MethodVersion, Review, SearchResult, TrashEntry, TrashFilter, TrashPurgeEntry } from '@knowledge-base/contracts'
 import { advanceApiClientAuthenticationContext, apiClient, actionsFor, isApiClientAbort, isApiClientUnknownOutcome, restoreApiClientDesktopSession, setApiClientAdminForbiddenHandler, setApiClientUnauthorizedHandler, type ApiClientError, type ApiItemAction } from './api-client'
@@ -1368,6 +1368,25 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
     setContentSaveNotice('')
     setContentDraft(draft)
     setContentEditingItemId(selectedItem.id)
+  }
+
+  /**
+   * 补充说明卡片的「单击进入编辑」不再直接 preventDefault：
+   * 之前无条件 preventDefault 会取消浏览器默认的选区起点，导致卡片里的文字完全无法拖选复制。
+   * 现在改为先放行按下事件让文字可以被拖选，再用按键后的位移判断是拖选还是单击；
+   * 拖选不打开编辑器，单击才打开。
+   */
+  const openContentEditorFromMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (contentEditingItemId === selectedItem?.id) return
+    if (event.button !== 0) return
+    const startX = event.clientX
+    const startY = event.clientY
+    const onMouseUp = (upEvent: MouseEvent) => {
+      document.removeEventListener('mouseup', onMouseUp, true)
+      const dragged = Math.abs(upEvent.clientX - startX) > 3 || Math.abs(upEvent.clientY - startY) > 3
+      if (!dragged) openContentEditor()
+    }
+    document.addEventListener('mouseup', onMouseUp, true)
   }
 
   const updateContentDraft = (itemId: string, value: string) => {
@@ -2844,11 +2863,11 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
             </View>}
             {showTrash && <Text className='detail-status trash-badge'>将在 30 天内自动清理</Text>}
             {!showTrash && (!contentBelowFacts || selectedItem.status === 'reviewed') && <View className={`action-context-summary ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
-              <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => { if (contentEditingItemId !== selectedItem.id) { event.preventDefault(); openContentEditor() } }} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
+              <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => openContentEditorFromMouseDown(event)} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
                 <View className='detail-content-heading'>
                   <Text className='detail-content-label'>补充：</Text>
                   {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '点击此处添加补充说明，把这件事拆解为具体的物理下一步……'}</Text>}
-                  {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
+                  {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={(event) => { event.stopPropagation(); openContentEditor() }}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
                   {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
                     <textarea ref={contentInputRef} className='detail-content-input' rows={1} value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => { resizeContentEditor(event.currentTarget); updateContentDraft(selectedItem.id, event.currentTarget.value) }} />
                   </View>}
@@ -2947,11 +2966,11 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
             </View>}
 
             {!showTrash && contentBelowFacts && selectedItem.status !== 'reviewed' && <View className={`action-context-summary detail-content-after-facts ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
-              <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => { if (contentEditingItemId !== selectedItem.id) { event.preventDefault(); openContentEditor() } }} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
+              <div className={`action-context-card action-context-content ${contentEditingItemId === selectedItem.id ? 'editing' : ''} ${contentEditingItemId !== selectedItem.id ? 'clickable' : ''}`} ref={contentEditingItemId === selectedItem.id ? contentEditorRef : undefined} role={contentEditingItemId !== selectedItem.id ? 'button' : undefined} tabIndex={contentEditingItemId !== selectedItem.id ? 0 : undefined} onMouseDown={(event) => openContentEditorFromMouseDown(event)} onKeyDown={(event) => { if (contentEditingItemId !== selectedItem.id && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openContentEditor() } }}>
                 <View className='detail-content-heading'>
                   <Text className='detail-content-label'>补充：</Text>
                   {contentEditingItemId !== selectedItem.id && <Text className={`action-context-inline-value ${selectedItem.content ? '' : 'muted'}`}>{selectedItem.content || '点击此处添加补充说明，把这件事拆解为具体的物理下一步……'}</Text>}
-                  {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={openContentEditor}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
+                  {contentEditingItemId !== selectedItem.id && <Button className='detail-content-edit' onClick={(event) => { event.stopPropagation(); openContentEditor() }}><Text>{selectedItem.content ? '编辑' : '添加说明'}</Text></Button>}
                   {contentEditingItemId === selectedItem.id && <View className='detail-content-editor'>
                     <textarea ref={contentInputRef} className='detail-content-input' rows={1} value={contentDraft} maxLength={1000} placeholder='补充这件事的背景、约束或想法' onInput={(event) => { resizeContentEditor(event.currentTarget); updateContentDraft(selectedItem.id, event.currentTarget.value) }} />
                   </View>}

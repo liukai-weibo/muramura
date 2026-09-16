@@ -1,6 +1,6 @@
 import { Button, Input, Text, View } from '@tarojs/components'
 import type { ExplorationTrackHistory, ExplorationTrackItem, ExplorationTrackListEntry, ItemLocator } from '@knowledge-base/contracts'
-import { createContext, memo, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, memo, type MouseEvent as ReactMouseEvent, useContext, useEffect, useRef, useState } from 'react'
 import { apiClient, isApiClientAbort, isApiClientUnknownOutcome } from './api-client'
 import { captureDraftAfterWrite, explorationListReadState, isCurrentExplorationRequest, mayUnlockUnknownOutcome } from './exploration-session-state'
 
@@ -316,6 +316,23 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     setRenameName(history.track.name)
     setEditing(true)
   }
+  /**
+   * 描述卡片的「单击进入编辑」不再直接 preventDefault，
+   * 否则会取消浏览器默认的选区起点，导致描述文字无法拖选复制。
+   * 先放行按下事件让文字可被拖选，再按抬起位置是否位移区分拖选与单击。
+   */
+  const beginDescriptionEditingFromMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (descriptionEditing || unknownOutcome || event.button !== 0) return
+    const startX = event.clientX
+    const startY = event.clientY
+    const onMouseUp = (upEvent: MouseEvent) => {
+      document.removeEventListener('mouseup', onMouseUp, true)
+      const dragged = Math.abs(upEvent.clientX - startX) > 3 || Math.abs(upEvent.clientY - startY) > 3
+      if (!dragged) beginDescriptionEditing()
+    }
+    document.addEventListener('mouseup', onMouseUp, true)
+  }
+
   const beginDescriptionEditing = () => {
     if (!history || unknownOutcome) return
     const description = history.track.description ?? ''
@@ -431,11 +448,11 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
           <View className='exploration-detail-heading'><View>{editing ? <View className='exploration-edit'><Input value={renameName} onInput={(event) => setRenameName(event.detail.value)} /><Button className='secondary-button' disabled={creating} onClick={() => { setEditing(false); setEditingTrackId(undefined); editingTrackIdRef.current = undefined; setRenameName(history.track.name) }}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome} onClick={saveEditingTrack}>保存</Button></View> : <Text className='exploration-detail-title'>{history.track.name}</Text>}</View>{!editing && <View className='exploration-manage'>{history.track.archivedAt ? <Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => void unarchive(history.track.id)}>取消归档</Button> : <Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => { confirmArchiveIdRef.current = history.track.id; setConfirmArchive(true) }}>归档</Button>}<Button className='exploration-inline-button' disabled={unknownOutcome} onClick={beginEditingTrack}>改名</Button><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => setConfirmDelete(true)}>删除主线</Button></View>}</View>
           {detailLoading && <Text className='exploration-refreshing'>正在更新…</Text>}
           <View className={`action-context-summary exploration-description-card ${descriptionEditing ? 'editing' : ''}`}>
-            <div className={`action-context-card action-context-content ${descriptionEditing ? 'editing' : ''} ${descriptionEditing ? '' : 'clickable'}`} ref={descriptionEditing ? descriptionEditorRef : undefined} role={descriptionEditing ? undefined : 'button'} tabIndex={descriptionEditing ? undefined : 0} onMouseDown={(event) => { if (!descriptionEditing) { event.preventDefault(); beginDescriptionEditing() } }} onKeyDown={(event) => { if (!descriptionEditing && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); beginDescriptionEditing() } }}>
+            <div className={`action-context-card action-context-content ${descriptionEditing ? 'editing' : ''} ${descriptionEditing ? '' : 'clickable'}`} ref={descriptionEditing ? descriptionEditorRef : undefined} role={descriptionEditing ? undefined : 'button'} tabIndex={descriptionEditing ? undefined : 0} onMouseDown={(event) => beginDescriptionEditingFromMouseDown(event)} onKeyDown={(event) => { if (!descriptionEditing && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); beginDescriptionEditing() } }}>
               <View className='detail-content-heading'>
                 <Text className='detail-content-label'>描述：</Text>
                 {!descriptionEditing && <Text className={`action-context-inline-value ${history.track.description ? '' : 'muted'}`}>{history.track.description || '点击此处添加描述'}</Text>}
-                {!descriptionEditing && <Button className='detail-content-edit' onClick={beginDescriptionEditing}><Text>{history.track.description ? '编辑' : '添加说明'}</Text></Button>}
+                {!descriptionEditing && <Button className='detail-content-edit' onClick={(event) => { event.stopPropagation(); beginDescriptionEditing() }}><Text>{history.track.description ? '编辑' : '添加说明'}</Text></Button>}
                 {descriptionEditing && <View className='detail-content-editor'>
                   <textarea ref={descriptionInputRef} className='detail-content-input' rows={1} value={descriptionDraft} maxLength={1000} placeholder='记录这段长期兴趣与历程的描述' onInput={(event) => { resizeDescriptionEditor(event.currentTarget); updateDescriptionDraft(event.currentTarget.value) }} />
                 </View>}
