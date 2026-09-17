@@ -202,8 +202,10 @@ files=("$primary_dump")
 
 printf '\n生成校验和...\n'
 for f in "${files[@]}"; do
-  sha256sum "$f" >"${f}.sha256"
-  printf '  %s  %s\n' "$(cut -d' ' -f1 <"${f}.sha256")" "$(basename "$f")"
+  bn="$(basename "$f")"
+  cd "$backup_dir"
+  sha256sum "$bn" >"${bn}.sha256"
+  printf '  %s  %s\n' "$(cut -d' ' -f1 <"${bn}.sha256")" "$bn"
 done
 
 meta="$backup_dir/backup_${stamp}.meta"
