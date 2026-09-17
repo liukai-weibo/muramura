@@ -1,0 +1,54 @@
+name: 备份数据库
+
+# 仅手动触发，避免误跑。
+# 用途：通过已有的 DEPLOY_* Secrets 登录云服务器，执行 deploy/backup-db.sh。
+# 备份产物留在服务器的 /root/backups/，不会上传到 GitHub（仓库为公开仓库）。
+on:
+  workflow_dispatch:
+    inputs:
+      verify:
+        description: '恢复到临时库校验备份可用性（推荐开启）'
+        type: boolean
+        default: true
+      keep:
+        description: '保留最近多少份备份'
+        type: string
+        default: '7'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: 在云服务器执行数据库备份
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+
+      - name: 上传备份脚本到服务器
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          source: deploy/backup-db.sh
+          target: /root/
+          strip_components: 1
+          overwrite: true
+
+      - name: 执行备份并校验
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /root
+            chmod +x backup-db.sh
+            ./backup-db.sh ${{ inputs.verify && '--verify' || '' }} --keep ${{ inputs.keep }}
