@@ -1,11 +1,11 @@
 {
-    "version":  "0.1.38",
-    "notes":  "桌面端修复：正文文字现在可以正常选取复制（解除 Taro 全局禁选，事项补充说明与长期探索描述不再拦截鼠标按下），单击进入编辑与拖选复制互不干扰；同时包含手机端长期探索两级导航、「未归入长期探索」折叠入口、返回按钮移至顶栏左上角，以及「调整长期探索」弹窗滚动等更新。",
-    "pub_date":  "2026-09-16T22:41:26.607Z",
+    "version":  "0.1.39",
+    "notes":  "桌面端服务器迁移：内置接口地址更新为新的云服务器 47.116.6.111，修复服务器迁移后桌面端无法登录、数据无法同步的问题，安装后无需额外配置即可连接新服务器。手机端与网页端通过同源接口访问，不受本次改动影响。",
+    "pub_date":  "2026-09-17T17:03:51.884Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1JGUGtqdzZHVCtHbGFsNGMvY3UwdE91SVdhdTUzOHNtMFF0VmlJbWF6QlFtY0dvYzRMRXlRWEx5dGVjeVJJMUd1UkFlUWUraXBGOFgrckRzcDdwNWdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTk4NDYxCWZpbGU6TWFydU1hcnVfMC4xLjM4X3g2NC1zZXR1cC5leGUKS2d3cVlXc1A3Rm00eEJubzI3NUFXU2htcjNObEt2MWRIQjEzT2VOc2ZGcUZyMFRKOWw4a21WSkJQWCtQTElReGw4T3JYOEZ0Z1pvZzRtNzMySjZQQVE9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.38/MaruMaru_0.1.38_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1dSVDZhN1J4Yll6TDlEZW9jZXlVZnYzWUVaWWtTS2VlZWJ6RElPYjFyR0dkNVRqcjVxMHRYdlRvR0ZJc2pQV0g1SDR1YTdVb1NmV2QrbFJzTEYzOEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NjY0NDY2CWZpbGU6TWFydU1hcnVfMC4xLjM5X3g2NC1zZXR1cC5leGUKRkgwT2NKTHI2NG0zbHdRLzNpYU5VaElwWkgzQXlDUFAvd1ZwRzA2aVJFY0hkRE1QWUt0YUJKSVdEZC95Znl0UERtWGt3M1UyRURnZTJHbTBWL3pVQWc9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.39/MaruMaru_0.1.39_x64-setup.exe"
                                          }
                   }
 }
