@@ -10,6 +10,9 @@ services:
       - "127.0.0.1:${KB_MYSQL_HOST_PORT:-3306}:3306"
     volumes:
       - knowledge_base_mysql_data:/var/lib/mysql
+      # 内存调优配置：/etc/my.cnf 末尾有 !includedir /etc/mysql/conf.d/，
+      # 因此挂载到该目录即被 MySQL 加载。详见 deploy/mysql-tuning.cnf。
+      - ./mysql-tuning.cnf:/etc/mysql/conf.d/mysql-tuning.cnf:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
       interval: 5s
