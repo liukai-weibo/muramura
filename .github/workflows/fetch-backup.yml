@@ -1,0 +1,96 @@
+name: 下载数据库备份到本地
+
+# 手动触发。通过已有 DEPLOY_* Secrets 登录服务器，把最新一份备份打包后
+# 用调用方提供的公钥加密，再作为 artifact 上传，供本地解密下载。
+#
+# 仓库是公开的，因此上传前必须加密：artifact 会被公钥加密，
+# 私钥只保存在调用者本机，GitHub 侧无法解密。
+on:
+  workflow_dispatch:
+    inputs:
+      cert_b64:
+        description: '接收方公钥证书（base64 单行，用于加密备份）'
+        required: true
+        type: string
+      run_fresh_backup:
+        description: '先跑一次带校验的备份，再打包最新一份'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    name: 打包并加密备份
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 在服务器上备份并打包最新一份
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /root
+            if [ "${{ inputs.run_fresh_backup }}" = "true" ]; then
+              chmod +x backup-db.sh
+              ./backup-db.sh --verify
+            fi
+            cd /root/backups
+            latest="$(ls -t knowledge_base_*.sql.gz | head -1)"
+            stamp="$(basename "$latest" .sql.gz)"
+            stamp="${stamp#knowledge_base_}"
+            echo "打包时间戳：$stamp"
+            tar czf /root/kb-backup-export.tar.gz $(ls | grep -- "$stamp")
+            echo "--- 待下载内容 ---"
+            ls -la /root/kb-backup-export.tar.gz
+            sha256sum /root/kb-backup-export.tar.gz
+
+      - name: 安装 sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: 下载加密前的备份包到 Runner
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_PASSWORD }}
+        run: |
+          sshpass -e scp -P "${{ secrets.DEPLOY_PORT || 22 }}" \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/root/kb-backup-export.tar.gz" .
+
+      - name: 用公钥加密（公钥之外的任何一方都无法解密）
+        env:
+          CERT_B64: ${{ inputs.cert_b64 }}
+        run: |
+          set -e
+          printf '%s' "$CERT_B64" | base64 -d > recipient.pem
+          openssl x509 -in recipient.pem -noout -fingerprint -sha256
+          openssl smime -encrypt -binary -aes-256-cbc \
+            -in kb-backup-export.tar.gz \
+            -out kb-backup-export.tar.gz.enc \
+            recipient.pem
+          # 明文只在 Runner 临时磁盘存在，上传前删除。
+          rm -f kb-backup-export.tar.gz recipient.pem
+          ls -la
+
+      - name: 上传加密后的备份
+        uses: actions/upload-artifact@v4
+        with:
+          name: kb-backup-encrypted
+          path: kb-backup-export.tar.gz.enc
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: 清理服务器上的明文打包文件
+        if: always()
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: rm -f /root/kb-backup-export.tar.gz
