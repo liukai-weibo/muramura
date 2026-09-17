@@ -45,6 +45,8 @@ cd "$script_dir"
 
 fail() {
   printf '错误：%s\n' "$*" >&2
+  # 清理校验用的临时文件，避免失败时在备份目录留下半成品。
+  rm -f "${table_sums_file:-}" "${table_sums_verify_file:-}" 2>/dev/null || true
   exit 1
 }
 
@@ -72,6 +74,31 @@ db_exists() {
   local found
   found="$(mysql_query "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='$1'")"
   [ -n "$found" ]
+}
+
+# 精确统计库内所有基础表的行数总和。
+# 用 information_schema 动态拼出求和形式的 COUNT(*)，
+# 避免依赖 InnoDB 近似值 TABLE_ROWS（该值不准确，不能作为备份证据）。
+# 表名必须带上库名前缀：mysql_query 未指定默认库，裸表名会以
+# "No database selected" 失败并返回空值，从而把行数误判为 0。
+count_all_rows() {
+  local db="$1" generator total
+  generator="$(mysql_query "SET SESSION group_concat_max_len=1048576; SELECT CONCAT('SELECT ', GROUP_CONCAT(CONCAT('(SELECT COUNT(*) FROM \`$db\`.\`', TABLE_NAME, '\`)') SEPARATOR '+'), ' AS total') FROM information_schema.TABLES WHERE TABLE_SCHEMA='$db' AND TABLE_TYPE='BASE TABLE'")"
+  if [ -z "$generator" ]; then
+    fail "无法生成 $db 的行数统计语句，备份校验不可信。"
+  fi
+  total="$(mysql_query "$generator")"
+  case "$total" in
+    ''|*[!0-9]*) fail "统计 $db 行数失败（返回值：${total:-空}），备份校验不可信。" ;;
+  esac
+  printf '%s' "$total"
+}
+
+# 统计导出文件中的 INSERT 语句条数，作为“数据确实写入备份”的直接证据。
+count_dump_inserts() {
+  local n
+  n="$(gzip -dc "$1" | grep -c '^INSERT INTO' || true)"
+  printf '%s' "${n:-0}"
 }
 
 # 导出单个数据库。
@@ -111,16 +138,27 @@ primary_dump="$backup_dir/${PRIMARY_DB}_${stamp}.sql.gz"
 dump_db "$PRIMARY_DB" "$primary_dump"
 
 primary_bytes="$(stat -c '%s' "$primary_dump" 2>/dev/null || echo 0)"
-primary_tables="$(mysql_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$PRIMARY_DB'")"
+primary_tables="$(mysql_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$PRIMARY_DB' AND TABLE_TYPE='BASE TABLE'")"
 primary_create="$(gzip -dc "$primary_dump" | grep -c 'CREATE TABLE' || true)"
 primary_schema="$(mysql_query "SELECT COALESCE(MAX(version), 0) FROM \`$PRIMARY_DB\`.schema_migrations" 2>/dev/null || echo 'unknown')"
+primary_rows="$(count_all_rows "$PRIMARY_DB")"
+primary_inserts="$(count_dump_inserts "$primary_dump")"
 
-printf '  %s：容器内表数 %s，导出 CREATE TABLE 数 %s，Schema 版本 %s\n' \
-  "$PRIMARY_DB" "$primary_tables" "$primary_create" "$primary_schema"
+printf '  %s：表数 %s，Schema 版本 %s，总行数 %s，导出 INSERT 数 %s，压缩后 %s 字节\n' \
+  "$PRIMARY_DB" "$primary_tables" "$primary_schema" "$primary_rows" "$primary_inserts" "$primary_bytes"
 
 if [ "$primary_create" -lt 1 ]; then
   fail '导出内容中未发现任何建表语句，备份不可信。'
 fi
+
+# 仅当源库确实有数据却导出不到 INSERT 时才算异常，避免把空库误判为失败。
+if [ "$primary_rows" -gt 0 ] && [ "$primary_inserts" -lt 1 ]; then
+  fail "源库有 $primary_rows 行数据，但导出文件中没有任何 INSERT 语句，备份不可信。"
+fi
+
+# 记录主库表结构校验和，用于恢复后逐表比对。
+table_sums_file="$backup_dir/.tablesums_$stamp"
+mysql_query "SELECT TABLE_NAME, COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$PRIMARY_DB' GROUP BY TABLE_NAME ORDER BY TABLE_NAME" >"$table_sums_file"
 
 # ---- 2. UAT 库（存在才导出）----
 uat_dump=''
@@ -200,13 +238,27 @@ if [ "$verify_mode" = 'true' ]; then
     fail '恢复校验失败，导出文件可能不可用。'
   fi
 
-  verify_tables="$(mysql_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$verify_db'")"
+  verify_tables="$(mysql_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$verify_db' AND TABLE_TYPE='BASE TABLE'")"
   verify_schema="$(mysql_query "SELECT COALESCE(MAX(version), 0) FROM \`$verify_db\`.schema_migrations" 2>/dev/null || echo 'unknown')"
-  printf '  恢复后表数 %s（源 %s），Schema 版本 %s（源 %s）\n' \
-    "$verify_tables" "$primary_tables" "$verify_schema" "$primary_schema"
+  verify_rows="$(count_all_rows "$verify_db")"
+  printf '  恢复后表数 %s（源 %s），Schema 版本 %s（源 %s），总行数 %s（源 %s）\n' \
+    "$verify_tables" "$primary_tables" "$verify_schema" "$primary_schema" "$verify_rows" "$primary_rows"
 
   [ "$verify_tables" = "$primary_tables" ] || fail '恢复校验表数不一致，备份不可信。'
   [ "$verify_schema" = "$primary_schema" ] || fail '恢复校验 Schema 版本不一致，备份不可信。'
+  [ "$verify_rows" = "$primary_rows" ] || fail "恢复校验行数不一致（源 $primary_rows，恢复 $verify_rows），备份不可信。"
+
+  # 逐表比对列数，防止表结构在导出中丢失。
+  table_sums_verify_file="$backup_dir/.tablesums_verify_$stamp"
+  mysql_query "SELECT TABLE_NAME, COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$verify_db' GROUP BY TABLE_NAME ORDER BY TABLE_NAME" >"$table_sums_verify_file"
+  if ! diff -q "$table_sums_file" "$table_sums_verify_file" >/dev/null 2>&1; then
+    printf '表结构差异（源 vs 恢复）：\n' >&2
+    diff "$table_sums_file" "$table_sums_verify_file" >&2 || true
+    fail '恢复校验表结构不一致，备份不可信。'
+  fi
+  rm -f "$table_sums_verify_file"
+  table_sums_verify_file=''
+  printf '  表结构逐表比对一致（%s 张表）。\n' "$verify_tables"
 
   cleanup_verify
   trap - EXIT
@@ -232,6 +284,9 @@ if [ "$keep_count" -gt 0 ]; then
 fi
 
 # ---- 7. 汇总 ----
+rm -f "$table_sums_file"
+table_sums_file=''
+
 printf '\n备份完成。\n'
 for f in "${files[@]}"; do
   printf '  %s  (%s)\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
