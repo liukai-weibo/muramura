@@ -12,8 +12,10 @@
 ```text
 /root/
 ├── start.sh            # 由本仓库 deploy/start.sh 同步
+├── backup-db.sh        # 由本仓库 deploy/backup-db.sh 同步
 ├── docker-compose.yml  # 由本仓库根目录同步
-└── .env                # 私有配置，仅存在于服务器，不进入 Git
+├── .env                # 私有配置，仅存在于服务器，不进入 Git
+└── backups/            # 备份产物，脚本自动创建（权限 700）
 ```
 
 ## 首次部署到新服务器
@@ -90,6 +92,38 @@ docker exec knowledge-base-mysql-1 \
 > 备份产物包含明文凭据，**不得进入 Git，也不得通过公开渠道传输**。
 
 恢复后必须通过 `/health` 确认实际数据库与 Schema 版本，再进行流量切换。
+
+## 备份数据库
+
+```bash
+cd /root
+./backup-db.sh                 # 仅备份
+./backup-db.sh --verify        # 额外恢复到临时库校验（推荐，需额外磁盘）
+./backup-db.sh --keep 14       # 保留最近 14 份，默认 7
+```
+
+脚本行为：
+
+- 导出 `knowledge_base`；`knowledge_base_uat` 存在时一并导出。
+- 备份 `knowledge_base_ai_secrets` 卷（需 `app` 容器运行中）。
+- 生成 `.sha256` 校验和与 `.meta` 元数据（备份时间、Schema 版本、表数、镜像标签）。
+- `--verify` 会把导出内容恢复到临时库，比对表数与 Schema 版本一致后自动删除临时库。
+- 产物写入同目录 `backups/`（权限 700），按时间戳命名。
+
+导出使用 `mysqldump --single-transaction`，**不加 `--databases`**，
+因此导出文件不含 `CREATE DATABASE` / `USE` 语句 —— 恢复时必须显式指定目标库，
+避免误写入生产库。
+
+数据库口令取自 `mysql` 容器自身的环境变量，不出现在宿主机命令行、进程列表或日志中。
+
+> 备份产物含全部业务数据，**不得进入 Git，也不得通过公开渠道传输**。
+
+### 下载到本地
+
+```bash
+scp root@<服务器IP>:/root/backups/*<时间戳>* ./kb-backup/
+sha256sum -c *.sha256
+```
 
 ## 脚本行为说明
 
