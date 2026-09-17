@@ -42,10 +42,16 @@ jobs:
               ./backup-db.sh --verify
             fi
             cd /root/backups
-            latest="$(ls -t knowledge_base_*.sql.gz | head -1)"
+            # 注意：不能用 knowledge_base_*.sql.gz 取最新 —— 该通配符会把
+            # knowledge_base_uat_*.sql.gz 也算进来，可能误选到 UAT 空白库。
+            # 主库文件名格式固定为 knowledge_base_<时间戳>.sql.gz，用正则精确匹配。
+            latest="$(ls -t | grep -E '^knowledge_base_[0-9]{8}_[0-9]{6}\.sql\.gz$' | head -1)"
+            [ -n "$latest" ] || { echo "未找到主库备份文件" >&2; exit 1; }
             stamp="$(basename "$latest" .sql.gz)"
             stamp="${stamp#knowledge_base_}"
             echo "打包时间戳：$stamp"
+            echo "--- 本次打包文件 ---"
+            ls -la | grep -- "$stamp"
             tar czf /root/kb-backup-export.tar.gz $(ls | grep -- "$stamp")
             echo "--- 待下载内容 ---"
             ls -la /root/kb-backup-export.tar.gz
