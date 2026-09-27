@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MaruMaru Dev",
+  "productName": "Muramura Dev",
   "identifier": "com.marumaru.knowledgebase.dev",
   "build": {
     "beforeDevCommand": ""

@@ -191,14 +191,14 @@ fn main() {
                 let _ = window.set_background_color(Some((242, 238, 231, 255).into()));
                 if let Ok(hwnd) = window.hwnd() { apply_window_region_hwnd(hwnd.0 as _); }
             }
-            let open = MenuItem::with_id(app, "open", "打开 MaruMaru", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "退出 MaruMaru", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "打开 Muramura", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "退出 Muramura", true, None::<&str>)?;
             let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().ok_or("missing application icon")?.clone())
                 .icon_as_template(false)
-                .tooltip("MaruMaru")
+                .tooltip("Muramura")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -260,7 +260,7 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running MaruMaru");
+        .expect("error while running Muramura");
 }
 
 #[cfg(test)]

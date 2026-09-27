@@ -36,7 +36,7 @@ function MobileLogin({ onAuthenticated }: { onAuthenticated: (session: AuthSessi
   }
   return <View className='mobile-auth-shell'>
     <View className='mobile-auth-card'>
-      <Text className='mobile-brand'>MaruMaru</Text>
+      <Text className='mobile-brand'>Muramura</Text>
       <Text className='mobile-auth-title'>进入手记与事项</Text>
       <Text className='mobile-auth-copy'>登录后访问当前账户的个人数据。</Text>
       <Input className='mobile-auth-input' value={username} placeholder='用户名' onInput={event => setUsername(event.detail.value)} />

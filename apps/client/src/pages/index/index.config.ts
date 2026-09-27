@@ -1,3 +1,3 @@
 export default definePageConfig({
-  navigationBarTitleText: 'MaruMaru｜圈圈',
+  navigationBarTitleText: 'Muramura｜圈圈',
 })

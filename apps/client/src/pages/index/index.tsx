@@ -2419,7 +2419,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         <View className='navigation-brand'>
           <View className='navigation-brand-heading'>
             <Image className='navigation-brand-image' src={marumaruBrandIconUrl} mode='aspectFit' />
-            <Text className='navigation-brand-name'>MaruMaru</Text>
+            <Text className='navigation-brand-name'>Muramura</Text>
           </View>
           <Text className='navigation-brand-subtitle'>圈圈 · 行动与方法</Text>
         </View>
@@ -3363,7 +3363,7 @@ export default function IndexPage() {
 
   return <View className='auth-gate-shell' data-color-theme={colorTheme}>
     <DesktopAuthTitleBar />
-    <View className='auth-gate-brand'><Text>MaruMaru</Text><Text>圈圈 · 行动与方法</Text></View>
+    <View className='auth-gate-brand'><Text>Muramura</Text><Text>圈圈 · 行动与方法</Text></View>
     <View className='auth-gate-card'>
       <Text className='auth-gate-kicker'>个人行动闭环</Text>
       <Text className='auth-gate-title'>{!sessionResolved ? '正在确认当前会话' : authMode === 'register' ? '创建账户' : '登录圈圈'}</Text>
