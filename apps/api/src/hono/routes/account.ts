@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import { ApiError } from '../errors'
 import { commonErrorResponses, createOpenApiApp, jsonSuccess } from '../openapi'
 import { requireJson } from '../http'
-import { buildExpiredSessionCookie, isTauriOrigin } from '../session'
+import { buildExpiredSessionCookie, isSecureRequest, isTauriOrigin } from '../session'
 import type { RootHonoServices } from '../services'
 import type { ApiEnv } from '../types'
 
@@ -89,7 +89,7 @@ export function createAccountRoutes(root: RootHonoServices) {
         currentPassword: body.currentPassword,
         newPassword: body.newPassword,
       })
-      context.header('set-cookie', buildExpiredSessionCookie(isTauriOrigin(context.req.header('origin'))))
+      context.header('set-cookie', buildExpiredSessionCookie(isTauriOrigin(context.req.header('origin')), isSecureRequest({ forwardedProto: context.req.header('x-forwarded-proto'), url: context.req.url })))
       return context.body(null, 204)
     })
 }
