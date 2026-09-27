@@ -1,11 +1,11 @@
 {
-    "version":  "0.1.39",
-    "notes":  "桌面端服务器迁移：内置接口地址更新为新的云服务器 47.116.6.111，修复服务器迁移后桌面端无法登录、数据无法同步的问题，安装后无需额外配置即可连接新服务器。手机端与网页端通过同源接口访问，不受本次改动影响。",
-    "pub_date":  "2026-09-17T17:03:51.884Z",
+    "version":  "0.1.40",
+    "notes":  "桌面端接入自有域名与 HTTPS：内置接口地址由 IP 改为 https://www.muramura.icu，登录密码与会话令牌全程加密传输，不再以明文发送。以后更换服务器或 IP 无需重新安装客户端。安装后无需额外配置即可连接。",
+    "pub_date":  "2026-09-27T00:54:02.875Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1dSVDZhN1J4Yll6TDlEZW9jZXlVZnYzWUVaWWtTS2VlZWJ6RElPYjFyR0dkNVRqcjVxMHRYdlRvR0ZJc2pQV0g1SDR1YTdVb1NmV2QrbFJzTEYzOEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NjY0NDY2CWZpbGU6TWFydU1hcnVfMC4xLjM5X3g2NC1zZXR1cC5leGUKRkgwT2NKTHI2NG0zbHdRLzNpYU5VaElwWkgzQXlDUFAvd1ZwRzA2aVJFY0hkRE1QWUt0YUJKSVdEZC95Znl0UERtWGt3M1UyRURnZTJHbTBWL3pVQWc9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.39/MaruMaru_0.1.39_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1dKTDVORk1rM0VoaEFmZy8zclY4UE52S2c2b29Lc1BpMVkzLzR6akxma0FLQTA5Tm5ZVFAyVitnWDFTSW5iazZBQ1JCTmhFU0pybFE3bDl1OWthQVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNDcwNDAyCWZpbGU6TWFydU1hcnVfMC4xLjQwX3g2NC1zZXR1cC5leGUKamF2QVZrbVVpeVNhVkZNTWNINU5iaFNiYVFlN0pwWU5Qc0g2dXk0R3NOeW9pMXFsVjBSYmMrcTBxYlhLZlk3MEx1cVJnNWtWOHA5TGZ5eGw2bkxoQ2c9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.40/MaruMaru_0.1.40_x64-setup.exe"
                                          }
                   }
 }
