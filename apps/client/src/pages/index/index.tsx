@@ -35,6 +35,7 @@ import { readColorTheme, readDisplayEffectMode, saveColorTheme, type ColorTheme,
 import './index.scss'
 import './cream-ui-theme.scss'
 import '../../assets/help'
+import { SiteFilingFooter } from './site-filing-footer'
 const marumaruBrandIconUrl = new URL('../../assets/brand/marumaru-white-cat-transparent.png', import.meta.url).href
 const dailyNoteCatIconUrl = new URL('../../assets/home/guides/cat-forward-stretch.png', import.meta.url).href
 const workbenchCatIconUrl = new URL('../../assets/home/guides/cat-playful-stretch.png', import.meta.url).href
@@ -3140,6 +3141,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         </View>
       </View>}
         </View>
+        <SiteFilingFooter />
       </View>
     </View>
   )

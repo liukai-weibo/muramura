@@ -890,6 +890,18 @@
 .navigation-status text:first-child { font-size: 12px; font-weight: 750; }
 .navigation-status text:last-child { margin-top: 3px; color: #928b80; font-size: 10px; }
 .app-main { box-sizing: border-box; height: 100dvh; min-height: 0; margin-left: 190px; overflow-y: auto; }
+
+// 备案页脚：工信部 ICP 备案号与公安联网备案号须在首页底部可见且可点击。
+// 字号与颜色保持可读，不做弱化处理，以满足备案展示要求。
+.site-filing-footer { display: flex; box-sizing: border-box; width: 100%; padding: 14px 28px 18px; justify-content: center; }
+.site-filing-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; justify-content: center; color: #8d857a; font-size: 12px; line-height: 1.6; }
+.site-filing-link { color: #8d857a; font-size: 12px; text-decoration: none; cursor: pointer; }
+.site-filing-link:hover { color: #6d655a; text-decoration: underline; }
+.site-filing-divider { color: #c3bcb1; font-size: 12px; }
+.site-filing-icon { width: 14px; height: 16px; }
+.app-shell[data-color-theme='dark'] .site-filing-row,
+.app-shell[data-color-theme='dark'] .site-filing-link { color: #9d968c; }
+.app-shell[data-color-theme='dark'] .site-filing-link:hover { color: #c8c1b6; }
 @media (min-width: 981px) {
   .app-main { overflow: clip; }
   .app-main:has(.settings-module) { overflow-y: auto; }
