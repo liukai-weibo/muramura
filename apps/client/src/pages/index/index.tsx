@@ -3416,5 +3416,6 @@ export default function IndexPage() {
         </View> : <Button className='auth-primary-button' disabled={!canSubmitAuthentication} onClick={() => void submitAuthentication()}>{authSubmitting ? '正在提交…' : authMode === 'register' ? '注册并进入' : '登录'}</Button>}
       </>}
     </View>
+    <SiteFilingFooter />
   </View>
 }

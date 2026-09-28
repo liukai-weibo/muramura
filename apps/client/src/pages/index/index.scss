@@ -899,9 +899,15 @@
 .site-filing-link:hover { color: #6d655a; text-decoration: underline; }
 .site-filing-divider { color: #c3bcb1; font-size: 12px; }
 .site-filing-icon { width: 14px; height: 16px; }
+// 登录门是固定定位的居中栅格，页脚需脱离居中流、固定贴底，
+// 否则会与登录卡片并排居中。未登录访客（含备案审核）必须能看到备案号。
+.auth-gate-shell > .site-filing-footer { position: fixed; right: 0; bottom: 0; left: 0; z-index: 5; padding: 12px 24px 16px; pointer-events: auto; }
 .app-shell[data-color-theme='dark'] .site-filing-row,
 .app-shell[data-color-theme='dark'] .site-filing-link { color: #9d968c; }
 .app-shell[data-color-theme='dark'] .site-filing-link:hover { color: #c8c1b6; }
+.auth-gate-shell[data-color-theme='dark'] .site-filing-row,
+.auth-gate-shell[data-color-theme='dark'] .site-filing-link { color: #9d968c; }
+.auth-gate-shell[data-color-theme='dark'] .site-filing-link:hover { color: #c8c1b6; }
 @media (min-width: 981px) {
   .app-main { overflow: clip; }
   .app-main:has(.settings-module) { overflow-y: auto; }
