@@ -3141,7 +3141,6 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         </View>
       </View>}
         </View>
-        <SiteFilingFooter />
       </View>
     </View>
   )
