@@ -11,15 +11,14 @@ on:
 env:
   REGISTRY: crpi-v8ex1zrhoe87bb3d.cn-hangzhou.personal.cr.aliyuncs.com
   IMAGE_NAME: my-acr-demo/dnf
-  GHCR_IMAGE: ghcr.io/liukai-weibo/muramura
 
 jobs:
   build-and-push:
     name: 构建并推送应用镜像
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
-      packages: write
 
     # ACR's personal registry endpoint cannot accept concurrent writes to
     # the shared latest tag reliably.
@@ -41,20 +40,11 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: 登录 GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: 生成镜像标签与元数据
         id: metadata
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-            ${{ env.GHCR_IMAGE }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
             type=raw,value=build-${{ github.run_number }}
