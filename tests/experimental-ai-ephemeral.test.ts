@@ -65,6 +65,7 @@ describe('AI ephemeral generation mode', () => {
     await drain(service, 'ephemeral')
     const system = m.calls.providerMessages[0]![0]!.content
     expect(system).toContain('AI response policy')
+    expect(system).toContain('By default, do not append raw URLs, Markdown links, citations, or a source list to the answer')
     expect(system).toContain('business semantics')
     expect(system).not.toContain('concept categories')
     expect(system).not.toContain('leading hunter personality')
