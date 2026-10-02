@@ -28,7 +28,18 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && rm -f /etc/nginx/sites-enabled/default
 
-COPY --from=builder /app /app
+# Keep dependencies in their own stable layer. Application source changes
+# must not invalidate and re-upload the full node_modules layer.
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
+COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
+COPY --from=builder /app/tsconfig.json /app/tsconfig.json
+COPY --from=builder /app/vitest.config.ts /app/vitest.config.ts
+COPY --from=builder /app/apps /app/apps
+COPY --from=builder /app/packages /app/packages
+COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /app/archive /app/archive
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/mysql/scripts/reconcile-users.sh /app/docker/reconcile-users.sh
 COPY docker/app-entrypoint.sh /app/docker/app-entrypoint.sh
