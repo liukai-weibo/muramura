@@ -1,0 +1,47 @@
+name: 清理 AI 链接验收测试账号（仅 qa-ailink）
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'report = 只统计；delete = 执行删除'
+        required: true
+        default: 'report'
+
+jobs:
+  cleanup:
+    name: 处理 qa-ailink 测试用户
+    runs-on: ubuntu-latest
+    steps:
+      - name: 通过 SSH 执行定向处理
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+            docker exec -i knowledge-base-mysql-1 sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" knowledge_base' <<'SQL'
+            SELECT id, username, created_at FROM users WHERE username LIKE 'qa-ailink-%';
+            SELECT 'users' t, COUNT(*) n FROM users WHERE username LIKE 'qa-ailink-%'
+            UNION ALL SELECT 'sessions', COUNT(*) FROM user_sessions s JOIN users u ON u.id=s.user_id WHERE u.username LIKE 'qa-ailink-%'
+            UNION ALL SELECT 'conversations', COUNT(*) FROM ai_conversations c JOIN users u ON u.id=c.owner_user_id WHERE u.username LIKE 'qa-ailink-%'
+            UNION ALL SELECT 'messages', COUNT(*) FROM ai_conversation_messages m JOIN users u ON u.id=m.owner_user_id WHERE u.username LIKE 'qa-ailink-%'
+            UNION ALL SELECT 'audit', COUNT(*) FROM activity_audit_events a JOIN users u ON u.id=a.actor_user_id WHERE u.username LIKE 'qa-ailink-%';
+            SQL
+            echo "MODE=${{ github.event.inputs.mode }}"
+            if [ "${{ github.event.inputs.mode }}" = "delete" ]; then
+              docker exec -i knowledge-base-mysql-1 sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" knowledge_base' <<'SQL'
+              SET @pattern = 'qa-ailink-%';
+              CREATE TEMPORARY TABLE tmp_ids AS SELECT id FROM users WHERE username LIKE @pattern;
+              DELETE m FROM ai_conversation_messages m JOIN tmp_ids t ON t.id = m.owner_user_id;
+              DELETE c FROM ai_conversations c JOIN tmp_ids t ON t.id = c.owner_user_id;
+              DELETE s FROM user_sessions s JOIN tmp_ids t ON t.id = s.user_id;
+              DELETE r FROM user_roles r JOIN tmp_ids t ON t.id = r.user_id;
+              DELETE a FROM activity_audit_events a JOIN tmp_ids t ON t.id = a.actor_user_id;
+              DELETE u FROM users u JOIN tmp_ids t ON t.id = u.id;
+              SELECT COUNT(*) AS remaining_qa_users FROM users WHERE username LIKE 'qa-ailink-%';
+              SELECT COUNT(*) AS total_users FROM users;
+              SQL
+            fi
