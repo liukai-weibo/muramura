@@ -64,7 +64,8 @@ describe('ai knowledge overview includes mood/meal/daily summaries', () => {
     const context = formatKnowledgeContext(overview, '', undefined, [], 24000, [], 'UTC')
     expect(context).toContain('Mood entries (all available dates, date is authoritative)')
     expect(context).toContain('- 2026-08-24 05:10 | level 4 | 今天心情不错')
-    expect(context).toContain('- 2026-08-23 04:05 | 午餐 | 牛肉面 | satiety 7分饱')
+    expect(context).toContain('- 2026-08-23 04:05 | 午餐 | 牛肉面')
+    expect(context).not.toContain('satiety')
   })
 })
 

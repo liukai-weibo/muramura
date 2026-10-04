@@ -62,10 +62,12 @@ export class MySqlMealEntryRepository implements MealEntryRepository, MealEntryB
       [this.scope.userId, input.entryDate, ...keptTypes] as string[],
     )
     for (const slot of input.meals) {
+      // 饱腹度已停止采集：更新既有记录时只改 content，保留历史 feeling。
+      // 新记录仍按传入值写入（前端回传原值或 0）。
       await connection.execute(
         `INSERT INTO meal_entries(id, owner_user_id, entry_date, meal_type, content, feeling, created_at, updated_at)
          VALUES(?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))
-         ON DUPLICATE KEY UPDATE content=VALUES(content), feeling=VALUES(feeling), updated_at=UTC_TIMESTAMP(3)`,
+         ON DUPLICATE KEY UPDATE content=VALUES(content), updated_at=UTC_TIMESTAMP(3)`,
         [crypto.randomUUID(), this.scope.userId, input.entryDate, slot.mealType, slot.content, slot.feeling],
       )
     }

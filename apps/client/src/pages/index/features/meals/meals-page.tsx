@@ -3,8 +3,7 @@ import { Text, View } from '@tarojs/components'
 import type { MealEntry, MealType } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
 import { buildMonthDays, daysInMonth, formatLocalDate, todayLocalDate } from '../calendar-utils'
-import type { ColorTheme } from '../../display-effect-preference'
-import { mealFeelingColors, mealFeelingColorsDark, mealFeelingLabels, mealSatietyLevels, mealTypeLabels, mealTypeOrder } from './meal-levels'
+import { mealTypeLabels, mealTypeOrder } from './meal-levels'
 import { MealDayModal } from './meal-day-modal'
 import './meals-page.scss'
 
@@ -24,7 +23,7 @@ function useMealsByDate(entries: MealEntry[]) {
   }, [entries])
 }
 
-export function MealsPage({ colorTheme }: { colorTheme: ColorTheme }) {
+export function MealsPage() {
   const now = new Date()
   const [view, setView] = useState<MealView>('month')
   const [year, setYear] = useState(now.getFullYear())
@@ -33,7 +32,6 @@ export function MealsPage({ colorTheme }: { colorTheme: ColorTheme }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [openDate, setOpenDate] = useState<string | undefined>()
-  const palette = colorTheme === 'dark' ? mealFeelingColorsDark : mealFeelingColors
   const byDate = useMealsByDate(entries)
 
   const refresh = useCallback(async () => {
@@ -81,7 +79,7 @@ export function MealsPage({ colorTheme }: { colorTheme: ColorTheme }) {
           <View className='meals-cell-dots'>
             {mealTypeOrder.map(type => {
               const entry = day?.[type]
-              return <View key={type} className='meals-cell-dot' style={entry ? { background: palette[entry.feeling] } : undefined} />
+              return <View key={type} className={'meals-cell-dot' + (entry ? ' recorded' : '')} />
             })}
           </View>
         </View>
@@ -113,7 +111,7 @@ export function MealsPage({ colorTheme }: { colorTheme: ColorTheme }) {
                       <View className='meals-year-cell-dots'>
                         {mealTypeOrder.map(type => {
                           const entry = day?.[type]
-                          return <View key={type} className='meals-year-cell-dot' style={entry ? { background: palette[entry.feeling] } : undefined} />
+                          return <View key={type} className={'meals-year-cell-dot' + (entry ? ' recorded' : '')} />
                         })}
                       </View>
                     </View>
@@ -171,12 +169,10 @@ export function MealsPage({ colorTheme }: { colorTheme: ColorTheme }) {
 
       {view === 'year' && !loading && !error && (
         <View className='meals-legend'>
-          {mealSatietyLevels.map(level => (
-            <View key={level} className='meals-legend-item'>
-              <View className='meals-legend-swatch' style={{ background: palette[level] }} />
-              <Text>{mealFeelingLabels[level]}</Text>
-            </View>
-          ))}
+          <View className='meals-legend-item'>
+            <View className='meals-legend-swatch' />
+            <Text>有记录</Text>
+          </View>
         </View>
       )}
 

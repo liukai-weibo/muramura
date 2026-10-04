@@ -94,7 +94,8 @@ describe.runIf(mysqlIntegrationEnabled)('meal entries MySQL repository', () => {
       expect(updated).toHaveLength(2)
       expect(updated.map(e => e.mealType).sort()).toEqual(['dinner', 'lunch'])
       expect(updated.find(e => e.mealType === 'lunch')!.content).toBe('面条')
-      expect(updated.find(e => e.mealType === 'lunch')!.feeling).toBe(9)
+      // 饱腹度已停止采集：更新既有记录只改 content，保留历史 feeling。
+      expect(updated.find(e => e.mealType === 'lunch')!.feeling).toBe(7)
     })
   })
 

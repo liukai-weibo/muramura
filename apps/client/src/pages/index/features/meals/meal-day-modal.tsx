@@ -3,7 +3,7 @@ import { Button, Input, Text, View } from '@tarojs/components'
 import type { MealDayInput, MealEntry, MealType } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
 import { formatLocalDateCN } from '../calendar-utils'
-import { mealFeelingColors, mealFeelingLabels, mealSatietyLevels, mealTypeEmojis, mealTypeLabels, mealTypeOrder, todayLocalDate } from './meal-levels'
+import { mealTypeEmojis, mealTypeLabels, mealTypeOrder, todayLocalDate } from './meal-levels'
 
 interface MealDayModalProps {
   initialDate: string
@@ -13,6 +13,8 @@ interface MealDayModalProps {
 
 interface SlotDraft {
   content: string
+  // 饱腹度已停止采集：该字段仅用于回传当天已有原值，不在界面展示，
+  // 避免保存内容时把历史值静默改写。
   feeling: number
 }
 
@@ -52,14 +54,10 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
     setSlots(prev => ({ ...prev, [type]: { ...prev[type], content: value } }))
   }
 
-  const setFeeling = (type: MealType, value: number) => {
-    setSlots(prev => ({ ...prev, [type]: { ...prev[type], feeling: value } }))
-  }
-
   const handleSubmit = async () => {
     const meals: MealDayInput['meals'] = mealTypeOrder
       .map(mealType => ({ mealType, content: slots[mealType].content.trim(), feeling: slots[mealType].feeling }))
-      .filter(slot => slot.content.length > 0 || slot.feeling !== 0)
+      .filter(slot => slot.content.length > 0)
     setBusy(true); setError(''); setUnknownOutcome(false)
     try {
       await apiClient.saveMealDay({ entryDate, meals })
@@ -77,7 +75,7 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
     }
   }
 
-  const hasAny = mealTypeOrder.some(type => slots[type].content.trim().length > 0 || slots[type].feeling !== 0)
+  const hasAny = mealTypeOrder.some(type => slots[type].content.trim().length > 0)
 
   return (
     <View className='meal-modal-backdrop' role='dialog' aria-modal='true' aria-label='记录一日三餐'>
@@ -108,21 +106,6 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
               maxlength={1000}
               onInput={e => setContent(mealType, e.detail.value)}
             />
-            <View className='meal-feel-row'>
-              <Text className='meal-feel-caption'>饱腹度</Text>
-              <View className='meal-feel-pills'>
-                {mealSatietyLevels.map(level => (
-                  <View
-                    key={level}
-                    className={'meal-feel-pill' + (slots[mealType].feeling === level ? ' selected' : '')}
-                    style={{ background: mealFeelingColors[level] }}
-                    onClick={() => setFeeling(mealType, slots[mealType].feeling === level ? 0 : level)}
-                  >
-                    <Text>{mealFeelingLabels[level]}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
           </View>
         ))}
 

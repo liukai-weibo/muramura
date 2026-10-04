@@ -69,6 +69,8 @@
 .meals-cell-day { font-size: 11px; color: var(--cream-body); }
 .meals-cell-dots { display: flex; gap: 3px; }
 .meals-cell-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--cream-line); }
+/* 饱腹度已停用：圆点只表达「该餐是否有记录」，不再按档位着色。 */
+.meals-cell-dot.recorded { background: var(--cream-soft-surface); border-color: #d9d2c6; }
 
 .meals-year-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .meals-year-grid {
@@ -137,6 +139,7 @@
 .meals-year-cell-day { line-height: 1; }
 .meals-year-cell-dots { display: flex; gap: 2px; }
 .meals-year-cell-dot { width: 4px; height: 4px; border-radius: 50%; border: 1px solid var(--cream-line); box-sizing: border-box; }
+.meals-year-cell-dot.recorded { background: var(--cream-soft-surface); border-color: #d9d2c6; }
 
 .meals-empty { color: var(--cream-hint); font-size: 12px; padding: 18px 0; }
 
@@ -187,20 +190,6 @@
 .meal-slot-emoji { font-size: 16px; line-height: 1; }
 .meal-slot-label { color: var(--cream-ink); font-size: 13px; font-weight: 700; }
 .meal-slot-input { min-height: 36px; padding: 8px 12px; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-surface); color: var(--cream-body); font-size: 13px; }
-.meal-feel-row { display: flex; align-items: flex-start; gap: 10px; }
-.meal-feel-caption { flex: 0 0 auto; color: var(--cream-hint); font-size: 11px; line-height: 26px; }
-.meal-feel-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.meal-feel-pill {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-height: 26px; padding: 0 10px; box-sizing: border-box;
-  border: 2px solid transparent; border-radius: 9999px;
-  color: #6f6255; font-size: 11px; font-weight: 600; line-height: 1;
-  cursor: pointer; user-select: none;
-  transition: border-color .15s ease, filter .15s ease, transform .15s ease;
-}
-.meal-feel-pill:hover { filter: brightness(.97); }
-.meal-feel-pill.selected { border-color: #e2a8b2; }
-.meal-feel-pill text { color: inherit; }
 
 .meal-unknown-outcome { padding: 10px 12px; border: 1px solid #ead9aa; border-radius: 12px; background: #fff9e9; color: #806b38; font-size: 11px; line-height: 1.5; }
 
@@ -232,7 +221,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .meals-cell, .meal-feel-pill { transition: none; }
+  .meals-cell { transition: none; }
   .meal-modal-card, .meal-modal-backdrop { animation: none; }
   .meal-modal-actions button, .meal-modal-actions taro-button-core { transform: none; }
 }
