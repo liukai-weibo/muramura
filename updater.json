@@ -1,11 +1,11 @@
 {
-    "version":  "0.1.41",
-    "notes":  "品牌展示名由 MaruMaru 更名为 Muramura（中文名「圈圈」不变），与站点域名 www.muramura.icu 统一。窗口标题、托盘提示、托盘菜单、页面品牌文字与应用内帮助文档同步更新。接口地址与登录方式不变，安装后无需额外配置。",
-    "pub_date":  "2026-09-27T10:09:43.301Z",
+    "version":  "0.1.42",
+    "notes":  "三餐记录隐藏并停用饱腹度：弹窗只保留「吃了什么」，月历/年表圆点不再按档位着色，年视图图例改为「有记录」，今日饮食推荐与 AI 上下文均不再消费饱腹度。历史饱腹度数据、备份与恢复全部保留。",
+    "pub_date":  "2026-10-04T19:43:06.906Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1hockN6YkJHWlFNL2lTU3c4ZG9BY1cvY0REUXd4SzhPV0JvUUE1c3NSVU9ROEowWWZkcnlaYlh1UFdsblhuUXc2Uzd1SWJUWTVDZTRiQVErZzJmeVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNTAzNzY5CWZpbGU6TXVyYW11cmFfMC4xLjQxX3g2NC1zZXR1cC5leGUKVUtiYWpSS0lqdk1EMjBwWVVOWE9OREZveGlxaXRCUlpLQVhUWjRqR3JGaFJ2RjlsTVc5b1N3eEdLRDd4SEVSSGJ4KytrWWE0MUdjVk1YQnE0Vm5VQkE9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.41/Muramura_0.1.41_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1piUTMrd3g2VkdFeVBSVkhqeGNBb1Awd1lyWk1pL0c5WTlicklYdEIxZ0R4MWhWYUJYRzBrdjgwS1pKOXJGRGpFUWdSTndyQXU0S2hBNnRKWUVTbFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMTQyODg4CWZpbGU6TXVyYW11cmFfMC4xLjQyX3g2NC1zZXR1cC5leGUKcDY0RlBkOS9RT01tTUVuT3NGT0RGZHhLd2JjZ0F5L2RSSU9wSUJ0SFFDSlBwZ2dkQXFBWnRDMjVCM3F3ck5JNHlQZTRHd0JlVDBOc1NjeGN1bTZmQmc9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.42/Muramura_0.1.42_x64-setup.exe"
                                          }
                   }
 }
