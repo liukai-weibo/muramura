@@ -41,6 +41,16 @@ async function recordAiConfigAudit(repository: ActivityAuditRepository | undefin
 
 const activeStreams = new ConversationActiveStreams()
 
+/**
+ * AI 参数配置对平台管理员与普通管理员同等开放（读 / 写 / 清除）。
+ * 安全审计仍仅限平台管理员，不在此放宽。
+ */
+function requireAiConfigurationAdministrator(actor: { roles?: string[] } | undefined): void {
+  if (!actor?.roles?.includes('platform_admin') && !actor?.roles?.includes('ordinary_admin')) {
+    throw new ApiError(403, 'FORBIDDEN', 'administrator required')
+  }
+}
+
 function mapAiConfigFailure(error: unknown): never {
   if (error instanceof AiConfigError) {
     if (error.code === 'invalid') throw new ApiError(400, 'VALIDATION_FAILED', 'AI 配置参数无效，请检查服务名称、模型名称、Base URL、API Key 和采样参数。')
@@ -54,7 +64,7 @@ export function createAiRoutes() {
   return createOpenApiApp()
     .get('/admin/experimental/ai-config', async (context: any) => {
       const actor = context.get('actor')
-      if (!actor?.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', 'administrator required')
+      requireAiConfigurationAdministrator(actor)
       const services = requireServices(context)
       let metadata
       try { metadata = await services.aiConfig?.load() } catch (error) { mapAiConfigFailure(error) }
@@ -63,7 +73,7 @@ export function createAiRoutes() {
     })
     .put('/admin/experimental/ai-config', async (context: any) => {
       const actor = context.get('actor')
-      if (!actor?.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', 'administrator required')
+      requireAiConfigurationAdministrator(actor)
       const services = requireServices(context)
       const body = await jsonObject(context)
       const input = {
@@ -81,7 +91,7 @@ export function createAiRoutes() {
     })
     .delete('/admin/experimental/ai-config', async (context: any) => {
       const actor = context.get('actor')
-      if (!actor?.roles.includes('platform_admin')) throw new ApiError(403, 'FORBIDDEN', 'administrator required')
+      requireAiConfigurationAdministrator(actor)
       const services = requireServices(context)
       try { await services.aiConfig?.clear() } catch (error) { mapAiConfigFailure(error) }
       await recordAiConfigAudit(services.platformAuditRef, actor, 'delete', {})
