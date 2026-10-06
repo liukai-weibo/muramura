@@ -1,11 +1,11 @@
 {
-    "version":  "0.1.42",
-    "notes":  "三餐记录隐藏并停用饱腹度：弹窗只保留「吃了什么」，月历/年表圆点不再按档位着色，年视图图例改为「有记录」，今日饮食推荐与 AI 上下文均不再消费饱腹度。历史饱腹度数据、备份与恢复全部保留。",
-    "pub_date":  "2026-10-04T19:43:06.906Z",
+    "version":  "0.1.43",
+    "notes":  "「AI 参数」模块对普通管理员开放：读取、保存与清除 AI 配置的权限与平台管理员完全一致；「我 → AI 参数」对普通管理员可见。安全审计中心与用户角色管理仍仅限平台管理员。",
+    "pub_date":  "2026-10-04T20:29:16.000Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1piUTMrd3g2VkdFeVBSVkhqeGNBb1Awd1lyWk1pL0c5WTlicklYdEIxZ0R4MWhWYUJYRzBrdjgwS1pKOXJGRGpFUWdSTndyQXU0S2hBNnRKWUVTbFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMTQyODg4CWZpbGU6TXVyYW11cmFfMC4xLjQyX3g2NC1zZXR1cC5leGUKcDY0RlBkOS9RT01tTUVuT3NGT0RGZHhLd2JjZ0F5L2RSSU9wSUJ0SFFDSlBwZ2dkQXFBWnRDMjVCM3F3ck5JNHlQZTRHd0JlVDBOc1NjeGN1bTZmQmc9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.42/Muramura_0.1.42_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1F3VVFwV3MyUUJXNUs4Z0dtS3BHK1I1QkN5cVRPUVEvcUl3TmZUOXN4VTVQcWtSUkNUUEVScnFMdXE0dFBxMDNGbFhEeWRyTzRGU1ZxQ21aQ3JvRkFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMzA4OTU2CWZpbGU6TXVyYW11cmFfMC4xLjQzX3g2NC1zZXR1cC5leGUKdXBmRmpJRWdUSTlySy9iZTJ3SkhVbWJwTm5JVmJ3MThKYm1MZWltdXFTVmx4MG9KY0drWS9RMWU0TTZ6WC9UamZxVFB5a012cU9qVFF2MkxUUlZTRGc9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.43/Muramura_0.1.43_x64-setup.exe"
                                          }
                   }
 }

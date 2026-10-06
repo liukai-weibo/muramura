@@ -1,6 +1,6 @@
 [package]
 name = "marumaru"
-version = "0.1.42"
+version = "0.1.43"
 description = "Muramura desktop client"
 authors = ["Muramura"]
 edition = "2021"
