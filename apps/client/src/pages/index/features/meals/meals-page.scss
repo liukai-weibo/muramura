@@ -67,10 +67,33 @@
 .meals-cell:hover { border-color: #cfc4b5; background: var(--cream-soft-surface); }
 .meals-cell-placeholder { background: transparent; border-color: transparent; cursor: default; }
 .meals-cell-day { font-size: 11px; color: var(--cream-body); }
-.meals-cell-dots { display: flex; gap: 3px; }
-.meals-cell-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--cream-line); }
-/* 饱腹度已停用：圆点只表达「该餐是否有记录」，不再按档位着色。 */
-.meals-cell-dot.recorded { background: var(--cream-soft-surface); border-color: #d9d2c6; }
+
+/* 双色体系：祛掉逐餐圆点，改由整格底色表达完成度。
+   未记满用莫兰迪橙黄渐变 + 内高光模拟毛玻璃；三餐全记用白底绿勾。
+   不使用 backdrop-filter：366 格开实时模糊会明显掉帧，且日历区域已全局关闭毛玻璃。 */
+.meals-cell-partial {
+  border-color: rgba(120, 90, 60, .18);
+  background-image: linear-gradient(120deg, var(--meal-partial-start) 0%, var(--meal-partial-end) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6);
+}
+.meals-cell-partial .meals-cell-day { color: var(--meal-partial-ink); }
+.meals-cell-partial:hover {
+  border-color: rgba(120, 90, 60, .3);
+  background-image: linear-gradient(120deg, var(--meal-partial-start) 0%, var(--meal-partial-end) 100%);
+}
+.meals-cell-complete { border-color: rgba(127, 168, 138, .42); }
+.meals-cell-complete:hover { border-color: rgba(127, 168, 138, .62); background: var(--cream-surface); }
+
+/* 对勾用纯 CSS 边框绘制：emoji 色彩不可控且跨系统渲染不一致。 */
+.meals-cell-check {
+  width: 13px; height: 7px;
+  margin: auto 0 2px 2px;
+  border-left: 2px solid var(--meal-done);
+  border-bottom: 2px solid var(--meal-done);
+  border-radius: 1px;
+  transform: rotate(-45deg);
+  box-sizing: border-box;
+}
 
 .meals-year-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .meals-year-grid {
@@ -137,15 +160,33 @@
 .meals-year-cell:hover { transform: scale(1.08); border: 1px solid var(--cream-line); }
 .meals-year-cell-placeholder { visibility: hidden; pointer-events: none; }
 .meals-year-cell-day { line-height: 1; }
-.meals-year-cell-dots { display: flex; gap: 2px; }
-.meals-year-cell-dot { width: 4px; height: 4px; border-radius: 50%; border: 1px solid var(--cream-line); box-sizing: border-box; }
-.meals-year-cell-dot.recorded { background: var(--cream-soft-surface); border-color: #d9d2c6; }
+
+/* 年视图 366 格、单元格仅 24px：只做颜色编码，塞图标必然糊。
+   未记满 = 橙黄底，三餐完成 = 雾绿底，未记录保持无填充。 */
+.meals-year-cell-partial {
+  background-image: linear-gradient(120deg, var(--meal-partial-start) 0%, var(--meal-partial-end) 100%);
+  color: var(--meal-partial-ink);
+  font-weight: 700;
+}
+.meals-year-cell-partial:hover { border-color: rgba(120, 90, 60, .3); }
+.meals-year-cell-complete {
+  background: var(--meal-done);
+  color: var(--meal-done-ink);
+  font-weight: 700;
+}
+.meals-year-cell-complete:hover { border-color: rgba(127, 168, 138, .62); }
 
 .meals-empty { color: var(--cream-hint); font-size: 12px; padding: 18px 0; }
 
 .meals-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; }
 .meals-legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--cream-body); font-size: 11px; }
-.meals-legend-swatch { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--cream-line); }
+.meals-legend-swatch { width: 12px; height: 12px; border-radius: 4px; border: 1px solid var(--cream-line); box-sizing: border-box; }
+.meals-legend-swatch-empty { background: var(--cream-surface); }
+.meals-legend-swatch-partial {
+  border-color: rgba(120, 90, 60, .18);
+  background-image: linear-gradient(120deg, var(--meal-partial-start) 0%, var(--meal-partial-end) 100%);
+}
+.meals-legend-swatch-complete { border-color: transparent; background: var(--meal-done); }
 
 /* modal */
 .meal-modal-backdrop {

@@ -3,7 +3,7 @@ import { Text, View } from '@tarojs/components'
 import type { MealEntry, MealType } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
 import { buildMonthDays, daysInMonth, formatLocalDate, todayLocalDate } from '../calendar-utils'
-import { mealTypeLabels, mealTypeOrder } from './meal-levels'
+import { mealDayState, mealTypeOrder } from './meal-levels'
 import { MealDayModal } from './meal-day-modal'
 import './meals-page.scss'
 
@@ -21,6 +21,12 @@ function useMealsByDate(entries: MealEntry[]) {
     }
     return map
   }, [entries])
+}
+
+/** 当天已记录的餐次数量，仅用于推导日历格子的完成度。 */
+function recordedMealCount(day: Partial<Record<MealType, MealEntry>> | undefined): number {
+  if (!day) return 0
+  return mealTypeOrder.reduce((total, type) => total + (day[type] ? 1 : 0), 0)
 }
 
 export function MealsPage() {
@@ -72,16 +78,11 @@ export function MealsPage() {
         return <View key={index} className='meals-cell meals-cell-placeholder' aria-hidden='true' />
       }
       const dateStr = formatLocalDate(year, month, cell.day)
-      const day = byDate.get(dateStr)
+      const state = mealDayState(recordedMealCount(byDate.get(dateStr)))
       return (
-        <View key={index} className='meals-cell' onClick={() => setOpenDate(dateStr)}>
+        <View key={index} className={'meals-cell meals-cell-' + state} onClick={() => setOpenDate(dateStr)}>
           <Text className='meals-cell-day'>{cell.day}</Text>
-          <View className='meals-cell-dots'>
-            {mealTypeOrder.map(type => {
-              const entry = day?.[type]
-              return <View key={type} className={'meals-cell-dot' + (entry ? ' recorded' : '')} />
-            })}
-          </View>
+          {state === 'complete' && <View className='meals-cell-check' aria-hidden='true' />}
         </View>
       )
     })
@@ -104,16 +105,10 @@ export function MealsPage() {
                     return <View key={index} className='meals-year-cell meals-year-cell-placeholder' aria-hidden='true' />
                   }
                   const dateStr = formatLocalDate(year, m, cell.day)
-                  const day = byDate.get(dateStr)
+                  const state = mealDayState(recordedMealCount(byDate.get(dateStr)))
                   return (
-                    <View key={index} className='meals-year-cell' onClick={() => setOpenDate(dateStr)}>
+                    <View key={index} className={'meals-year-cell meals-year-cell-' + state} onClick={() => setOpenDate(dateStr)}>
                       <Text className='meals-year-cell-day'>{cell.day}</Text>
-                      <View className='meals-year-cell-dots'>
-                        {mealTypeOrder.map(type => {
-                          const entry = day?.[type]
-                          return <View key={type} className={'meals-year-cell-dot' + (entry ? ' recorded' : '')} />
-                        })}
-                      </View>
                     </View>
                   )
                 })}
@@ -170,8 +165,16 @@ export function MealsPage() {
       {view === 'year' && !loading && !error && (
         <View className='meals-legend'>
           <View className='meals-legend-item'>
-            <View className='meals-legend-swatch' />
-            <Text>有记录</Text>
+            <View className='meals-legend-swatch meals-legend-swatch-empty' />
+            <Text>未记录</Text>
+          </View>
+          <View className='meals-legend-item'>
+            <View className='meals-legend-swatch meals-legend-swatch-partial' />
+            <Text>未记满三餐</Text>
+          </View>
+          <View className='meals-legend-item'>
+            <View className='meals-legend-swatch meals-legend-swatch-complete' />
+            <Text>三餐完成</Text>
           </View>
         </View>
       )}

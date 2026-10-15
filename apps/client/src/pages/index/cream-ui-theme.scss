@@ -17,6 +17,12 @@
   --mood-1: #e2e8f0; --mood-2: #e5e1d8; --mood-3: #f5f1e8; --mood-4: #f8d7da; --mood-5: #f5b7b1;
   --mood-empty-day: #f8f6f2;
   --mood-selected-ring: #d98495;
+  /* 三餐日历双色体系：未记满用莫兰迪橙黄毛玻璃，三餐完成用莫兰迪雾绿。 */
+  --meal-partial-start: #f6e0c8;
+  --meal-partial-end: #eed9cf;
+  --meal-partial-ink: rgba(43, 40, 37, .86);
+  --meal-done: #7fa88a;
+  --meal-done-ink: #fffdfa;
   background: var(--cream-canvas);
   color: var(--cream-body);
 }
@@ -622,6 +628,12 @@ textarea:focus,
   --mood-1: #46506a; --mood-2: #55534b; --mood-3: #574f45; --mood-4: #6b4a50; --mood-5: #7d5248;
   --mood-empty-day: #2a2622;
   --mood-selected-ring: #e8a7ae;
+  /* 暗色态沿用首页三餐卡的暖褐写法，绿色降亮以贴合暗背景。 */
+  --meal-partial-start: #6e5a45;
+  --meal-partial-end: #665148;
+  --meal-partial-ink: rgba(255, 253, 250, .9);
+  --meal-done: #5f7f6b;
+  --meal-done-ink: #fffdfa;
   --cream-canvas: #292521;
   --cream-sidebar: #37322e;
   --cream-surface: #332e2a;
