@@ -113,19 +113,19 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
           <View className='mood-view-toggle' role='tablist' aria-label='日历视图切换'>
             <View
               role='tab'
-              aria-selected={view === 'year'}
-              className={`mood-view-toggle-item ${view === 'year' ? 'active' : ''}`}
-              onClick={() => handleSwitchView('year')}
-            >
-              <Text>年视图</Text>
-            </View>
-            <View
-              role='tab'
               aria-selected={view === 'month'}
               className={`mood-view-toggle-item ${view === 'month' ? 'active' : ''}`}
               onClick={() => handleSwitchView('month')}
             >
               <Text>月视图</Text>
+            </View>
+            <View
+              role='tab'
+              aria-selected={view === 'year'}
+              className={`mood-view-toggle-item ${view === 'year' ? 'active' : ''}`}
+              onClick={() => handleSwitchView('year')}
+            >
+              <Text>年视图</Text>
             </View>
           </View>
         </View>
