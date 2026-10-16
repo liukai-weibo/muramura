@@ -17,7 +17,9 @@ const moodEntrySchema = z.object({
 
 const entryInputSchema = z.object({
   content: z.string().min(1).max(2000),
-  moodLevel: z.number().int().min(1).max(5),
+  // 状态档位已停止采集：输入可省略，由 Application 层填充中性值。
+  // 校验范围保留，避免旧客户端或脏数据写入越界值。
+  moodLevel: z.number().int().min(1).max(5).optional(),
   tags: z.array(z.string().min(1).max(20)).max(10).optional(),
   response: z.string().max(1000).optional(),
   entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

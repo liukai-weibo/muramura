@@ -54,7 +54,15 @@ export class MySqlMealEntryRepository implements MealEntryRepository, MealEntryB
 
   private async upsertSlots(connection: PoolConnection, input: MealDayInput): Promise<void> {
     // 缺失的餐删除，存在的餐按 (entry_date, meal_type) 幂等 upsert。
-    if (input.meals.length === 0) return
+    // 空列表表示「清空当天记录」，必须真的删空该日；早退会让界面上
+    // 已承诺的清空操作静默失效（用户删光内容后再保存，记录其实原样保留）。
+    if (input.meals.length === 0) {
+      await connection.execute(
+        'DELETE FROM meal_entries WHERE owner_user_id=? AND entry_date=?',
+        [this.scope.userId, input.entryDate],
+      )
+      return
+    }
     const keptTypes = input.meals.map(slot => slot.mealType)
     const placeholdersKept = keptTypes.map(() => '?').join(',')
     await connection.execute(

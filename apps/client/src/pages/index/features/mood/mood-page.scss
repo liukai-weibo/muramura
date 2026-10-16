@@ -87,69 +87,6 @@
   box-shadow: var(--cream-shadow-pop);
 }
 
-.mood-filter-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--cream-line);
-  border-radius: 9999px;
-  background: var(--cream-surface);
-  color: var(--cream-body);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.mood-filter-trigger:hover {
-  border-color: #94897b;
-  background: #e9e2d7;
-  color: #282520;
-}
-
-.mood-filter-wrap {
-  position: relative;
-}
-
-.mood-filter-backdrop {
-  position: fixed;
-  z-index: 1049;
-  inset: 0;
-}
-
-.mood-filter-menu {
-  position: absolute;
-  z-index: 1050;
-  top: calc(100% + 6px);
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 140px;
-  padding: 6px;
-  border: 1px solid var(--cream-line);
-  border-radius: 14px;
-  background: var(--cream-surface);
-  box-shadow: var(--cream-shadow-pop);
-}
-
-.mood-filter-menu-item {
-  padding: 8px 12px;
-  border-radius: 10px;
-  color: var(--cream-body);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.mood-filter-menu-item:hover {
-  background: var(--cream-soft-surface);
-}
-
-.mood-filter-menu-item.active {
-  background: linear-gradient(135deg, #f0c8cc, #e8b4b9);
-  color: #fff;
-  font-weight: 700;
-}
-
 .mood-view-toggle {
   display: inline-flex;
   align-items: center;
@@ -246,15 +183,20 @@
   transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease, border-color .2s ease;
 }
 
-.mood-calendar-cell.has-record {
-  border: 1px solid rgba(84, 79, 73, .12);
-  color: var(--cream-body);
-}
-
-.mood-calendar-cell.empty-day {
+/* 日历按「当天事件条数」着色：0 条保持空白，其余为绿色实底 + 对勾阶梯。 */
+.mood-calendar-cell.mood-tier-none {
   background: var(--mood-empty-day, #f8f6f2);
   color: #c8c2b8;
   cursor: default;
+}
+
+.mood-calendar-cell.mood-tier-one,
+.mood-calendar-cell.mood-tier-two,
+.mood-calendar-cell.mood-tier-three {
+  background: var(--meal-done);
+  border: 1px solid rgba(84, 79, 73, .12);
+  color: var(--meal-done-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35);
 }
 
 .mood-cell-placeholder {
@@ -267,12 +209,46 @@
   box-shadow: 0 0 0 2px rgba(217, 132, 149, .2);
 }
 
-.mood-calendar-cell:not(.empty-day):hover {
+.mood-calendar-cell:not(.mood-tier-none):hover {
   position: relative;
   z-index: 2;
   transform: scale(1.08);
   border-color: rgba(84, 79, 73, .28);
   box-shadow: 0 2px 8px rgba(120, 90, 60, .12);
+}
+
+/* 对勾容器：日格底部居中，支持 1–3 个。 */
+.mood-cell-checks {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+/* 对勾用纯 CSS 边框旋转绘制：与三餐日历同一套画法，避免 emoji 色彩不可控。 */
+.mood-cell-check {
+  width: 6px;
+  height: 3px;
+  border-left: 1.5px solid var(--meal-done-ink);
+  border-bottom: 1.5px solid var(--meal-done-ink);
+  transform: rotate(-45deg);
+  border-radius: 1px;
+}
+
+.mood-cell-checks-mini {
+  bottom: 1px;
+  gap: 1px;
+}
+
+.mood-cell-checks-mini .mood-cell-check {
+  width: 4px;
+  height: 2px;
+  border-left-width: 1px;
+  border-bottom-width: 1px;
 }
 
 .mood-calendar-tooltip {
@@ -295,7 +271,7 @@
 }
 
 @media (hover: hover) {
-  .mood-calendar-cell:not(.empty-day):hover .mood-calendar-tooltip { display: block; }
+  .mood-calendar-cell:not(.mood-tier-none):hover .mood-calendar-tooltip { display: block; }
 }
 
 .mood-legend {
@@ -319,6 +295,11 @@
   border-radius: 3px;
   border: 1px solid rgba(84, 79, 73, .1);
 }
+
+.mood-legend-swatch-none { background: var(--mood-empty-day, #f8f6f2); }
+.mood-legend-swatch-one,
+.mood-legend-swatch-two,
+.mood-legend-swatch-three { background: var(--meal-done); }
 
 /* Year view: 12 mini month calendars */
 .mood-year-grid {
@@ -374,7 +355,9 @@
   font-size: 9px;
 }
 
-.mood-year-cell.has-record {
+.mood-year-cell.mood-tier-one,
+.mood-year-cell.mood-tier-two,
+.mood-year-cell.mood-tier-three {
   border-width: 1px;
 }
 
@@ -413,13 +396,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.mood-card-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 9999px;
-  flex: 0 0 auto;
 }
 
 .mood-card-title {
@@ -549,24 +525,6 @@
 .mood-field { display: flex; flex-direction: column; gap: 7px; }
 .mood-field-label { color: var(--cream-hint); font-size: 12px; font-weight: 500; line-height: 1.4; }
 
-.mood-pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.mood-pill {
-  min-height: 26px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  border: 2px solid transparent;
-  border-radius: 9999px;
-  color: #6f6255;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color .2s ease, filter .2s ease;
-}
-.mood-pill:hover { filter: brightness(.97); }
-.mood-pill.selected { border-color: #e2a8b2; }
-.mood-pill text { color: inherit; }
-
 .mood-form-error { color: #ad5965; font-size: 11px; }
 
 .mood-modal-actions {
@@ -670,7 +628,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mood-calendar-cell, .mood-card, .mood-pill {
+  .mood-calendar-cell, .mood-card {
     transition: none;
   }
   .mood-modal-backdrop, .mood-modal-card {

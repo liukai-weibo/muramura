@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import type { MoodEntry, MoodEntryInput } from '@knowledge-base/contracts'
 import type { ColorTheme } from '../../display-effect-preference'
-import { moodLevelColors, moodLevelColorsDark, moodLevelLabels } from './mood-levels'
 
 function firstLine(value: string): string {
   const line = value.split(/\r?\n/, 1)[0]?.trim() ?? ''
@@ -22,8 +21,7 @@ interface MoodDetailModalProps {
   onDelete: (id: string) => Promise<void>
 }
 
-export function MoodDetailModal({ entry, colorTheme, onClose, onEdit, onDelete }: MoodDetailModalProps) {
-  const palette = colorTheme === 'dark' ? moodLevelColorsDark : moodLevelColors
+export function MoodDetailModal({ entry, onClose, onEdit, onDelete }: MoodDetailModalProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
@@ -41,13 +39,10 @@ export function MoodDetailModal({ entry, colorTheme, onClose, onEdit, onDelete }
   }
 
   return (
-    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label='情绪记录详情'>
+    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label='事件详情'>
       <View className='mood-modal-card'>
         <View className='mood-modal-heading'>
-          <Text style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 12, height: 12, borderRadius: 9999, background: palette[entry.moodLevel], display: 'inline-block' }} />
-            {moodLevelLabels[entry.moodLevel]}
-          </Text>
+          <Text style={{ fontWeight: 600 }}>事件详情</Text>
           <View className='mood-modal-close' onClick={onClose}><Text>✕</Text></View>
         </View>
 

@@ -22,27 +22,23 @@ function explorationsStub() {
   }
 }
 
-function moodStub(rows: Array<{ entryDate: string; moodLevel: number; content: string }>) {
-  return { async listRange() { return rows } }
-}
-
 function mealStub(rows: Array<{ entryDate: string; mealType: string; content: string; feeling: number }>) {
   return { async listRange() { return rows } }
 }
 
-describe('ai knowledge overview includes mood/meal/daily summaries', () => {
-  it('reads all-dates mood, meal and daily summaries into overview', async () => {
+describe('ai knowledge overview includes meal/daily summaries but excludes mood', () => {
+  it('reads all-dates meal summaries and never exposes mood entries', async () => {
     const service = new AiKnowledgeOverviewApplicationService(
       dashboardStub() as any, explorationsStub() as any, undefined, undefined,
-      moodStub([{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错' }]) as any,
       mealStub([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7 }]) as any,
     )
     const overview = await service.read(user)
-    expect(overview.moodEntries).toMatchObject([{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错' }])
+    // 状态信息已停止采集：overview 恒定不含 mood 条目。
+    expect(overview.moodEntries).toEqual([])
     expect(overview.mealEntries).toMatchObject([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7 }])
   })
 
-  it('drops mood/meal/summary sections when repositories are absent', async () => {
+  it('drops meal sections when repositories are absent', async () => {
     const service = new AiKnowledgeOverviewApplicationService(dashboardStub() as any, explorationsStub() as any)
     const overview = await service.read(user)
     expect(overview.moodEntries).toEqual([])
@@ -52,7 +48,23 @@ describe('ai knowledge overview includes mood/meal/daily summaries', () => {
     expect(context).not.toContain('Meal entries')
   })
 
-  it('formats mood/meal/daily summary sections with dates', async () => {
+  it('never injects mood into the prompt even when mood data exists', async () => {
+    // 直接构造带 mood 的 overview：格式化层必须忽略它，防止回归。
+    const overview = {
+      profile: { username: 'tester', roles: ['member'] as any, createdAt: '2026-01-01T00:00:00.000Z' },
+      itemStatusCounts: {},
+      items: [], explorations: [], reviews: [], methods: [],
+      moodEntries: [{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错', createdAt: '2026-08-24T05:10:00.000Z' }],
+      mealEntries: [],
+      dashboard: { metrics: { newItems: 0, startedExecutions: 0, completedReviews: 0, newMethods: 0, methodValidations: 0, methodRevisions: 0, methodApplications: 0 }, backlog: { ideaToTry: 0, doing: 0, waitingReview: 0, paused: 0, ideaLater: 0 }, unreviewedMethodActions: 0, facts: [] },
+    } as AiKnowledgeOverview
+    const context = formatKnowledgeContext(overview, '', undefined, [], 24000, [], 'UTC')
+    expect(context).not.toContain('Mood entries')
+    expect(context).not.toContain('今天心情不错')
+    expect(context).not.toContain('level 4')
+  })
+
+  it('formats meal sections with dates', async () => {
     const overview = {
       profile: { username: 'tester', roles: ['member'] as any, createdAt: '2026-01-01T00:00:00.000Z' },
       itemStatusCounts: {},
@@ -62,8 +74,7 @@ describe('ai knowledge overview includes mood/meal/daily summaries', () => {
       dashboard: { metrics: { newItems: 0, startedExecutions: 0, completedReviews: 0, newMethods: 0, methodValidations: 0, methodRevisions: 0, methodApplications: 0 }, backlog: { ideaToTry: 0, doing: 0, waitingReview: 0, paused: 0, ideaLater: 0 }, unreviewedMethodActions: 0, facts: [] },
     } as AiKnowledgeOverview
     const context = formatKnowledgeContext(overview, '', undefined, [], 24000, [], 'UTC')
-    expect(context).toContain('Mood entries (all available dates, date is authoritative)')
-    expect(context).toContain('- 2026-08-24 05:10 | level 4 | 今天心情不错')
+    expect(context).not.toContain('Mood entries')
     expect(context).toContain('- 2026-08-23 04:05 | 午餐 | 牛肉面')
     expect(context).not.toContain('satiety')
   })

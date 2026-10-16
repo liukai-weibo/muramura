@@ -99,6 +99,49 @@ describe.runIf(mysqlIntegrationEnabled)('meal entries MySQL repository', () => {
     })
   })
 
+  it('clears the whole day when the meal list is empty', { timeout: 30_000 }, async () => {
+    await withTemporaryDatabase(async ({ app, migrator }) => {
+      const directory = createMigrationDirectory()
+      await runMySqlMigrations(migrator, directory)
+      await migrator.query("INSERT INTO users(id, username, password_hash, created_at, updated_at) VALUES ('owner-c', 'owner-c', 'scrypt$redacted', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", [])
+      await migrator.query("INSERT INTO users(id, username, password_hash, created_at, updated_at) VALUES ('owner-d', 'owner-d', 'scrypt$redacted', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", [])
+
+      const repository = new MySqlMealEntryRepository(app, createScope('owner-c'))
+      const otherUser = new MySqlMealEntryRepository(app, createScope('owner-d'))
+      await repository.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'breakfast', content: '牛奶', feeling: 5 }, { mealType: 'lunch', content: '米饭', feeling: 7 }, { mealType: 'dinner', content: '沙拉', feeling: 9 }] })
+      // 相邻日期与其他用户的数据都不得被清空操作波及。
+      await repository.saveDay({ entryDate: '2026-08-21', meals: [{ mealType: 'lunch', content: '隔天午餐', feeling: 7 }] })
+      await otherUser.saveDay({ entryDate: '2026-08-20', meals: [{ mealType: 'lunch', content: '别人的午餐', feeling: 7 }] })
+
+      const cleared = await repository.saveDay({ entryDate: '2026-08-20', meals: [] })
+      expect(cleared).toEqual([])
+      expect(await repository.listRange('2026-08-20', '2026-08-20')).toEqual([])
+
+      // 清空只作用于当天，隔天记录必须完好。
+      const nextDay = await repository.listRange('2026-08-21', '2026-08-21')
+      expect(nextDay).toHaveLength(1)
+      expect(nextDay[0]!.content).toBe('隔天午餐')
+      // 清空只作用于本人，其他用户同日记录必须完好。
+      const othersDay = await otherUser.listRange('2026-08-20', '2026-08-20')
+      expect(othersDay).toHaveLength(1)
+      expect(othersDay[0]!.content).toBe('别人的午餐')
+    })
+  })
+
+  it('clearing an already empty day stays a no-op', { timeout: 30_000 }, async () => {
+    await withTemporaryDatabase(async ({ app, migrator }) => {
+      const directory = createMigrationDirectory()
+      await runMySqlMigrations(migrator, directory)
+      await migrator.query("INSERT INTO users(id, username, password_hash, created_at, updated_at) VALUES ('owner-e', 'owner-e', 'scrypt$redacted', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", [])
+
+      const repository = new MySqlMealEntryRepository(app, createScope('owner-e'))
+      // 重复清空同一天不应报错，也不应产生任何记录。
+      expect(await repository.saveDay({ entryDate: '2026-08-22', meals: [] })).toEqual([])
+      expect(await repository.saveDay({ entryDate: '2026-08-22', meals: [] })).toEqual([])
+      expect(await repository.listRange('2026-08-22', '2026-08-22')).toEqual([])
+    })
+  })
+
   it('replaceBackup then exportBackup roundtrips', { timeout: 30_000 }, async () => {
     await withTemporaryDatabase(async ({ app, migrator }) => {
       const directory = createMigrationDirectory()

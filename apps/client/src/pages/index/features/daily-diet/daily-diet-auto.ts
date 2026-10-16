@@ -1,4 +1,4 @@
-import type { AiStreamEvent, DailyNote, MealEntry, MoodEntry } from '@knowledge-base/contracts'
+import type { AiStreamEvent, DailyNote, MealEntry } from '@knowledge-base/contracts'
 import { apiClient, isApiClientAbort } from '../../api-client'
 import { buildDietProfileSegment, loadDietProfile } from './daily-diet-profile'
 import { todayLocalDate } from '../mood/mood-levels'
@@ -9,7 +9,7 @@ import { startMidnightAutoGenerate } from '../daily-summary/daily-summary-auto'
  * - 当天已有推荐则不触发；
  * - AI 未配置则静默降级（不调用）；
  * - 生成失败不重试（避免重复消耗），返回 failed 供卡片显示手动按钮。
- * 生成提示词走全局知识（手记/事项/复盘/方法/三餐/情绪），不限于饮食。
+ * 生成提示词只消费三餐与手记；状态信息已停止采集，不再参与。
  */
 
 /** 角色指令：饮食营养师，只针对饮食，不做整体状态分析。默认提示词（个人档案「默认」= 这一套）。 */
@@ -52,36 +52,27 @@ function daysAgoLocalDate(days: number): string {
   return `${year}-${month}-${day}`
 }
 
-/** 读取最近 7 天三餐/手记/情绪，拼成带角色指令与数据的饮食推荐用户消息。 */
+/** 读取最近 7 天三餐与手记，拼成带角色指令与数据的饮食推荐用户消息。 */
 export async function buildDietPrompt(): Promise<string> {
   const today = todayLocalDate()
   const weekAgo = daysAgoLocalDate(6)
   let meals: MealEntry[] = []
-  let moods: MoodEntry[] = []
   let notes: DailyNote[] = []
   try {
     meals = await apiClient.listMealEntries({ from: weekAgo, to: today })
   } catch { meals = [] }
-  try {
-    moods = await apiClient.listMoodEntries({ from: weekAgo, to: today })
-  } catch { moods = [] }
   try {
     notes = (await apiClient.listDailyNotes()).filter(note => note.entryDate >= weekAgo && note.entryDate <= today)
   } catch { notes = [] }
   const mealLines = meals
     .sort((a, b) => a.entryDate.localeCompare(b.entryDate) || a.mealType.localeCompare(b.mealType))
     .map(m => `- ${m.entryDate} ${mealTypeLabel(m.mealType)}：${m.content ? m.content : '(无)'}`)
-  const moodLines = moods
-    .sort((a, b) => a.entryDate.localeCompare(b.entryDate))
-    .map(m => `- ${m.entryDate}：情绪 ${m.moodLevel}/5${m.content ? '｜' + m.content : ''}`)
   const noteLines = notes
     .sort((a, b) => a.entryDate.localeCompare(b.entryDate))
     .map(n => `- ${n.entryDate}：${n.content.replace(/\s+/g, ' ').slice(0, 120)}`)
   const context = [
     '以下是我最近 7 天（' + weekAgo + ' 至 ' + today + '）的一日三餐记录：'
     + (mealLines.length ? '\n' + mealLines.join('\n') : '（没有三餐记录）'),
-    '以及情绪记录：'
-    + (moodLines.length ? '\n' + moodLines.join('\n') : '（没有情绪记录）'),
     '以及手记记录：'
     + (noteLines.length ? '\n' + noteLines.join('\n') : '（没有手记记录）'),
   ].join('\n')

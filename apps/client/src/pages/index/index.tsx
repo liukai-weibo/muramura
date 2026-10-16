@@ -2455,7 +2455,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
           colorTheme={colorTheme}
           onToggleColorTheme={onToggleColorTheme}
           searchContent={desktopSearchControl}
-          workbenchTabs={primaryModule === 'workbench' ? ([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
+          workbenchTabs={primaryModule === 'workbench' ? ([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '事件'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
         />
         <View className={`global-header ${primaryModule === 'workbench' && workbenchTab === 'actions' ? 'global-header-actions' : ''}`}>
           <View><Text className='global-module-title'>{primaryModuleLabels[primaryModule]}</Text>{(managementAccessNotice && primaryModule === 'workbench' || restoring && primaryModule === 'workbench') && <Text className='global-message'>{managementAccessNotice || '正在安全恢复数据，请勿离开'}</Text>}</View>
@@ -2487,7 +2487,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         </View>
 
         {primaryModule === 'workbench' && !isTauriDesktop() && <View className='fast-ui-tabs workbench-tabs' role='tablist'>
-          {([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '情绪'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
+          {([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '事件'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
         </View>}
         {primaryModule === 'me' && <View className='fast-ui-tabs' role='tablist'>
           {([['profile', '账户'], ['insights', '观察'], ['storage', '数据工具'], ...(isAdministrator && !managementAccessDenied ? [['administration', '管理区域'] as [MyTab, string]] : []), ...(isAdministrator && !managementAccessDenied ? [['aiConfiguration', 'AI 参数'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['audit', '安全审计'] as [MyTab, string]] : [])] as Array<[MyTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${myTab === tab ? 'active' : ''}`} role='tab' aria-selected={myTab === tab} onClick={() => openMyTab(tab)}><Text>{label}</Text></View>)}
@@ -2524,7 +2524,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         {(moodMounted && primaryModule === 'workbench' && workbenchTab === 'mood') && <View className='module-retained'><MoodPage colorTheme={colorTheme} /></View>}
         {(mealsMounted && primaryModule === 'workbench' && workbenchTab === 'meals') && <View className='module-retained'><MealsPage /></View>}
         {homeMealsOpen && <MealDayModal initialDate={todayLocalDate()} onClose={() => setHomeMealsOpen(false)} onSaved={() => { setHomeMealsOpen(false); setMessage('已记录今日三餐') }} />}
-        {homeMoodCreateOpen && <MoodRecordModal initialDate={todayLocalDate()} colorTheme={colorTheme} onClose={() => setHomeMoodCreateOpen(false)} onSave={async (input) => { await apiClient.createMoodEntry(input); notifyDailyNoteChanged(); setHomeMoodCreateOpen(false); setMessage('已记录今日情绪') }} onReloadData={() => setHomeMoodCreateOpen(false)} />}
+        {homeMoodCreateOpen && <MoodRecordModal initialDate={todayLocalDate()} colorTheme={colorTheme} onClose={() => setHomeMoodCreateOpen(false)} onSave={async (input) => { await apiClient.createMoodEntry(input); notifyDailyNoteChanged(); setHomeMoodCreateOpen(false); setMessage('已记录今日事件') }} onReloadData={() => setHomeMoodCreateOpen(false)} />}
         {homeDailySummaryOpen && <DailySummaryDetailModal initialDate={todayLocalDate()} generating={todaySummaryGenerating} draft={todaySummaryDraft} aiUnavailable={todaySummaryAiUnavailable} refreshTick={summaryChangedAt} onGenerate={() => { void startSummaryGeneration(true) }} onClose={() => setHomeDailySummaryOpen(false)} onChanged={() => { setSummaryChangedAt((v) => v + 1) }} />}
         {homeDailyDietOpen && <DailyDietDetailModal initialDate={todayLocalDate()} generating={todayDietGenerating} draft={todayDietDraft} aiUnavailable={todayDietAiUnavailable} refreshTick={dietChangedAt} onGenerate={() => { void startDietGeneration(true) }} onClose={() => setHomeDailyDietOpen(false)} onOpenProfile={() => setDietProfileOpen(true)} onChanged={() => { setDietChangedAt((v) => v + 1) }} />}
         {dietProfileOpen && <DailyDietProfileModal onClose={() => setDietProfileOpen(false)} />}

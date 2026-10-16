@@ -63,10 +63,10 @@ export function HomeAiCardEditorModal({ card, saving, error, onSave, onClose }: 
               className='home-ai-card-editor-textarea'
               value={aiPrompt}
               maxlength={HOME_AI_CARD_PROMPT_MAX_LENGTH}
-              placeholder='例如：读取我近7天情绪记录，总结我的情绪变化，给出简短建议'
+              placeholder='例如：读取我近7天手记与事项，总结进展，给出简短建议'
               onInput={(event) => setAiPrompt(event.detail.value)}
             />
-            <Text className='home-ai-card-editor-hint'>AI 会自动结合你的手记/事项/情绪/三餐记录来回答。</Text>
+            <Text className='home-ai-card-editor-hint'>AI 会自动结合你的手记/事项/三餐记录来回答。</Text>
           </View>
 
           <View className='home-ai-card-editor-field'>

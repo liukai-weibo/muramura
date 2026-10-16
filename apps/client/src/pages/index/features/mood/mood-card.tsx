@@ -1,7 +1,6 @@
 import { Text, View } from '@tarojs/components'
 import type { MoodEntry } from '@knowledge-base/contracts'
 import type { ColorTheme } from '../../display-effect-preference'
-import { moodLevelColors, moodLevelColorsDark } from './mood-levels'
 
 function firstLine(value: string): string {
   const line = value.split(/\r?\n/, 1)[0]?.trim() ?? ''
@@ -19,12 +18,11 @@ interface MoodCardProps {
   onOpen: (entry: MoodEntry) => void
 }
 
-export function MoodCard({ entry, colorTheme, onOpen }: MoodCardProps) {
-  const palette = colorTheme === 'dark' ? moodLevelColorsDark : moodLevelColors
+export function MoodCard({ entry, onOpen }: MoodCardProps) {
+  // 状态档位已停止采集：卡片不再按档位显示彩色圆点。
   return (
     <View className='mood-card' onClick={() => onOpen(entry)}>
       <View className='mood-card-header'>
-        <View className='mood-card-dot' style={{ background: palette[entry.moodLevel] }} />
         <Text className='mood-card-title'>{firstLine(entry.content)}</Text>
         <Text className='mood-card-date'>{formatMonthDay(entry.entryDate)}</Text>
       </View>

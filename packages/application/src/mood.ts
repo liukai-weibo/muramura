@@ -1,4 +1,5 @@
 import type { ActivityAuditRecorder, MoodEntry, MoodEntryInput, MoodEntryRepository, MoodLevel } from '@knowledge-base/contracts'
+import { MOOD_LEVEL_UNSET } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { safeAuditRecord } from './audit'
 import { utcDatePlusDays } from './date-utils'
@@ -8,6 +9,15 @@ const MAX_CONTENT = 2000
 const MAX_RESPONSE = 1000
 const MAX_TAGS = 10
 const MAX_TAG_LENGTH = 20
+
+/**
+ * 状态档位已停止采集：界面不再询问「今天状态怎么样」。
+ * 省略档位时填充中性值，使 mood_level 列的非空约束与旧客户端行为都保持不变。
+ * 显式传入的越界值仍会被 validateInput 拒绝。
+ */
+function withDefaultMoodLevel(input: MoodEntryInput): MoodEntryInput & { moodLevel: MoodLevel } {
+  return { ...input, moodLevel: input.moodLevel ?? MOOD_LEVEL_UNSET }
+}
 
 function normalizeTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
@@ -43,25 +53,27 @@ export class MoodEntryApplicationService {
   }
 
   async create(input: MoodEntryInput): Promise<MoodEntry> {
-    this.validateInput(input)
-    const entryDate = input.entryDate && isDateValid(input.entryDate) ? input.entryDate : todayLocal()
+    const normalized = withDefaultMoodLevel(input)
+    this.validateInput(normalized)
+    const entryDate = normalized.entryDate && isDateValid(normalized.entryDate) ? normalized.entryDate : todayLocal()
     // 上界 = UTC 今天 + 1 天：覆盖任意时区“本地今天”，凌晨窗口（东八区 00:00~07:59 = UTC 前一天）不被误判为未来；本地明天及以上仍拒绝。
     if (entryDate > utcDatePlusDays(1)) {
       throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪记录日期不能晚于今天')
     }
-    const created = await this.repository.create({ ...input, entryDate, tags: normalizeTags(input.tags) })
+    const created = await this.repository.create({ ...normalized, entryDate, tags: normalizeTags(normalized.tags) })
     await this.syncToHandNote(created)
     await safeAuditRecord(this.auditRecorder, { module: 'mood', action: 'create', entityId: created.id, snapshot: JSON.stringify({ content: created.content, moodLevel: created.moodLevel, tags: created.tags }) })
     return created
   }
 
   async updateMine(id: string, input: MoodEntryInput): Promise<MoodEntry> {
-    this.validateInput(input)
-    const entryDate = input.entryDate && isDateValid(input.entryDate) ? input.entryDate : todayLocal()
+    const normalized = withDefaultMoodLevel(input)
+    this.validateInput(normalized)
+    const entryDate = normalized.entryDate && isDateValid(normalized.entryDate) ? normalized.entryDate : todayLocal()
     if (entryDate > utcDatePlusDays(1)) {
       throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪记录日期不能晚于今天')
     }
-    const updated = await this.repository.updateMine(id, { ...input, entryDate, tags: normalizeTags(input.tags) })
+    const updated = await this.repository.updateMine(id, { ...normalized, entryDate, tags: normalizeTags(normalized.tags) })
     if (!updated) throw new BusinessError('MOOD_ENTRY_NOT_FOUND', 'not-found', '情绪记录不存在')
     await safeAuditRecord(this.auditRecorder, { module: 'mood', action: 'update', entityId: updated.id, snapshot: JSON.stringify({ content: updated.content, moodLevel: updated.moodLevel, tags: updated.tags }) })
     return updated
@@ -99,7 +111,7 @@ export class MoodEntryApplicationService {
       throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪记录内容超出长度限制')
     }
     if (typeof input.moodLevel !== 'number' || !MOOD_LEVEL_SET.has(input.moodLevel)) {
-      throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '情绪等级无效')
+      throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '状态档位无效')
     }
     if (input.tags !== undefined) {
       if (!Array.isArray(input.tags)) throw new BusinessError('MOOD_ENTRY_INVALID', 'validation', '标签格式无效')

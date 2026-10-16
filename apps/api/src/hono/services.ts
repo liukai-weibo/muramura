@@ -110,7 +110,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
       aiConfig,
       new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope)),
       new LoopbackProviderAdapter(),
-      new AiKnowledgeOverviewApplicationService(aiDashboard, aiExplorations, items, methods, moodEntryRepository, mealEntryRepository),
+      new AiKnowledgeOverviewApplicationService(aiDashboard, aiExplorations, items, methods, mealEntryRepository),
       aiConversationRepository,
       diagnostic => console.info('[knowledge-base-ai-latency]', diagnostic),
       aiPreferences,

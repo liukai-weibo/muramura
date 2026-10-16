@@ -4,7 +4,8 @@ import type { DailyNote, DailyNoteAiCommand, Item } from '@knowledge-base/contra
 import { apiClient } from '../../api-client'
 import { ExperimentalAiMarkdown } from '../../experimental-ai/components/experimental-ai-markdown'
 
-const actions: Array<[DailyNoteAiCommand, string]> = [['emotion', '梳理今日情绪'], ['extract_todos', '提取待办']]
+// 「梳理今日情绪」已下线：状态信息不再采集，也不再注入 AI 上下文。
+const actions: Array<[DailyNoteAiCommand, string]> = [['extract_todos', '提取待办'], ['improve_writing', '优化文案']]
 type Candidate = { id: string; title: string; content?: string; creating?: boolean; error?: string }
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; status?: 'streaming' | 'done' | 'error' }
 

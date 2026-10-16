@@ -9,7 +9,6 @@ import type { AiConversationMessageStatus, DailyNoteAiCommand } from '@knowledge
 
 const dailyAiStreams = new ConversationActiveStreams()
 const aiCommands: Record<DailyNoteAiCommand, string> = {
-  emotion: '梳理这篇小记中表达的情绪、触发因素和需要照顾的部分。不要诊断，不要虚构。',
   daily_actions: '总结当天已知行动事实与小记内容，严格区分事实和建议。',
   improve_writing: '在不编造事实的前提下，给出更清晰、具体的记录表达建议。',
   extract_todos: '从小记提取可执行的下一步。仅返回 JSON 数组，每项为 {"title":"...","content":"..."}，最多 20 项。',
@@ -77,12 +76,11 @@ export function createDailyNoteRoutes() {
         await services.dailyNotes.setAiConversationId(note.id, conversationId)
       }
       const facts = command === 'daily_actions' ? await services.dailyNotes.listActionFactsForDate(note.entryDate) : []
-      const moodFacts = await services.moodEntries?.listRange(note.entryDate, note.entryDate) ?? []
+      // 状态信息已停止采集：不再把当天状态记录注入小记 AI 上下文。
       const mealFacts = await services.meals?.listRange(note.entryDate, note.entryDate) ?? []
       const noteClock = (iso: string | undefined) => { const at = formatInTimeZone(iso, typeof body?.timeZone === 'string' ? body.timeZone : undefined); return at ? ` ${at}` : '' }
       const dayFacts = [
         command === 'daily_actions' ? `服务端筛选的当天事项事实：\n${JSON.stringify(facts)}` : '',
-        moodFacts.length ? `当天情绪：\n${JSON.stringify(moodFacts.map(e => ({ level: e.moodLevel, content: e.content, at: noteClock(e.createdAt) })))}` : '',
         mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, feeling: e.feeling, at: noteClock(e.createdAt) })))}` : '',
       ].filter(Boolean).join('\n\n')
       const userContent = [
@@ -94,7 +92,7 @@ export function createDailyNoteRoutes() {
       const activeConversationId = conversationId!
       const streamKey = `${actor.id}:${activeConversationId}`
       const controller = dailyAiStreams.begin(streamKey, context.req.raw.signal)
-      await services.aiConversation.append({ conversationId: activeConversationId, role: 'user', status: 'completed', content: command === 'emotion' ? '梳理今日情绪' : command === 'daily_actions' ? '总结今日全部行动' : command === 'improve_writing' ? '扩写 / 优化记录文案' : '复盘今日执行阻力分析' })
+      await services.aiConversation.append({ conversationId: activeConversationId, role: 'user', status: 'completed', content: command === 'daily_actions' ? '总结今日全部行动' : command === 'improve_writing' ? '扩写 / 优化记录文案' : command === 'extract_todos' ? '提取待办' : '复盘今日执行阻力分析' })
       const parts: string[] = []
       const stream = services.ai.stream([{ role: 'user', content: userContent }], controller.signal, actor, context.get('requestId'), activeConversationId, 'daily-note', typeof body?.timeAnchor === 'string' ? body.timeAnchor : undefined, typeof body?.timeZone === 'string' ? body.timeZone : undefined)
       const readable = new ReadableStream<Uint8Array>({ async start(writer) {
@@ -139,12 +137,10 @@ export function createDailyNoteRoutes() {
         await services.dailyNotes.setAiConversationId(note.id, conversationId)
       }
       const facts = await services.dailyNotes.listActionFactsForDate(note.entryDate)
-      const moodFacts = await services.moodEntries?.listRange(note.entryDate, note.entryDate) ?? []
       const mealFacts = await services.meals?.listRange(note.entryDate, note.entryDate) ?? []
       const noteClock = (iso: string | undefined) => { const at = formatInTimeZone(iso, typeof body?.timeZone === 'string' ? body.timeZone : undefined); return at ? ` ${at}` : '' }
       const dayFacts = [
         `鏈嶅姟绔寜涓婃捣鏃ユ湡绛涢€夌殑浠婃棩琛屽姩浜嬪疄锛歕n${JSON.stringify(facts)}`,
-        moodFacts.length ? `当天情绪：\n${JSON.stringify(moodFacts.map(e => ({ level: e.moodLevel, content: e.content, at: noteClock(e.createdAt) })))}` : '',
         mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, feeling: e.feeling, at: noteClock(e.createdAt) })))}` : '',
       ].filter(Boolean).join('\n\n')
       const userContent = [

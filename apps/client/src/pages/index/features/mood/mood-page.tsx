@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Text, View } from '@tarojs/components'
-import type { MoodEntry, MoodEntryInput, MoodLevel } from '@knowledge-base/contracts'
+import type { MoodEntry, MoodEntryInput } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
 import { notifyDailyNoteChanged } from '../../daily-note-sync'
 import type { ColorTheme } from '../../display-effect-preference'
@@ -8,7 +8,7 @@ import { MoodCalendar, type MoodCalendarMode } from './mood-calendar'
 import { MoodCard } from './mood-card'
 import { MoodRecordModal } from './mood-record-modal'
 import { MoodDetailModal } from './mood-detail-modal'
-import { formatLocalDate, moodLevelLabels, todayLocalDate } from './mood-levels'
+import { formatLocalDate, todayLocalDate } from './mood-levels'
 import './mood-page.scss'
 
 type ModalState =
@@ -21,22 +21,15 @@ function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
 }
 
-const filterOptions: Array<{ value: MoodLevel | 'all'; label: string }> = [
-  { value: 'all', label: '全部等级' },
-  ...([1, 2, 3, 4, 5] as MoodLevel[]).map(level => ({ value: level, label: moodLevelLabels[level] })),
-]
-
 export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
   const now = new Date()
   const [view, setView] = useState<MoodCalendarMode>('month')
-  const [filterOpen, setFilterOpen] = useState(false)
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [entries, setEntries] = useState<MoodEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
-  const [filterLevel, setFilterLevel] = useState<MoodLevel | 'all'>('all')
   const [modal, setModal] = useState<ModalState>({ kind: 'none' })
   const generationRef = useRef(0)
 
@@ -54,7 +47,7 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
     } catch (e: unknown) {
       if (generation !== generationRef.current) return
       if ((e as any)?.name === 'AbortError') return
-      setError((e as Error)?.message ?? '情绪记录读取失败')
+      setError((e as Error)?.message ?? '事件记录读取失败')
     } finally {
       if (generation === generationRef.current) setLoading(false)
     }
@@ -80,11 +73,10 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
   }
 
   const visibleEntries = useMemo(() => {
-    let list = entries
-    if (selectedDate) list = list.filter(entry => entry.entryDate === selectedDate)
-    if (filterLevel !== 'all') list = list.filter(entry => entry.moodLevel === filterLevel)
-    return list
-  }, [entries, selectedDate, filterLevel])
+    // 状态档位已停止采集：不再按档位筛选，只按选中日期过滤。
+    if (!selectedDate) return entries
+    return entries.filter(entry => entry.entryDate === selectedDate)
+  }, [entries, selectedDate])
 
   const closeModalAndRefresh = useCallback(async () => {
     setModal({ kind: 'none' })
@@ -102,7 +94,6 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
     await closeModalAndRefresh()
   }
 
-  const activeFilter = filterOptions.find(option => option.value === filterLevel) ?? filterOptions[0]!
   const periodHint = view === 'year'
     ? `当前年：${year} 年${selectedDate ? (' · 已选中 ' + selectedDate.slice(5)) : ''}`
     : `当前月：${year} 年 ${month} 月${selectedDate ? (' · 已选中 ' + selectedDate.slice(5)) : ''}`
@@ -114,10 +105,10 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
           <View
             className='mood-new-button'
             role='button'
-            aria-label='新建情绪记录'
+            aria-label='记录今日事件'
             onClick={() => setModal({ kind: 'create' })}
           >
-            <Text>＋ 新建情绪记录</Text>
+            <Text>＋ 记录今日事件</Text>
           </View>
           <View className='mood-view-toggle' role='tablist' aria-label='日历视图切换'>
             <View
@@ -140,35 +131,6 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
         </View>
         <View className='mood-toolbar-actions'>
           <Text className='mood-toolbar-hint'>{periodHint}</Text>
-          <View className='mood-filter-wrap'>
-            <View
-              className={`mood-filter-trigger ${filterOpen ? 'open' : ''}`}
-              role='button'
-              aria-haspopup='listbox'
-              aria-expanded={filterOpen}
-              onClick={() => setFilterOpen(open => !open)}
-            >
-              <Text>{activeFilter.label} ▾</Text>
-            </View>
-            {filterOpen && (
-              <>
-                <View className='mood-filter-backdrop' onClick={() => setFilterOpen(false)} />
-                <View className='mood-filter-menu' role='listbox' aria-label='按情绪等级筛选'>
-                  {filterOptions.map(option => (
-                    <View
-                      key={option.value}
-                      role='option'
-                      aria-selected={option.value === filterLevel}
-                      className={`mood-filter-menu-item ${option.value === filterLevel ? 'active' : ''}`}
-                      onClick={() => { setFilterLevel(option.value); setFilterOpen(false) }}
-                    >
-                      <Text>{option.label}</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-          </View>
         </View>
       </View>
 
@@ -178,16 +140,16 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
         month={month}
         entries={entries}
         selectedDate={selectedDate}
-        filterLevel={filterLevel}
+        filterLevel='all'
         colorTheme={colorTheme}
         onSelectDate={handleSelectDate}
         onMonthChange={handleMonthChange}
       />
 
-      {loading && <View className='mood-empty'><Text>正在读取情绪记录…</Text></View>}
+      {loading && <View className='mood-empty'><Text>正在读取事件记录…</Text></View>}
       {!loading && error && <View className='mood-empty'><Text>{error}</Text></View>}
       {!loading && !error && visibleEntries.length === 0 && (
-        <View className='mood-empty'><Text>{entries.length === 0 ? (view === 'year' ? '这一年还没有情绪记录，随手记一笔吧。' : '这个月还没有情绪记录，随手记一笔吧。') : '当前筛选下没有记录。'}</Text></View>
+        <View className='mood-empty'><Text>{entries.length === 0 ? (view === 'year' ? '这一年还没有事件记录，随手记一笔吧。' : '这个月还没有事件记录，随手记一笔吧。') : '这一天还没有事件记录。'}</Text></View>
       )}
 
       <View className='mood-card-grid'>

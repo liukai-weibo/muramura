@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import type { CurrentUserScope, MoodEntry, MoodEntryBackupStore, MoodEntryInput, MoodEntryRepository } from '@knowledge-base/contracts'
+import type { CurrentUserScope, MoodEntry, MoodEntryBackupStore, MoodEntryRepository, MoodEntryWriteInput } from '@knowledge-base/contracts'
 import type { Pool, RowDataPacket } from 'mysql2/promise'
 import { runInMySqlTransaction } from './index'
 
@@ -52,7 +52,7 @@ export class MySqlMoodEntryRepository implements MoodEntryRepository, MoodEntryB
     return rows.map(map)
   }
 
-  async create(input: MoodEntryInput & { entryDate: string }): Promise<MoodEntry> {
+  async create(input: MoodEntryWriteInput): Promise<MoodEntry> {
     const id = crypto.randomUUID()
     await this.pool.execute(
       'INSERT INTO mood_entries(id, owner_user_id, entry_date, content, mood_level, tags, response, created_at, updated_at) VALUES(?,?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))',
@@ -62,7 +62,7 @@ export class MySqlMoodEntryRepository implements MoodEntryRepository, MoodEntryB
     return map(rows[0]!)
   }
 
-  async updateMine(id: string, input: MoodEntryInput & { entryDate: string }): Promise<MoodEntry | undefined> {
+  async updateMine(id: string, input: MoodEntryWriteInput): Promise<MoodEntry | undefined> {
     const [result] = await this.pool.execute(
       'UPDATE mood_entries SET entry_date=?, content=?, mood_level=?, tags=?, response=?, updated_at=UTC_TIMESTAMP(3) WHERE id=? AND owner_user_id=?',
       [input.entryDate, input.content, input.moodLevel, JSON.stringify(input.tags ?? []), input.response ?? null, id, this.scope.userId],

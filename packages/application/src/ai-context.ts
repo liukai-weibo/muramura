@@ -1,4 +1,4 @@
-import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNote, DashboardSnapshot, Item, ItemRepository, ItemStatus, MealEntryRepository, MethodRepository, MoodEntryRepository } from '@knowledge-base/contracts'
+import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNote, DashboardSnapshot, Item, ItemRepository, ItemStatus, MealEntryRepository, MethodRepository } from '@knowledge-base/contracts'
 import { itemStatuses } from '@knowledge-base/contracts'
 import type { DashboardApplicationService, ExplorationTrackApplicationService } from './index'
 import { formatInTimeZone, utcDatePlusDays } from './date-utils'
@@ -9,18 +9,19 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
     private readonly explorations: ExplorationTrackApplicationService,
     private readonly items?: ItemRepository,
     private readonly methods?: MethodRepository,
-    private readonly moodEntries?: MoodEntryRepository,
+    // moodEntries 依赖已移除：状态信息不再注入 AI 上下文。
     private readonly mealEntries?: MealEntryRepository,
   ) {}
 
   async read(user: AuthUser): Promise<AiKnowledgeOverview> {
-    const [snapshot, activeTracks, deletedItems, deletedMethods, deletedTracks, moodEntries, mealEntries] = await Promise.all([
+    // 状态信息已停止采集：不再读取 mood 记录注入 AI 上下文，
+    // 避免模型围绕「今天状态怎么样」展开追问，从而降低记录负担。
+    const [snapshot, activeTracks, deletedItems, deletedMethods, deletedTracks, mealEntries] = await Promise.all([
       this.dashboard.getSnapshot(),
       this.explorations.listActiveExplorationTracks(),
       this.items?.listDeleted() ?? Promise.resolve([]),
       this.methods?.listDeleted() ?? Promise.resolve([]),
       this.explorations.listDeletedExplorationTracks(),
-      this.moodEntries?.listRange() ?? Promise.resolve([]),
       this.mealEntries?.listRange() ?? Promise.resolve([]),
     ])
     const itemStatusCounts = Object.fromEntries(itemStatuses.map((status) => [status, 0])) as Record<ItemStatus, number>
@@ -88,7 +89,7 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
       explorations,
       reviews: recentReviews.map(({ id, itemId, result, createdAt }) => ({ id, itemId, result, createdAt })),
       methods: snapshot.methods.map(({ id, title, steps, version, validationCount, createdAt, updatedAt }) => ({ id, title, steps, version, validationCount, createdAt, updatedAt })),
-      moodEntries: moodEntries.map(({ entryDate, moodLevel, content, createdAt }) => ({ entryDate, moodLevel, content, createdAt })),
+      moodEntries: [],
       mealEntries: mealEntries.map(({ entryDate, mealType, content, feeling, createdAt }) => ({ entryDate, mealType, content, feeling, createdAt })),
       trash: [
         ...deletedItems.map(({ title, deletedAt }) => ({ type: 'item' as const, title, deletedAt: deletedAt! })),
@@ -113,16 +114,10 @@ export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined
     const notes = [...dailyNotes].sort((left, right) => right.entryDate.localeCompare(left.entryDate) || right.updatedAt.localeCompare(left.updatedAt))
     sections.push(`Historical daily notes (all available dates, use only when relevant to the question; the date is authoritative):\n${notes.map((note) => `- ${note.entryDate}${clock(note.updatedAt)} | ${note.content || '(empty)'}`).join('\n')}`)
   }
-  if (overview && (overview.moodEntries.length || overview.mealEntries.length)) {
-    if (overview.moodEntries.length) {
-      const moods = [...overview.moodEntries].sort((left, right) => left.entryDate.localeCompare(right.entryDate) || left.moodLevel - right.moodLevel)
-      sections.push(`Mood entries (all available dates, date is authoritative):\n${moods.map((entry) => `- ${entry.entryDate}${clock(entry.createdAt)} | level ${entry.moodLevel} | ${entry.content.slice(0, 120)}`).join('\n')}`)
-    }
-    if (overview.mealEntries.length) {
-      const meals = [...overview.mealEntries].sort((left, right) => left.entryDate.localeCompare(right.entryDate) || left.mealType.localeCompare(right.mealType))
-      sections.push(`Meal entries (all available dates, date is authoritative):\n${meals.map((entry) => `- ${entry.entryDate}${clock(entry.createdAt)} | ${mealTypeLabel(entry.mealType)} | ${entry.content.slice(0, 80)}`).join('\n')}`)
-    }
-
+  // 状态段落已移除：overview.moodEntries 恒为空，不再向模型提供状态信息。
+  if (overview && overview.mealEntries.length) {
+    const meals = [...overview.mealEntries].sort((left, right) => left.entryDate.localeCompare(right.entryDate) || left.mealType.localeCompare(right.mealType))
+    sections.push(`Meal entries (all available dates, date is authoritative):\n${meals.map((entry) => `- ${entry.entryDate}${clock(entry.createdAt)} | ${mealTypeLabel(entry.mealType)} | ${entry.content.slice(0, 80)}`).join('\n')}`)
   }
   if (overview) {
     sections.push(`Profile: username=${overview.profile.username}; accountCreatedAt=${overview.profile.createdAt}; roles=${overview.profile.roles.join(',') || 'none'}`)

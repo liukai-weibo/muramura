@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, Text, Textarea, View } from '@tarojs/components'
-import type { MoodEntry, MoodEntryInput, MoodLevel } from '@knowledge-base/contracts'
+import type { MoodEntry, MoodEntryInput } from '@knowledge-base/contracts'
 import type { ColorTheme } from '../../display-effect-preference'
 import { formatLocalDateCN } from '../calendar-utils'
-import { moodLevelColors, moodLevelColorsDark, moodLevelConfigs, moodLevelLabels, todayLocalDate } from './mood-levels'
+import { todayLocalDate } from './mood-levels'
 
 interface MoodRecordModalProps {
   initial?: MoodEntry
@@ -15,10 +15,8 @@ interface MoodRecordModalProps {
   onReloadData: () => void
 }
 
-export function MoodRecordModal({ initial, initialDate, colorTheme, onClose, onSave, onReloadData }: MoodRecordModalProps) {
-  const palette = colorTheme === 'dark' ? moodLevelColorsDark : moodLevelColors
+export function MoodRecordModal({ initial, initialDate, onClose, onSave, onReloadData }: MoodRecordModalProps) {
   const [content, setContent] = useState(initial?.content ?? '')
-  const [moodLevel, setMoodLevel] = useState<MoodLevel>(initial?.moodLevel ?? 3)
   const [response, setResponse] = useState(initial?.response ?? '')
   const [entryDate] = useState(initial?.entryDate ?? initialDate ?? todayLocalDate())
   const [busy, setBusy] = useState(false)
@@ -30,7 +28,8 @@ export function MoodRecordModal({ initial, initialDate, colorTheme, onClose, onS
     if (!content.trim()) { setError('先写点什么再保存吧～'); return }
     setBusy(true); setError(''); setUnknownOutcome(false)
     try {
-      await onSave({ content: content.trim(), moodLevel, response: response.trim() || undefined, entryDate })
+      // 状态档位已停止采集：不提交 moodLevel，由 Application 层填充中性值。
+      await onSave({ content: content.trim(), response: response.trim() || undefined, entryDate })
       // parent closes modal on success
     } catch (e: unknown) {
       const err = e as any
@@ -61,13 +60,13 @@ export function MoodRecordModal({ initial, initialDate, colorTheme, onClose, onS
   }, [])
 
   return (
-    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label={initial ? '编辑情绪记录' : '新建情绪记录'}>
+    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label={initial ? '编辑事件' : '记录今日事件'}>
       <View className='mood-modal-card'>
         <View className='mood-modal-heading'>
           <View className='mood-modal-heading-main'>
-            <View className='mood-modal-heading-icon' aria-hidden='true'><Text className='mood-modal-heading-emoji'>💗</Text></View>
+            <View className='mood-modal-heading-icon' aria-hidden='true'><Text className='mood-modal-heading-emoji'>📌</Text></View>
             <View className='mood-modal-title-wrap'>
-              <Text className='mood-modal-title'>{initial ? '编辑情绪记录' : '新建情绪记录'}</Text>
+              <Text className='mood-modal-title'>{initial ? '编辑事件' : '记录今日事件'}</Text>
               <Text className='mood-date-readonly'>{formatLocalDateCN(entryDate)}</Text>
             </View>
           </View>
@@ -77,22 +76,6 @@ export function MoodRecordModal({ initial, initialDate, colorTheme, onClose, onS
         <View className='mood-field'>
           <Text className='mood-field-label'>发生了什么</Text>
           <Textarea className='mood-field-textarea' value={content} placeholder='简单记录一件小事～' onInput={e => { setContent(e.detail.value); setDirty(true) }} />
-        </View>
-
-        <View className='mood-field'>
-          <Text className='mood-field-label'>今天状态怎么样？</Text>
-          <View className='mood-pill-row'>
-            {moodLevelConfigs.map(config => (
-              <View
-                key={config.level}
-                className={'mood-pill' + (moodLevel === config.level ? ' selected' : '')}
-                style={{ background: palette[config.level] }}
-                onClick={() => { setMoodLevel(config.level); setDirty(true) }}
-              >
-                <Text>{moodLevelLabels[config.level]}</Text>
-              </View>
-            ))}
-          </View>
         </View>
 
         <View className='mood-field'>

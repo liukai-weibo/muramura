@@ -169,6 +169,28 @@ describe.runIf(mysqlIntegrationEnabled)('mood entries MySQL repository', () => {
     })
   })
 
+  it('defaults the omitted status level to the neutral value', async () => {
+    await withTemporaryDatabase(async ({ app, migrator }) => {
+      const directory = createMigrationDirectory()
+      await runMySqlMigrations(migrator, directory)
+      await migrator.query("INSERT INTO users(id, username, password_hash, created_at, updated_at) VALUES (?, ?, 'scrypt$redacted', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", ['owner-default', 'owner-default'])
+
+      const repository = new MySqlMoodEntryRepository(app, createScope('owner-default'))
+      const service = new MoodEntryApplicationService(repository)
+
+      // 状态档位已停止采集：省略 moodLevel 时必须写入中性值，且不得报错。
+      const created = await service.create({ content: '省略档位的事件' })
+      expect(created.moodLevel).toBe(3)
+
+      // 显式传入的合法档位仍然被尊重（旧客户端 / 备份恢复路径）。
+      const explicit = await service.create({ content: '显式档位', moodLevel: 5 })
+      expect(explicit.moodLevel).toBe(5)
+
+      // 越界值依旧被拒绝，避免脏数据写入。
+      await expect(service.create({ content: '越界', moodLevel: 9 as never })).rejects.toMatchObject({ code: 'MOOD_ENTRY_INVALID' })
+    })
+  })
+
   it('degrades corrupt tag JSON to an empty list', async () => {
     await withTemporaryDatabase(async ({ app, migrator }) => {
       const directory = createMigrationDirectory()

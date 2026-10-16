@@ -4,12 +4,9 @@ import type { MoodEntry, MoodLevel } from '@knowledge-base/contracts'
 import type { ColorTheme } from '../../display-effect-preference'
 import {
   buildMonthDays,
-  compositeMoodLevel,
   formatLocalDate,
-  moodLevelColors,
-  moodLevelColorsDark,
-  moodLevelConfigs,
-  moodLevelLabels,
+  moodEventChecks,
+  moodEventTier,
 } from './mood-levels'
 
 const weekdays = ['一', '二', '三', '四', '五', '六', '日']
@@ -28,6 +25,7 @@ interface MoodCalendarProps {
   onMonthChange: (year: number, month: number) => void
 }
 
+/** 按日期聚合当天事件条数（状态档位已停止采集，不再参与着色）。 */
 function useEntriesByDate(entries: MoodEntry[], filterLevel: MoodLevel | 'all') {
   return useMemo(() => {
     const map = new Map<string, MoodEntry[]>()
@@ -41,8 +39,7 @@ function useEntriesByDate(entries: MoodEntry[], filterLevel: MoodLevel | 'all') 
   }, [entries, filterLevel])
 }
 
-export function MoodCalendar({ mode, year, month, entries, selectedDate, filterLevel, colorTheme, onSelectDate, onMonthChange }: MoodCalendarProps) {
-  const palette = colorTheme === 'dark' ? moodLevelColorsDark : moodLevelColors
+export function MoodCalendar({ mode, year, month, entries, selectedDate, filterLevel, onSelectDate, onMonthChange }: MoodCalendarProps) {
   const byDate = useEntriesByDate(entries, filterLevel)
 
   const changeMonth = (delta: number) => {
@@ -62,26 +59,30 @@ export function MoodCalendar({ mode, year, month, entries, selectedDate, filterL
       }
       const dateStr = formatLocalDate(targetYear, targetMonth, cell.day)
       const dayEntries = byDate.get(dateStr) ?? []
-      const composite = dayEntries.length > 0 ? compositeMoodLevel(dayEntries.map(entry => entry.moodLevel)) : undefined
+      const tier = moodEventTier(dayEntries.length)
+      const checks = moodEventChecks(tier)
       const isSelected = selectedDate === dateStr
       let className = mini ? 'mood-calendar-cell mood-year-cell' : 'mood-calendar-cell'
-      if (dayEntries.length === 0) className += ' empty-day'
-      else if (composite) className += ' has-record'
+      className += ` mood-tier-${tier}`
       if (isSelected) className += ' selected'
-      const tooltip = composite
-        ? `${targetMonth}月${cell.day}日 · 综合情绪：${moodLevelLabels[composite]} · 共${dayEntries.length}条记录`
+      const tooltip = checks > 0
+        ? `${targetMonth}月${cell.day}日 · 共${dayEntries.length}条事件`
         : undefined
       return (
         <View
           key={index}
           className={className}
-          style={composite ? { background: palette[composite] } : undefined}
           onClick={() => {
             if (selectedDate === dateStr) onSelectDate(undefined)
             else onSelectDate(dateStr)
           }}
         >
           <Text>{cell.day}</Text>
+          {checks > 0 && (
+            <View className={mini ? 'mood-cell-checks mood-cell-checks-mini' : 'mood-cell-checks'} aria-hidden='true'>
+              {Array.from({ length: checks }, (_, i) => <View key={i} className='mood-cell-check' />)}
+            </View>
+          )}
           {tooltip && <View className='mood-calendar-tooltip'><Text>{tooltip}</Text></View>}
         </View>
       )
@@ -113,12 +114,10 @@ export function MoodCalendar({ mode, year, month, entries, selectedDate, filterL
           ))}
         </View>
         <View className='mood-legend'>
-          {moodLevelConfigs.map(config => (
-            <View key={config.level} className='mood-legend-item'>
-              <View className='mood-legend-swatch' style={{ background: palette[config.level] }} />
-              <Text>{config.label}</Text>
-            </View>
-          ))}
+          <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-none' /><Text>未记录</Text></View>
+          <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-one' /><Text>1–2 条</Text></View>
+          <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-two' /><Text>3–10 条</Text></View>
+          <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-three' /><Text>11 条以上</Text></View>
         </View>
       </View>
     )
@@ -138,12 +137,10 @@ export function MoodCalendar({ mode, year, month, entries, selectedDate, filterL
         {renderCells(year, month, false)}
       </View>
       <View className='mood-legend'>
-        {moodLevelConfigs.map(config => (
-          <View key={config.level} className='mood-legend-item'>
-            <View className='mood-legend-swatch' style={{ background: palette[config.level] }} />
-            <Text>{config.label}</Text>
-          </View>
-        ))}
+        <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-none' /><Text>未记录</Text></View>
+        <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-one' /><Text>1–2 条</Text></View>
+        <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-two' /><Text>3–10 条</Text></View>
+        <View className='mood-legend-item'><View className='mood-legend-swatch mood-legend-swatch-three' /><Text>11 条以上</Text></View>
       </View>
     </View>
   )

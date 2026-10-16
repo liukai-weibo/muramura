@@ -1,55 +1,31 @@
-import type { MoodLevel } from '@knowledge-base/contracts'
-
-export interface MoodLevelConfig {
-  level: MoodLevel
-  label: string
-  score: number
-  color: string
-  colorDark: string
-}
-
-// 五档情绪统一采用暖奶油低饱和色系：弹窗胶囊、日历热力图、图例共用一个色板。
-// 1（状态偏低）→5（充实畅快）由冷灰过渡到柔粉。
-export const moodLevelConfigs: MoodLevelConfig[] = [
-  { level: 1, label: '状态偏低', score: 1, color: '#E2E8F0', colorDark: '#46506A' },
-  { level: 2, label: '有点疲惫', score: 2, color: '#E5E1D8', colorDark: '#55534B' },
-  { level: 3, label: '平静如常', score: 3, color: '#F5F1E8', colorDark: '#574F45' },
-  { level: 4, label: '轻松愉悦', score: 4, color: '#F8D7DA', colorDark: '#6B4A50' },
-  { level: 5, label: '充实畅快', score: 5, color: '#F5B7B1', colorDark: '#7D5248' },
-]
-
-export const moodLevelColors: Record<MoodLevel, string> = {
-  1: '#E2E8F0',
-  2: '#E5E1D8',
-  3: '#F5F1E8',
-  4: '#F8D7DA',
-  5: '#F5B7B1',
-}
-
-export const moodLevelColorsDark: Record<MoodLevel, string> = {
-  1: '#46506A',
-  2: '#55534B',
-  3: '#574F45',
-  4: '#6B4A50',
-  5: '#7D5248',
-}
-
-export const moodLevelLabels: Record<MoodLevel, string> = {
-  1: '状态偏低',
-  2: '有点疲惫',
-  3: '平静如常',
-  4: '轻松愉悦',
-  5: '充实畅快',
-}
+/**
+ * 事件日历的分档逻辑。
+ *
+ * 状态档位（原五档「今天状态怎么样」）已停止采集：
+ * 弹窗不再询问，写入固定为中性值，五档标签与色板一并移除。
+ * 日历改为按「当天事件条数」着色，复用三餐日历的对勾体系。
+ */
 
 /**
- * 综合分 = 四舍五入取整数平均，clamp 1-5；空数组返回 undefined。
+ * 日历按「当天事件条数」着色，不再按状态档位。
+ * 三档对勾以绿色实底表达积累程度：
+ *   0 条      → none（保持空白）
+ *   1–2 条    → one（✓）
+ *   3–10 条   → two（✓✓）
+ *   11 条及以上 → three（✓✓✓）
  */
-export function compositeMoodLevel(levels: MoodLevel[]): MoodLevel | undefined {
-  if (levels.length === 0) return undefined
-  const sum = levels.reduce((a, b) => a + b, 0)
-  const avg = Math.round(sum / levels.length)
-  return Math.max(1, Math.min(5, avg)) as MoodLevel
+export type MoodEventTier = 'none' | 'one' | 'two' | 'three'
+
+export function moodEventTier(entryCount: number): MoodEventTier {
+  if (entryCount <= 0) return 'none'
+  if (entryCount <= 2) return 'one'
+  if (entryCount <= 10) return 'two'
+  return 'three'
+}
+
+/** 与 tier 对应的对勾数量，供渲染层复用避免重复判断。 */
+export function moodEventChecks(tier: MoodEventTier): number {
+  return tier === 'none' ? 0 : tier === 'one' ? 1 : tier === 'two' ? 2 : 3
 }
 
 export { buildMonthDays, buildMonthGrid, formatLocalDate, todayLocalDate } from '../calendar-utils'

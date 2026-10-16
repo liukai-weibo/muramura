@@ -7,7 +7,8 @@ export interface DailyNote {
   updatedAt: string
 }
 
-export const dailyNoteAiCommands = ['emotion', 'daily_actions', 'improve_writing', 'extract_todos', 'resistance'] as const
+// 'emotion'（梳理今日情绪）已下线：状态信息不再采集，也不再注入 AI 上下文。
+export const dailyNoteAiCommands = ['daily_actions', 'improve_writing', 'extract_todos', 'resistance'] as const
 export type DailyNoteAiCommand = (typeof dailyNoteAiCommands)[number]
 export interface DailyNoteTodoCandidate { id: string; title: string; content?: string }
 export interface DailyNoteActionFact { id: string; title: string; content: string; createdAt: string; statusEvents: Array<{ toStatus: string; createdAt: string }> }
