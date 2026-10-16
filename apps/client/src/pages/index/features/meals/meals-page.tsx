@@ -82,7 +82,6 @@ export function MealsPage() {
       return (
         <View key={index} className={'meals-cell meals-cell-' + state} onClick={() => setOpenDate(dateStr)}>
           <Text className='meals-cell-day'>{cell.day}</Text>
-          {state === 'complete' && <View className='meals-cell-check' aria-hidden='true' />}
         </View>
       )
     })
@@ -162,7 +161,7 @@ export function MealsPage() {
         <View className='meals-empty'><Text>这个月还没有三餐记录，点上面「记录今天三餐」开始吧。</Text></View>
       )}
 
-      {view === 'year' && !loading && !error && (
+      {!loading && !error && (
         <View className='meals-legend'>
           <View className='meals-legend-item'>
             <View className='meals-legend-swatch meals-legend-swatch-empty' />

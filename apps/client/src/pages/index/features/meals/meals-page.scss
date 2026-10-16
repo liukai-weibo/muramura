@@ -68,8 +68,8 @@
 .meals-cell-placeholder { background: transparent; border-color: transparent; cursor: default; }
 .meals-cell-day { font-size: 11px; color: var(--cream-body); }
 
-/* 双色体系：祛掉逐餐圆点，改由整格底色表达完成度。
-   未记满用莫兰迪橙黄渐变 + 内高光模拟毛玻璃；三餐全记用白底绿勾。
+/* 双色体系：祛掉逐餐圆点，改由整格底色表达完成度，月视图与年视图完全对标。
+   未记满用莫兰迪橙黄渐变 + 内高光模拟毛玻璃；三餐全记用雾绿实底。
    不使用 backdrop-filter：366 格开实时模糊会明显掉帧，且日历区域已全局关闭毛玻璃。 */
 .meals-cell-partial {
   border-color: rgba(120, 90, 60, .18);
@@ -81,19 +81,14 @@
   border-color: rgba(120, 90, 60, .3);
   background-image: linear-gradient(120deg, var(--meal-partial-start) 0%, var(--meal-partial-end) 100%);
 }
-.meals-cell-complete { border-color: rgba(127, 168, 138, .42); }
-.meals-cell-complete:hover { border-color: rgba(127, 168, 138, .62); background: var(--cream-surface); }
-
-/* 对勾用纯 CSS 边框绘制：emoji 色彩不可控且跨系统渲染不一致。 */
-.meals-cell-check {
-  width: 13px; height: 7px;
-  margin: auto 0 2px 2px;
-  border-left: 2px solid var(--meal-done);
-  border-bottom: 2px solid var(--meal-done);
-  border-radius: 1px;
-  transform: rotate(-45deg);
-  box-sizing: border-box;
+.meals-cell-complete {
+  border-color: rgba(127, 168, 138, .42);
+  background: var(--meal-done);
+  color: var(--meal-done-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28);
 }
+.meals-cell-complete .meals-cell-day { color: var(--meal-done-ink); }
+.meals-cell-complete:hover { border-color: rgba(127, 168, 138, .62); background: var(--meal-done); }
 
 .meals-year-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .meals-year-grid {
