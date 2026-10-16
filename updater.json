@@ -1,11 +1,11 @@
 {
-    "version": "0.1.45",
-    "notes": "「今日情绪」改为「今日事件」：首页卡片、工作台页签、记录与编辑弹窗、详情弹层统一为事件语义。停用五档状态采集，弹窗不再询问「今天状态怎么样」，只保留事件内容与补充感受，历史记录完整保留。关闭 AI 对状态信息的读取：知识总览、AI 提示词、小记 AI 与今日饮食推荐均不再消费情绪数据。事件日历改为按当天事件条数着色：未记录保持空白，1-2 条一个对勾，3-10 条两个对勾，11 条以上三个对勾。三餐月视图与年视图统一为双色体系，三餐全记的月视图改为雾绿实底，不再使用对勾。修复三餐「清空当天记录」不生效：删光当天内容后保存会真正删除，且不影响其他日期与他人记录。",
-    "pub_date": "2026-10-16T18:38:28.000Z",
+    "version": "0.1.46",
+    "notes": "修正事件日历的视图切换顺序：月视图在前、年视图在后，与三餐日历保持一致。",
+    "pub_date": "2026-10-16T21:40:35.000Z",
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2VqSjZxaG4rcW0vcW1reFNqeFpkS1FXNlNUVDVSNSt6TWpSdHlFVDlKaGhoSDJrS3gwYlZaNDBFcHcxK2VSSlo5eXQyMm9xNzZqR3AyYzA1L2d5bndJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTc1NzQ1CWZpbGU6TXVyYW11cmFfMC4xLjQ1X3g2NC1zZXR1cC5leGUKSFZ1M3AzUDhzV1EzNjNpTDRkalpaRTZxT3A5aWR2Qko4QXppZnFwV3Y4NUhWTytHZWRsTTJ2aXZYdkp4WXJxcFArY1dvVjJ3eHkvUXYrSGY1b0E1Q2c9PQo=",
-            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.45/Muramura_0.1.45_x64-setup.exe"
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1d6UDlZV24raXIxM1d2WU5SUlQyWHkzRnVqS2llampRSkppQ2xtWk9Qc2dCMkMxREduUlhoYVlHcjYvb2NYckJOQ3AzcGkycUduQ2RWY0hrRVVZTmdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTg2ODA0CWZpbGU6TXVyYW11cmFfMC4xLjQ2X3g2NC1zZXR1cC5leGUKY3dCRmtMa2VRdXZxeExZcVRJUlVvVVBIMTUrYlAwQ1pOS2F6UzYzcUE2Njc2UHkrRmhrL3lSMFcxanJqY2J5ZjU2MklxaXA1NmZXVjdDVXErYzNKRHc9PQo=",
+            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.46/Muramura_0.1.46_x64-setup.exe"
         }
     }
 }
