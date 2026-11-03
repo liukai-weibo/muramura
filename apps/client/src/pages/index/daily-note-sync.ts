@@ -12,13 +12,20 @@
 const CHANNEL_NAME = 'marumaru.daily-note-sync'
 const STORAGE_KEY = 'marumaru.daily-note-sync-at'
 type DailyNoteChangeCallback = () => void
+type DailyNoteChangeDetail = { origin?: string }
 
-export function notifyDailyNoteChanged(): void {
+/**
+ * 手记页自己的来源标记：页面订阅这个通道是为了跟进「别处」的写入，
+ * 自己刚保存完的通知不能再触发一次整体重载，否则正在打字的那一行会被重建、光标掉到 body。
+ */
+export const DAILY_NOTE_PAGE_ORIGIN = 'daily-note-page'
+
+export function notifyDailyNoteChanged(origin?: string): void {
   if (typeof window === 'undefined') return
-  window.dispatchEvent(new CustomEvent('daily-note-content-changed'))
+  window.dispatchEvent(new CustomEvent<DailyNoteChangeDetail>('daily-note-content-changed', { detail: { origin } }))
   try {
     const channel = new BroadcastChannel(CHANNEL_NAME)
-    channel.postMessage(Date.now())
+    channel.postMessage({ at: Date.now(), origin } satisfies DailyNoteChangeDetail & { at: number })
     channel.close()
   } catch { /* BroadcastChannel 不可用时走 storage 回退 */ }
   try {
@@ -29,11 +36,15 @@ export function notifyDailyNoteChanged(): void {
   } catch { /* 受限存储（隐私模式等）下忽略 */ }
 }
 
-export function subscribeDailyNoteChanged(onChanged: DailyNoteChangeCallback): () => void {
+export function subscribeDailyNoteChanged(onChanged: DailyNoteChangeCallback, origin?: string): () => void {
   if (typeof window === 'undefined') return () => undefined
   activeSubscribers += 1
   ensureCrossOriginPolling()
-  const handler = () => onChanged()
+  const isSelf = (value?: string) => origin !== undefined && value === origin
+  const handler = (event: Event) => {
+    if (isSelf((event as CustomEvent<DailyNoteChangeDetail>).detail?.origin)) return
+    onChanged()
+  }
   window.addEventListener('daily-note-content-changed', handler)
 
   let channel: BroadcastChannel | undefined
@@ -46,7 +57,11 @@ export function subscribeDailyNoteChanged(onChanged: DailyNoteChangeCallback): (
   }
   try {
     channel = new BroadcastChannel(CHANNEL_NAME)
-    channel.onmessage = guard
+    channel.onmessage = (event: MessageEvent<DailyNoteChangeDetail | number>) => {
+      const detail = typeof event.data === 'object' && event.data !== null ? event.data : undefined
+      if (isSelf(detail?.origin)) return
+      guard()
+    }
   } catch { /* BroadcastChannel 不可用时忽略 */ }
 
   const onStorage = (event: StorageEvent) => {
@@ -79,7 +94,9 @@ export function subscribeDailyNoteChanged(onChanged: DailyNoteChangeCallback): (
  * 本地 CustomEvent，由各订阅者按既有逻辑重新拉取。单一共享定时器，避免每个组件各自轮询。
  */
 let activeSubscribers = 0
-let pollTimer: ReturnType<typeof setInterval> | undefined
+// 用 window.setInterval 的返回值（浏览器里是 number），不写 ReturnType<typeof setInterval>，
+// 否则在带 Node 类型的工程里会被推成 Timeout 而赋不上值。
+let pollTimer: number | undefined
 const POLL_INTERVAL_MS = 10_000
 
 function ensureCrossOriginPolling(): void {

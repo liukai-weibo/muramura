@@ -1,13 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
-import type { DailyNote, Item } from '@knowledge-base/contracts'
+import type { DailyNote } from '@knowledge-base/contracts'
+import { dailyNoteClock } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
-import { notifyDailyNoteChanged, subscribeDailyNoteChanged } from '../../daily-note-sync'
+import { DAILY_NOTE_PAGE_ORIGIN, notifyDailyNoteChanged, subscribeDailyNoteChanged } from '../../daily-note-sync'
 import { isTauriDesktop } from '../../../../desktop/desktop-native-bridge'
-import { DailyNoteAiPanel } from './daily-note-ai-panel'
+import { EntryTextView } from './entry-text-view'
+import { EntryTimelineView } from './entry-timeline-view'
+import { useDailyNoteEntries } from './use-daily-note-entries'
+import { shanghaiDate, shanghaiDateOffset } from './daily-note-date'
 
-export interface DailyNotesPageProps { onFlushReady: (flush: () => Promise<boolean>) => void; onItemsChanged?: () => Promise<void>; onItemCreated?: (item: Item) => void }
-const shanghaiDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+/** 右侧 AI 复盘面板已隐藏，宽度让给时间轴；面板组件本身保留，随时能接回来。 */
+export interface DailyNotesPageProps { onFlushReady: (flush: () => Promise<boolean>) => void }
+
+type NoteView = 'text' | 'timeline'
+/** v2：默认改成时间轴，旧键里残留的「文本」偏好不会把用户钉在文本视图。 */
+const viewStorageKey = 'marumaru.daily-note-view.v2'
+const readView = (): NoteView => {
+  try { return window.localStorage.getItem(viewStorageKey) === 'text' ? 'text' : 'timeline' } catch { return 'timeline' }
+}
+
 const visualDailyNoteEmojis = ['🌱', '☀️', '🌙', '🍵', '✨', '🌿', '🫧', '🪴', '📝', '🎈', '🌼', '🍀']
 const dailyNoteStatusEmojiStorageKey = 'marumaru.daily-note-status-emoji'
 const readDailyStatusEmoji = (date: string) => {
@@ -28,41 +40,59 @@ const dailyNoteEmoji = (date: string) => {
   return dailyNoteEmojis[hash % dailyNoteEmojis.length]!
 }
 
-export function DailyNotesPage({ onFlushReady, onItemsChanged, onItemCreated }: DailyNotesPageProps) {
-  const [notes, setNotes] = useState<DailyNote[]>([]); const [selectedId, setSelectedId] = useState<string>(); const [draft, setDraft] = useState('')
-  const [saving, setSaving] = useState(false); const [saveError, setSaveError] = useState(''); const [crossedDate, setCrossedDate] = useState<string>()
+export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
+  const controller = useDailyNoteEntries()
+  const {
+    notes, current, selectedId, noteDate, entries, rows, loading, saveState, saveError, notice, dirty,
+    setNotice, selectNote, openByDate, openToday, reloadNote, refreshList,
+    setRowContent, setRowTime, insertRowAfter, removeRow, flushRow, flush,
+    createEntryAt, moveEntry, clearAll,
+  } = controller
+
+  const [view, setView] = useState<NoteView>(readView)
+  const [focusEntryId, setFocusEntryId] = useState<string>()
+  const [activeEntryId, setActiveEntryId] = useState<string>()
   const [dailyStatusEmoji, setDailyStatusEmoji] = useState(() => readDailyStatusEmoji(shanghaiDate()))
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ recent: true, archive: true })
-  const pending = useRef(false); const timer = useRef<ReturnType<typeof setTimeout>>(); const selected = useRef<DailyNote>(); const draftRef = useRef(''); const abortAiRef = useRef<() => void>(() => undefined); const handledKeyEvent = useRef<Event>()
-  const registerAiAbort = useCallback((abort: () => void) => { abortAiRef.current = abort }, [])
-  const current = notes.find(note => note.id === selectedId)
-  useEffect(() => { selected.current = current }, [current]); useEffect(() => { draftRef.current = draft }, [draft])
+  // 侧栏是回到旧日子的唯一入口（另有「补记」直接跳日期），所以「近 7 天」默认展开，
+  // 只把更早的归档收起来。
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ archive: true })
+  const [crossedDate, setCrossedDate] = useState<string>()
+  const selected = useRef<DailyNote>()
+  const dirtyRef = useRef(false)
+  const selectedIdRef = useRef<string>()
+  useEffect(() => { selected.current = current }, [current])
+  useEffect(() => { dirtyRef.current = dirty }, [dirty])
+  useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
+
   useEffect(() => {
     const sync = () => setDailyStatusEmoji(readDailyStatusEmoji(shanghaiDate()))
     const id = window.setInterval(sync, 60_000)
     return () => window.clearInterval(id)
   }, [])
-  const refresh = async () => { const [today, all] = await Promise.all([apiClient.getTodayDailyNote(), apiClient.listDailyNotes()]); setNotes(all.some(note => note.id === today.id) ? all : [today, ...all]); setSelectedId(id => id ?? today.id); if (!selectedId || selectedId === today.id) setDraft(today.content) }
-  useEffect(() => { void refresh().catch(() => setSaveError('暂时无法读取小记，请检查网络后重试')) }, [])
+
+  // 只跟进「别处」的写入（手机端、首页快捷追加、其他窗口）。自己保存产生的通知带同源标记，
+  // 订阅时按标记过滤掉；否则每保存一次就会整篇重建，正在打字的行被换掉、光标掉到 body。
   useEffect(() => {
     const syncExternalChange = () => {
-      if (pending.current) return
-      const selectedId = selected.current?.id
-      if (!selectedId) return
-      void apiClient.listDailyNotes().then(all => {
-        const remote = all.find(note => note.id === selectedId)
-        if (!remote || pending.current || selected.current?.id !== selectedId) return
-        if (!remote.content.trim() && selected.current.content.trim()) return
-        setNotes(all)
-        setDraft(remote.content)
-        draftRef.current = remote.content
-      }).catch(() => undefined)
+      if (dirtyRef.current) return
+      // 光标正在手记里时不打断输入，切走或下一次进入时会重新对齐。
+      const active = document.activeElement
+      if (active && active.closest?.('.daily-note-text-view, .daily-note-time-popover, .daily-note-timeline-composer')) return
+      const id = selectedIdRef.current
+      if (!id) return
+      void refreshList()
+        .then(() => reloadNote(id))
+        .catch(() => undefined)
     }
-    const stop = subscribeDailyNoteChanged(syncExternalChange)
-    return () => stop()
-  }, [])
-  const flush = useCallback(async () => { if (!pending.current || !selected.current) return true; if (timer.current) clearTimeout(timer.current); setSaving(true); setSaveError(''); try { const saved = await apiClient.updateDailyNote(selected.current.id, draftRef.current); pending.current = false; setNotes(list => list.map(note => note.id === saved.id ? saved : note)); if (saved.content.trim()) notifyDailyNoteChanged(); return true } catch { setSaveError('自动保存失败，内容仍保留在当前编辑器中'); return false } finally { setSaving(false) } }, [])
-  useEffect(() => { onFlushReady(flush); return () => { void flush() } }, [onFlushReady])
+    return subscribeDailyNoteChanged(syncExternalChange, DAILY_NOTE_PAGE_ORIGIN)
+  }, [refreshList, reloadNote])
+
+  // 父组件传进来的是内联箭头函数，identity 每次重渲染都会变；若写进依赖，
+  // effect 会反复重跑并用 cleanup 里的 flush 关掉正在编辑的行。注册只做一次。
+  const onFlushReadyRef = useRef(onFlushReady)
+  useEffect(() => { onFlushReadyRef.current = onFlushReady })
+  useEffect(() => { onFlushReadyRef.current(flush) }, [flush])
+
   useEffect(() => {
     if (!isTauriDesktop()) return
     let stopped = false; const unlistens: Array<() => void> = []
@@ -71,59 +101,221 @@ export function DailyNotesPage({ onFlushReady, onItemsChanged, onItemCreated }: 
       if (stopped) stops.forEach(stop => stop()); else unlistens.push(...stops)
     })
     return () => { stopped = true; unlistens.forEach(stop => stop()) }
+  }, [flush])
+
+  useEffect(() => {
+    const check = () => {
+      const today = shanghaiDate()
+      if (selected.current && selected.current.entryDate !== today) setCrossedDate(today)
+    }
+    const id = window.setInterval(check, 60_000)
+    document.addEventListener('visibilitychange', check)
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', check) }
   }, [])
-  useEffect(() => { const check = () => { const today = shanghaiDate(); if (selected.current && selected.current.entryDate !== today) setCrossedDate(today) }; const id = window.setInterval(check, 60_000); document.addEventListener('visibilitychange', check); return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', check) } }, [])
-  const edit = (value: string) => { setDraft(value); draftRef.current = value; pending.current = true; if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => { void flush() }, 2000) }
-  const choose = async (note: DailyNote) => { abortAiRef.current(); if (!(await flush())) return; setSelectedId(note.id); setDraft(note.content) }
-  const openToday = async () => { abortAiRef.current(); if (!(await flush())) return; const today = await apiClient.getTodayDailyNote(); setNotes(list => [today, ...list.filter(note => note.id !== today.id)]); setSelectedId(today.id); setDraft(today.content); setCrossedDate(undefined) }
-  const appendAiResult = async (content: string) => { const next = draftRef.current.trim() ? `${draftRef.current}\n\n${content}` : content; draftRef.current = next; setDraft(next); pending.current = true; return flush() }
-  const replaceAiResult = async (content: string) => { if (!window.confirm('替换会覆盖当前正文。是否继续？')) return false; draftRef.current = content; setDraft(content); pending.current = true; return flush() }
-  const retrySave = () => { pending.current = true; void flush() }
-  const exportNote = () => { const blob = new Blob([draftRef.current], { type: 'text/markdown;charset=utf-8' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `daily-note-${current?.entryDate ?? shanghaiDate()}.md`; anchor.click(); URL.revokeObjectURL(url) }
-  const clearNote = () => { if (!window.confirm('清空全文后会自动保存，是否继续？')) return; edit('') }
-  const convertMarkdown = () => {
-    const source = draftRef.current
-    if (!source.trim() || !window.confirm('将整理当前正文的 Markdown 格式，不会删除内容。是否继续？')) return
-    const lines: string[] = []
-    for (const rawLine of source.split(/\r?\n/)) {
-      const line = rawLine.trim()
-      if (!line && lines[lines.length - 1] === '') continue
-      lines.push(line)
-    }
-    while (lines[0] === '') lines.shift()
-    while (lines[lines.length - 1] === '') lines.pop()
-    const converted = lines.join('\n')
-    if (converted !== source) edit(converted)
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(''), 4000)
+    return () => window.clearTimeout(timer)
+  }, [notice, setNotice])
+
+  const switchView = async (next: NoteView) => {
+    if (next === view) return
+    if (!(await flush())) return
+    setView(next)
+    try { window.localStorage.setItem(viewStorageKey, next) } catch { /* 记住视图偏好失败不影响使用 */ }
+    // 两个视图共用一份条目：切换时按服务端结果重建文本行，
+    // 否则在时间轴上补录／拖拽后的改动不会出现在文本视图里。
+    if (selectedId) await reloadNote(selectedId)
+    if (next === 'timeline') setFocusEntryId(undefined)
   }
-  const handleTab = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (handledKeyEvent.current === event.nativeEvent) return
-    handledKeyEvent.current = event.nativeEvent
-    if (event.nativeEvent.isComposing) return
-    const target = event.currentTarget
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      event.stopPropagation()
-      const start = target.selectionStart
-      const end = target.selectionEnd
-      const next = draftRef.current.slice(0, start) + '\n' + draftRef.current.slice(end)
-      edit(next)
-      requestAnimationFrame(() => { target.selectionStart = start + 1; target.selectionEnd = start + 1 })
-      return
-    }
-    if (event.key !== 'Tab') return
-    event.preventDefault()
-    event.stopPropagation()
-    const start = target.selectionStart; const end = target.selectionEnd; const before = draftRef.current.slice(0, start); const lineStart = before.lastIndexOf('\n') + 1; const lineEnd = draftRef.current.indexOf('\n', end); const actualEnd = lineEnd < 0 ? draftRef.current.length : lineEnd; const line = draftRef.current.slice(lineStart, actualEnd)
-    const match = line.match(/^(\s*)(#{1,6} |[-*] |(\d+)\. )/)
-    let replacement = '  '; let cursor = start + replacement.length
-    if (match) { const marker = match[2]!; const nextMarker = marker.startsWith('#') ? marker : marker.startsWith('-') || marker.startsWith('*') ? marker : `${Number(match[3]) + 1}. `; replacement = `\n${match[1]}${nextMarker}`; cursor = start + replacement.length }
-    const next = draftRef.current.slice(0, end) + replacement + draftRef.current.slice(end); edit(next); requestAnimationFrame(() => { target.selectionStart = cursor; target.selectionEnd = cursor })
+
+  const choose = async (note: DailyNote) => {
+    setFocusEntryId(undefined)
+    setActiveEntryId(undefined)
+    if (!(await selectNote(note.id))) return
+    setCrossedDate(undefined)
   }
-  const groups = useMemo(() => ({ today: notes.filter(note => note.entryDate === shanghaiDate()), yesterday: notes.filter(note => note.entryDate !== shanghaiDate()).slice(0, 1), recent: notes.filter(note => note.entryDate !== shanghaiDate()).slice(1, 7), archive: notes.filter(note => note.entryDate !== shanghaiDate()).slice(7) }), [notes])
-  const groupsConfig: Array<[string, string, DailyNote[]]> = [['today', '今天', groups.today], ['yesterday', '昨日', groups.yesterday], ['recent', '近 7 天', groups.recent], ['archive', '归档笔记', groups.archive]]
+
+  const goToday = async () => {
+    if (!(await openToday())) return
+    setCrossedDate(undefined)
+    setFocusEntryId(undefined)
+  }
+
+  /** 回车拆行：前半段留在原行，后半段成为新的一条，两条共用同一个时间。 */
+  const handleSplit = (key: string, before: string, after: string) => {
+    // 新行直接带后半段内容，不必再写一次，否则空行会被标成「待保存」闪一下。
+    const created = insertRowAfter(key, { content: after })
+    setRowContent(key, before)
+    return created
+  }
+
+  /** 退格到行首：并进上一行，当前行（如果在服务端存在）被删掉。 */
+  const handleMerge = (key: string) => {
+    const index = rows.findIndex(row => row.key === key)
+    if (index <= 0) return undefined
+    const previous = rows[index - 1]!
+    const row = rows[index]!
+    const separator = previous.content && !previous.content.endsWith('\n') ? '\n' : ''
+    const merged = `${previous.content}${separator}${row.content}`
+    setRowContent(previous.key, merged)
+    void removeRow(key)
+    return { key: previous.key, caret: merged.length }
+  }
+
+  const handleRemove = (key: string) => {
+    const row = rows.find(item => item.key === key)
+    if (!row) return
+    if (row.content.trim() && !window.confirm('删除这条记录？')) return
+    void removeRow(key)
+  }
+
+  const handleAddRow = () => insertRowAfter(rows[rows.length - 1]?.key)
+
+  const openInTextView = async (entryId: string) => {
+    setActiveEntryId(entryId)
+    setFocusEntryId(entryId)
+    if (view !== 'text') await switchView('text')
+  }
+
+  const exportNote = () => {
+    if (!current) return
+    const lines: string[] = [`# ${current.entryDate} 手记`, '']
+    for (const entry of entries) {
+      const clock = dailyNoteClock(entry.recordedAt)
+      lines.push(`## ${entry.timePrecision === 'day' ? '未定时间' : clock?.label ?? ''}`, '', entry.content, '')
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `daily-note-${current.entryDate}.md`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const clearNote = async () => {
+    if (!current || !window.confirm('清空当天的全部记录，是否继续？')) return
+    await clearAll()
+  }
+
+  /** 「Markdown 转换」在条目模型下改为规整每条的空行与行尾空白，不删内容。 */
+  const convertMarkdown = async () => {
+    if (!current || !entries.length) return
+    if (!(await flush())) return
+    const normalize = (text: string) => text.split(/\r?\n/).map(line => line.trimEnd()).filter((line, index, all) => !(line === '' && all[index - 1] === '')).join('\n').trim()
+    const changed = entries
+      .map(entry => ({ entry, content: normalize(entry.content) }))
+      .filter(item => item.content && item.content !== item.entry.content)
+    if (!changed.length || !window.confirm('将整理当天每条记录的空行，不会删除内容。是否继续？')) return
+    try {
+      for (const item of changed) await apiClient.updateDailyNoteEntry(current.id, item.entry.id, item.content)
+      await reloadNote(current.id)
+      await refreshList()
+      notifyDailyNoteChanged(DAILY_NOTE_PAGE_ORIGIN)
+    } catch {
+      // 失败时不改本地内容，等用户重试。
+    }
+  }
+
+  // 分组必须按真实日期切，不能按「列表里第几个非今天」——那会把 41 天前的笔记挂在「昨日」下。
+  const groups = useMemo(() => {
+    const today = shanghaiDate(); const yesterday = shanghaiDateOffset(-1); const weekStart = shanghaiDateOffset(-6)
+    return {
+      today: notes.filter(note => note.entryDate === today),
+      yesterday: notes.filter(note => note.entryDate === yesterday),
+      recent: notes.filter(note => note.entryDate < yesterday && note.entryDate >= weekStart),
+      archive: notes.filter(note => note.entryDate < weekStart),
+    }
+  }, [notes])
+  const groupsConfig: Array<[string, string, DailyNote[]]> = ([['today', '今天', groups.today], ['yesterday', '昨日', groups.yesterday], ['recent', '近 7 天', groups.recent], ['archive', '归档笔记', groups.archive]] as Array<[string, string, DailyNote[]]>).filter(([, , list]) => list.length > 0)
+  const isToday = noteDate === shanghaiDate()
+
   return <View className='daily-notes-page'>
-    <View className='daily-notes-sidebar'>{groupsConfig.map(([key, label, entries]) => <View key={key} className='daily-note-group'><View className='daily-note-group-heading' onClick={() => setCollapsed(value => ({ ...value, [key]: !value[key] }))}><Text>{collapsed[key] ? '▸' : '▾'} {label}</Text></View>{!collapsed[key] && entries.map(note => <View key={note.id} className={`daily-note-entry card-transition ${note.id === selectedId ? 'active' : ''}`} onClick={() => void choose(note)}><Text className='daily-note-entry-emoji' aria-hidden='true'>{dailyNoteEmoji(note.entryDate)}</Text><View><Text>{note.entryDate}{!note.content.trim() && <Text className='daily-note-empty-dot' aria-label='未记录' />}</Text><Text>{note.content.trim().slice(0, 20) || '空白小记'}</Text></View></View>)}</View>)}</View>
-    <View className='daily-notes-editor'>{crossedDate && <View className='daily-note-crossday'><Text>已跨入新的一天（{crossedDate}）</Text><Button className='control-transition' onClick={() => void openToday()}>开启今日新小记</Button></View>}<View className='daily-note-editor-header'><View><View className='daily-note-save-state'>{saving ? <Text className='is-saving'>保存中</Text> : saveError ? <><Text className='is-save-error'>保存失败</Text><Button className='control-transition' onClick={retrySave}>重试</Button></> : <><Text className='daily-note-save-emoji' aria-hidden='true'>{dailyStatusEmoji}</Text><Text>已自动保存</Text></>}</View></View><View className='daily-note-editor-actions'><Button className='control-transition' onClick={exportNote}>导出记录</Button><Button className='control-transition' onClick={clearNote}>清空全文</Button><Button className='control-transition' onClick={convertMarkdown}>Markdown 转换</Button></View></View><textarea className='daily-note-textarea' value={draft} maxLength={100000} placeholder='写下今天真实发生的事...' onInput={event => edit(event.currentTarget.value)} onKeyDown={handleTab} /></View>
-    <DailyNoteAiPanel note={current} draft={draft} onAppend={appendAiResult} onReplace={replaceAiResult} onAbortReady={registerAiAbort} onItemsChanged={onItemsChanged} onItemCreated={onItemCreated} />
+    <View className='daily-notes-sidebar'>
+      <View className='daily-note-sidebar-head'>
+        <Text className='daily-note-sidebar-title'>手记</Text>
+        <label className='daily-note-backfill' title='为还没有手记的日子补录'>
+          <Text>＋ 补记</Text>
+          <input type='date' className='daily-note-backfill-input' max={shanghaiDate()} onChange={event => { const value = event.currentTarget.value; if (value) void openByDate(value) }} />
+        </label>
+      </View>
+      {groupsConfig.map(([key, label, groupNotes]) => <View key={key} className='daily-note-group'>
+        <View className='daily-note-group-heading' onClick={() => setCollapsed(value => ({ ...value, [key]: !value[key] }))}>
+          <Text>{collapsed[key] ? '▸' : '▾'} {label}</Text>
+        </View>
+        {!collapsed[key] && groupNotes.map(note => <View key={note.id} className={`daily-note-entry card-transition ${note.id === selectedId ? 'active' : ''}`} onClick={() => void choose(note)}>
+          <Text className='daily-note-entry-emoji' aria-hidden='true'>{dailyNoteEmoji(note.entryDate)}</Text>
+          <View>
+            <Text>{note.entryDate}{!note.content.trim() && <Text className='daily-note-empty-dot' aria-label='未记录' />}</Text>
+            <Text>{note.content.trim().slice(0, 20) || '空白小记'}</Text>
+          </View>
+        </View>)}
+      </View>)}
+    </View>
+
+    <View className='daily-notes-editor'>
+      {crossedDate && <View className='daily-note-crossday'><Text>已跨入新的一天（{crossedDate}）</Text><Button className='control-transition' onClick={() => void goToday()}>开启今日新小记</Button></View>}
+      {notice && <View className='daily-note-notice'><Text>{notice}</Text></View>}
+
+      <View className='daily-note-editor-header'>
+        <View className='daily-note-save-state'>
+          {saveState === 'saving'
+            ? <Text className='is-saving'>保存中</Text>
+            : saveState === 'error' || saveError
+              ? <><Text className='is-save-error'>保存失败</Text><Button className='control-transition' onClick={() => void flush()}>重试</Button></>
+              : dirty
+                ? <Text className='is-pending'>待保存</Text>
+                : <><Text className='daily-note-save-emoji' aria-hidden='true'>{dailyStatusEmoji}</Text><Text>已保存</Text></>}
+        </View>
+        <View className='daily-note-view-switch' role='tablist'>
+          <button type='button' role='tab' aria-selected={view === 'text'} className={`daily-note-view-tab ${view === 'text' ? 'is-active' : ''}`} onClick={() => void switchView('text')}>文本</button>
+          <button type='button' role='tab' aria-selected={view === 'timeline'} className={`daily-note-view-tab ${view === 'timeline' ? 'is-active' : ''}`} onClick={() => void switchView('timeline')}>时间轴</button>
+        </View>
+        <View className='daily-note-editor-actions'>
+          <Button className='control-transition' onClick={exportNote}>导出记录</Button>
+          <Button className='control-transition' onClick={() => void clearNote()}>清空当天</Button>
+          <Button className='control-transition' onClick={() => void convertMarkdown()}>Markdown 转换</Button>
+        </View>
+      </View>
+
+      <View className='daily-note-day-title'>
+        <Text className='daily-note-day-date'>{noteDate}</Text>
+        <Text className='daily-note-day-meta'>{entries.length ? `${entries.length} 条记录` : '还没有记录'}{!isToday && ' · 补记中'}</Text>
+      </View>
+
+      {view === 'text'
+        ? <EntryTextView
+          rows={rows}
+          isToday={isToday}
+          focusEntryId={focusEntryId}
+          onContentChange={setRowContent}
+          onTimeChange={setRowTime}
+          onSplit={handleSplit}
+          onMerge={handleMerge}
+          onRemove={handleRemove}
+          onFlushRow={key => void flushRow(key)}
+          onAddRow={handleAddRow}
+          onFocusRow={setActiveEntryId}
+        />
+        : <EntryTimelineView
+          entries={entries}
+          isToday={isToday}
+          ready={!loading && Boolean(current)}
+          entryDate={noteDate}
+          selectedEntryId={activeEntryId}
+          onSelect={setActiveEntryId}
+          onAdd={(time, content) => createEntryAt(noteDate, time, content)}
+          onMove={(entryId, time) => moveEntry(entryId, noteDate, time)}
+          onDelete={entryId => {
+            const row = rows.find(item => item.entryId === entryId)
+            if (!row) return
+            if (!window.confirm('删除这条记录？')) return
+            void removeRow(row.key)
+          }}
+          onOpenInText={entryId => void openInTextView(entryId)}
+        />}
+    </View>
   </View>
 }

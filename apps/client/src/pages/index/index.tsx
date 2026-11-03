@@ -2520,7 +2520,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
           onEditHomeAiCard={(card) => { setHomeAiCardEditor({ card }); setHomeAiCardEditorError('') }}
           onAddHomeAiCard={() => { setHomeAiCardEditor({}); setHomeAiCardEditorError('') }}
         />}
-        {dailyNotesMounted && <View className={`module-retained ${primaryModule === 'dailyNotes' ? '' : 'module-retained-hidden'}`}><DailyNotesPage onFlushReady={(flush) => { dailyNoteFlushRef.current = flush }} onItemsChanged={async () => { await refresh() }} onItemCreated={(item) => { setItems(current => current.some(entry => entry.id === item.id) ? current : [item, ...current]) }} /></View>}
+        {dailyNotesMounted && <View className={`module-retained ${primaryModule === 'dailyNotes' ? '' : 'module-retained-hidden'}`}><DailyNotesPage onFlushReady={(flush) => { dailyNoteFlushRef.current = flush }} /></View>}
         {(moodMounted && primaryModule === 'workbench' && workbenchTab === 'mood') && <View className='module-retained'><MoodPage colorTheme={colorTheme} /></View>}
         {(mealsMounted && primaryModule === 'workbench' && workbenchTab === 'meals') && <View className='module-retained'><MealsPage /></View>}
         {homeMealsOpen && <MealDayModal initialDate={todayLocalDate()} onClose={() => setHomeMealsOpen(false)} onSaved={() => { setHomeMealsOpen(false); setMessage('已记录今日三餐') }} />}

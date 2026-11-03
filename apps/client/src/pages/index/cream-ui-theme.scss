@@ -32,7 +32,7 @@
 .main-workspace-content,
 .experimental-ai-page { background: var(--cream-canvas); }
 
-.daily-notes-page { display: grid; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; box-sizing: border-box; grid-template-columns: 220px minmax(0, 1fr) 320px; background: var(--cream-canvas); color: var(--cream-body); overflow: hidden; }
+.daily-notes-page { display: grid; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; box-sizing: border-box; grid-template-columns: 232px minmax(0, 1fr); background: var(--cream-canvas); color: var(--cream-body); overflow: hidden; }
 .daily-notes-sidebar { padding: 24px 14px; border-right: 1px solid var(--cream-line); background: var(--cream-sidebar); overflow: auto; }
 .daily-note-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
 .daily-note-group > text:first-child { color: var(--cream-hint); font-size: 11px; font-weight: 700; }
@@ -40,18 +40,16 @@
 .daily-note-entry text:first-child { color: var(--cream-ink); font-size: 12px; font-weight: 700; }.daily-note-entry text:last-child { overflow: hidden; color: var(--cream-hint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.daily-note-entry.active { border-color: #ebcbd1; background: var(--cream-peach-light); }
 .daily-notes-editor { display: flex; width: 100%; min-width: 0; min-height: 0; box-sizing: border-box; padding: 28px 32px; flex-direction: column; overflow: hidden; }.daily-note-editor-header, .daily-note-crossday { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.daily-note-editor-header { flex: 0 0 auto; margin-bottom: 18px; }.daily-note-editor-header > view { display: flex; flex-direction: column; gap: 4px; }.daily-note-title { display: flex; align-items: center; gap: 8px; }.daily-note-title-icon { width: 28px; height: 28px; object-fit: contain; filter: sepia(.22) saturate(.72); }.daily-note-editor-header text:first-child { color: var(--cream-ink); font-size: 20px; font-weight: 750; }.daily-note-editor-header text:last-child { color: var(--cream-hint); font-size: 11px; }
 .daily-note-editor-header button, .daily-note-editor-header taro-button-core, .daily-note-crossday button, .daily-note-crossday taro-button-core { display: inline-flex; width: auto; min-width: 76px; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 32px; padding: 0 13px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); font-size: 12px; }.daily-note-crossday { margin-bottom: 16px; padding: 10px 12px; border: 1px solid #ead9aa; border-radius: 14px; background: #fff9e9; color: #806b38; font-size: 12px; }
-.daily-note-textarea, taro-textarea-core.daily-note-textarea, .daily-note-textarea.taro-textarea, .daily-note-preview { display: block; width: 100%; min-height: 0; flex: 1 1 auto; padding: 24px; box-sizing: border-box; border: 1px solid var(--cream-line); border-radius: 22px; background: #faf8f5; color: var(--cream-ink); font-size: 15px; line-height: 1.7; box-shadow: var(--cream-shadow); }.daily-note-textarea taro-textarea-core, taro-textarea-core.daily-note-textarea, taro-textarea-core.daily-note-textarea textarea, .daily-note-textarea textarea { display: block; height: 100% !important; min-height: 0 !important; box-sizing: border-box; }.daily-note-textarea { resize: none; outline: none; background: transparent; }.daily-note-textarea:focus-within { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .2), var(--cream-shadow); }.daily-note-preview { overflow: auto; background: transparent; }
-.daily-note-preview .experimental-ai-markdown, .daily-note-preview .experimental-ai-markdown-content, .daily-note-preview .experimental-ai-markdown-paragraph, .daily-note-preview .experimental-ai-markdown-heading, .daily-note-preview .experimental-ai-markdown-list-copy, .daily-note-preview .experimental-ai-markdown-quote { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
 .daily-notes-ai-placeholder { display: flex; flex-direction: column; gap: 7px; padding: 28px 22px; border-left: 1px solid var(--cream-line); color: var(--cream-hint); background: var(--cream-sidebar); }.daily-notes-ai-placeholder text:first-child { color: var(--cream-body); font-size: 13px; font-weight: 700; }
 .daily-notes-ai-panel { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 22px 16px; border-left: 1px solid var(--cream-line); background: var(--cream-sidebar); overflow: auto; }.daily-note-ai-heading, .daily-note-ai-result-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.daily-note-ai-heading > view { display: flex; flex-direction: column; gap: 3px; }.daily-note-ai-heading text:first-child { color: var(--cream-ink); font-size: 14px; font-weight: 750; }.daily-note-ai-heading text:last-child, .daily-note-ai-empty, .daily-note-ai-candidate > text { color: var(--cream-hint); font-size: 11px; line-height: 1.5; }.daily-note-ai-actions { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.daily-note-ai-actions button, .daily-note-ai-heading button, .daily-note-ai-result-actions button, .daily-note-ai-candidate button { min-width: 0; min-height: 30px; padding: 0 9px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); font-size: 11px; white-space: nowrap; }.daily-note-ai-result, .daily-note-ai-candidates { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--cream-line); border-radius: 14px; background: var(--cream-soft-surface); }.daily-note-ai-result { overflow: auto; }.daily-note-ai-error { color: #ad5965; font-size: 11px; }.daily-note-ai-candidate { display: flex; flex-direction: column; gap: 7px; padding: 9px; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-surface); }.daily-note-ai-candidate input { min-width: 0; border: 0; outline: 0; background: transparent; color: var(--cream-ink); font-size: 12px; font-weight: 700; }
 .review-note-prompt { position: fixed; z-index: 1001; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(43, 40, 35, .24); }.review-note-prompt-card { display: flex; width: min(380px, 100%); flex-direction: column; gap: 11px; padding: 22px; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-surface); color: var(--cream-body); box-shadow: var(--cream-shadow-modal); }.review-note-prompt-card > text:first-child { color: var(--cream-ink); font-size: 16px; font-weight: 750; }.review-note-prompt-card > text:nth-child(2) { color: var(--cream-hint); font-size: 12px; line-height: 1.6; }.review-note-prompt-card > view { display: flex; justify-content: flex-end; gap: 9px; }
-@media (max-width: 720px) { .daily-notes-page { display: block; min-height: auto; overflow: visible; }.daily-notes-sidebar, .daily-notes-ai-placeholder, .daily-notes-ai-panel { display: none; }.daily-notes-editor { display: block; padding: 18px 14px; overflow: visible; }.daily-note-textarea, .daily-note-preview { min-height: 420px; padding: 18px; } }
+@media (max-width: 720px) { .daily-notes-page { display: block; min-height: auto; overflow: visible; }.daily-notes-sidebar, .daily-notes-ai-placeholder, .daily-notes-ai-panel { display: none; }.daily-notes-editor { display: block; padding: 18px 14px; overflow: visible; } }
 
 /* Daily notes refinement: internal timeline/editor/AI proportions and writing states. */
 .daily-notes-page {
   width: 100%;
   max-width: 100%;
-  grid-template-columns: minmax(0, 18%) minmax(0, 52%) minmax(0, 30%);
+  grid-template-columns: 232px minmax(0, 1fr);
 }
 
 /* Daily-note AI panel: full-height states with a contained result scroller. */
@@ -228,7 +226,7 @@
 .daily-note-empty-editor { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; gap: 4px; padding: 10px 24px 4px; color: var(--cream-hint); text-align: center; line-height: 1.6; }
 .daily-note-empty-editor image { width: 92px; height: 92px; object-fit: contain; }
 .daily-note-save-state { display: flex; align-items: center; gap: 5px; color: var(--cream-peach); font-size: 11px; }.daily-note-save-state image { width: 18px; height: 18px; object-fit: contain; }.daily-note-save-state .is-saving { color: var(--cream-hint); }.daily-note-save-state .is-save-error { color: #b35b68; }.daily-note-save-state button { min-height: 22px; padding: 0 8px; border: 1px solid #e4bac1; border-radius: 9999px; background: var(--cream-peach-light); color: #9d4f60; font-size: 10px; }.daily-note-tool-popover { position: relative; }.daily-note-emotion-menu { position: absolute; z-index: 30; top: calc(100% + 5px); left: 0; display: flex; gap: 4px; padding: 5px; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-surface); box-shadow: var(--cream-shadow-modal); }.daily-note-emotion-menu button { min-height: 26px; padding: 0 8px; border: 0; border-radius: 9999px; background: var(--cream-peach-light); color: var(--cream-body); font-size: 10px; }.daily-note-modal-backdrop { position: fixed; z-index: 1001; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(43,40,35,.24); }.daily-note-action-modal { display: flex; width: min(480px, 100%); max-height: 75vh; flex-direction: column; gap: 8px; overflow: auto; padding: 18px; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-surface); box-shadow: var(--cream-shadow-modal); }.daily-note-action-option { padding: 10px; border: 1px solid var(--cream-line); border-radius: 12px; cursor: pointer; }.daily-note-action-option:hover { background: var(--cream-peach-light); }.daily-note-action-option text:first-child { color: var(--cream-ink); font-size: 12px; font-weight: 700; }.daily-note-action-option text:last-child { display: block; margin-top: 3px; color: var(--cream-hint); font-size: 10px; }.daily-note-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }.daily-note-modal-actions button { min-height: 32px; padding: 0 12px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); }
-@media (max-width: 1100px) and (min-width: 721px) { .daily-notes-page { grid-template-columns: minmax(0, 22%) minmax(0, 48%) minmax(0, 30%); } }
+@media (max-width: 1100px) and (min-width: 721px) { .daily-notes-page { grid-template-columns: 200px minmax(0, 1fr); } }
 @media (max-width: 720px) { .daily-notes-page { grid-template-columns: 1fr; }.daily-note-empty-editor { padding: 8px 18px 4px; } }
 
 /* Keep the daily-notes surface flush with the desktop workspace edge. */
@@ -256,7 +254,7 @@
     margin: 0;
     overflow: hidden;
     box-sizing: border-box;
-    grid-template-columns: minmax(0, 18%) minmax(0, 52%) minmax(0, 30%);
+    grid-template-columns: 232px minmax(0, 1fr);
   }
 
   .app-main > .page.daily-notes-page-shell .daily-notes-ai-panel,
@@ -1058,55 +1056,6 @@ textarea:focus,
   padding: 0 9px;
   font-size: 11px;
 }
-.daily-note-textarea,
-taro-textarea-core.daily-note-textarea,
-.daily-note-textarea.taro-textarea {
-  position: relative;
-  z-index: 1;
-  display: block;
-  width: 100%;
-  height: 100% !important;
-  min-height: 0;
-  padding: 18px;
-  border: 1px solid var(--cream-line);
-  border-radius: 22px;
-  box-shadow: var(--cream-shadow);
-}
-.daily-note-textarea taro-textarea-core,
-taro-textarea-core.daily-note-textarea,
-taro-textarea-core.daily-note-textarea textarea,
-.daily-note-textarea textarea {
-  display: block;
-  width: 100%;
-  height: 100% !important;
-  min-height: 0 !important;
-  box-sizing: border-box;
-}
-.daily-notes-editor > taro-textarea-core {
-  display: block;
-  width: 100%;
-  height: 100% !important;
-  min-height: 0 !important;
-  flex: 1 1 auto;
-  box-sizing: border-box;
-}
-.daily-notes-editor > taro-textarea-core > textarea,
-.daily-notes-editor > textarea.daily-note-textarea {
-  display: block;
-  width: 100%;
-  height: 100% !important;
-  min-height: 0 !important;
-  box-sizing: border-box;
-}
-.daily-notes-editor taro-textarea-core,
-.daily-notes-editor taro-textarea-core taro-textarea-core,
-.daily-notes-editor taro-textarea-core textarea {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  box-sizing: border-box;
-}
 .daily-note-empty-editor {
   position: absolute;
   z-index: 2;
@@ -1179,21 +1128,6 @@ taro-textarea-core.daily-note-textarea textarea,
   white-space: nowrap;
   vertical-align: middle;
 }
-.daily-note-textarea,
-taro-textarea-core.daily-note-textarea,
-.daily-note-textarea.taro-textarea {
-  min-height: 0;
-  flex: 1 1 auto;
-}
-.daily-note-textarea,
-.daily-note-textarea textarea,
-taro-textarea-core.daily-note-textarea,
-taro-textarea-core.daily-note-textarea textarea {
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif !important;
-  font-weight: 400;
-  letter-spacing: 0;
-}
-
 @media (max-width: 720px) {
   .daily-notes-editor { padding: 10px 12px 12px; }
   .daily-note-editor-actions { flex-wrap: wrap; }
@@ -1410,6 +1344,130 @@ taro-textarea-core.daily-note-textarea textarea {
 }
 @media (prefers-reduced-motion: reduce) {
   .daily-note-ai-composer, .daily-note-ai-send, .daily-note-ai-send > button { transition: none; }
+}
+/* —— 手记双视图：文本视图 + 时间轴视图（2026-10-28）—— */
+/* 侧栏「补记某天」：隐形日期输入铺满胶囊，点它直接开原生日历。 */
+.daily-note-sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.daily-note-sidebar-title { color: var(--cream-ink); font-size: 13px; font-weight: 750; }
+.daily-note-backfill { position: relative; display: inline-flex; align-items: center; padding: 3px 9px; border: 1px dashed var(--cream-line); border-radius: 9999px; color: var(--cream-hint); cursor: pointer; font-size: 11px; }
+.daily-note-backfill:hover { border-color: #dfc984; color: var(--cream-body); }
+.daily-note-backfill-input { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; cursor: pointer; }
+.daily-note-notice { margin-bottom: 10px; padding: 8px 12px; border: 1px solid #cfe3d3; border-radius: 12px; background: #f1f8f2; color: #4d6b52; font-size: 12px; }
+.daily-note-save-state .is-pending { color: var(--cream-peach); }
+/* 视图切换。 */
+.daily-note-view-switch { display: inline-flex; flex: 0 0 auto; padding: 2px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-soft-surface); }
+.daily-note-view-tab { min-height: 24px; padding: 0 12px; border: 0; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-size: 11px; }
+.daily-note-view-tab.is-active { background: var(--cream-surface); color: var(--cream-ink); font-weight: 700; box-shadow: 0 1px 3px rgba(60, 50, 40, .08); }
+.daily-note-day-title { display: flex; flex: 0 0 auto; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.daily-note-day-date { color: var(--cream-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.daily-note-day-meta { color: var(--cream-hint); font-size: 11px; }
+
+/* —— 文本视图：一行一条，行首时间标签 —— */
+.daily-note-text-view { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 2px; padding: 12px 14px; overflow: auto; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-soft-surface); box-shadow: var(--cream-shadow); }
+.daily-note-row { display: flex; min-width: 0; align-items: flex-start; gap: 8px; padding: 4px 6px; border-radius: 14px; }
+.daily-note-row:hover { background: var(--cream-surface); }
+.daily-note-row:focus-within { background: var(--cream-surface); box-shadow: inset 0 0 0 1px rgba(223, 201, 132, .55); }
+.daily-note-row.is-untimed .daily-note-row-input { color: var(--cream-body); }
+.daily-note-row-input { display: block; min-width: 0; min-height: 26px; flex: 1 1 auto; padding: 2px 0; border: 0; outline: 0; resize: none; overflow: hidden; background: transparent; color: var(--cream-ink); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+.daily-note-row-input::placeholder { color: var(--cream-hint); }
+.daily-note-row-remove { flex: 0 0 auto; width: 22px; height: 22px; padding: 0; border: 1px solid var(--cream-line); border-radius: 50%; background: var(--cream-surface); color: var(--cream-hint); cursor: pointer; font-size: 12px; line-height: 1; opacity: 0; transition: opacity .16s ease; }
+.daily-note-row:hover .daily-note-row-remove,
+.daily-note-row:focus-within .daily-note-row-remove { opacity: 1; }
+.daily-note-row-remove:hover { border-color: #e4bac1; color: #9d4f60; }
+.daily-note-row-add { width: auto; align-self: flex-start; min-height: 24px; margin-top: 4px; padding: 0 10px; border: 1px dashed var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-size: 11px; }
+.daily-note-row-add:hover { border-color: #dfc984; color: var(--cream-body); }
+.daily-note-text-hint { margin: 6px 2px 0; color: var(--cream-hint); font-size: 10px; line-height: 1.6; }
+
+/* —— 行首时间标签与取时浮层 —— */
+.daily-note-time-chip-wrap { position: relative; flex: 0 0 auto; }
+.daily-note-time-chip { min-width: 52px; height: 24px; padding: 0 6px; border: 1px solid var(--cream-line); border-radius: 8px; background: var(--cream-surface); color: var(--cream-peach); cursor: pointer; font-family: inherit; font-size: 11px; font-variant-numeric: tabular-nums; line-height: 22px; }
+.daily-note-time-chip:hover, .daily-note-time-chip.is-open { border-color: #dfc984; }
+.daily-note-time-chip.is-day { border-style: dashed; color: var(--cream-hint); font-size: 10px; }
+.daily-note-time-popover { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; display: flex; width: 216px; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--cream-line); border-radius: 14px; background: var(--cream-surface); box-shadow: var(--cream-shadow-modal); }
+.daily-note-time-popover-row { display: flex; align-items: center; gap: 8px; }
+.daily-note-time-popover-label { flex: 0 0 28px; color: var(--cream-hint); font-size: 10px; }
+.daily-note-time-popover-input { min-width: 0; flex: 1 1 auto; padding: 4px 6px; border: 1px solid var(--cream-line); border-radius: 8px; outline: 0; background: var(--cream-soft-surface); color: var(--cream-ink); font-family: inherit; font-size: 12px; font-variant-numeric: tabular-nums; }
+.daily-note-time-popover-input:focus { border-color: #dfc984; }
+.daily-note-time-popover-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.daily-note-time-popover-confirm, .daily-note-time-popover-cancel { min-height: 26px; padding: 0 11px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; }
+.daily-note-time-popover-confirm { border-color: #ebcbd1; background: var(--cream-peach-light); color: #9d4f60; }
+
+/* —— 时间轴视图：24 小时纵向刻度 —— */
+.daily-note-timeline-view { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 10px; }
+.daily-note-untimed { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 6px 10px; border: 1px dashed var(--cream-line); border-radius: 12px; background: var(--cream-soft-surface); }
+.daily-note-untimed-title { flex: 0 0 auto; color: var(--cream-hint); font-size: 10px; font-weight: 700; }
+.daily-note-untimed-list { display: flex; min-width: 0; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; max-height: 52px; overflow: auto; }
+.daily-note-untimed-item { display: flex; max-width: 260px; min-width: 0; align-items: center; gap: 6px; }
+.daily-note-untimed-content { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--cream-ink); font-size: 12px; line-height: 1.6; text-overflow: ellipsis; white-space: nowrap; }
+.daily-note-untimed-button { flex: 0 0 auto; min-height: 22px; padding: 0 8px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-hint); cursor: pointer; font-size: 10px; }
+/* 一屏一页：中轴左右各一列，一小时一格；格子是按钮，卡片绝对定位叠在格子上。 */
+.daily-note-bands-frame { position: relative; min-height: 0; flex: 1 1 auto; padding: 12px 16px; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-soft-surface); box-shadow: var(--cream-shadow); }
+.daily-note-bands { display: grid; height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); }
+.daily-note-band-side { position: relative; display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.daily-note-band { position: relative; display: block; min-height: 0; flex: 1 1 0; padding: 0; border: 0; border-top: 1px solid var(--cream-line); background: transparent; cursor: pointer; transition: background-color .15s ease; }
+.daily-note-band:first-child { border-top-color: transparent; }
+.daily-note-band:hover:not(:disabled) { background: rgba(226, 202, 130, .1); }
+.daily-note-band:focus-visible { outline: 2px solid #dfc984; outline-offset: -2px; }
+.daily-note-band:disabled { cursor: default; }
+.daily-note-band.is-now { background: rgba(235, 203, 209, .16); }
+.daily-note-band.is-drop-target { background: rgba(226, 202, 130, .26); }
+.daily-note-band-add { position: absolute; top: 3px; color: var(--cream-hint); font-size: 10px; line-height: 1; opacity: 0; transition: opacity .15s ease; }
+.daily-note-band-side.is-am .daily-note-band-add { right: 6px; }
+.daily-note-band-side.is-pm .daily-note-band-add { left: 6px; }
+.daily-note-band:hover .daily-note-band-add, .daily-note-band:focus-visible .daily-note-band-add { opacity: .8; }
+.daily-note-band-cards { position: absolute; inset: 0; pointer-events: none; }
+.daily-note-band-stack { position: absolute; inset: 0; }
+.daily-note-band-axis { position: relative; display: flex; min-height: 0; flex-direction: column; }
+.daily-note-band-axis::before { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--cream-line); content: ""; }
+.daily-note-band-axis-row { display: flex; min-height: 0; flex: 1 1 0; align-items: flex-start; justify-content: space-between; }
+.daily-note-band-axis-label { padding: 1px 8px; border: 0; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; font-variant-numeric: tabular-nums; line-height: 1; }
+.daily-note-band-axis-label:hover:not(:disabled) { background: rgba(226, 202, 130, .16); color: #a4566a; }
+.daily-note-band-axis-label:disabled { cursor: default; }
+.daily-note-band-axis-row.is-now .daily-note-band-axis-label { color: #a4566a; font-weight: 700; }
+.daily-note-bands-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--cream-hint); font-size: 11px; pointer-events: none; }
+.daily-note-timeline-card { position: absolute; display: flex; box-sizing: border-box; width: min(440px, 100%); align-items: center; gap: 6px; padding: 0 6px; overflow: hidden; border: 1px solid var(--cream-line); border-radius: 8px; background: var(--cream-surface); cursor: grab; pointer-events: auto; touch-action: none; user-select: none; }
+.daily-note-band-side.is-am .daily-note-timeline-card { right: 0; }
+.daily-note-band-side.is-pm .daily-note-timeline-card { left: 0; }
+.daily-note-timeline-card:hover { border-color: #dfc984; }
+.daily-note-timeline-card.is-selected { border-color: #ebcbd1; box-shadow: 0 0 0 2px rgba(235, 203, 209, .55); }
+.daily-note-timeline-card.is-dragging { z-index: 5; border-color: #dfc984; background: var(--cream-peach-light); box-shadow: 0 8px 20px rgba(120, 96, 70, .18); cursor: grabbing; }
+.daily-note-timeline-card-content { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--cream-ink); font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.daily-note-timeline-card-remove { flex: 0 0 auto; width: 14px; height: 14px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--cream-hint); cursor: pointer; font-size: 11px; line-height: 1; opacity: 0; }
+.daily-note-timeline-card:hover .daily-note-timeline-card-remove { opacity: 1; }
+.daily-note-timeline-card-remove:hover { background: var(--cream-peach-light); color: #9d4f60; }
+/* 从时间轴双击跳进文本视图时，闪一下落点。 */
+.daily-note-row.is-focused { border-radius: 10px; animation: daily-note-row-flash 1.4s ease-out 1; }
+@keyframes daily-note-row-flash { 0% { background: rgba(235, 203, 209, .5); } 100% { background: transparent; } }
+/* 一格放不下时折出来的入口。 */
+.daily-note-band-more { position: absolute; width: min(440px, 100%); padding: 0 8px; border: 1px dashed var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; line-height: 1; pointer-events: auto; }
+.daily-note-band-side.is-am .daily-note-band-more { right: 0; }
+.daily-note-band-side.is-pm .daily-note-band-more { left: 0; }
+.daily-note-drag-hint { position: fixed; z-index: 40; padding: 2px 8px; border-radius: 9999px; background: #fbeef1; color: #a4566a; font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 6px 16px rgba(120, 96, 70, .16); }
+/* 点时段后的快速补记弹窗。 */
+.daily-note-record-modal { display: flex; flex-direction: column; gap: 12px; }
+.daily-note-record-heading { display: flex; flex-direction: column; gap: 5px; color: #81796e; font-size: 13px; }
+.daily-note-record-close { padding: 0; border: 0; background: transparent; color: #746653; cursor: pointer; font-family: inherit; font-size: 12px; }
+.daily-note-record-time-row { display: flex; align-items: center; gap: 8px; }
+.daily-note-record-label { color: var(--cream-hint); font-size: 11px; }
+.daily-note-record-time { box-sizing: border-box; padding: 4px 8px; border: 1px solid var(--cream-line); border-radius: 10px; background: var(--cream-surface); color: var(--cream-ink); font-family: inherit; font-size: 13px; font-variant-numeric: tabular-nums; }
+.daily-note-record-hint { color: var(--cream-hint); font-size: 10px; }
+.daily-note-record-textarea { box-sizing: border-box; width: 100%; min-height: 84px; padding: 10px 12px; border: 1px solid var(--cream-line); border-radius: 12px; outline: 0; background: var(--cream-surface); color: var(--cream-ink); font-family: inherit; font-size: 13px; line-height: 1.6; resize: vertical; }
+.daily-note-record-textarea:focus { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .16); }
+.daily-note-record-error { margin: 0; color: #9d4f60; font-size: 11px; }
+.daily-note-record-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.daily-note-record-button { min-height: 34px; padding: 0 14px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 12px; }
+.daily-note-record-button.is-primary { border-color: #ebcbd1; background: var(--cream-peach-light); color: #9d4f60; font-weight: 700; }
+.daily-note-record-button.is-primary:disabled { border-color: #e4dccc; background: #efe9df; color: #9a9186; cursor: not-allowed; }
+.daily-note-record-button.is-danger { border-color: #ebcbd1; color: #9d4f60; }
+.daily-note-record-confirm { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px dashed var(--cream-line); border-radius: 12px; background: var(--cream-soft-surface); font-size: 12px; }
+.daily-note-record-confirm-actions { display: flex; gap: 8px; }
+
+@media (max-width: 720px) {
+  .daily-note-row-remove, .daily-note-timeline-card-remove { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .daily-note-row-remove, .daily-note-view-tab { transition: none; }
+  .daily-note-row.is-focused { animation: none; outline: 2px solid rgba(235, 203, 209, .9); outline-offset: 1px; }
 }
 /* —— 登录门下拉/记住密码：暗色主题 —— */
 .auth-gate-shell[data-color-theme='dark'] .auth-account-trigger { border-color: #4a453f; background: #2d2925; color: #c9c3bb; }

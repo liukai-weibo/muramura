@@ -46,6 +46,8 @@ import type {
   AiConversationSnapshot,
   AiStreamEvent,
   DailyNote,
+  DailyNoteEntry,
+  DailyNoteWithEntries,
   DailySummary,
   DailyDietRecommendation,
   DietProfile,
@@ -554,6 +556,14 @@ export const apiClient = {
   readTodayDailyNote: () => request<DailyNote | undefined>('/daily-notes/today'),
   listDailyNotes: () => request<DailyNote[]>('/daily-notes'),
   updateDailyNote: (id: string, content: string) => request<DailyNote>(`/daily-notes/${encodeURIComponent(id)}`, { method: 'PUT', body: json({ content }) }),
+  getDailyNoteWithEntries: (id: string) => request<DailyNoteWithEntries>(`/daily-notes/${encodeURIComponent(id)}`),
+  /** 按日期取或建手记：补录一个还没有手记的日子必须先走这一步。 */
+  getOrCreateDailyNoteByDate: (entryDate: string) => request<DailyNote>('/daily-notes/day', { method: 'POST', body: json({ entryDate }) }),
+  createDailyNoteEntry: (id: string, content: string, time?: string) => request<DailyNoteEntry>(`/daily-notes/${encodeURIComponent(id)}/entries`, { method: 'POST', body: json(time ? { content, time } : { content }) }),
+  /** time 既可以是 'HH:MM'（本篇当天），也可以是完整 ISO（落在别的日期会把这条记录搬过去）。 */
+  updateDailyNoteEntry: (id: string, entryId: string, content: string, time?: string) => request<DailyNoteEntry>(`/daily-notes/${encodeURIComponent(id)}/entries/${encodeURIComponent(entryId)}`, { method: 'PUT', body: json(time ? { content, time } : { content }) }),
+  deleteDailyNoteEntry: (id: string, entryId: string) => request<{ ok: boolean }>(`/daily-notes/${encodeURIComponent(id)}/entries/${encodeURIComponent(entryId)}`, { method: 'DELETE' }),
+  clearDailyNoteEntries: (id: string) => request<{ ok: boolean }>(`/daily-notes/${encodeURIComponent(id)}/entries`, { method: 'DELETE' }),
   appendTodayDailyNote: (content: string) => request<DailyNote>('/daily-notes/today/append', { method: 'POST', body: json({ content }) }),
   listMoodEntries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
     const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
