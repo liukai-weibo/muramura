@@ -1,4 +1,4 @@
-import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNote, DashboardSnapshot, Item, ItemRepository, ItemStatus, MealEntryRepository, MethodRepository } from '@knowledge-base/contracts'
+import type { AiConversationSummary, AiKnowledgeOverview, AiKnowledgeOverviewReader, AiPreference, AuthUser, DailyNoteEntry, DashboardSnapshot, Item, ItemRepository, ItemStatus, MealEntryRepository, MethodRepository } from '@knowledge-base/contracts'
 import { itemStatuses } from '@knowledge-base/contracts'
 import type { DashboardApplicationService, ExplorationTrackApplicationService } from './index'
 import { formatInTimeZone, utcDatePlusDays } from './date-utils'
@@ -101,7 +101,7 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
   }
 }
 
-export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined, searchContext: string, summary: AiConversationSummary | undefined, preferences: AiPreference[], maxChars: number, dailyNotes: DailyNote[] = [], timeZone?: string): string {
+export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined, searchContext: string, summary: AiConversationSummary | undefined, preferences: AiPreference[], maxChars: number, dailyNoteEntries: DailyNoteEntry[] = [], timeZone?: string): string {
   const clock = (iso: string | undefined): string => {
     const at = formatInTimeZone(iso, timeZone)
     return at ? ` ${at}` : ''
@@ -110,9 +110,13 @@ export function formatKnowledgeContext(overview: AiKnowledgeOverview | undefined
     'Server-verified read-only personal knowledge context (user data):',
     'Use only this context as user data. Do not claim to modify it.',
   ]
-  if (dailyNotes.length) {
-    const notes = [...dailyNotes].sort((left, right) => right.entryDate.localeCompare(left.entryDate) || right.updatedAt.localeCompare(left.updatedAt))
-    sections.push(`Historical daily notes (all available dates, use only when relevant to the question; the date is authoritative):\n${notes.map((note) => `- ${note.entryDate}${clock(note.updatedAt)} | ${note.content || '(empty)'}`).join('\n')}`)
+  if (dailyNoteEntries.length) {
+    // 手记已条目化：按条目输出并带上记录时间，日期与时间都视为权威。
+    // 只取最近 300 条，避免长历史把上下文预算挤占掉。
+    const entries = [...dailyNoteEntries]
+      .sort((left, right) => right.entryDate.localeCompare(left.entryDate) || right.recordedAt.localeCompare(left.recordedAt))
+      .slice(0, 300)
+    sections.push(`Historical daily notes (all available dates, use only when relevant to the question; the date and time are authoritative):\n${entries.map((entry) => `- ${entry.entryDate}${entry.timePrecision === 'day' ? '' : clock(entry.recordedAt)} | ${entry.content || '(empty)'}`).join('\n')}`)
   }
   // 状态段落已移除：overview.moodEntries 恒为空，不再向模型提供状态信息。
   if (overview && overview.mealEntries.length) {

@@ -55,7 +55,7 @@ export type ReviewErrorCode =
   | 'REVIEW_METHOD_MODE_CONFLICT'
 
 export type BackupErrorCode = 'INVALID_BACKUP' | 'BACKUP_OWNERSHIP_CONFLICT'
-export type DailyNoteErrorCode = 'DAILY_NOTE_INVALID' | 'DAILY_NOTE_NOT_FOUND'
+export type DailyNoteErrorCode = 'DAILY_NOTE_INVALID' | 'DAILY_NOTE_NOT_FOUND' | 'DAILY_NOTE_ENTRY_NOT_FOUND'
 export type MoodEntryErrorCode = 'MOOD_ENTRY_INVALID' | 'MOOD_ENTRY_NOT_FOUND'
 export type MealEntryErrorCode = 'MEAL_ENTRY_INVALID'
 export type DailySummaryErrorCode = 'DAILY_SUMMARY_INVALID'
@@ -150,6 +150,7 @@ export const businessErrorCategoryByCode = {
   BACKUP_OWNERSHIP_CONFLICT: 'conflict',
   DAILY_NOTE_INVALID: 'validation',
   DAILY_NOTE_NOT_FOUND: 'not-found',
+  DAILY_NOTE_ENTRY_NOT_FOUND: 'not-found',
   MOOD_ENTRY_INVALID: 'validation',
   MOOD_ENTRY_NOT_FOUND: 'not-found',
   MEAL_ENTRY_INVALID: 'validation',
@@ -227,6 +228,7 @@ export const publicBusinessErrorCodes = [
   'INVALID_BACKUP',
   'DAILY_NOTE_INVALID',
   'DAILY_NOTE_NOT_FOUND',
+  'DAILY_NOTE_ENTRY_NOT_FOUND',
   'MOOD_ENTRY_INVALID',
   'MOOD_ENTRY_NOT_FOUND',
   'MEAL_ENTRY_INVALID',

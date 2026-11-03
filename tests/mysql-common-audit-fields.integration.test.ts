@@ -116,8 +116,10 @@ describe.runIf(enabled)('MySQL common audit fields', () => {
   })
 
   it('keeps the audit fields intact through the latest Schema migration', async () => {
+    const latestVersion = Math.max(...readdirSync(migrationsRoot).filter(name => /^\d{3}_[a-z0-9_]+\.sql$/.test(name)).map(name => Number(name.slice(0, 3))))
     const [[row]] = await migrator.query<Array<RowDataPacket & { version: number }>>('SELECT MAX(version) AS version FROM schema_migrations')
-    expect(row!.version).toBe(25)
-    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBe(25)
+    expect(row!.version).toBe(latestVersion)
+    // MYSQL_REQUIRED_SCHEMA_VERSION 是「最低可用版本」，不得高于实际最新版本。
+    expect(MYSQL_REQUIRED_SCHEMA_VERSION).toBeLessThanOrEqual(latestVersion)
   })
 })

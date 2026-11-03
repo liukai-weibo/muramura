@@ -29,6 +29,17 @@ const noteSchema = z.object({ id: z.string(), entryDate: z.string().regex(/^\d{4
 const idSchema = z.object({ id: z.string().min(1) })
 const updateSchema = z.object({ content: z.string().max(100000) })
 const appendSchema = z.object({ content: z.string().min(1).max(100000) })
+const entrySchema = z.object({ id: z.string(), dailyNoteId: z.string(), entryDate: z.string(), recordedAt: z.string(), timePrecision: z.string(), content: z.string(), createdAt: z.string(), updatedAt: z.string() })
+const noteWithEntriesSchema = noteSchema.extend({ entries: z.array(entrySchema) })
+const entryInstantSchema = z.string().min(10).max(40)
+// 时间入参既接受 'HH:MM'（写进当天），也接受完整 ISO（用于新建/搬到指定时刻）。
+// 具体格式由 Application 层严格校验，这里只挡住明显非法的长度。
+const entryTimeInputSchema = z.string().min(5).max(40)
+const entryCreateSchema = z.object({ content: z.string().min(1).max(100000), time: entryTimeInputSchema.optional() })
+const entryUpdateSchema = z.object({ content: z.string().min(1).max(100000).optional(), time: entryTimeInputSchema.optional(), recordedAt: entryInstantSchema.optional() })
+const entryParamsSchema = z.object({ id: z.string().min(1), entryId: z.string().min(1) })
+const okSchema = z.object({ ok: z.boolean() })
+const daySchema = z.object({ entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
 
 export function createDailyNoteRoutes() {
   return createOpenApiApp()
@@ -41,6 +52,12 @@ export function createDailyNoteRoutes() {
       const service = requireServices(context).dailyNotes
       if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
       return context.json(await service.getOrCreateToday(), 200)
+    })
+    .openapi(createRoute({ method: 'post', path: '/day', tags: ['Daily notes'], request: { body: { required: true, content: { 'application/json': { schema: daySchema } } } }, responses: { 200: jsonSuccess(noteSchema, 'note of that day'), 400: commonErrorResponses[400], 401: commonErrorResponses[401] } }), async context => {
+      const service = requireServices(context).dailyNotes
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
+      const body = await context.req.json()
+      return context.json(await service.getOrCreateByDate(body.entryDate), 200)
     })
     .openapi(createRoute({ method: 'get', path: '/', tags: ['Daily notes'], responses: { 200: jsonSuccess(z.array(noteSchema), 'notes'), 401: commonErrorResponses[401] } }), async context => {
       const service = requireServices(context).dailyNotes
@@ -58,6 +75,47 @@ export function createDailyNoteRoutes() {
       if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
       const body = await context.req.json()
       return context.json(await service.appendToday(body.content), 200)
+    })
+    .openapi(createRoute({ method: 'get', path: '/{id}', tags: ['Daily notes'], request: { params: idSchema }, responses: { 200: jsonSuccess(noteWithEntriesSchema, 'note with entries'), 401: commonErrorResponses[401], 404: commonErrorResponses[404] } }), async context => {
+      const service = requireServices(context).dailyNotes
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
+      const note = await service.getMineWithEntries(context.req.param('id'))
+      if (!note) throw new ApiError(404, 'NOT_FOUND', 'daily note not found')
+      return context.json(note, 200)
+    })
+    .openapi(createRoute({ middleware: [requireJson], method: 'post', path: '/{id}/entries', tags: ['Daily notes'], request: { params: idSchema, body: { required: true, content: { 'application/json': { schema: entryCreateSchema } } } }, responses: { 200: jsonSuccess(entrySchema, 'created entry'), 401: commonErrorResponses[401], 404: commonErrorResponses[404] } }), async context => {
+      const service = requireServices(context).dailyNotes
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
+      const body = await context.req.json()
+      return context.json(await service.createEntry(context.req.param('id'), { content: body.content, ...(body.time ? { recordedAt: body.time } : {}) }), 200)
+    })
+    .openapi(createRoute({ middleware: [requireJson], method: 'put', path: '/{id}/entries/{entryId}', tags: ['Daily notes'], request: { params: entryParamsSchema, body: { required: true, content: { 'application/json': { schema: entryUpdateSchema } } } }, responses: { 200: jsonSuccess(entrySchema, 'updated entry'), 401: commonErrorResponses[401], 404: commonErrorResponses[404] } }), async context => {
+      const service = requireServices(context).dailyNotes
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
+      const id = context.req.param('id')
+      const entryId = context.req.param('entryId')
+      const note = await service.getMine(id)
+      if (!note) throw new ApiError(404, 'NOT_FOUND', 'daily note not found')
+      const body = await context.req.json()
+      const existing = (await service.listEntries(id)).find(entry => entry.id === entryId)
+      if (!existing) throw new ApiError(404, 'NOT_FOUND', 'daily note entry not found')
+      // 未传的字段沿用原值：允许只改时间（含跨天搬移）或只改内容。
+      // 只有客户端真的传了时间才往下传，否则仓储会重写 recorded_at 并升级精度。
+      const content = body.content ?? existing.content
+      const timeInput: string | undefined = body.recordedAt ?? body.time
+      return context.json(await service.updateEntry(id, entryId, { content, ...(timeInput ? { recordedAt: timeInput } : {}) }), 200)
+    })
+    .openapi(createRoute({ method: 'delete', path: '/{id}/entries/{entryId}', tags: ['Daily notes'], request: { params: entryParamsSchema }, responses: { 200: jsonSuccess(okSchema, 'deleted entry'), 401: commonErrorResponses[401], 404: commonErrorResponses[404] } }), async context => {
+      const service = requireServices(context).dailyNotes
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
+      await service.deleteEntry(context.req.param('id'), context.req.param('entryId'))
+      return context.json({ ok: true }, 200)
+    })
+    .openapi(createRoute({ method: 'delete', path: '/{id}/entries', tags: ['Daily notes'], request: { params: idSchema }, responses: { 200: jsonSuccess(okSchema, 'cleared day'), 401: commonErrorResponses[401], 404: commonErrorResponses[404] } }), async context => {
+      const service = requireServices(context).dailyNotes
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'daily notes unavailable')
+      await service.clearEntries(context.req.param('id'))
+      return context.json({ ok: true }, 200)
     })
     .post('/:id/ai/stream', async (context: any) => {
       const services = requireServices(context)
