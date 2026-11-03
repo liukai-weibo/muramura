@@ -1,11 +1,11 @@
 {
-    "version": "0.1.46",
-    "notes": "修正事件日历的视图切换顺序：月视图在前、年视图在后，与三餐日历保持一致。",
-    "pub_date": "2026-10-16T21:40:35.000Z",
+    "version": "0.1.47",
+    "notes": "手记改为条目化记录：时间轴变成中间一条轴、左右各半天，一屏看完全天；点任意时段即可按那个时间补记，卡片可拖到别的时段，双击进文本视图。",
+    "pub_date": "2026-11-03T05:06:07.000Z",
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1d6UDlZV24raXIxM1d2WU5SUlQyWHkzRnVqS2llampRSkppQ2xtWk9Qc2dCMkMxREduUlhoYVlHcjYvb2NYckJOQ3AzcGkycUduQ2RWY0hrRVVZTmdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyMTg2ODA0CWZpbGU6TXVyYW11cmFfMC4xLjQ2X3g2NC1zZXR1cC5leGUKY3dCRmtMa2VRdXZxeExZcVRJUlVvVVBIMTUrYlAwQ1pOS2F6UzYzcUE2Njc2UHkrRmhrL3lSMFcxanJqY2J5ZjU2MklxaXA1NmZXVjdDVXErYzNKRHc9PQo=",
-            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.46/Muramura_0.1.46_x64-setup.exe"
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2NuN3NIcXVRNVd4OVBtQ1dKWGtMckd4OWVoc29xd1RScW51UWV6bjR5MUxEWG85ZTJPMldBLzZMcktkRldSTWxESnVTZ0txbVVuMExWYVkwQzhsNFEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzNjgyMzY3CWZpbGU6TXVyYW11cmFfMC4xLjQ3X3g2NC1zZXR1cC5leGUKSTFpUUxZK3ZSWFB5YlZvaHNOY2UyUTBtVjI2UGJtT2xaMGdyYSsyNEZpRXlKaFVzbHl4WE9Vejdab01EMUhNMVRrT1c5NUw0TmxvanpXVisvSkg4QWc9PQo=",
+            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.47/Muramura_0.1.47_x64-setup.exe"
         }
     }
 }
