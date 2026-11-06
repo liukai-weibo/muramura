@@ -11,7 +11,8 @@ services:
     volumes:
       - knowledge_base_mysql_data:/var/lib/mysql
       # 内存调优配置：/etc/my.cnf 末尾有 !includedir /etc/mysql/conf.d/，
-      # 因此挂载到该目录即被 MySQL 加载。详见 deploy/mysql-tuning.cnf。
+      # 因此挂载到该目录即被 MySQL 加载。
+      # 根目录 mysql-tuning.cnf 与 deploy/mysql-tuning.cnf 内容必须一致，修改时两处同步。
       - ./mysql-tuning.cnf:/etc/mysql/conf.d/mysql-tuning.cnf:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
