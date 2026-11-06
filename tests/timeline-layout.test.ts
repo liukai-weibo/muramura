@@ -5,6 +5,8 @@ import {
   TIMELINE_CARD_HEIGHT,
   TIMELINE_CARD_MIN_HEIGHT,
   TIMELINE_MORE_HEIGHT,
+  bandColumns,
+  bandSlot,
   bandCardTop,
   bandHourOf,
   bandLayout,
@@ -83,84 +85,80 @@ describe('band geometry', () => {
 })
 
 describe('cards inside one band', () => {
-  it('keeps a single card at full height', () => {
-    for (const height of RAIL_HEIGHTS) {
-      const layout = bandLayout(1, bandRowHeight(height))
-      expect(layout.visible).toBe(1)
+  const rowHeight = bandRowHeight(698)
+
+  it('uses two columns at the normal side width and falls back to one when narrow', () => {
+    expect(bandColumns(431)).toBe(2)
+    expect(bandColumns(299)).toBe(1)
+    expect(bandColumns(0)).toBe(2)
+  })
+
+  it('keeps one or two cards at 22px in the near-axis row', () => {
+    for (const count of [1, 2]) {
+      const layout = bandLayout(count, rowHeight)
+      expect(layout.visible).toBe(count)
       expect(layout.hidden).toBe(0)
+      expect(layout.cardHeight).toBe(TIMELINE_CARD_HEIGHT)
+      expect(bandCardTop(0, layout)).toBe(TIMELINE_BAND_PADDING)
+      if (count === 2) expect(bandCardTop(1, layout)).toBe(TIMELINE_BAND_PADDING)
+    }
+  })
+
+  it('fits six cards in two columns and three rows', () => {
+    const layout = bandLayout(6, rowHeight)
+    expect(layout).toMatchObject({ columns: 2, rows: 3, visible: 6, hidden: 0, cardHeight: TIMELINE_CARD_MIN_HEIGHT })
+    expect(Array.from({ length: 6 }, (_, index) => bandSlot(index, layout))).toEqual([
+      { column: 0, row: 0 }, { column: 0, row: 1 }, { column: 0, row: 2 },
+      { column: 1, row: 0 }, { column: 1, row: 1 }, { column: 1, row: 2 },
+    ])
+  })
+
+  it('keeps three and four cards at 22px across two rows', () => {
+    for (const count of [3, 4]) {
+      const layout = bandLayout(count, rowHeight)
+      expect(layout.visible).toBe(count)
+      expect(layout.hidden).toBe(0)
+      expect(layout.rows).toBe(2)
       expect(layout.cardHeight).toBe(TIMELINE_CARD_HEIGHT)
     }
   })
 
-  it('keeps two cards at full height on a normal screen', () => {
-    for (const height of [620, 742, 900]) {
-      const layout = bandLayout(2, bandRowHeight(height))
-      expect(layout.visible).toBe(2)
-      expect(layout.cardHeight).toBe(TIMELINE_CARD_HEIGHT)
-    }
-  })
-
-  it('shrinks three cards until they fit', () => {
-    for (const height of [742, 900]) {
-      const rowHeight = bandRowHeight(height)
-      const layout = bandLayout(3, rowHeight)
-      expect(layout.visible).toBe(3)
-      expect(layout.hidden).toBe(0)
-      expect(layout.cardHeight).toBeGreaterThanOrEqual(TIMELINE_CARD_MIN_HEIGHT)
-      expect(layout.cardHeight).toBeLessThanOrEqual(TIMELINE_CARD_HEIGHT)
-      const lastBottom = bandCardTop(layout.visible - 1, layout) + layout.cardHeight
-      expect(lastBottom).toBeLessThanOrEqual(rowHeight)
-    }
-    // 742px 是 1440×900 下的常见高度：三条并列时压到 18px 刚好放下。
-    expect(bandLayout(3, bandRowHeight(742)).cardHeight).toBe(18)
-  })
-
-  it('folds what does not fit on a short window instead of clipping it', () => {
-    // 620px 高的轨道每格只有 51.7px：三条 16px 卡片放不下，只能保留可见的一两条并折出「还有 N 条」。
-    const rowHeight = bandRowHeight(620)
-    const layout = bandLayout(3, rowHeight)
-    expect(layout.hidden).toBeGreaterThan(0)
-    expect(layout.visible + layout.hidden).toBe(3)
+  it('puts the overflow indicator in the last grid cell', () => {
+    const layout = bandLayout(7, rowHeight)
+    expect(layout).toMatchObject({ columns: 2, rows: 3, visible: 5, hidden: 2 })
+    expect(bandSlot(layout.visible, layout)).toEqual({ column: 1, row: 2 })
     expect(bandMoreTop(layout) + TIMELINE_MORE_HEIGHT).toBeLessThanOrEqual(rowHeight)
   })
 
-  it('never lets a card leave its band', () => {
+  it('folds safely on short rows and in one-column mode', () => {
+    const shortRow = bandRowHeight(360)
+    for (const columns of [1, 2] as const) {
+      const layout = bandLayout(12, shortRow, columns)
+      expect(layout.visible + layout.hidden).toBe(12)
+      expect(bandMoreTop(layout) + TIMELINE_MORE_HEIGHT).toBeLessThanOrEqual(shortRow)
+    }
+    const narrow = bandLayout(6, rowHeight, 1)
+    expect(narrow.columns).toBe(1)
+    expect(narrow.visible + narrow.hidden).toBe(6)
+    expect(narrow.hidden).toBeGreaterThan(0)
+  })
+
+  it('never lets a visible card or overflow indicator leave its band', () => {
     for (const height of RAIL_HEIGHTS) {
-      const rowHeight = bandRowHeight(height)
-      for (let count = 0; count <= 6; count += 1) {
-        const layout = bandLayout(count, rowHeight)
-        if (layout.visible === 0) continue
-        const lastBottom = bandCardTop(layout.visible - 1, layout) + layout.cardHeight
-        expect(lastBottom).toBeLessThanOrEqual(rowHeight)
+      const bandHeight = bandRowHeight(height)
+      for (const columns of [1, 2] as const) {
+        for (let count = 0; count <= 12; count += 1) {
+          const layout = bandLayout(count, bandHeight, columns)
+          expect(layout.visible + layout.hidden).toBe(count)
+          if (layout.visible > 0) {
+            for (let index = 0; index < layout.visible; index += 1) {
+              expect(bandCardTop(index, layout) + layout.cardHeight).toBeLessThanOrEqual(bandHeight)
+            }
+          }
+          if (layout.hidden > 0) expect(bandMoreTop(layout) + TIMELINE_MORE_HEIGHT).toBeLessThanOrEqual(bandHeight)
+        }
       }
     }
-  })
-
-  it('folds the rest into a counter once a band overflows', () => {
-    const rowHeight = bandRowHeight(742)
-    const layout = bandLayout(5, rowHeight)
-    expect(layout.hidden).toBeGreaterThan(0)
-    expect(layout.visible + layout.hidden).toBe(5)
-    expect(layout.cardHeight).toBe(TIMELINE_CARD_MIN_HEIGHT)
-    const moreBottom = bandMoreTop(layout) + TIMELINE_MORE_HEIGHT
-    expect(moreBottom).toBeLessThanOrEqual(rowHeight)
-  })
-
-  it('accounts for every entry at any height', () => {
-    for (const height of RAIL_HEIGHTS) {
-      const rowHeight = bandRowHeight(height)
-      for (let count = 0; count <= 8; count += 1) {
-        const layout = bandLayout(count, rowHeight)
-        expect(layout.visible + layout.hidden).toBe(count)
-        expect(layout.visible).toBeLessThanOrEqual(count)
-      }
-    }
-  })
-
-  it('starts cards just below the band separator', () => {
-    const layout = bandLayout(2, bandRowHeight(742))
-    expect(bandCardTop(0, layout)).toBe(TIMELINE_BAND_PADDING)
-    expect(bandCardTop(1, layout)).toBe(TIMELINE_BAND_PADDING + layout.cardHeight + layout.gap)
   })
 })
 

@@ -2,9 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DailyNoteEntry } from '@knowledge-base/contracts'
 import { dailyNoteMinuteOfDay } from '@knowledge-base/contracts'
 import { EntryRecordModal } from './entry-record-modal'
+import { bandTintIndexes, tintClassOf } from './entry-tint'
 import {
   TIMELINE_BAND_COUNT,
   TIMELINE_MORE_HEIGHT,
+  bandColumns,
+  bandSlot,
   type TimelineBandSide,
   bandCardTop,
   bandHourOf,
@@ -58,8 +61,10 @@ export function EntryTimelineView({
   onOpenInText,
 }: EntryTimelineViewProps) {
   const gridRef = useRef<HTMLDivElement | null>(null)
+  const amSideRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ entryId: string; startY: number; minute: number; moved: boolean } | null>(null)
   const [height, setHeight] = useState(estimateHeight)
+  const [sideWidth, setSideWidth] = useState(0)
   const [record, setRecord] = useState<{ hour: number } | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const [clock, setClock] = useState(currentMinute)
@@ -70,12 +75,14 @@ export function EntryTimelineView({
       const element = gridRef.current
       if (!element) return
       const next = Math.round(element.getBoundingClientRect().height)
-      if (next <= 0) return
-      setHeight(current => (current === next ? current : next))
+      const nextSideWidth = Math.round(amSideRef.current?.getBoundingClientRect().width ?? 0)
+      if (next > 0) setHeight(current => (current === next ? current : next))
+      if (nextSideWidth > 0) setSideWidth(current => (current === nextSideWidth ? current : nextSideWidth))
     }
     measure()
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : undefined
     if (observer && gridRef.current) observer.observe(gridRef.current)
+    if (observer && amSideRef.current) observer.observe(amSideRef.current)
     window.addEventListener('resize', measure)
     return () => {
       observer?.disconnect()
@@ -100,6 +107,7 @@ export function EntryTimelineView({
   }, [drag])
 
   const rowHeight = bandRowHeight(height)
+  const columns = bandColumns(sideWidth)
   const nowHour = Math.floor(clock / 60)
   const timed = useMemo(() => entries
     .filter(entry => entry.timePrecision === 'minute')
@@ -111,7 +119,11 @@ export function EntryTimelineView({
   )
   const isEmpty = timed.length === 0
 
-  const sideColumn = (side: TimelineBandSide) => <div key={side} className={`daily-note-band-side is-${side}`}>
+  const sideColumn = (side: TimelineBandSide) => <div
+    key={side}
+    ref={side === 'am' ? amSideRef : undefined}
+    className={`daily-note-band-side is-${side} ${columns === 2 ? 'is-two-column' : ''}`}
+  >
     {ROWS.map(row => {
       const hour = bandHourOf(row, side)
       const classes = [
@@ -134,13 +146,17 @@ export function EntryTimelineView({
       {ROWS.map(row => {
         const items = groups.get(bandKey(side, row)) ?? []
         if (items.length === 0) return null
-        const layout = bandLayout(items.length, rowHeight)
+        const layout = bandLayout(items.length, rowHeight, columns)
         const rowTop = row * rowHeight
+        const tints = bandTintIndexes(items.map(item => item.id))
         return <div key={row} className='daily-note-band-stack'>
           {items.slice(0, layout.visible).map((item, index) => {
             const dragging = drag?.entryId === item.id
+            const slot = bandSlot(index, layout)
             const classes = [
               'daily-note-timeline-card',
+              `is-col-${slot.column}`,
+              tintClassOf(tints[index] ?? 0),
               dragging ? 'is-dragging' : '',
               selectedEntryId === item.id ? 'is-selected' : '',
             ].filter(Boolean).join(' ')
@@ -201,7 +217,7 @@ export function EntryTimelineView({
           })}
           {layout.hidden > 0 && <button
             type='button'
-            className='daily-note-band-more'
+            className={`daily-note-band-more is-col-${bandSlot(layout.visible, layout).column}`}
             style={{ top: `${rowTop + bandMoreTop(layout)}px`, height: `${TIMELINE_MORE_HEIGHT}px` }}
             title={`这一时段还有 ${layout.hidden} 条，去文本视图看`}
             onClick={() => onOpenInText(items[layout.visible]?.id ?? items[0]!.id)}
@@ -249,6 +265,15 @@ export function EntryTimelineView({
           })}
         </div>
         {sideColumn('pm')}
+      </div>
+      {/* 底部闭合刻度：左列收到 12 点、右列收到 00 点，一天读起来是闭环的。 */}
+      <div className='daily-note-bands-foot'>
+        <span />
+        <div className='daily-note-bands-foot-axis'>
+          <span className='daily-note-band-axis-label is-am' title='上午收口 12 点'>12</span>
+          <span className='daily-note-band-axis-label is-pm' title='这一天的收口 00 点'>00</span>
+        </div>
+        <span />
       </div>
       {isEmpty && !record && <div className='daily-note-bands-empty'>
         {ready ? '点任意时段，就能按那个时间补一条' : '正在读取这一天的手记…'}

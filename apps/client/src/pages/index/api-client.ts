@@ -59,6 +59,8 @@ import type {
   MealEntry,
   MoodEntry,
   MoodEntryInput,
+  WeatherCity,
+  WeatherForecast,
   ActivityAuditEvent,
   ActivityAuditEventPage,
   AuditAction,
@@ -388,6 +390,47 @@ function parseActivityAuditEventPage(value: unknown, expectedPage: number, expec
 
 const operationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+/** 天气结构不合法时宁可报错走降级，也不把半截数据画到界面上。 */
+function parseWeatherForecast(value: unknown): WeatherForecast {
+  const root = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const current = root.current && typeof root.current === 'object' ? root.current as Record<string, unknown> : undefined
+  if (!current
+    || typeof current.observedAt !== 'string'
+    || typeof current.temperature !== 'number' || !Number.isFinite(current.temperature)
+    || typeof current.weatherCode !== 'number') {
+    throw new Error('天气响应结构无效。')
+  }
+  const days = (Array.isArray(root.days) ? root.days : []).flatMap(item => {
+    const day = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+    if (typeof day.date !== 'string' || typeof day.weatherCode !== 'number'
+      || typeof day.temperatureMax !== 'number' || typeof day.temperatureMin !== 'number') return []
+    return [{ date: day.date, weatherCode: day.weatherCode, temperatureMax: day.temperatureMax, temperatureMin: day.temperatureMin }]
+  })
+  if (!days.length) throw new Error('天气响应结构无效。')
+  return {
+    timezone: typeof root.timezone === 'string' ? root.timezone : 'Asia/Shanghai',
+    fetchedAt: typeof root.fetchedAt === 'string' ? root.fetchedAt : new Date().toISOString(),
+    current: { observedAt: current.observedAt, temperature: current.temperature, weatherCode: current.weatherCode },
+    days,
+  }
+}
+
+function parseWeatherCities(value: unknown): WeatherCity[] {
+  const items = Array.isArray(value) ? value : []
+  return items.flatMap(item => {
+    const city = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+    if (typeof city.name !== 'string' || typeof city.latitude !== 'number' || typeof city.longitude !== 'number') return []
+    return [{
+      id: typeof city.id === 'string' ? city.id : `${city.latitude},${city.longitude}`,
+      name: city.name,
+      region: typeof city.region === 'string' ? city.region : '',
+      country: typeof city.country === 'string' ? city.country : '',
+      latitude: city.latitude,
+      longitude: city.longitude,
+    }]
+  })
+}
+
 function validOperationId(value: string): boolean {
   return operationIdPattern.test(value)
 }
@@ -565,6 +608,19 @@ export const apiClient = {
   deleteDailyNoteEntry: (id: string, entryId: string) => request<{ ok: boolean }>(`/daily-notes/${encodeURIComponent(id)}/entries/${encodeURIComponent(entryId)}`, { method: 'DELETE' }),
   clearDailyNoteEntries: (id: string) => request<{ ok: boolean }>(`/daily-notes/${encodeURIComponent(id)}/entries`, { method: 'DELETE' }),
   appendTodayDailyNote: (content: string) => request<DailyNote>('/daily-notes/today/append', { method: 'POST', body: json({ content }) }),
+  /** 天气只读外部数据：取当前实况 + 今天起 7 天，失败时由界面降级，不影响写手记。 */
+  getWeatherForecast: async (latitude: number, longitude: number, signal?: AbortSignal) => {
+    if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+      throw new Error('天气请求坐标无效。')
+    }
+    const query = new URLSearchParams({ latitude: latitude.toFixed(4), longitude: longitude.toFixed(4) })
+    return parseWeatherForecast(await request<unknown>(`/weather/forecast?${query.toString()}`, { signal }))
+  },
+  searchWeatherCities: async (name: string, signal?: AbortSignal) => {
+    const query = name.trim()
+    if (!query) return []
+    return parseWeatherCities(await request<unknown>(`/weather/cities?${new URLSearchParams({ query }).toString()}`, { signal }))
+  },
   listMoodEntries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
     const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
     return request<MoodEntry[]>(`/mood-entries${query}`, { signal })

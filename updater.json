@@ -1,11 +1,11 @@
 {
-    "version": "0.1.47",
-    "notes": "手记改为条目化记录：时间轴变成中间一条轴、左右各半天，一屏看完全天；点任意时段即可按那个时间补记，卡片可拖到别的时段，双击进文本视图。",
-    "pub_date": "2026-11-03T05:06:07.000Z",
-    "platforms": {
-        "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2NuN3NIcXVRNVd4OVBtQ1dKWGtMckd4OWVoc29xd1RScW51UWV6bjR5MUxEWG85ZTJPMldBLzZMcktkRldSTWxESnVTZ0txbVVuMExWYVkwQzhsNFEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzNjgyMzY3CWZpbGU6TXVyYW11cmFfMC4xLjQ3X3g2NC1zZXR1cC5leGUKSTFpUUxZK3ZSWFB5YlZvaHNOY2UyUTBtVjI2UGJtT2xaMGdyYSsyNEZpRXlKaFVzbHl4WE9Vejdab01EMUhNMVRrT1c5NUw0TmxvanpXVisvSkg4QWc9PQo=",
-            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.47/Muramura_0.1.47_x64-setup.exe"
-        }
-    }
+    "version":  "0.1.48",
+    "notes":  "手记时间轴支持格内两列排布，常规时段最多显示 6 条；文本视图新增杭州默认的近七天天气，可搜索切换城市。",
+    "pub_date":  "2026-11-06T00:00:00.000Z",
+    "platforms":  {
+                      "windows-x86_64":  {
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1VhZ3k0ZjRseVNja0RXK0w1eWphQ1NCYlcyS3B1YXdQNjNySTNCejhhbFVmaTQvUHMyc3RWckY5YUdab2xGbVpsNldKa1RBRVdiUzBMSXJJN0pzL3dZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTUxMjMyCWZpbGU6TXVyYW11cmFfMC4xLjQ4X3g2NC1zZXR1cC5leGUKMGhiNS9IbnAwUHI3RUp4VVhUcW8ydUpaTkhQdjJZNE12ZDY2Qkw3L1M3YWdTWlA5blMvbHFtWjZvZHhkL0F6amhxSWJTdjZ6bHNlNWI0QWc4SnROQVE9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.48/Muramura_0.1.48_x64-setup.exe"
+                                         }
+                  }
 }

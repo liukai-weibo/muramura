@@ -2,13 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
 import type { DailyNote } from '@knowledge-base/contracts'
 import { dailyNoteClock } from '@knowledge-base/contracts'
-import { apiClient } from '../../api-client'
-import { DAILY_NOTE_PAGE_ORIGIN, notifyDailyNoteChanged, subscribeDailyNoteChanged } from '../../daily-note-sync'
+import { DAILY_NOTE_PAGE_ORIGIN, subscribeDailyNoteChanged } from '../../daily-note-sync'
 import { isTauriDesktop } from '../../../../desktop/desktop-native-bridge'
 import { EntryTextView } from './entry-text-view'
 import { EntryTimelineView } from './entry-timeline-view'
 import { useDailyNoteEntries } from './use-daily-note-entries'
 import { shanghaiDate, shanghaiDateOffset } from './daily-note-date'
+import { WeatherWidget } from './weather/weather-widget'
+import { WeatherCityDialog } from './weather/weather-city-dialog'
+import { useWeather } from './weather/use-weather'
 
 /** 右侧 AI 复盘面板已隐藏，宽度让给时间轴；面板组件本身保留，随时能接回来。 */
 export interface DailyNotesPageProps { onFlushReady: (flush: () => Promise<boolean>) => void }
@@ -50,6 +52,8 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
   } = controller
 
   const [view, setView] = useState<NoteView>(readView)
+  const [weatherOpen, setWeatherOpen] = useState(false)
+  const weather = useWeather()
   const [focusEntryId, setFocusEntryId] = useState<string>()
   const [activeEntryId, setActiveEntryId] = useState<string>()
   const [dailyStatusEmoji, setDailyStatusEmoji] = useState(() => readDailyStatusEmoji(shanghaiDate()))
@@ -200,25 +204,6 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
     await clearAll()
   }
 
-  /** 「Markdown 转换」在条目模型下改为规整每条的空行与行尾空白，不删内容。 */
-  const convertMarkdown = async () => {
-    if (!current || !entries.length) return
-    if (!(await flush())) return
-    const normalize = (text: string) => text.split(/\r?\n/).map(line => line.trimEnd()).filter((line, index, all) => !(line === '' && all[index - 1] === '')).join('\n').trim()
-    const changed = entries
-      .map(entry => ({ entry, content: normalize(entry.content) }))
-      .filter(item => item.content && item.content !== item.entry.content)
-    if (!changed.length || !window.confirm('将整理当天每条记录的空行，不会删除内容。是否继续？')) return
-    try {
-      for (const item of changed) await apiClient.updateDailyNoteEntry(current.id, item.entry.id, item.content)
-      await reloadNote(current.id)
-      await refreshList()
-      notifyDailyNoteChanged(DAILY_NOTE_PAGE_ORIGIN)
-    } catch {
-      // 失败时不改本地内容，等用户重试。
-    }
-  }
-
   // 分组必须按真实日期切，不能按「列表里第几个非今天」——那会把 41 天前的笔记挂在「昨日」下。
   const groups = useMemo(() => {
     const today = shanghaiDate(); const yesterday = shanghaiDateOffset(-1); const weekStart = shanghaiDateOffset(-6)
@@ -276,7 +261,7 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
         <View className='daily-note-editor-actions'>
           <Button className='control-transition' onClick={exportNote}>导出记录</Button>
           <Button className='control-transition' onClick={() => void clearNote()}>清空当天</Button>
-          <Button className='control-transition' onClick={() => void convertMarkdown()}>Markdown 转换</Button>
+          <Button className='control-transition' onClick={() => setWeatherOpen(true)}>天气设置</Button>
         </View>
       </View>
 
@@ -286,19 +271,23 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
       </View>
 
       {view === 'text'
-        ? <EntryTextView
-          rows={rows}
-          isToday={isToday}
-          focusEntryId={focusEntryId}
-          onContentChange={setRowContent}
-          onTimeChange={setRowTime}
-          onSplit={handleSplit}
-          onMerge={handleMerge}
-          onRemove={handleRemove}
-          onFlushRow={key => void flushRow(key)}
-          onAddRow={handleAddRow}
-          onFocusRow={setActiveEntryId}
-        />
+        ? <View className='daily-note-text-layout'>
+          <EntryTextView
+            rows={rows}
+            isToday={isToday}
+            focusEntryId={focusEntryId}
+            onContentChange={setRowContent}
+            onTimeChange={setRowTime}
+            onSplit={handleSplit}
+            onMerge={handleMerge}
+            onRemove={handleRemove}
+            onFlushRow={key => void flushRow(key)}
+            onAddRow={handleAddRow}
+            onFocusRow={setActiveEntryId}
+          />
+          {/* 文本视图右侧本来就是空的：天气放在这里，时间轴视图不挤占格子。 */}
+          <WeatherWidget weather={weather} onOpenSettings={() => setWeatherOpen(true)} />
+        </View>
         : <EntryTimelineView
           entries={entries}
           isToday={isToday}
@@ -317,5 +306,11 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
           onOpenInText={entryId => void openInTextView(entryId)}
         />}
     </View>
+
+    {weatherOpen && <WeatherCityDialog
+      current={weather.city}
+      onSelect={weather.chooseCity}
+      onClose={() => setWeatherOpen(false)}
+    />}
   </View>
 }

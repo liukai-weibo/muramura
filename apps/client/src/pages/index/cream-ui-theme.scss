@@ -23,6 +23,14 @@
   --meal-partial-ink: rgba(43, 40, 37, .86);
   --meal-done: #7fa88a;
   --meal-done-ink: #fffdfa;
+  /* 手记卡片：宽度封顶 300px（约 20 个字），底色按条目 id 稳定分配，不落库。 */
+  --note-card-width: 300px;
+  --note-tint-1: #fbeef1;
+  --note-tint-2: #fdf0e3;
+  --note-tint-3: #f8f3dd;
+  --note-tint-4: #eef2e8;
+  --note-tint-5: #f4edf4;
+  --note-tint-line: #ece2da;
   background: var(--cream-canvas);
   color: var(--cream-body);
 }
@@ -38,7 +46,7 @@
 .daily-note-group > text:first-child { color: var(--cream-hint); font-size: 11px; font-weight: 700; }
 .daily-note-entry { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid transparent; border-radius: 14px; color: var(--cream-body); cursor: pointer; }
 .daily-note-entry text:first-child { color: var(--cream-ink); font-size: 12px; font-weight: 700; }.daily-note-entry text:last-child { overflow: hidden; color: var(--cream-hint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.daily-note-entry.active { border-color: #ebcbd1; background: var(--cream-peach-light); }
-.daily-notes-editor { display: flex; width: 100%; min-width: 0; min-height: 0; box-sizing: border-box; padding: 28px 32px; flex-direction: column; overflow: hidden; }.daily-note-editor-header, .daily-note-crossday { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.daily-note-editor-header { flex: 0 0 auto; margin-bottom: 18px; }.daily-note-editor-header > view { display: flex; flex-direction: column; gap: 4px; }.daily-note-title { display: flex; align-items: center; gap: 8px; }.daily-note-title-icon { width: 28px; height: 28px; object-fit: contain; filter: sepia(.22) saturate(.72); }.daily-note-editor-header text:first-child { color: var(--cream-ink); font-size: 20px; font-weight: 750; }.daily-note-editor-header text:last-child { color: var(--cream-hint); font-size: 11px; }
+.daily-notes-editor { display: flex; width: 100%; min-width: 0; min-height: 0; box-sizing: border-box; padding: 28px 32px; flex-direction: column; overflow: hidden; }.daily-note-editor-header, .daily-note-crossday { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.daily-note-editor-header { flex: 0 0 auto; margin-bottom: 18px; }.daily-note-editor-header > view:not(.daily-note-view-switch) { display: flex; flex-direction: column; gap: 4px; }.daily-note-title { display: flex; align-items: center; gap: 8px; }.daily-note-title-icon { width: 28px; height: 28px; object-fit: contain; filter: sepia(.22) saturate(.72); }.daily-note-editor-header text:first-child { color: var(--cream-ink); font-size: 20px; font-weight: 750; }.daily-note-editor-header text:last-child { color: var(--cream-hint); font-size: 11px; }
 .daily-note-editor-header button, .daily-note-editor-header taro-button-core, .daily-note-crossday button, .daily-note-crossday taro-button-core { display: inline-flex; width: auto; min-width: 76px; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 32px; padding: 0 13px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); font-size: 12px; }.daily-note-crossday { margin-bottom: 16px; padding: 10px 12px; border: 1px solid #ead9aa; border-radius: 14px; background: #fff9e9; color: #806b38; font-size: 12px; }
 .daily-notes-ai-placeholder { display: flex; flex-direction: column; gap: 7px; padding: 28px 22px; border-left: 1px solid var(--cream-line); color: var(--cream-hint); background: var(--cream-sidebar); }.daily-notes-ai-placeholder text:first-child { color: var(--cream-body); font-size: 13px; font-weight: 700; }
 .daily-notes-ai-panel { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 22px 16px; border-left: 1px solid var(--cream-line); background: var(--cream-sidebar); overflow: auto; }.daily-note-ai-heading, .daily-note-ai-result-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.daily-note-ai-heading > view { display: flex; flex-direction: column; gap: 3px; }.daily-note-ai-heading text:first-child { color: var(--cream-ink); font-size: 14px; font-weight: 750; }.daily-note-ai-heading text:last-child, .daily-note-ai-empty, .daily-note-ai-candidate > text { color: var(--cream-hint); font-size: 11px; line-height: 1.5; }.daily-note-ai-actions { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.daily-note-ai-actions button, .daily-note-ai-heading button, .daily-note-ai-result-actions button, .daily-note-ai-candidate button { min-width: 0; min-height: 30px; padding: 0 9px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); font-size: 11px; white-space: nowrap; }.daily-note-ai-result, .daily-note-ai-candidates { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--cream-line); border-radius: 14px; background: var(--cream-soft-surface); }.daily-note-ai-result { overflow: auto; }.daily-note-ai-error { color: #ad5965; font-size: 11px; }.daily-note-ai-candidate { display: flex; flex-direction: column; gap: 7px; padding: 9px; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-surface); }.daily-note-ai-candidate input { min-width: 0; border: 0; outline: 0; background: transparent; color: var(--cream-ink); font-size: 12px; font-weight: 700; }
@@ -632,6 +640,14 @@ textarea:focus,
   --meal-partial-ink: rgba(255, 253, 250, .9);
   --meal-done: #5f7f6b;
   --meal-done-ink: #fffdfa;
+  /* 手记卡片底色：深色态压暗提饱和，保证文字仍在暖褐层级里。 */
+  --note-card-width: 300px;
+  --note-tint-1: #4b343a;
+  --note-tint-2: #4a3d2f;
+  --note-tint-3: #47422c;
+  --note-tint-4: #35402f;
+  --note-tint-5: #453644;
+  --note-tint-line: #4c4640;
   --cream-canvas: #292521;
   --cream-sidebar: #37322e;
   --cream-surface: #332e2a;
@@ -1355,8 +1371,8 @@ textarea:focus,
 .daily-note-notice { margin-bottom: 10px; padding: 8px 12px; border: 1px solid #cfe3d3; border-radius: 12px; background: #f1f8f2; color: #4d6b52; font-size: 12px; }
 .daily-note-save-state .is-pending { color: var(--cream-peach); }
 /* 视图切换。 */
-.daily-note-view-switch { display: inline-flex; flex: 0 0 auto; padding: 2px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-soft-surface); }
-.daily-note-view-tab { min-height: 24px; padding: 0 12px; border: 0; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-size: 11px; }
+.daily-note-view-switch { display: inline-flex; flex: 0 0 auto; flex-direction: row; align-items: center; padding: 2px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-soft-surface); }
+.daily-note-view-tab { display: inline-flex; min-height: 24px; align-items: center; justify-content: center; padding: 0 12px; border: 0; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-size: 11px; }
 .daily-note-view-tab.is-active { background: var(--cream-surface); color: var(--cream-ink); font-weight: 700; box-shadow: 0 1px 3px rgba(60, 50, 40, .08); }
 .daily-note-day-title { display: flex; flex: 0 0 auto; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .daily-note-day-date { color: var(--cream-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1392,6 +1408,58 @@ textarea:focus,
 .daily-note-time-popover-confirm, .daily-note-time-popover-cancel { min-height: 26px; padding: 0 11px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; }
 .daily-note-time-popover-confirm { border-color: #ebcbd1; background: var(--cream-peach-light); color: #9d4f60; }
 
+
+/* —— 文本视图右侧留白里的近七天天气 —— */
+.daily-note-text-layout { display: flex; min-height: 0; flex: 1 1 auto; align-items: stretch; gap: 16px; }
+.daily-note-text-layout .daily-note-text-view { min-width: 0; flex: 1 1 auto; }
+.weather-card { display: flex; width: 264px; flex: 0 0 264px; min-height: 0; box-sizing: border-box; flex-direction: column; gap: 10px; padding: 14px 14px 12px; overflow: auto; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-surface); box-shadow: var(--cream-shadow); }
+.weather-card-head { display: flex; flex-direction: column; gap: 6px; }
+.weather-card-city-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.weather-card-city { overflow: hidden; color: var(--cream-ink); font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.weather-card-settings { flex: 0 0 auto; height: 20px; padding: 0 8px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; }
+.weather-card-settings:hover { border-color: #dfc984; color: #a4566a; }
+.weather-card-now { display: flex; align-items: baseline; gap: 6px; }
+.weather-card-icon { font-size: 20px; line-height: 1; }
+.weather-card-temperature { color: var(--cream-ink); font-size: 26px; font-variant-numeric: tabular-nums; font-weight: 700; line-height: 1; }
+.weather-card-condition { color: var(--cream-body); font-size: 12px; }
+.weather-card-now.is-empty { color: var(--cream-hint); font-size: 13px; }
+.weather-card-meta { margin: 0; color: var(--cream-hint); font-size: 10px; line-height: 1.5; }
+.weather-card-days { display: flex; margin: 0; padding: 0; flex-direction: column; gap: 2px; list-style: none; }
+.weather-card-day { display: grid; min-height: 26px; align-items: center; gap: 4px; padding: 0 6px; border-radius: 10px; grid-template-columns: 34px 34px 20px minmax(0, 1fr); }
+.weather-card-day.is-today { background: var(--cream-soft-surface); }
+.weather-card-day-label { color: var(--cream-body); font-size: 11px; }
+.weather-card-day-date { color: var(--cream-hint); font-size: 10px; font-variant-numeric: tabular-nums; }
+.weather-card-day-icon { font-size: 13px; text-align: center; }
+.weather-card-day-temp { display: flex; justify-content: flex-end; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.weather-card-day-temp .is-max { color: var(--cream-ink); }
+.weather-card-day-temp .is-min { color: var(--cream-hint); }
+.weather-card-foot { display: flex; margin-top: auto; align-items: center; justify-content: space-between; gap: 6px; }
+.weather-card-source { color: var(--cream-hint); font-size: 10px; }
+.weather-card-refresh { height: 20px; padding: 0 8px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; }
+.weather-card-refresh:hover:not(:disabled) { border-color: #dfc984; color: #a4566a; }
+.weather-card-refresh:disabled { cursor: default; opacity: .6; }
+@media (max-width: 1120px) { .weather-card { display: none; } }
+
+/* —— 天气设置弹窗 —— */
+.weather-city-dialog { width: min(420px, calc(100vw - 48px)); }
+.weather-city-heading { display: flex; flex-direction: column; gap: 2px; }
+.weather-city-search { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.weather-city-search-label { flex: 0 0 auto; color: var(--cream-hint); font-size: 11px; }
+.weather-city-input { min-width: 0; height: 30px; flex: 1 1 auto; padding: 0 10px; border: 1px solid var(--cream-line); border-radius: 10px; background: var(--cream-surface); color: var(--cream-ink); font-family: inherit; font-size: 12px; }
+.weather-city-list { display: flex; max-height: 280px; flex-direction: column; gap: 2px; overflow: auto; }
+.weather-city-option { display: flex; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--cream-ink); cursor: pointer; font-family: inherit; font-size: 12px; text-align: left; }
+.weather-city-option:hover { background: var(--cream-soft-surface); }
+.weather-city-option.is-active { background: rgba(235, 203, 209, .22); }
+.weather-city-name { flex: 0 0 auto; }
+.weather-city-region { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--cream-hint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.weather-city-current { flex: 0 0 auto; color: #a4566a; font-size: 10px; }
+.weather-city-empty { margin: 0; padding: 10px 8px; color: var(--cream-hint); font-size: 11px; }
+.weather-city-error { margin: 0 0 6px; color: #9d4f60; font-size: 11px; }
+.app-shell[data-color-theme="dark"] .weather-card-settings:hover,
+.app-shell[data-color-theme="dark"] .weather-card-refresh:hover:not(:disabled),
+.app-shell[data-color-theme="dark"] .weather-city-current { color: #e8a7ae; }
+.app-shell[data-color-theme="dark"] .weather-city-error { color: #f2b8c0; }
+
 /* —— 时间轴视图：24 小时纵向刻度 —— */
 .daily-note-timeline-view { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 10px; }
 .daily-note-untimed { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 6px 10px; border: 1px dashed var(--cream-line); border-radius: 12px; background: var(--cream-soft-surface); }
@@ -1401,8 +1469,11 @@ textarea:focus,
 .daily-note-untimed-content { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--cream-ink); font-size: 12px; line-height: 1.6; text-overflow: ellipsis; white-space: nowrap; }
 .daily-note-untimed-button { flex: 0 0 auto; min-height: 22px; padding: 0 8px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-hint); cursor: pointer; font-size: 10px; }
 /* 一屏一页：中轴左右各一列，一小时一格；格子是按钮，卡片绝对定位叠在格子上。 */
-.daily-note-bands-frame { position: relative; min-height: 0; flex: 1 1 auto; padding: 12px 16px; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-soft-surface); box-shadow: var(--cream-shadow); }
-.daily-note-bands { display: grid; height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); }
+.daily-note-bands-frame { position: relative; display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 4px; padding: 12px 16px; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-soft-surface); box-shadow: var(--cream-shadow); }
+.daily-note-bands { display: grid; min-height: 0; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); }
+.daily-note-bands-foot { display: grid; height: 16px; flex: 0 0 auto; align-items: center; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); }
+.daily-note-bands-foot-axis { display: flex; justify-content: space-between; }
+.daily-note-bands-foot .daily-note-band-axis-label { cursor: default; padding: 0 8px; }
 .daily-note-band-side { position: relative; display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .daily-note-band { position: relative; display: block; min-height: 0; flex: 1 1 0; padding: 0; border: 0; border-top: 1px solid var(--cream-line); background: transparent; cursor: pointer; transition: background-color .15s ease; }
 .daily-note-band:first-child { border-top-color: transparent; }
@@ -1412,8 +1483,8 @@ textarea:focus,
 .daily-note-band.is-now { background: rgba(235, 203, 209, .16); }
 .daily-note-band.is-drop-target { background: rgba(226, 202, 130, .26); }
 .daily-note-band-add { position: absolute; top: 3px; color: var(--cream-hint); font-size: 10px; line-height: 1; opacity: 0; transition: opacity .15s ease; }
-.daily-note-band-side.is-am .daily-note-band-add { right: 6px; }
-.daily-note-band-side.is-pm .daily-note-band-add { left: 6px; }
+.daily-note-band-side.is-am .daily-note-band-add { left: 6px; }
+.daily-note-band-side.is-pm .daily-note-band-add { right: 6px; }
 .daily-note-band:hover .daily-note-band-add, .daily-note-band:focus-visible .daily-note-band-add { opacity: .8; }
 .daily-note-band-cards { position: absolute; inset: 0; pointer-events: none; }
 .daily-note-band-stack { position: absolute; inset: 0; }
@@ -1425,9 +1496,18 @@ textarea:focus,
 .daily-note-band-axis-label:disabled { cursor: default; }
 .daily-note-band-axis-row.is-now .daily-note-band-axis-label { color: #a4566a; font-weight: 700; }
 .daily-note-bands-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--cream-hint); font-size: 11px; pointer-events: none; }
-.daily-note-timeline-card { position: absolute; display: flex; box-sizing: border-box; width: min(440px, 100%); align-items: center; gap: 6px; padding: 0 6px; overflow: hidden; border: 1px solid var(--cream-line); border-radius: 8px; background: var(--cream-surface); cursor: grab; pointer-events: auto; touch-action: none; user-select: none; }
+.daily-note-timeline-card { position: absolute; display: flex; box-sizing: border-box; width: min(var(--note-card-width), 100%); align-items: center; gap: 6px; padding: 0 6px; overflow: hidden; border: 1px solid var(--cream-line); border-radius: 8px; background: var(--cream-surface); cursor: grab; pointer-events: auto; touch-action: none; user-select: none; }
 .daily-note-band-side.is-am .daily-note-timeline-card { right: 0; }
 .daily-note-band-side.is-pm .daily-note-timeline-card { left: 0; }
+.daily-note-band-side.is-two-column .daily-note-timeline-card,
+.daily-note-band-side.is-two-column .daily-note-band-more { width: calc(50% - 2px); }
+.daily-note-band-side.is-two-column.is-am .is-col-1 { right: calc(50% + 2px); }
+.daily-note-band-side.is-two-column.is-pm .is-col-1 { left: calc(50% + 2px); }
+.daily-note-timeline-card.is-tint-0 { border-color: var(--note-tint-line); background: var(--note-tint-1); }
+.daily-note-timeline-card.is-tint-1 { border-color: var(--note-tint-line); background: var(--note-tint-2); }
+.daily-note-timeline-card.is-tint-2 { border-color: var(--note-tint-line); background: var(--note-tint-3); }
+.daily-note-timeline-card.is-tint-3 { border-color: var(--note-tint-line); background: var(--note-tint-4); }
+.daily-note-timeline-card.is-tint-4 { border-color: var(--note-tint-line); background: var(--note-tint-5); }
 .daily-note-timeline-card:hover { border-color: #dfc984; }
 .daily-note-timeline-card.is-selected { border-color: #ebcbd1; box-shadow: 0 0 0 2px rgba(235, 203, 209, .55); }
 .daily-note-timeline-card.is-dragging { z-index: 5; border-color: #dfc984; background: var(--cream-peach-light); box-shadow: 0 8px 20px rgba(120, 96, 70, .18); cursor: grabbing; }
@@ -1439,9 +1519,11 @@ textarea:focus,
 .daily-note-row.is-focused { border-radius: 10px; animation: daily-note-row-flash 1.4s ease-out 1; }
 @keyframes daily-note-row-flash { 0% { background: rgba(235, 203, 209, .5); } 100% { background: transparent; } }
 /* 一格放不下时折出来的入口。 */
-.daily-note-band-more { position: absolute; width: min(440px, 100%); padding: 0 8px; border: 1px dashed var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; line-height: 1; pointer-events: auto; }
+.daily-note-band-more { position: absolute; width: min(var(--note-card-width), 100%); padding: 0 8px; border: 1px dashed var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; line-height: 1; pointer-events: auto; }
 .daily-note-band-side.is-am .daily-note-band-more { right: 0; }
 .daily-note-band-side.is-pm .daily-note-band-more { left: 0; }
+.daily-note-band-side.is-two-column.is-am .daily-note-band-more.is-col-1 { right: calc(50% + 2px); }
+.daily-note-band-side.is-two-column.is-pm .daily-note-band-more.is-col-1 { left: calc(50% + 2px); }
 .daily-note-drag-hint { position: fixed; z-index: 40; padding: 2px 8px; border-radius: 9999px; background: #fbeef1; color: #a4566a; font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 6px 16px rgba(120, 96, 70, .16); }
 /* 点时段后的快速补记弹窗。 */
 .daily-note-record-modal { display: flex; flex-direction: column; gap: 12px; }

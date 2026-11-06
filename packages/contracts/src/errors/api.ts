@@ -12,6 +12,7 @@ export type ApiErrorCode =
   | 'NOT_FOUND_ROUTE'
   | 'MYSQL_SCHEMA_NOT_READY'
   | 'MYSQL_UNAVAILABLE'
+  | 'UPSTREAM_UNAVAILABLE'
   | 'INTERNAL_ERROR'
 
 export type ApiErrorStatus = 400 | 401 | 403 | 404 | 405 | 409 | 413 | 415 | 500 | 503

@@ -33,6 +33,7 @@ import { createDailySummaryRoutes } from './routes/daily-summaries'
 import { createDailyDietRoutes } from './routes/daily-diet'
 import { createHomeAiCardRoutes } from './routes/home-ai-cards'
 import { createAuditRoutes } from './routes/audit'
+import { createWeatherRoutes } from './routes/weather'
 import { createRootHonoServices, type RootHonoServices } from './services'
 
 /**
@@ -62,6 +63,7 @@ function buildBusinessApiV1Routes(root: RootHonoServices) {
     .route('/daily-summaries', createDailySummaryRoutes())
     .route('/daily-diet', createDailyDietRoutes())
     .route('/home-ai-cards', createHomeAiCardRoutes())
+    .route('/weather', createWeatherRoutes())
     .route('/', createAiRoutes())
 }
 
