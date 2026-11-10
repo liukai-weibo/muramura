@@ -50,7 +50,7 @@ Muramura（圈圈）将下面这条个人运行闭环落在一个本地优先的
 
 **桌面端（Tauri Windows）**
 
-- 提供 Tauri Windows 桌面客户端，桌面上承载工作台并通过本机 API（`http://127.0.0.1:32146`）使用全部能力。
+- 提供 Tauri Windows 桌面客户端。生产安装包连接云端 `https://www.muramura.icu`（`apps/client/.env.production`）；本地 `tauri:dev` 固定连本机 API `http://127.0.0.1:32146`（`scripts/tauri-dev.mjs`）。
 - 「我的-账户」提供【检查更新】：Tauri updater 连接 GitHub Release，展示当前/最新版本、下载进度并自动安装重启。
 - 桌面更新源为仓库根 `updater.json`（GitHub Release + gh-proxy 实时代理），构建签名私钥仅存本机/CI、不进入镜像与仓库。
 

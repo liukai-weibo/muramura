@@ -5,7 +5,7 @@
   "scripts": {
     "dev:h5": "taro build --type h5 --watch",
     "build:h5": "taro build --type h5",
-    "tauri:dev": "cd ../.. && corepack pnpm --filter @knowledge-base/client build:h5 && node apps/client/node_modules/@tauri-apps/cli/tauri.js dev --config src-tauri/tauri.dev.conf.json --no-dev-server",
+    "tauri:dev": "node ../../scripts/tauri-dev.mjs",
     "tauri:build": "cd ../.. && node apps/client/node_modules/@tauri-apps/cli/tauri.js build --config src-tauri/tauri.conf.json",
     "dev:weapp": "taro build --type weapp --watch",
     "build:weapp": "taro build --type weapp"
