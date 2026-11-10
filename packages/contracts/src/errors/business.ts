@@ -58,6 +58,7 @@ export type BackupErrorCode = 'INVALID_BACKUP' | 'BACKUP_OWNERSHIP_CONFLICT'
 export type DailyNoteErrorCode = 'DAILY_NOTE_INVALID' | 'DAILY_NOTE_NOT_FOUND' | 'DAILY_NOTE_ENTRY_NOT_FOUND'
 export type MoodEntryErrorCode = 'MOOD_ENTRY_INVALID' | 'MOOD_ENTRY_NOT_FOUND'
 export type MealEntryErrorCode = 'MEAL_ENTRY_INVALID'
+export type SleepErrorCode = 'SLEEP_ENTRY_INVALID'
 export type DailySummaryErrorCode = 'DAILY_SUMMARY_INVALID'
 export type DailyDietErrorCode = 'DIET_RECOMMENDATION_INVALID'
 export type DietProfileErrorCode = 'DIET_PROFILE_INVALID'
@@ -104,6 +105,7 @@ export type BusinessErrorCode =
   | InitialOwnerClaimErrorCode
   | ItemErrorCode
   | MealEntryErrorCode
+  | SleepErrorCode
   | MethodErrorCode
   | MoodEntryErrorCode
   | PlatformAdministrationErrorCode
@@ -154,6 +156,7 @@ export const businessErrorCategoryByCode = {
   MOOD_ENTRY_INVALID: 'validation',
   MOOD_ENTRY_NOT_FOUND: 'not-found',
   MEAL_ENTRY_INVALID: 'validation',
+  SLEEP_ENTRY_INVALID: 'validation',
   DAILY_SUMMARY_INVALID: 'validation',
   DIET_RECOMMENDATION_INVALID: 'validation',
   DIET_PROFILE_INVALID: 'validation',
@@ -232,6 +235,7 @@ export const publicBusinessErrorCodes = [
   'MOOD_ENTRY_INVALID',
   'MOOD_ENTRY_NOT_FOUND',
   'MEAL_ENTRY_INVALID',
+  'SLEEP_ENTRY_INVALID',
   'DAILY_SUMMARY_INVALID',
   'DIET_RECOMMENDATION_INVALID',
   'DIET_PROFILE_INVALID',

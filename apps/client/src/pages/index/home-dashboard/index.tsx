@@ -4,6 +4,7 @@ import { HomeHeroBanner } from './home-hero-banner'
 import { HomeDailyNoteCard } from './home-daily-note-card'
 import { HomeMoodCard } from './home-mood-card'
 import { HomeMealCard } from './home-meal-card'
+import { HomeSleepCard } from './home-sleep-card'
 import { HomeDailySummaryCard } from './home-daily-summary-card'
 import { HomeDailyDietCard } from './home-daily-diet-card'
 import { HomeAiCardView } from '../features/home-ai-card/home-ai-card-view'
@@ -46,6 +47,7 @@ export function HomeDashboard({ items, onOpenItem, onOpenBacklog, onOpenCapture,
     <View className='home-checkin-row'>
       <HomeMoodCard onOpenMoodCreate={onOpenMoodCreate} />
       <HomeMealCard onOpenMeals={onOpenMeals} />
+      <HomeSleepCard />
     </View>
     <View className='home-dynamic-row'>
       <HomeDailySummaryCard summary={dailySummary} loading={dailySummaryLoading} streamPreview={dailySummaryStreamPreview} onOpen={onOpenDailySummary} />

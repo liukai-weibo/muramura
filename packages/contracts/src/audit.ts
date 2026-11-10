@@ -9,6 +9,7 @@ export const auditModules = [
   'daily_note',
   'mood',
   'meal',
+  'sleep',
   'item',
   'search',
   'exploration_track',
@@ -123,6 +124,7 @@ export const AUDIT_SNAPSHOT_VALUE_LABELS: Record<string, string> = {
   daily_note: '手记',
   item: '事项',
   search: '搜索',
+  sleep: '睡眠',
 }
 
 /**
@@ -145,6 +147,9 @@ export const AUDIT_SNAPSHOT_KEY_LABELS: Record<string, string> = {
   refreshMode: '刷新方式',
   meals: '餐次',
   mealType: '餐次类型',
+  sleepDate: '睡眠日期',
+  bedAt: '入睡时间',
+  wakeAt: '起床时间',
   content: '内容',
   feeling: '饱腹度',
   query: '搜索词',

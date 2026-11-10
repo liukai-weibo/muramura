@@ -31,7 +31,7 @@
 .home-daily-note-action > taro-button-core > button { display: flex !important; align-items: center; justify-content: center; line-height: 1 !important; }
 .home-daily-note-modal-actions > .home-daily-note-save { border-color: #e94781 !important; background: #e94781 !important; color: #fffafd !important; }
 .home-daily-note-modal-backdrop { position: fixed; z-index: 90; inset: 0; display: flex; padding: 24px; align-items: center; justify-content: center; background: rgba(43, 40, 37, .28); }.home-daily-note-modal { width: min(100%, 440px); padding: 22px; border: 1px solid #eae6e0; border-radius: 22px; background: #fffdfa; box-shadow: 0 20px 48px rgba(42, 35, 27, .2); }.home-daily-note-modal-title { display: block; color: #2b2825; font-size: 18px; font-weight: 850; }.home-daily-note-modal-hint { display: block; margin-top: 5px; color: #948e86; font-size: 11px; }.home-daily-note-modal-input { display: block; width: 100%; min-height: 148px; margin-top: 18px; padding: 14px; box-sizing: border-box; border: 1px solid #eae6e0; border-radius: 14px; background: #faf8f5; color: #2c2823; font-size: 14px; line-height: 1.7; outline: none; resize: none; }.home-daily-note-modal-input:focus { border-color: #dfc984; box-shadow: 0 0 0 3px rgba(226, 202, 130, .2); }.home-daily-note-modal-error { display: block; margin-top: 8px; color: #a94f58; font-size: 12px; }.home-daily-note-modal-actions { display: flex; justify-content: stretch; gap: 10px; margin-top: 16px; }.home-daily-note-modal-actions > button, .home-daily-note-modal-actions > taro-button-core { display: inline-flex !important; width: auto !important; min-width: 0; flex: 1 1 0; align-items: center; justify-content: center; margin: 0 !important; }.home-daily-note-modal-actions > .home-daily-note-cancel { border: 1px solid #eae6e0 !important; background: #fff !important; color: #544f49 !important; }.home-daily-note-modal-actions > .home-daily-note-save { border: 1px solid #e7a6b5 !important; background: #d98495 !important; color: #fffafd !important; }
-.home-checkin-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.home-checkin-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
 .home-dynamic-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .home-custom-ai-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .home-mood-card { position: relative; display: flex; min-width: 0; min-height: 112px; padding: 20px 22px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 20px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F6E8C8 0%, #D5E2C8 100%); }
@@ -55,6 +55,26 @@
 .home-meal-card-action { position: relative; flex: 0 0 auto; color: rgba(43, 40, 37, .86); font-size: 12px; font-weight: 800; }
 .home-meal-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(120, 90, 60, .16), 0 4px 10px rgba(0, 0, 0, .06); }
 .home-meal-card:hover .home-meal-card-glow { opacity: .85; }
+
+/* 睡眠卡：与情绪/三餐同规格，第三种渐变 */
+.home-sleep-card { position: relative; display: flex; min-width: 0; min-height: 112px; padding: 20px 22px; box-sizing: border-box; align-items: stretch; justify-content: space-between; gap: 14px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #E9E3F2 0%, #DEE6F1 100%); }
+.home-sleep-card-glow { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(circle at 22% 30%, rgba(255, 255, 255, .35) 0%, rgba(255, 255, 255, 0) 55%); }
+.home-sleep-card-copy { position: relative; display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; justify-content: center; gap: 4px; }
+.home-sleep-card-kicker { color: rgba(43, 40, 37, .62); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.home-sleep-card-title { color: #2b2825; font-size: 17px; font-variant-numeric: tabular-nums; font-weight: 850; line-height: 1.35; }
+.home-sleep-card-description { color: rgba(43, 40, 37, .66); font-size: 12px; }
+.home-sleep-card-side { position: relative; display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 5px; margin-top: 18px; }
+.home-sleep-spark { display: block; width: 96px; height: 40px; overflow: visible; }
+.home-sleep-spark-line { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+.home-sleep-spark-line.is-wake { stroke: #c98a52; }
+.home-sleep-spark-line.is-bed { stroke: #8a7ab0; }
+.home-sleep-spark-dot.is-wake { fill: #c98a52; }
+.home-sleep-spark-dot.is-bed { fill: #8a7ab0; }
+.home-sleep-card-action { color: rgba(43, 40, 37, .86); font-size: 11px; font-weight: 800; }
+.home-sleep-record { position: absolute; top: 14px; right: 18px; display: flex; height: 24px; padding: 0 10px; align-items: center; border: 1px solid rgba(43, 40, 37, .18); border-radius: 9999px; background: rgba(255, 255, 255, .6); color: #2b2825; cursor: pointer; font-size: 11px; font-weight: 700; }
+.home-sleep-record:hover { background: rgba(255, 255, 255, .92); }
+.home-sleep-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(120, 90, 60, .16), 0 4px 10px rgba(0, 0, 0, .06); }
+.home-sleep-card:hover .home-sleep-card-glow { opacity: .85; }
 .app-shell[data-color-theme='dark'] .home-meal-card { background-image: linear-gradient(120deg, #8F7660 0%, #7A6356 100%); border-color: rgba(255, 255, 255, .1); }
 .app-shell[data-color-theme='dark'] .home-meal-card-kicker { color: rgba(255, 253, 250, .62); }
 .app-shell[data-color-theme='dark'] .home-meal-card-title { color: #fffdfa; }
@@ -104,6 +124,7 @@
   .home-guide-modal-backdrop { padding: 16px; }
 }
 @media (min-width: 721px) and (max-width: 900px) { .home-primary-row { grid-template-columns: minmax(0, 1fr); }.home-daily-note-card { margin-top: 0; } }
+@media (min-width: 721px) and (max-width: 1099px) { .home-checkin-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* 近期状态小结卡片（第三格，与情绪/三餐同规格） */
 .home-daily-summary-card { position: relative; display: flex; min-width: 0; min-height: 260px; padding: 22px 24px; box-sizing: border-box; align-items: stretch; justify-content: space-between; gap: 14px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F3E7D2 0%, #E4DCBF 100%); }

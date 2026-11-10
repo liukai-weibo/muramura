@@ -18,6 +18,7 @@ import {
   DietProfileApplicationService,
   DailyNoteApplicationService,
   MealEntryApplicationService,
+  SleepApplicationService,
   MoodEntryApplicationService,
   DailySummaryApplicationService,
   DailyDietRecommendationApplicationService,
@@ -43,6 +44,7 @@ import {
   MySqlDietProfileRepository,
   MySqlDailyNoteRepository,
   MySqlMealEntryRepository,
+  MySqlSleepRepository,
   MySqlMoodEntryRepository,
   MySqlDailySummaryRepository,
   MySqlDailyDietRecommendationRepository,
@@ -96,6 +98,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const dailyNoteService = dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository, auditRecorder) : undefined
   const moodEntryRepository = userId ? new MySqlMoodEntryRepository(pool, { userId }) : undefined
   const mealEntryRepository = userId ? new MySqlMealEntryRepository(pool, { userId }) : undefined
+  const sleepRepository = userId ? new MySqlSleepRepository(pool, { userId }) : undefined
   const dailySummaryRepository = userId ? new MySqlDailySummaryRepository(pool, { userId }) : undefined
   const dailyDietRepository = userId ? new MySqlDailyDietRecommendationRepository(pool, { userId }) : undefined
   const dietProfileRepository = userId ? new MySqlDietProfileRepository(pool, { userId }) : undefined
@@ -126,10 +129,11 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     trash: new TrashApplicationService(items, methods, explorationTracks, trashPurge, auditRecorder),
     search: new SearchApplicationService(new MySqlSearchRepository(pool, undefined, scope), auditRecorder),
     dashboard: new DashboardApplicationService(new MySqlDashboardRepository(pool, scope)),
-    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository, dailyDietRepository, homeAiCardRepository),
+    backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository, dailyDietRepository, homeAiCardRepository, sleepRepository),
     dailyNotes: dailyNoteService,
     moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository, auditRecorder, dailyNoteService) : undefined,
     meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository, auditRecorder) : undefined,
+    sleep: sleepRepository ? new SleepApplicationService(sleepRepository, auditRecorder) : undefined,
     dailySummaries: dailySummaryRepository ? new DailySummaryApplicationService(dailySummaryRepository) : undefined,
     dailyDiet: dailyDietRepository ? new DailyDietRecommendationApplicationService(dailyDietRepository) : undefined,
     dietProfile: dietProfileRepository ? new DietProfileApplicationService(dietProfileRepository, auditRecorder, userId) : undefined,

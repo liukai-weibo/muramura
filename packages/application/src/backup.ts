@@ -4,6 +4,11 @@ import {
   homeAiCardThemes,
   homeAiCardRefreshModes,
   MEAL_SATIETY_VALUES,
+  addDays,
+  isValidSleepBed,
+  isValidSleepWake,
+  sleepDayOf,
+  type SleepEntry,
   type BackupData,
   type BackupDataV3,
   type BackupDataV4,
@@ -14,6 +19,8 @@ import {
   type BackupDataV9,
   type BackupDataV10,
   type BackupDataV11,
+  type BackupDataV12,
+  type BackupDataV13,
   type BackupDocument,
   type BackupRepository,
   type ItemStatusEvent,
@@ -27,6 +34,7 @@ import {
   type DailySummaryBackupStore,
   type DailyDietRecommendationBackupStore,
   type HomeAiCardBackupStore,
+  type SleepBackupStore,
 } from '@knowledge-base/contracts'
 import { BusinessError, createId } from '@knowledge-base/domain'
 
@@ -59,6 +67,34 @@ function isTimestamp(value: unknown): value is string {
 
 function requireV3Timestamp(value: unknown, label: string): void {
   if (!isTimestamp(value)) throw invalidBackup(`V3 ${label}存在无效时间`)
+}
+
+/**
+ * V12 的睡眠是「D-1 晚入睡 + D 早起床」的跨天记录；V13 改成「D 起床 + D 入睡」。
+ * 恢复旧备份时按时间戳拆成两行：起床留在 D，入睡归到它所在的本地日期。
+ */
+function convertV12SleepEntries(entries: SleepEntry[]): SleepEntry[] {
+  const byDate = new Map<string, SleepEntry>()
+  const ensure = (date: string, createdAt: string, updatedAt: string): SleepEntry => {
+    const existing = byDate.get(date)
+    if (existing) return existing
+    const created: SleepEntry = { id: createId(), sleepDate: date, createdAt, updatedAt }
+    byDate.set(date, created)
+    return created
+  }
+  for (const entry of entries) {
+    if (entry.wakeAt) {
+      const target = ensure(entry.sleepDate, entry.createdAt, entry.updatedAt)
+      target.wakeAt = entry.wakeAt
+      if (entry.note) target.note = entry.note
+    }
+    if (entry.bedAt) {
+      const bedDate = sleepDayOf(entry.bedAt) ?? entry.sleepDate
+      const target = ensure(bedDate, entry.createdAt, entry.updatedAt)
+      target.bedAt = entry.bedAt
+    }
+  }
+  return [...byDate.values()].sort((left, right) => left.sleepDate.localeCompare(right.sleepDate))
 }
 
 /** V3 在 Repository 开始事务前完成整份文档校验，避免部分写入。 */
@@ -114,7 +150,7 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
   try { value = JSON.parse(input) }
   catch { throw invalidBackup('备份文件不是有效的 JSON') }
   if (!isRecord(value) || value.format !== 'knowledge-base-backup') throw invalidBackup('这不是本系统的备份文件')
-  if (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4 && value.version !== 5 && value.version !== 6 && value.version !== 7 && value.version !== 8 && value.version !== 9 && value.version !== 10 && value.version !== 11) throw invalidBackup(`不支持的备份版本：${String(value.version)}`)
+  if (value.version !== 1 && value.version !== 2 && value.version !== 3 && value.version !== 4 && value.version !== 5 && value.version !== 6 && value.version !== 7 && value.version !== 8 && value.version !== 9 && value.version !== 10 && value.version !== 11 && value.version !== 12 && value.version !== 13) throw invalidBackup(`不支持的备份版本：${String(value.version)}`)
   if (!isRecord(value.data)) throw invalidBackup('备份缺少 data 数据区')
 
   const requiredCollectionNames = ['items', 'reviews', 'methods', 'methodEvidence', 'itemLinks'] as const
@@ -153,7 +189,11 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
     ? value.data.methodTombstones as MethodTombstone[]
     : []
   const normalizedData: BackupData = { ...rawDocument.data, methodVersions, methodApplications, itemStatusEvents, methodTombstones: parsedMethodTombstones }
-  const document: BackupDocument = value.version === 11
+  const document: BackupDocument = value.version === 13
+    ? { ...rawDocument, version: 13, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV13['dailyNotes'] : [], dailyNoteEntries: Array.isArray(value.data.dailyNoteEntries) ? value.data.dailyNoteEntries as BackupDataV13['dailyNoteEntries'] : [], moodEntries: Array.isArray(value.data.moodEntries) ? value.data.moodEntries as BackupDataV13['moodEntries'] : [], mealEntries: Array.isArray(value.data.mealEntries) ? value.data.mealEntries as BackupDataV13['mealEntries'] : [], dailySummaries: Array.isArray(value.data.dailySummaries) ? value.data.dailySummaries as BackupDataV13['dailySummaries'] : [], dailyDietRecommendations: Array.isArray(value.data.dailyDietRecommendations) ? value.data.dailyDietRecommendations as BackupDataV13['dailyDietRecommendations'] : [], homeAiCards: Array.isArray(value.data.homeAiCards) ? value.data.homeAiCards as BackupDataV13['homeAiCards'] : [], homeAiCardCaches: Array.isArray(value.data.homeAiCardCaches) ? value.data.homeAiCardCaches as BackupDataV13['homeAiCardCaches'] : [], sleepEntries: Array.isArray(value.data.sleepEntries) ? value.data.sleepEntries as BackupDataV13['sleepEntries'] : [] } }
+    : value.version === 12
+    ? { ...rawDocument, version: 12, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV12['dailyNotes'] : [], dailyNoteEntries: Array.isArray(value.data.dailyNoteEntries) ? value.data.dailyNoteEntries as BackupDataV12['dailyNoteEntries'] : [], moodEntries: Array.isArray(value.data.moodEntries) ? value.data.moodEntries as BackupDataV12['moodEntries'] : [], mealEntries: Array.isArray(value.data.mealEntries) ? value.data.mealEntries as BackupDataV12['mealEntries'] : [], dailySummaries: Array.isArray(value.data.dailySummaries) ? value.data.dailySummaries as BackupDataV12['dailySummaries'] : [], dailyDietRecommendations: Array.isArray(value.data.dailyDietRecommendations) ? value.data.dailyDietRecommendations as BackupDataV12['dailyDietRecommendations'] : [], homeAiCards: Array.isArray(value.data.homeAiCards) ? value.data.homeAiCards as BackupDataV12['homeAiCards'] : [], homeAiCardCaches: Array.isArray(value.data.homeAiCardCaches) ? value.data.homeAiCardCaches as BackupDataV12['homeAiCardCaches'] : [], sleepEntries: Array.isArray(value.data.sleepEntries) ? value.data.sleepEntries as BackupDataV12['sleepEntries'] : [] } }
+    : value.version === 11
     ? { ...rawDocument, version: 11, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV11['dailyNotes'] : [], dailyNoteEntries: Array.isArray(value.data.dailyNoteEntries) ? value.data.dailyNoteEntries as BackupDataV11['dailyNoteEntries'] : [], moodEntries: Array.isArray(value.data.moodEntries) ? value.data.moodEntries as BackupDataV11['moodEntries'] : [], mealEntries: Array.isArray(value.data.mealEntries) ? value.data.mealEntries as BackupDataV11['mealEntries'] : [], dailySummaries: Array.isArray(value.data.dailySummaries) ? value.data.dailySummaries as BackupDataV11['dailySummaries'] : [], dailyDietRecommendations: Array.isArray(value.data.dailyDietRecommendations) ? value.data.dailyDietRecommendations as BackupDataV11['dailyDietRecommendations'] : [], homeAiCards: Array.isArray(value.data.homeAiCards) ? value.data.homeAiCards as BackupDataV11['homeAiCards'] : [], homeAiCardCaches: Array.isArray(value.data.homeAiCardCaches) ? value.data.homeAiCardCaches as BackupDataV11['homeAiCardCaches'] : [] } }
     : value.version === 10
     ? { ...rawDocument, version: 10, data: { ...normalizedData, explorationTracks: value.data.explorationTracks as BackupDataV3['explorationTracks'], dailyNotes: Array.isArray(value.data.dailyNotes) ? value.data.dailyNotes as BackupDataV10['dailyNotes'] : [], moodEntries: Array.isArray(value.data.moodEntries) ? value.data.moodEntries as BackupDataV10['moodEntries'] : [], mealEntries: Array.isArray(value.data.mealEntries) ? value.data.mealEntries as BackupDataV10['mealEntries'] : [], dailySummaries: Array.isArray(value.data.dailySummaries) ? value.data.dailySummaries as BackupDataV10['dailySummaries'] : [], dailyDietRecommendations: Array.isArray(value.data.dailyDietRecommendations) ? value.data.dailyDietRecommendations as BackupDataV10['dailyDietRecommendations'] : [], homeAiCards: Array.isArray(value.data.homeAiCards) ? value.data.homeAiCards as BackupDataV10['homeAiCards'] : [], homeAiCardCaches: Array.isArray(value.data.homeAiCardCaches) ? value.data.homeAiCardCaches as BackupDataV10['homeAiCardCaches'] : [] } }
@@ -228,7 +268,7 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
   if ((document.version === 6 || document.version === 7) && document.data.moodEntries.some(entry => !entry.id || typeof entry.content !== 'string' || typeof entry.entryDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.entryDate) || typeof entry.moodLevel !== 'number' || entry.moodLevel < 1 || entry.moodLevel > 5 || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt))) throw invalidBackup('情绪记录存在无效记录')
   if (document.version === 7 && document.data.mealEntries.some(entry => !entry.id || !(entry.mealType === 'breakfast' || entry.mealType === 'lunch' || entry.mealType === 'dinner') || typeof entry.entryDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.entryDate) || typeof entry.content !== 'string' || typeof entry.feeling !== 'number' || !Number.isFinite(entry.feeling) || !MEAL_SATIETY_VALUES.has(entry.feeling) || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt))) throw invalidBackup('三餐记录存在无效记录')
   if (document.version === 8 && document.data.dailySummaries.some(entry => !entry.id || typeof entry.entryDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.entryDate) || typeof entry.content !== 'string' || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt))) throw invalidBackup('状态小结存在无效记录')
-  if (document.version === 10 || document.version === 11) {
+  if (document.version === 10 || document.version === 11 || document.version === 12) {
     const cards = document.data.homeAiCards
     const caches = document.data.homeAiCardCaches
     if (!Array.isArray(cards) || !Array.isArray(caches)) throw invalidBackup('备份缺少首页自定义AI卡片数据')
@@ -251,7 +291,7 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
       cacheKeys.add(key)
     }
   }
-  if (document.version === 11) {
+  if (document.version === 11 || document.version === 12) {
     const noteIds = new Set(document.data.dailyNotes.map(note => note.id))
     // Schema 34 导出的 V11 带 slotIndex，Schema 35 之后不再有该字段：
     // 存在就校验值域，缺省视为新格式，两种都能恢复。
@@ -264,15 +304,76 @@ export function parseAndValidateBackup(input: string, newId: () => string = crea
       typeof entry.content !== 'string' || !isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt)
     )) throw invalidBackup('手记条目存在无效记录或引用了不存在的手记')
   }
+  if (document.version === 12) {
+    const sleepEntries = document.data.sleepEntries
+    if (!Array.isArray(sleepEntries)) throw invalidBackup('备份缺少睡眠记录数据')
+    const sleepDates = new Set<string>()
+    for (const entry of sleepEntries) {
+      if (!entry.id || typeof entry.sleepDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.sleepDate)) throw invalidBackup('睡眠记录存在无效日期或 ID')
+      if (sleepDates.has(entry.sleepDate)) throw invalidBackup('睡眠记录存在重复日期')
+      sleepDates.add(entry.sleepDate)
+      if (typeof entry.bedAt !== 'string' || !isTimestamp(entry.bedAt)) throw invalidBackup('睡眠记录存在无效入睡时间')
+      if (entry.wakeAt !== undefined) {
+        if (typeof entry.wakeAt !== 'string' || !isTimestamp(entry.wakeAt) || Date.parse(entry.wakeAt) <= Date.parse(entry.bedAt)) {
+          throw invalidBackup('睡眠记录存在无效起床时间')
+        }
+      }
+      if (entry.note !== undefined && (typeof entry.note !== 'string' || entry.note.length > 200)) throw invalidBackup('睡眠记录备注无效')
+      if (!isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt)) throw invalidBackup('睡眠记录存在无效时间')
+    }
+  }
+  if (document.version === 13) {
+    const sleepEntries = document.data.sleepEntries
+    if (!Array.isArray(sleepEntries)) throw invalidBackup('备份缺少睡眠记录数据')
+    const byDate = new Map<string, SleepEntry>()
+    for (const entry of sleepEntries) {
+      if (!entry.id || typeof entry.sleepDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.sleepDate)) throw invalidBackup('睡眠记录存在无效日期或 ID')
+      if (byDate.has(entry.sleepDate)) throw invalidBackup('睡眠记录存在重复日期')
+      if (!entry.wakeAt && !entry.bedAt) throw invalidBackup('睡眠记录至少要有起床或入睡时间')
+      if (entry.wakeAt !== undefined) {
+        if (typeof entry.wakeAt !== 'string' || !isTimestamp(entry.wakeAt) || !isValidSleepWake(entry.sleepDate, entry.wakeAt)) {
+          throw invalidBackup('睡眠记录存在无效起床时间')
+        }
+      }
+      if (entry.bedAt !== undefined) {
+        if (typeof entry.bedAt !== 'string' || !isTimestamp(entry.bedAt) || !isValidSleepBed(entry.sleepDate, entry.bedAt, entry.wakeAt)) {
+          throw invalidBackup('睡眠记录存在无效入睡时间')
+        }
+      }
+      if (entry.note !== undefined && (typeof entry.note !== 'string' || entry.note.length > 200)) throw invalidBackup('睡眠记录备注无效')
+      if (!isTimestamp(entry.createdAt) || !isTimestamp(entry.updatedAt)) throw invalidBackup('睡眠记录存在无效时间')
+      byDate.set(entry.sleepDate, entry)
+    }
+    // 跨天顺序链：bed(D) <= wake(D+1)，相等表示 0 小时。
+    for (const entry of sleepEntries) {
+      if (!entry.bedAt) continue
+      const following = byDate.get(addDays(entry.sleepDate, 1))
+      if (!following?.wakeAt) continue
+      if (Date.parse(entry.bedAt) > Date.parse(following.wakeAt)) {
+        throw invalidBackup('睡眠记录存在起床早于前晚入睡的组合')
+      }
+      if (Date.parse(following.wakeAt) - Date.parse(entry.bedAt) > 18 * 60 * 60 * 1000) {
+        throw invalidBackup('睡眠记录存在超过 18 小时的跨度')
+      }
+    }
+  }
   if (document.version === 5) {
     const conversationIds = new Set((document.data.aiConversations ?? []).map(entry => entry.conversation.id))
     document.data.dailyNotes = document.data.dailyNotes.map(note => note.aiConversationId && !conversationIds.has(note.aiConversationId) ? { ...note, aiConversationId: undefined } : note)
+  }
+  // V12 的跨天睡眠记录在全部旧校验通过后再拆分，避免「只有起床」的行被旧规则误判。
+  if (document.version === 12) {
+    return {
+      ...document,
+      version: 13,
+      data: { ...document.data, sleepEntries: convertV12SleepEntries(document.data.sleepEntries) },
+    } as BackupDocument
   }
   return document
 }
 
 export class BackupApplicationService {
-  constructor(private readonly repository: BackupRepository, private readonly aiConversations?: AiConversationBackupStore, private readonly aiPreferences?: AiPreferenceBackupStore, private readonly dailyNotes?: DailyNoteBackupStore, private readonly moodEntries?: MoodEntryBackupStore, private readonly mealEntries?: MealEntryBackupStore, private readonly dailySummaries?: DailySummaryBackupStore, private readonly dailyDietRecommendations?: DailyDietRecommendationBackupStore, private readonly homeAiCards?: HomeAiCardBackupStore) {}
+  constructor(private readonly repository: BackupRepository, private readonly aiConversations?: AiConversationBackupStore, private readonly aiPreferences?: AiPreferenceBackupStore, private readonly dailyNotes?: DailyNoteBackupStore, private readonly moodEntries?: MoodEntryBackupStore, private readonly mealEntries?: MealEntryBackupStore, private readonly dailySummaries?: DailySummaryBackupStore, private readonly dailyDietRecommendations?: DailyDietRecommendationBackupStore, private readonly homeAiCards?: HomeAiCardBackupStore, private readonly sleepEntries?: SleepBackupStore) {}
 
   async createBackup(): Promise<BackupDocument> {
     const data = await this.repository.exportData()
@@ -292,9 +393,10 @@ export class BackupApplicationService {
       ;(data as BackupDataV10).homeAiCards = homeAiCardData.cards
       ;(data as BackupDataV10).homeAiCardCaches = homeAiCardData.caches
     }
+    if (this.sleepEntries && 'explorationTracks' in data) (data as BackupDataV13).sleepEntries = await this.sleepEntries.exportBackup()
     return {
       format: 'knowledge-base-backup',
-      version: 'dailyNoteEntries' in data ? 11 : 'homeAiCards' in data ? 10 : 'dailyDietRecommendations' in data ? 9 : 'dailySummaries' in data ? 8 : 'mealEntries' in data ? 7 : 'moodEntries' in data ? 6 : 'dailyNotes' in data ? 5 : 'explorationTracks' in data ? 3 : 2,
+      version: 'sleepEntries' in data ? 13 : 'dailyNoteEntries' in data ? 11 : 'homeAiCards' in data ? 10 : 'dailyDietRecommendations' in data ? 9 : 'dailySummaries' in data ? 8 : 'mealEntries' in data ? 7 : 'moodEntries' in data ? 6 : 'dailyNotes' in data ? 5 : 'explorationTracks' in data ? 3 : 2,
       exportedAt: new Date().toISOString(),
       appVersion: '0.1.0',
       data,
@@ -324,6 +426,7 @@ export class BackupApplicationService {
     if (this.homeAiCards) await this.homeAiCards.replaceBackup('homeAiCards' in document.data && Array.isArray(document.data.homeAiCards) && Array.isArray(document.data.homeAiCardCaches)
       ? { cards: document.data.homeAiCards, caches: document.data.homeAiCardCaches }
       : { cards: [], caches: [] })
+    if (this.sleepEntries) await this.sleepEntries.replaceBackup('sleepEntries' in document.data && Array.isArray(document.data.sleepEntries) ? document.data.sleepEntries : [])
   }
 
   async restoreBackupSafely(document: BackupDocument, preserveCurrent: (backup: BackupDocument) => void | Promise<void>): Promise<void> {

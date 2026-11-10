@@ -30,6 +30,7 @@ import './features/daily-summary/daily-summary.scss'
 import './features/daily-diet/daily-diet.scss'
 import './features/home-ai-card/home-ai-card.scss'
 import { DailyNotesPage } from './features/daily-notes/daily-notes-page'
+import { SleepReminder } from './features/daily-notes/sleep/sleep-reminder'
 import { notifyDailyNoteChanged, subscribeDailyNoteChanged } from './daily-note-sync'
 import { readColorTheme, readDisplayEffectMode, saveColorTheme, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
 import './index.scss'
@@ -2494,6 +2495,9 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         </View>}
 
         <View className={`page ${primaryModule === 'dailyNotes' ? 'daily-notes-page-shell' : ''}`}>
+
+        {/* 打开工作台时按设置判断是否提醒补睡眠；只在登录后渲染。 */}
+        <SleepReminder />
 
         {primaryModule === 'home' && <HomeDashboard
           items={items}

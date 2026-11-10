@@ -1562,3 +1562,188 @@ textarea:focus,
 .auth-gate-shell[data-color-theme='dark'] .auth-remember-row > text { color: #c9c3bb; }
 .auth-gate-shell[data-color-theme='dark'] .auth-remember-checkbox { border-color: #4a453f; background: #2d2925; color: #f3efea; }
 .auth-gate-shell[data-color-theme='dark'] .auth-remember-checkbox.active { border-color: #b96a7b; background: #b96a7b; color: #fff8f4; }
+
+/* ---------- 手记右侧栏：天气 + 睡眠 ---------- */
+.daily-note-rail { display: flex; width: 264px; flex: 0 0 264px; min-height: 0; flex-direction: column; gap: 12px; overflow: auto; }
+.daily-note-rail .weather-card { width: 100%; flex: 0 0 auto; overflow: visible; }
+@media (max-width: 1120px) { .daily-note-rail { display: none; } }
+
+.sleep-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-surface); box-shadow: var(--cream-shadow); }
+.sleep-card-head { display: flex; flex-direction: column; gap: 6px; }
+.sleep-card-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sleep-card-title-actions { display: flex; gap: 6px; }
+.sleep-card-expand { flex: 0 0 auto; height: 20px; padding: 0 8px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; }
+.sleep-card-expand:hover { border-color: #dfc984; color: #a4566a; }
+.sleep-card-title { color: var(--cream-ink); font-size: 14px; font-weight: 700; }
+.sleep-card-settings { flex: 0 0 auto; height: 20px; padding: 0 8px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; }
+.sleep-card-settings:hover { border-color: #dfc984; color: #a4566a; }
+.sleep-card-summary { margin: 0; color: var(--cream-body); font-size: 12px; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.sleep-card-summary.is-empty { color: var(--cream-hint); }
+.sleep-range-tabs { display: flex; gap: 4px; }
+.sleep-range-tab { height: 22px; padding: 0 8px; border: 1px solid transparent; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; }
+.sleep-range-tab.is-active { border-color: var(--cream-line); background: var(--cream-soft-surface); color: var(--cream-ink); font-weight: 700; }
+.sleep-chart-wrap { position: relative; cursor: pointer; outline: none; }
+.sleep-chart-wrap:focus-visible { outline: 2px solid #b48a5a; outline-offset: 2px; border-radius: 8px; }
+.sleep-chart { display: block; width: 100%; height: 148px; overflow: visible; }
+.sleep-chart-cursor { stroke: var(--cream-line); stroke-width: 1; opacity: .8; }
+.sleep-chart-tooltip { position: absolute; top: 0; display: flex; flex-direction: column; gap: 1px; padding: 5px 7px; border: 1px solid var(--cream-line); border-radius: 9px; background: var(--cream-surface); box-shadow: var(--cream-shadow); color: var(--cream-body); font-size: 9px; font-variant-numeric: tabular-nums; pointer-events: none; transform: translateX(-50%); white-space: nowrap; z-index: 2; }
+.sleep-chart-tooltip-date { color: var(--cream-ink); font-weight: 700; }
+.sleep-chart-evening-band { fill: rgba(180, 138, 90, .07); }
+.sleep-chart-grid { stroke: var(--cream-line); stroke-width: 1; opacity: .7; }
+.sleep-chart-axis { fill: var(--cream-hint); font-size: 8px; }
+.sleep-chart-tick-line { stroke: var(--cream-line); stroke-width: .6; stroke-dasharray: 2 4; opacity: .4; }
+.sleep-chart-tick { fill: var(--cream-hint); font-size: 8px; font-variant-numeric: tabular-nums; }
+.sleep-chart-tick.is-today { fill: #a4566a; font-weight: 700; }
+.sleep-chart-line { stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
+.sleep-chart-line.is-bed { stroke: #8a7ab0; }
+.sleep-chart-line.is-wake { stroke: #c98a52; }
+.sleep-chart-dot.is-bed { fill: #8a7ab0; }
+.sleep-chart-dot.is-wake { fill: #c98a52; }
+.sleep-chart-dot.is-open { fill: var(--cream-surface); stroke: #8a7ab0; stroke-width: 1.4; }
+.sleep-card-empty { margin: 0; padding: 18px 4px; color: var(--cream-hint); font-size: 11px; text-align: center; }
+.sleep-card-legend { display: flex; gap: 10px; color: var(--cream-hint); font-size: 10px; }
+.sleep-legend::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.sleep-legend.is-bed { color: #8a7ab0; }
+.sleep-legend.is-wake { color: #c98a52; }
+.sleep-legend.is-open { color: #b7aea3; }
+.sleep-card-foot { display: flex; justify-content: flex-end; }
+.sleep-card-record { height: 28px; padding: 0 12px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-soft-surface); color: var(--cream-ink); cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 700; }
+
+/* ---------- 睡眠记录/设置弹窗 ---------- */
+.sleep-entry-modal { display: flex; width: 440px; max-width: calc(100vw - 32px); max-height: calc(100vh - 40px); flex-direction: column; overflow: hidden; }
+.sleep-settings-modal { width: 420px; max-width: calc(100vw - 32px); max-height: calc(100vh - 96px); overflow: auto; }
+.sleep-entry-scroll { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 12px; overflow: auto; padding: 2px 2px 4px; }
+.sleep-modal-footer { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--cream-line); background: var(--cream-surface); }
+.sleep-modal-heading { display: flex; flex-direction: column; gap: 3px; }
+.sleep-modal-heading > span + span { color: var(--cream-hint); font-size: 11px; }
+.sleep-night-switch { display: flex; align-items: center; gap: 6px; }
+.sleep-night-switch > button { height: 26px; padding: 0 12px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; }
+.sleep-night-switch > button.is-active { border-color: #b48a5a; background: rgba(180, 138, 90, .14); color: var(--cream-ink); font-weight: 700; }
+.sleep-night-date { margin-left: auto; color: var(--cream-hint); font-size: 10px; font-variant-numeric: tabular-nums; }
+.sleep-close-icon { display: flex; width: 28px; height: 28px; padding: 0; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--cream-ink); cursor: pointer; font-family: inherit; font-size: 20px; font-weight: 800; line-height: 1; }
+.sleep-close-icon:hover { background: transparent; color: #a4566a; }
+.sleep-time-block { display: flex; flex-direction: column; gap: 8px; padding: 14px 15px; border: 0; border-radius: 18px; background: rgba(201, 138, 82, .06); box-shadow: 0 6px 16px rgba(120, 90, 60, .07); }
+.sleep-time-block.is-bed { background: rgba(138, 122, 176, .07); }
+.sleep-time-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.sleep-time-labels { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.sleep-time-caption { color: var(--cream-hint); font-size: 11px; }
+.sleep-time-value { color: var(--cream-ink); font-size: 24px; font-variant-numeric: tabular-nums; font-weight: 800; line-height: 1.1; }
+.sleep-time-value.is-empty { color: var(--cream-hint); font-size: 16px; font-weight: 600; }
+.sleep-module-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.sleep-mini-action { height: 24px; padding: 0 9px; border: 0; border-radius: 9999px; background: rgba(255, 255, 255, .62); color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 10px; }
+.sleep-mini-action:hover:not(:disabled) { background: #fff; color: #a4566a; }
+.sleep-mini-action:disabled { cursor: default; opacity: .38; }
+.sleep-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.sleep-chip { height: 24px; padding: 0 11px; border: 0; border-radius: 9999px; background: rgba(255, 255, 255, .55); color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; font-variant-numeric: tabular-nums; }
+.sleep-chip:hover { background: rgba(255, 255, 255, .9); }
+.sleep-chip.is-active { background: #b48a5a; color: #fffaf2; font-weight: 700; }
+.sleep-time-hint.is-soft { color: var(--cream-hint); font-size: 10px; }
+.sleep-note-toggle { align-self: flex-start; height: 26px; padding: 0 11px; border: 1px dashed var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 11px; }
+.sleep-note-toggle:hover { border-color: #d8c9a8; color: #a4566a; }
+.sleep-time-label { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--cream-body); font-size: 12px; }
+.sleep-time-value { color: var(--cream-ink); font-size: 18px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.sleep-time-hint { margin: 0; color: var(--cream-hint); font-size: 11px; }
+.sleep-hour-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 5px; }
+.sleep-hour { height: 26px; padding: 0; border: 0; border-radius: 8px; background: #FBF7F0; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 10px; font-variant-numeric: tabular-nums; }
+.sleep-hour:hover:not(:disabled) { background: #F4ECDF; }
+.sleep-hour.is-active { background: #b48a5a; color: #fffaf2; font-weight: 700; }
+.sleep-hour.is-disabled { background: #F1EDE7; color: var(--cream-hint); cursor: not-allowed; opacity: .45; }
+.sleep-chip.is-disabled { cursor: not-allowed; opacity: .45; }
+.sleep-minute.is-disabled { background: #F1EDE7; color: var(--cream-hint); cursor: not-allowed; opacity: .45; }
+.sleep-time-toast { position: fixed; top: 16vh; left: 50%; z-index: 130; max-width: 320px; padding: 10px 14px; border-radius: 12px; background: rgba(43, 40, 37, .92); box-shadow: 0 10px 24px rgba(0, 0, 0, .18); color: #fffaf2; font-size: 12px; line-height: 1.5; text-align: center; pointer-events: none; transform: translateX(-50%); }
+.sleep-time-hint.is-warning { color: #ad5965; }
+.sleep-minute-row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 5px; }
+.sleep-minute { height: 24px; padding: 0; border: 0; border-radius: 7px; background: #FBF7F0; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 10px; font-variant-numeric: tabular-nums; }
+.sleep-minute:hover:not(:disabled) { background: #F4ECDF; }
+.sleep-minute.is-active { background: #b48a5a; color: #fffaf2; font-weight: 700; }
+.sleep-checkbox { display: flex; align-items: center; gap: 6px; color: var(--cream-body); font-size: 11px; }
+.sleep-checkbox.is-strong { color: var(--cream-ink); font-size: 12px; font-weight: 700; }
+.sleep-modal-tools { display: flex; gap: 8px; }
+.sleep-tool { height: 26px; padding: 0 10px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; }
+.sleep-tool:hover:not(:disabled) { border-color: #dfc984; color: #a4566a; }
+.sleep-tool:disabled { cursor: default; opacity: .45; }
+.sleep-note-field { display: flex; flex-direction: column; gap: 4px; color: var(--cream-body); font-size: 11px; }
+.sleep-note-field > input { height: 30px; padding: 0 10px; border: 1px solid var(--cream-line); border-radius: 10px; background: var(--cream-surface); color: var(--cream-ink); font-family: inherit; font-size: 12px; }
+.sleep-duration-preview { margin: 0; color: var(--cream-hint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sleep-error { margin: 0; color: #ad5965; font-size: 11px; }
+.sleep-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.sleep-action { height: 30px; padding: 0 14px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; }
+.sleep-action.is-primary { border-color: #b48a5a; background: #b48a5a; color: #fffaf2; font-weight: 700; }
+.sleep-action.is-danger { margin-right: auto; border-color: #d8b4b4; color: #ad5965; }
+.sleep-action:disabled { cursor: default; opacity: .55; }
+.sleep-settings-hint { margin: 0; color: var(--cream-hint); font-size: 11px; line-height: 1.5; }
+.sleep-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--cream-body); font-size: 12px; }
+.sleep-range-inputs { display: flex; align-items: center; gap: 4px; color: var(--cream-hint); font-size: 11px; }
+.sleep-range-inputs > input { width: 44px; height: 28px; padding: 0 6px; border: 1px solid var(--cream-line); border-radius: 8px; background: var(--cream-surface); color: var(--cream-ink); font-family: inherit; font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+.sleep-range-dash { padding: 0 2px; }
+.sleep-precision-switch { display: flex; gap: 4px; }
+.sleep-precision-switch > button { height: 26px; padding: 0 10px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; }
+.sleep-precision-switch > button.is-active { border-color: #b48a5a; background: rgba(180, 138, 90, .16); color: var(--cream-ink); font-weight: 700; }
+.app-shell[data-color-theme='dark'] .sleep-card, .app-shell[data-color-theme='dark'] .sleep-time-block { background: #2d2925; border-color: #4a453f; }
+.app-shell[data-color-theme='dark'] .sleep-hour.is-active, .app-shell[data-color-theme='dark'] .sleep-minute.is-active { background: rgba(214, 176, 124, .2); border-color: #c9a063; }
+
+/* ---------- 睡眠详情弹窗 ---------- */
+.sleep-detail-modal { display: flex; width: 900px; max-width: calc(100vw - 40px); max-height: 88vh; flex-direction: column; overflow: hidden; }
+.sleep-detail-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 2px 8px; border-bottom: 1px solid var(--cream-line); }
+.sleep-detail-nav { display: flex; align-items: center; gap: 8px; }
+.sleep-detail-title { min-width: 140px; color: var(--cream-ink); font-size: 14px; font-variant-numeric: tabular-nums; font-weight: 700; text-align: center; }
+.sleep-detail-actions { display: flex; align-items: center; gap: 8px; }
+.sleep-detail-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 2px 4px; }
+.sleep-detail-status { margin: 0; padding: 32px 0; color: var(--cream-hint); font-size: 12px; text-align: center; }
+.sleep-history-chart-wrap { position: relative; }
+.sleep-history-chart { display: block; width: 100%; height: auto; }
+.sleep-history-grid { stroke: var(--cream-line); stroke-width: .6; opacity: .35; }
+.sleep-history-axis { fill: var(--cream-hint); font-size: 8px; font-variant-numeric: tabular-nums; }
+.sleep-history-midnight { stroke: #c9a063; stroke-width: 1; opacity: .9; }
+.sleep-history-midnight-label { fill: #b48a5a; font-size: 8px; font-weight: 700; }
+.sleep-history-date { fill: var(--cream-hint); font-size: 9px; font-variant-numeric: tabular-nums; }
+.sleep-history-date.is-today { fill: #a4566a; font-weight: 700; }
+.sleep-history-today { fill: #a4566a; font-size: 8px; }
+.sleep-history-cursor { stroke: var(--cream-line); stroke-width: 1; opacity: .8; }
+.sleep-history-line.is-wake { stroke: #c98a52; stroke-linecap: round; stroke-linejoin: round; }
+.sleep-history-line.is-bed { stroke: #8a7ab0; stroke-linecap: round; stroke-linejoin: round; }
+.sleep-history-dot.is-wake { fill: #c98a52; }
+.sleep-history-dot.is-bed { fill: #8a7ab0; }
+
+/* 日期导航：默认七天，可展开月历 */
+.sleep-date-nav { display: flex; flex-direction: column; gap: 8px; }
+.sleep-date-nav > .sleep-night-date { align-self: flex-end; margin-left: 0; }
+.sleep-date-fixed { color: var(--cream-ink); font-size: 12px; font-weight: 700; }
+.sleep-picker { display: flex; flex-direction: column; gap: 6px; }
+.sleep-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sleep-picker-nav { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.sleep-picker-actions { display: flex; align-items: center; gap: 6px; }
+.sleep-picker-arrow { width: 24px; height: 24px; padding: 0; border: 1px solid var(--cream-line); border-radius: 8px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1; }
+.sleep-picker-arrow:disabled { cursor: default; opacity: .35; }
+.sleep-picker-title { min-width: 96px; color: var(--cream-ink); font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+.sleep-picker-today, .sleep-picker-toggle { height: 24px; padding: 0 9px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 10px; }
+.sleep-picker-toggle { display: inline-flex; align-items: center; gap: 3px; }
+.sleep-picker-toggle:hover, .sleep-picker-today:hover { border-color: #dfc984; color: #a4566a; }
+.sleep-picker-caret { font-size: 9px; opacity: .7; }
+.sleep-picker-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.sleep-picker-day { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 2px; padding: 5px 0 4px; border: 1px solid var(--cream-line); border-radius: 10px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; }
+.sleep-picker-day:hover:not(:disabled) { border-color: #d8c9a8; }
+.sleep-picker-weekday { color: var(--cream-hint); font-size: 9px; }
+.sleep-picker-day-number { color: var(--cream-ink); font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.sleep-picker-day.is-today { border-color: #c9a063; }
+.sleep-picker-day.is-selected { border-color: #b48a5a; background: rgba(180, 138, 90, .16); }
+.sleep-picker-dot { width: 3px; height: 3px; border-radius: 50%; background: transparent; }
+.sleep-picker-day.has-record .sleep-picker-dot { background: #8a7ab0; }
+.sleep-picker-month { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .2s ease, opacity .2s ease; }
+.sleep-picker-month.is-open { grid-template-rows: 1fr; opacity: 1; }
+.sleep-picker-month-inner { display: flex; min-height: 0; flex-direction: column; gap: 4px; overflow: hidden; }
+.sleep-picker-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); padding-top: 2px; color: var(--cream-hint); font-size: 9px; text-align: center; }
+.sleep-picker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.sleep-picker-grid .sleep-picker-day { min-height: 30px; padding: 4px 0; border-color: transparent; border-radius: 8px; }
+.sleep-picker-grid .sleep-picker-day:hover:not(:disabled) { border-color: var(--cream-line); }
+.sleep-picker-grid .sleep-picker-day.is-outside { opacity: .45; }
+.sleep-picker-grid .sleep-picker-day:disabled { cursor: default; opacity: .25; }
+@media (prefers-reduced-motion: reduce) { .sleep-picker-month { transition: none; } }
+.app-shell[data-color-theme='dark'] .sleep-picker-day.is-selected { background: rgba(214, 176, 124, .2); border-color: #c9a063; }
+.sleep-clear-link { align-self: flex-start; padding: 0; border: 0; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; text-decoration: underline; }
+.sleep-chart-midnight { stroke: #c9a063; stroke-width: 1.2; opacity: .95; }
+.sleep-chart-midnight-label { fill: #b48a5a; font-size: 8px; font-weight: 700; }
+.sleep-chart-dot.is-orphan { fill: var(--cream-surface); stroke: #c98a52; stroke-width: 1.4; }
+.app-shell[data-color-theme='dark'] .sleep-chart-evening-band { fill: rgba(214, 176, 124, .09); }
+.app-shell[data-color-theme='dark'] .sleep-chart-midnight { stroke: #d6b07c; }
+.app-shell[data-color-theme='dark'] .sleep-chart-midnight-label { fill: #d6b07c; }

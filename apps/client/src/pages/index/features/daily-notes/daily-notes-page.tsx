@@ -11,6 +11,11 @@ import { shanghaiDate, shanghaiDateOffset } from './daily-note-date'
 import { WeatherWidget } from './weather/weather-widget'
 import { WeatherCityDialog } from './weather/weather-city-dialog'
 import { useWeather } from './weather/use-weather'
+import { SleepCard } from './sleep/sleep-card'
+import { SleepEntryModal } from './sleep/sleep-entry-modal'
+import { SleepSettingsDialog } from './sleep/sleep-settings-dialog'
+import { SleepDetailModal } from './sleep/sleep-detail-modal'
+import { useSleep } from './sleep/use-sleep'
 
 /** 右侧 AI 复盘面板已隐藏，宽度让给时间轴；面板组件本身保留，随时能接回来。 */
 export interface DailyNotesPageProps { onFlushReady: (flush: () => Promise<boolean>) => void }
@@ -54,6 +59,10 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
   const [view, setView] = useState<NoteView>(readView)
   const [weatherOpen, setWeatherOpen] = useState(false)
   const weather = useWeather()
+  const sleep = useSleep()
+  const [sleepRecording, setSleepRecording] = useState(false)
+  const [sleepSettingsOpen, setSleepSettingsOpen] = useState(false)
+  const [sleepDetailOpen, setSleepDetailOpen] = useState(false)
   const [focusEntryId, setFocusEntryId] = useState<string>()
   const [activeEntryId, setActiveEntryId] = useState<string>()
   const [dailyStatusEmoji, setDailyStatusEmoji] = useState(() => readDailyStatusEmoji(shanghaiDate()))
@@ -285,8 +294,11 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
             onAddRow={handleAddRow}
             onFocusRow={setActiveEntryId}
           />
-          {/* 文本视图右侧本来就是空的：天气放在这里，时间轴视图不挤占格子。 */}
-          <WeatherWidget weather={weather} onOpenSettings={() => setWeatherOpen(true)} />
+          {/* 文本视图右侧是「天气 + 睡眠」两张卡；时间轴视图不挤占格子。 */}
+          <div className='daily-note-rail'>
+            <WeatherWidget weather={weather} onOpenSettings={() => setWeatherOpen(true)} />
+            <SleepCard sleep={sleep} onRecord={() => setSleepRecording(true)} onSettings={() => setSleepSettingsOpen(true)} onExpand={() => setSleepDetailOpen(true)} />
+          </div>
         </View>
         : <EntryTimelineView
           entries={entries}
@@ -312,5 +324,25 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
       onSelect={weather.chooseCity}
       onClose={() => setWeatherOpen(false)}
     />}
+
+    {sleepRecording && <SleepEntryModal
+      initialDate={shanghaiDate()}
+      {...(sleep.todayEntry ? { entry: sleep.todayEntry } : {})}
+      entries={sleep.entries}
+      precision={sleep.settings.inputPrecision}
+      onClose={() => setSleepRecording(false)}
+      onSave={(date, patch) => sleep.saveEntry(date, patch)}
+      onDelete={date => sleep.removeEntry(date)}
+    />}
+
+    {sleepSettingsOpen && <SleepSettingsDialog
+      settings={sleep.settings}
+      chartStyle={sleep.chartStyle}
+      onChangeChartStyle={sleep.setChartStyle}
+      onSave={sleep.saveSettings}
+      onClose={() => setSleepSettingsOpen(false)}
+    />}
+
+    {sleepDetailOpen && <SleepDetailModal today={shanghaiDate()} onClose={() => setSleepDetailOpen(false)} />}
   </View>
 }

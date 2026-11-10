@@ -57,6 +57,10 @@ import type {
   HomeAiCardInput,
   MealDayInput,
   MealEntry,
+  SleepEntry,
+  SleepEntryPatch,
+  SleepSettings,
+  SleepSettingsWriteInput,
   MoodEntry,
   MoodEntryInput,
   WeatherCity,
@@ -345,7 +349,7 @@ export type ActivityAuditQuery = {
   pageSize: number
 }
 
-const auditModulesOrder = ['daily_note', 'mood', 'meal', 'item', 'search', 'exploration_track', 'method', 'review', 'daily_summary', 'daily_diet', 'home_ai_card', 'ai_preference', 'ai_conversation', 'ai_config'] as const
+const auditModulesOrder = ['daily_note', 'mood', 'meal', 'sleep', 'item', 'search', 'exploration_track', 'method', 'review', 'daily_summary', 'daily_diet', 'home_ai_card', 'ai_preference', 'ai_conversation', 'ai_config'] as const
 const auditActionsOrder = ['create', 'update', 'delete', 'search', 'assign', 'remove', 'restore', 'purge', 'archive', 'complete', 'append', 'refresh'] as const
 
 function parseActivityAuditEvent(value: unknown): ActivityAuditEvent {
@@ -633,6 +637,19 @@ export const apiClient = {
     return request<MealEntry[]>(`/meal-entries${query}`, { signal })
   },
   saveMealDay: (input: MealDayInput) => request<MealEntry[]>(`/meal-entries/${encodeURIComponent(input.entryDate)}`, { method: 'PUT', body: json(input) }),
+  listSleepEntries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
+    const params = new URLSearchParams()
+    if (range?.from) params.set('from', range.from)
+    if (range?.to) params.set('to', range.to)
+    const query = params.toString()
+    return request<SleepEntry[]>(`/sleep${query ? `?${query}` : ''}`, { signal })
+  },
+  saveSleepEntry: (sleepDate: string, patch: SleepEntryPatch) =>
+    request<{ deleted: boolean; entry?: SleepEntry }>(`/sleep/${encodeURIComponent(sleepDate)}`, { method: 'PUT', body: json(patch) }),
+  deleteSleepEntry: (sleepDate: string) => request<{ deleted: boolean }>(`/sleep/${encodeURIComponent(sleepDate)}`, { method: 'DELETE' }),
+  readSleepSettings: (signal?: AbortSignal) => request<SleepSettings>('/sleep/settings', { signal }),
+  saveSleepSettings: (input: SleepSettingsWriteInput) => request<SleepSettings>('/sleep/settings', { method: 'PUT', body: json(input) }),
+  acknowledgeSleepReminder: (date: string) => request<SleepSettings>('/sleep/reminder/ack', { method: 'POST', body: json({ date }) }),
   listDailySummaries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
     const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
     return request<DailySummary[]>(`/daily-summaries${query}`, { signal })
