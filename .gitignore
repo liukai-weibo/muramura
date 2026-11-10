@@ -21,6 +21,7 @@ test-results/
 .env.*
 !.env.example
 !.env.uat.example
+!apps/client/.env.production
 *.pem
 *.key
 *.p12

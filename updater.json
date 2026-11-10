@@ -1,11 +1,11 @@
 {
-    "version": "0.1.49",
-    "notes": "新增睡眠记录：每天记录起床与入睡，支持补录、提醒与设置；手记右栏新增 7/14/30 天睡眠曲线（06→次日 06、00:00 分界），点击可看 30 天与全年详情；首页新增睡眠卡（昨晚摘要、7 天迷你曲线、快捷记录）。",
-    "pub_date": "2026-11-10T06:41:20.217Z",
+    "version": "0.1.50",
+    "notes": "修复桌面版连接地址：内置 API 改为云端 https://www.muramura.icu（0.1.49 误指本机 127.0.0.1）。同时包含睡眠系统：按天记录起床/入睡、补录提醒与设置、手记右侧 7/14/30 天曲线与 30 天/全年详情、首页睡眠卡。",
+    "pub_date": "2026-11-10T07:39:50.373Z",
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1FZSlJZQmF4dytMNmVHWDVINGg0SEdqaktVNnJqZHdpTGRhSy91UkZjbGZLQUpyWTVDOW9OSUpvazd1VCttNjl5Q1Z1cHBMUkZqRzVEQUtiYWV2R1FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjkyMzk4CWZpbGU6TXVyYW11cmFfMC4xLjQ5X3g2NC1zZXR1cC5leGUKKzlwSzFJR1dLSFlaUGk3RUp5ZXBmYjcxTENSd2lxWitWN0dTWEJiaG4zU283TTZtbjRWQXVqM2hJY04zMElzRTQ3RjFtZGtEMENYRUkvSFNDRTRoRFE9PQo=",
-            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.49/Muramura_0.1.49_x64-setup.exe"
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2R0T29JUnFNUnJ3cDNkbUFUUkMyWkprWGNOeFFBOGtlelUxNzEzOXh1UjIwQVhCWTRrSGhCZSt5T1lwaE5ObTVUUmlqNFVaMlBQWUhoVm9Da3dQaEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0Mjk2MzEyCWZpbGU6TXVyYW11cmFfMC4xLjUwX3g2NC1zZXR1cC5leGUKamlMVk52emVrVEM5dmJVd1Nhc0UvQjFyQ0dBSGZrMTVFQjYyQUplbTJ5OXhmOUxQbVhidXVxL29mRDNsenJIL0U4MWRMWE50dFlvczh3YjgxSDRxQlE9PQo=",
+            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.50/Muramura_0.1.50_x64-setup.exe"
         }
     }
 }

@@ -2115,7 +2115,7 @@ dependencies = [
 
 [[package]]
 name = "marumaru"
-version = "0.1.49"
+version = "0.1.50"
 dependencies = [
  "keyring",
  "serde_json",
