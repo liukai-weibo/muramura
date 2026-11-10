@@ -103,19 +103,31 @@ describe('inferSleepFromDay', () => {
     const suggestion = inferSleepFromDay([
       entry('a', '2026-11-09T00:10:00.000Z'), // 08:10 早晨
       entry('b', '2026-11-09T15:40:00.000Z'), // 23:40 晚上
-      entry('c', '2026-11-09T16:30:00.000Z'), // 次日 00:30，按 18–04 窗口计入
+      entry('c', '2026-11-09T16:30:00.000Z'), // 次日 00:30，属于前一晚，不计入当天入睡
       entry('d', '2026-11-09T03:00:00.000Z'), // 11:00 上午
     ])
     expect(suggestion.wake).toEqual({ hour: 8, minute: 10 })
-    expect(suggestion.bed).toEqual({ hour: 0, minute: 30 })
+    expect(suggestion.bed).toEqual({ hour: 23, minute: 40 })
   })
 
-  it('takes the last evening note, including after midnight', () => {
-    const suggestion = inferSleepFromDay([
-      entry('a', '2026-11-09T14:00:00.000Z'), // 22:00
-      entry('b', '2026-11-09T18:30:00.000Z'), // 次日 02:30
-    ])
-    expect(suggestion.bed).toEqual({ hour: 2, minute: 30 })
+  it('takes after-midnight sleep from the next day note and marks it next-day', () => {
+    const suggestion = inferSleepFromDay(
+      [entry('a', '2026-11-09T14:00:00.000Z')], // 22:00
+      [entry('b', '2026-11-10T18:30:00.000Z')], // 次日 02:30
+    )
+    expect(suggestion.bed).toEqual({ hour: 2, minute: 30, nextDay: true })
+  })
+
+  it('prefers next-day midnight over same-day late evening', () => {
+    const suggestion = inferSleepFromDay(
+      [entry('a', '2026-11-09T15:50:00.000Z')], // 23:50
+      [entry('b', '2026-11-10T16:00:00.000Z')], // 次日 00:00
+    )
+    expect(suggestion.bed).toEqual({ hour: 0, minute: 0, nextDay: true })
+  })
+
+  it('ignores same-day after-midnight notes for bedtime', () => {
+    expect(inferSleepFromDay([entry('x', '2026-11-09T18:30:00.000Z')]).bed).toBeUndefined()
   })
 
   it('ignores notes without a sleep-relevant time', () => {

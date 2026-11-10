@@ -53,6 +53,7 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
   const [bedOn, setBedOn] = useState(Boolean(entry?.bedAt))
   const [bedHour, setBedHour] = useState(clockParts(entry?.bedAt ?? '')?.hour ?? 23)
   const [bedMinute, setBedMinute] = useState(clockParts(entry?.bedAt ?? '')?.minute ?? 0)
+  const [bedNextDay, setBedNextDay] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [suggesting, setSuggesting] = useState(false)
@@ -95,6 +96,7 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
       if (wake) { setWakeHour(wake.hour); setWakeMinute(wake.minute) }
       setBedOn(Boolean(bed))
       if (bed) { setBedHour(bed.hour); setBedMinute(bed.minute) }
+      setBedNextDay(Boolean(target.bedAt && sleepDayOf(target.bedAt) === addDays(sleepDate, 1)))
       return
     }
     const defaultWake = recommendations.defaultWake
@@ -102,6 +104,7 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
     setWakeHour(defaultWake?.hour ?? 7)
     setWakeMinute(precision === 'hour' ? 0 : defaultWake?.minute ?? 0)
     setBedOn(false)
+    setBedNextDay(false)
     setBedHour(recommendations.bed[0]?.hour ?? 23)
     setBedMinute(precision === 'hour' ? 0 : recommendations.bed[0]?.minute ?? 0)
   }, [sleepDate, entries, precision, today, recommendations])
@@ -124,10 +127,11 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
     setWakeOn(true)
   }
   const chooseBedHour = (hour: number) => {
-    if (bedOn && hour === bedHour) { setBedOn(false); return }
+    if (bedOn && hour === bedHour) { setBedOn(false); setBedNextDay(false); return }
     if (precision === 'hour' && hour !== bedHour) setBedMinute(0)
     setBedHour(hour)
     setBedOn(true)
+    setBedNextDay(false)
   }
 
   const applyChip = (field: SleepField, chip: SleepTimeChip) => {
@@ -138,7 +142,7 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
     if (field === 'wake') {
       setWakeHour(chip.hour); setWakeMinute(chip.minute); setWakeOn(true)
     } else {
-      setBedHour(chip.hour); setBedMinute(chip.minute); setBedOn(true)
+      setBedHour(chip.hour); setBedMinute(chip.minute); setBedOn(true); setBedNextDay(false)
     }
     setError('')
   }
@@ -147,8 +151,9 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
   const wakeMinuteOfDay = wakeOn ? wakeHour * 60 + wakeMinute : undefined
   const bedMinuteOfDay = bedHour * 60 + bedMinute
   const bedRollsOver = bedOn && wakeMinuteOfDay !== undefined && bedMinuteOfDay < wakeMinuteOfDay
-  const bedAt = bedOn ? sleepIsoAt(bedRollsOver ? addDays(sleepDate, 1) : sleepDate, bedHour, bedMinute) : undefined
-  const bedLabel = bedOn ? `${bedRollsOver ? '次日' : '当天'} ${pad(bedHour)}:${pad(bedMinute)}` : '未记录'
+  const bedOnNextDay = bedOn && (bedNextDay || bedRollsOver)
+  const bedAt = bedOn ? sleepIsoAt(bedOnNextDay ? addDays(sleepDate, 1) : sleepDate, bedHour, bedMinute) : undefined
+  const bedLabel = bedOn ? `${bedOnNextDay ? '次日' : '当天'} ${pad(bedHour)}:${pad(bedMinute)}` : '未记录'
 
   const targetEntry = entries.find(item => item.sleepDate === sleepDate)
   const entryHasMinutes = precision === 'hour' && targetEntry
@@ -202,7 +207,9 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
     const notes = await apiClient.listDailyNotes()
     const note = notes.find(item => item.entryDate === sleepDate)
     const dayEntries = note ? (await apiClient.getDailyNoteWithEntries(note.id)).entries : []
-    const suggestion = inferSleepFromDay(dayEntries)
+    const nextNote = notes.find(item => item.entryDate === addDays(sleepDate, 1))
+    const nextEntries = nextNote ? (await apiClient.getDailyNoteWithEntries(nextNote.id)).entries : []
+    const suggestion = inferSleepFromDay(dayEntries, nextEntries)
     suggestionCache.current.set(sleepDate, suggestion)
     return suggestion
   }
@@ -221,7 +228,7 @@ export function SleepEntryModal({ initialDate, entry, entries, precision, mode =
       if (field === 'wake') {
         setWakeHour(value.hour); setWakeMinute(value.minute); setWakeOn(true)
       } else {
-        setBedHour(value.hour); setBedMinute(value.minute); setBedOn(true)
+        setBedHour(value.hour); setBedMinute(value.minute); setBedOn(true); setBedNextDay(Boolean(value.nextDay))
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '读取手记时间失败')
