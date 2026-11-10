@@ -1,11 +1,11 @@
 {
-    "version":  "0.1.48",
-    "notes":  "手记时间轴支持格内两列排布，常规时段最多显示 6 条；文本视图新增杭州默认的近七天天气，可搜索切换城市。",
-    "pub_date":  "2026-11-06T00:00:00.000Z",
-    "platforms":  {
-                      "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1VhZ3k0ZjRseVNja0RXK0w1eWphQ1NCYlcyS3B1YXdQNjNySTNCejhhbFVmaTQvUHMyc3RWckY5YUdab2xGbVpsNldKa1RBRVdiUzBMSXJJN0pzL3dZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTUxMjMyCWZpbGU6TXVyYW11cmFfMC4xLjQ4X3g2NC1zZXR1cC5leGUKMGhiNS9IbnAwUHI3RUp4VVhUcW8ydUpaTkhQdjJZNE12ZDY2Qkw3L1M3YWdTWlA5blMvbHFtWjZvZHhkL0F6amhxSWJTdjZ6bHNlNWI0QWc4SnROQVE9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.48/Muramura_0.1.48_x64-setup.exe"
-                                         }
-                  }
+    "version": "0.1.49",
+    "notes": "新增睡眠记录：每天记录起床与入睡，支持补录、提醒与设置；手记右栏新增 7/14/30 天睡眠曲线（06→次日 06、00:00 分界），点击可看 30 天与全年详情；首页新增睡眠卡（昨晚摘要、7 天迷你曲线、快捷记录）。",
+    "pub_date": "2026-11-10T06:41:20.217Z",
+    "platforms": {
+        "windows-x86_64": {
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1FZSlJZQmF4dytMNmVHWDVINGg0SEdqaktVNnJqZHdpTGRhSy91UkZjbGZLQUpyWTVDOW9OSUpvazd1VCttNjl5Q1Z1cHBMUkZqRzVEQUtiYWV2R1FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjkyMzk4CWZpbGU6TXVyYW11cmFfMC4xLjQ5X3g2NC1zZXR1cC5leGUKKzlwSzFJR1dLSFlaUGk3RUp5ZXBmYjcxTENSd2lxWitWN0dTWEJiaG4zU283TTZtbjRWQXVqM2hJY04zMElzRTQ3RjFtZGtEMENYRUkvSFNDRTRoRFE9PQo=",
+            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.49/Muramura_0.1.49_x64-setup.exe"
+        }
+    }
 }
