@@ -1,11 +1,11 @@
 {
-    "version": "0.1.50",
-    "notes": "修复桌面版连接地址：内置 API 改为云端 https://www.muramura.icu（0.1.49 误指本机 127.0.0.1）。同时包含睡眠系统：按天记录起床/入睡、补录提醒与设置、手记右侧 7/14/30 天曲线与 30 天/全年详情、首页睡眠卡。",
-    "pub_date": "2026-11-10T07:39:50.373Z",
+    "version": "0.2.0",
+    "notes": "新增情绪引导轮换：首页情绪卡每 12 小时换一组主问句与副文案；首页卡片去掉固定小标题，侧栏顺序改为首页→手记→灵感todo，品牌副标题改为「行动与记录」、页面标题改为 Muramura。方法模块暂时下线，入口与复盘里的方法处理已隐藏（数据保留）。同时修复睡眠「手记填入」跨天取数：次日 00–04 的入睡会正确标成次日。",
+    "pub_date": "2026-11-11T08:00:26.123Z",
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2R0T29JUnFNUnJ3cDNkbUFUUkMyWkprWGNOeFFBOGtlelUxNzEzOXh1UjIwQVhCWTRrSGhCZSt5T1lwaE5ObTVUUmlqNFVaMlBQWUhoVm9Da3dQaEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0Mjk2MzEyCWZpbGU6TXVyYW11cmFfMC4xLjUwX3g2NC1zZXR1cC5leGUKamlMVk52emVrVEM5dmJVd1Nhc0UvQjFyQ0dBSGZrMTVFQjYyQUplbTJ5OXhmOUxQbVhidXVxL29mRDNsenJIL0U4MWRMWE50dFlvczh3YjgxSDRxQlE9PQo=",
-            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.1.50/Muramura_0.1.50_x64-setup.exe"
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1ZiWFYwTHN2TXNySStZVGUxVTVhYW9VcmhVUy94aHpXNUJUMWRLbUQ5anhlc0FnRG83T0VqN3Vna1NNQklKOHNUQXFGTnFXSjByZDhvaEZtUC9TcFFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MzgzODUzCWZpbGU6TXVyYW11cmFfMC4yLjBfeDY0LXNldHVwLmV4ZQpvanF6cm1CZEdoN1JWOWQ2b3pmbU1IK3VwcE5YUGpGNUVvRTVjWWovVjRtT3ZTQnd0bzRYbC9MSUxkakF0TWdpR1FjbDRTVytHZHUyamJQNjQ0RkFCQT09Cg==",
+            "url": "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.2.0/Muramura_0.2.0_x64-setup.exe"
         }
     }
 }
