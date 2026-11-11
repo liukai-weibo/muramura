@@ -295,9 +295,9 @@
   .navigation-group-workspace { display: flex; flex-direction: column; }
   /* Keep the rendered workspace order explicit; JSX order alone is not enough
      because the navigation uses flex ordering for desktop layout. */
-  .navigation-item-dailyNotes { order: 1; }
-  .navigation-item-workbench { order: 2; }
-  .navigation-item-ai { order: 3; }
+  .navigation-item-dailyNotes { order: 2; }
+  .navigation-item-workbench { order: 3; }
+  .navigation-item-ai { order: 4; }
   .primary-navigation {
     background: var(--cream-sidebar);
     border-right-color: var(--cream-line);

@@ -39,10 +39,10 @@ export function MoodDetailModal({ entry, onClose, onEdit, onDelete }: MoodDetail
   }
 
   return (
-    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label='事件详情'>
+    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label='情绪记录'>
       <View className='mood-modal-card'>
         <View className='mood-modal-heading'>
-          <Text style={{ fontWeight: 600 }}>事件详情</Text>
+          <Text style={{ fontWeight: 600 }}>情绪记录</Text>
           <View className='mood-modal-close' onClick={onClose}><Text>✕</Text></View>
         </View>
 

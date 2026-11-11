@@ -875,8 +875,8 @@
 .navigation-brand-subtitle { margin-top: 5px; color: #aaa398; font-size: 11px; letter-spacing: .08em; }
 .navigation-group { display: flex; flex-direction: column; gap: 5px; }
 .navigation-group-workspace .navigation-item-home { order: 1; }
-.navigation-group-workspace .navigation-item-workbench { order: 2; }
-.navigation-group-workspace .navigation-item-dailyNotes { order: 3; }
+.navigation-group-workspace .navigation-item-dailyNotes { order: 2; }
+.navigation-group-workspace .navigation-item-workbench { order: 3; }
 .navigation-group-workspace .navigation-item-ai { order: 4; }
 .navigation-settings { margin-top: 24px; padding-top: 20px; border-top: 1px solid #45423c; }
 .navigation-item { display: flex; align-items: center; box-sizing: border-box; min-height: 44px; padding: 0 12px; border-radius: 9px; color: #c9c3b8; cursor: pointer; transition: color 160ms ease, background-color 160ms ease; }

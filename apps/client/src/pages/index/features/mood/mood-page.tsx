@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Text, View } from '@tarojs/components'
 import type { MoodEntry, MoodEntryInput } from '@knowledge-base/contracts'
 import { apiClient } from '../../api-client'
@@ -47,7 +47,7 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
     } catch (e: unknown) {
       if (generation !== generationRef.current) return
       if ((e as any)?.name === 'AbortError') return
-      setError((e as Error)?.message ?? '事件记录读取失败')
+      setError((e as Error)?.message ?? '情绪记录读取失败')
     } finally {
       if (generation === generationRef.current) setLoading(false)
     }
@@ -105,10 +105,10 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
           <View
             className='mood-new-button'
             role='button'
-            aria-label='记录今日事件'
+            aria-label='记录情绪'
             onClick={() => setModal({ kind: 'create' })}
           >
-            <Text>＋ 记录今日事件</Text>
+            <Text>＋ 记录情绪</Text>
           </View>
           <View className='mood-view-toggle' role='tablist' aria-label='日历视图切换'>
             <View
@@ -146,10 +146,10 @@ export function MoodPage({ colorTheme }: { colorTheme: ColorTheme }) {
         onMonthChange={handleMonthChange}
       />
 
-      {loading && <View className='mood-empty'><Text>正在读取事件记录…</Text></View>}
+      {loading && <View className='mood-empty'><Text>正在读取情绪记录…</Text></View>}
       {!loading && error && <View className='mood-empty'><Text>{error}</Text></View>}
       {!loading && !error && visibleEntries.length === 0 && (
-        <View className='mood-empty'><Text>{entries.length === 0 ? (view === 'year' ? '这一年还没有事件记录，随手记一笔吧。' : '这个月还没有事件记录，随手记一笔吧。') : '这一天还没有事件记录。'}</Text></View>
+        <View className='mood-empty'><Text>{entries.length === 0 ? (view === 'year' ? '这一年还没有情绪记录，随手记一笔吧。' : '这个月还没有情绪记录，随手记一笔吧。') : '这一天还没有情绪记录。'}</Text></View>
       )}
 
       <View className='mood-card-grid'>

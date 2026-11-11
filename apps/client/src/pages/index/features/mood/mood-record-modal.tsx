@@ -60,13 +60,13 @@ export function MoodRecordModal({ initial, initialDate, onClose, onSave, onReloa
   }, [])
 
   return (
-    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label={initial ? '编辑事件' : '记录今日事件'}>
+    <View className='mood-modal-backdrop' role='dialog' aria-modal='true' aria-label={initial ? '编辑情绪记录' : '记录情绪波动'}>
       <View className='mood-modal-card'>
         <View className='mood-modal-heading'>
           <View className='mood-modal-heading-main'>
             <View className='mood-modal-heading-icon' aria-hidden='true'><Text className='mood-modal-heading-emoji'>📌</Text></View>
             <View className='mood-modal-title-wrap'>
-              <Text className='mood-modal-title'>{initial ? '编辑事件' : '记录今日事件'}</Text>
+              <Text className='mood-modal-title'>{initial ? '编辑情绪记录' : '记录情绪波动'}</Text>
               <Text className='mood-date-readonly'>{formatLocalDateCN(entryDate)}</Text>
             </View>
           </View>
@@ -74,8 +74,8 @@ export function MoodRecordModal({ initial, initialDate, onClose, onSave, onReloa
         </View>
 
         <View className='mood-field'>
-          <Text className='mood-field-label'>发生了什么</Text>
-          <Textarea className='mood-field-textarea' value={content} placeholder='简单记录一件小事～' onInput={e => { setContent(e.detail.value); setDirty(true) }} />
+          <Text className='mood-field-label'>此刻的想法或感受</Text>
+          <Textarea className='mood-field-textarea' value={content} placeholder='记录此刻的念头或感受～' onInput={e => { setContent(e.detail.value); setDirty(true) }} />
         </View>
 
         <View className='mood-field'>

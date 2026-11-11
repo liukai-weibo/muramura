@@ -18,6 +18,7 @@ import { DesktopAuthTitleBar, DesktopTitleBar } from '../../desktop/desktop-titl
 import { loadRememberedAccounts, loadRememberedPassword, recordLogin, saveRememberedAccounts, clearRememberedPassword, saveRememberedPassword, type RememberedAccount } from './remembered-auth-storage'
 import { exitDesktopApplication, installDesktopShortcuts, isTauriDesktop } from '../../desktop/desktop-native-bridge'
 import { HomeDashboard } from './home-dashboard'
+import { METHODS_ENABLED } from './method-feature'
 import { DailySummaryDetailModal } from './features/daily-summary/daily-summary-detail-modal'
 import { DailyDietDetailModal } from './features/daily-diet/daily-diet-detail-modal'
 import { DailyDietProfileModal } from './features/daily-diet/daily-diet-profile-modal'
@@ -89,6 +90,20 @@ type NavigationTarget =
   | { type: 'review'; itemId: string }
   | { type: 'method'; methodId: string; methodVersion?: number }
   | { type: 'backlog'; status: ItemStatus }
+
+const WORKBENCH_TAB_OPTIONS: Array<[WorkbenchTab, string]> = ([
+  ['explorations', '长期探索'],
+  ['actions', '行动'],
+  ['methods', '方法'],
+  ['mood', '情绪'],
+  ['meals', '三餐'],
+] as Array<[WorkbenchTab, string]>).filter(([id]) => METHODS_ENABLED || id !== 'methods')
+
+const SEARCH_RESULT_TYPES: ReadonlyArray<'item' | 'review' | 'method' | 'daily-note' | 'exploration-track'> = (['item', 'review', 'method', 'daily-note', 'exploration-track'] as const)
+  .filter(type => METHODS_ENABLED || type !== 'method')
+const SEARCH_PLACEHOLDER = METHODS_ENABLED ? '搜索事项、复盘或方法' : '搜索事项、复盘或手记'
+const TRASH_FILTERS: TrashFilter[] = (['all', 'item', 'method', 'exploration-track'] as TrashFilter[])
+  .filter(filter => METHODS_ENABLED || filter !== 'method')
 
 const moduleLabels: Record<ContentModule, string> = {
   actions: '行动',
@@ -490,6 +505,9 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
     if (primaryModule === 'ai') setAiMounted(true)
   }, [activeModule, primaryModule, workbenchTab])
   useEffect(() => {
+    if (!METHODS_ENABLED && workbenchTab === 'methods') setWorkbenchTab('explorations')
+  }, [workbenchTab])
+  useEffect(() => {
     const handleOnline = () => setIsBrowserOnline(true)
     const handleOffline = () => setIsBrowserOnline(false)
     window.addEventListener('online', handleOnline)
@@ -554,6 +572,9 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
   const [pendingTrashPurge, setPendingTrashPurge] = useState<TrashPurgeEntry[]>()
   const [trashExpanded, setTrashExpanded] = useState(false)
   const [selectedTrashKeys, setSelectedTrashKeys] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    if (!METHODS_ENABLED && trashFilter === 'method') setTrashFilter('all')
+  }, [trashFilter])
   const [trashTrackDetailEntry, setTrashTrackDetailEntry] = useState<TrashEntry>()
   const [trashTrackDetail, setTrashTrackDetail] = useState<ExplorationTrackHistory>()
   const [trashTrackDetailLoading, setTrashTrackDetailLoading] = useState(false)
@@ -874,7 +895,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
     const controller = new AbortController()
     setTrashLoading(true)
     trashApplication.listTrashEntries(trashFilter, controller.signal).then((entries) => {
-      setTrashEntries(entries)
+      setTrashEntries(METHODS_ENABLED ? entries : entries.filter((entry: TrashEntry) => entry.type !== 'method'))
     }).catch((error: unknown) => {
       if (!isApiClientAbort(error)) setMessage(error instanceof Error ? error.message : '读取回收站失败')
     }).finally(() => {
@@ -1544,6 +1565,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
       setPendingReviewLocation(false)
       return
     }
+    if (!METHODS_ENABLED) return
     run(() => loadAndLocateMethodNow(target.methodId, target.methodVersion))
   }
 
@@ -1851,7 +1873,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
       else if (entry.type === 'method') await methodLifecycleApplication.restoreMethod(entry.id)
       else await apiClient.restoreExplorationTrack(entry.id)
       const entries = await trashApplication.listTrashEntries(trashFilter)
-      setTrashEntries(entries)
+      setTrashEntries(METHODS_ENABLED ? entries : entries.filter((entry: TrashEntry) => entry.type !== 'method'))
       await refresh()
       await reloadCurrentItemExplorationContext()
       setExplorationFactsVersion((version) => version + 1)
@@ -2394,13 +2416,17 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
     </View>
   }
 
+  const visibleSearchResults = searchResults === undefined
+    ? undefined
+    : METHODS_ENABLED ? searchResults : searchResults.filter(result => result.type !== 'method')
+
   const desktopSearchControl = <View className='global-search-control interactive' ref={setDesktopSearchControlRef} onClick={(event) => event.stopPropagation()}>
     {searchExpanded ? <View className='global-tool-button global-search-expanded'>
-      <input ref={setDesktopSearchInputRef} className='global-search-input' value={searchQuery} maxLength={120} placeholder='搜索事项、复盘或方法' onMouseDown={(event) => event.stopPropagation()} onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
+      <input ref={setDesktopSearchInputRef} className='global-search-input' value={searchQuery} maxLength={120} placeholder={SEARCH_PLACEHOLDER} onMouseDown={(event) => event.stopPropagation()} onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
       <button type='button' className='global-search-exit' aria-label='退出全局搜索' onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); exitSearch() }}>×</button>
     </View> : <View className={`global-tool-button ${searchQuery.trim() ? 'has-draft' : ''}`} onClick={openSearch}><Text className='global-search-icon'>⌕</Text><Text>搜索事项...</Text><Text className='global-search-shortcut'>Ctrl F</Text></View>}
     {searchExpanded && searchResultsOpen && searchQuery.trim() && <View className='search-results-popover' role='dialog' aria-label='搜索结果'>
-      {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method', 'daily-note', 'exploration-track'] as const).map((type) => {
+      {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : (visibleSearchResults ?? []).length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : SEARCH_RESULT_TYPES.map((type) => {
         const grouped = searchResults.filter((result) => result.type === type)
         if (!grouped.length) return null
         return <View className='search-group' key={type}>
@@ -2423,7 +2449,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
             <Image className='navigation-brand-image' src={marumaruBrandIconUrl} mode='aspectFit' />
             <Text className='navigation-brand-name'>Muramura</Text>
           </View>
-          <Text className='navigation-brand-subtitle'>圈圈 · 行动与方法</Text>
+          <Text className='navigation-brand-subtitle'>行动与记录</Text>
         </View>
         <View className='navigation-group navigation-group-workspace'>
           <Text className='navigation-group-title'>工作区</Text>
@@ -2432,8 +2458,8 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
             className={`navigation-item navigation-transition navigation-item-${module} ${primaryModule === module ? 'active' : ''} ${restoring ? 'disabled' : ''}`}
             onClick={() => { if (!restoring) openPrimaryModule(module) }}
           >{module === 'home' && <Text className='navigation-home-icon' aria-hidden='true'>🏠</Text>}{module === 'workbench' && <Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' />}{module === 'ai' && <Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' />}<Text>{label}</Text></View>)}
-          <View className={`navigation-item navigation-transition navigation-item-workbench ${primaryModule === 'workbench' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('workbench') }}><Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' /><Text>灵感todo</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-dailyNotes ${primaryModule === 'dailyNotes' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('dailyNotes') }}><Image className='navigation-daily-note-icon' src={dailyNoteCatIconUrl} mode='aspectFit' /><Text>手记</Text>{dailyNoteEmpty && <Text className='navigation-daily-note-badge' aria-label='今日尚未记录' />}</View>
+          <View className={`navigation-item navigation-transition navigation-item-workbench ${primaryModule === 'workbench' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('workbench') }}><Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' /><Text>灵感todo</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-ai ${primaryModule === 'ai' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('ai') }}><Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' /><Text>圈圈 AI 助手</Text></View>
         </View>
         <View className='navigation-group navigation-group-account'>
@@ -2456,7 +2482,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
           colorTheme={colorTheme}
           onToggleColorTheme={onToggleColorTheme}
           searchContent={desktopSearchControl}
-          workbenchTabs={primaryModule === 'workbench' ? ([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '事件'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
+          workbenchTabs={primaryModule === 'workbench' ? WORKBENCH_TAB_OPTIONS.map(([id, label]) => ({ id, label, active: workbenchTab === id, onClick: () => openWorkbenchTab(id) })) : undefined}
         />
         <View className={`global-header ${primaryModule === 'workbench' && workbenchTab === 'actions' ? 'global-header-actions' : ''}`}>
           <View><Text className='global-module-title'>{primaryModuleLabels[primaryModule]}</Text>{(managementAccessNotice && primaryModule === 'workbench' || restoring && primaryModule === 'workbench') && <Text className='global-message'>{managementAccessNotice || '正在安全恢复数据，请勿离开'}</Text>}</View>
@@ -2465,11 +2491,11 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
             <View className={`global-tool-button ${busy || restoring ? 'disabled' : ''}`} onClick={() => { if (!busy && !restoring) void refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '刷新数据失败')) }}><Text>刷新数据</Text></View>
             <View className='global-search-control' ref={!isTauriDesktop() ? searchControlRef : undefined}>
               {searchExpanded ? <View className='global-search-expanded'>
-                <input ref={!isTauriDesktop() ? searchInputRef : undefined} className='global-search-input' value={searchQuery} maxLength={120} placeholder='搜索事项、复盘或方法' onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
+                <input ref={!isTauriDesktop() ? searchInputRef : undefined} className='global-search-input' value={searchQuery} maxLength={120} placeholder={SEARCH_PLACEHOLDER} onChange={(event) => updateSearchQuery(event.currentTarget.value)} onFocus={() => { if (searchQuery.trim()) setSearchResultsOpen(true) }} />
                 <button type='button' className='global-search-exit' aria-label='退出全局搜索' onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); exitSearch() }}>×</button>
               </View> : <View className={`global-tool-button ${searchQuery.trim() ? 'has-draft' : ''}`} onClick={openSearch}><Text>全局搜索</Text></View>}
               {searchExpanded && searchResultsOpen && searchQuery.trim() && <View className='search-results-popover' role='dialog' aria-label='搜索结果'>
-                {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : searchResults.length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : (['item', 'review', 'method', 'daily-note', 'exploration-track'] as const).map((type) => {
+                {searchResults === undefined ? <Text className='search-empty'>正在搜索…</Text> : searchError ? <Text className='search-empty'>{searchError}</Text> : (visibleSearchResults ?? []).length === 0 ? <Text className='search-empty'>没有找到相关记录。</Text> : SEARCH_RESULT_TYPES.map((type) => {
                   const grouped = searchResults.filter((result) => result.type === type)
                   if (!grouped.length) return null
                   return <View className='search-group' key={type}>
@@ -2488,7 +2514,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         </View>
 
         {primaryModule === 'workbench' && !isTauriDesktop() && <View className='fast-ui-tabs workbench-tabs' role='tablist'>
-          {([['explorations', '长期探索'], ['actions', '行动'], ['methods', '方法'], ['mood', '事件'], ['meals', '三餐']] as Array<[WorkbenchTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
+          {WORKBENCH_TAB_OPTIONS.map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${workbenchTab === tab ? 'active' : ''}`} role='tab' aria-selected={workbenchTab === tab} onClick={() => openWorkbenchTab(tab)}><Text>{label}</Text></View>)}
         </View>}
         {primaryModule === 'me' && <View className='fast-ui-tabs' role='tablist'>
           {([['profile', '账户'], ['insights', '观察'], ['storage', '数据工具'], ...(isAdministrator && !managementAccessDenied ? [['administration', '管理区域'] as [MyTab, string]] : []), ...(isAdministrator && !managementAccessDenied ? [['aiConfiguration', 'AI 参数'] as [MyTab, string]] : []), ...(isPlatformAdministrator && !managementAccessDenied ? [['audit', '安全审计'] as [MyTab, string]] : [])] as Array<[MyTab, string]>).map(([tab, label]) => <View key={tab} className={`fast-ui-tab ${myTab === tab ? 'active' : ''}`} role='tab' aria-selected={myTab === tab} onClick={() => openMyTab(tab)}><Text>{label}</Text></View>)}
@@ -2528,7 +2554,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
         {(moodMounted && primaryModule === 'workbench' && workbenchTab === 'mood') && <View className='module-retained'><MoodPage colorTheme={colorTheme} /></View>}
         {(mealsMounted && primaryModule === 'workbench' && workbenchTab === 'meals') && <View className='module-retained'><MealsPage /></View>}
         {homeMealsOpen && <MealDayModal initialDate={todayLocalDate()} onClose={() => setHomeMealsOpen(false)} onSaved={() => { setHomeMealsOpen(false); setMessage('已记录今日三餐') }} />}
-        {homeMoodCreateOpen && <MoodRecordModal initialDate={todayLocalDate()} colorTheme={colorTheme} onClose={() => setHomeMoodCreateOpen(false)} onSave={async (input) => { await apiClient.createMoodEntry(input); notifyDailyNoteChanged(); setHomeMoodCreateOpen(false); setMessage('已记录今日事件') }} onReloadData={() => setHomeMoodCreateOpen(false)} />}
+        {homeMoodCreateOpen && <MoodRecordModal initialDate={todayLocalDate()} colorTheme={colorTheme} onClose={() => setHomeMoodCreateOpen(false)} onSave={async (input) => { await apiClient.createMoodEntry(input); notifyDailyNoteChanged(); setHomeMoodCreateOpen(false); setMessage('已记录情绪波动') }} onReloadData={() => setHomeMoodCreateOpen(false)} />}
         {homeDailySummaryOpen && <DailySummaryDetailModal initialDate={todayLocalDate()} generating={todaySummaryGenerating} draft={todaySummaryDraft} aiUnavailable={todaySummaryAiUnavailable} refreshTick={summaryChangedAt} onGenerate={() => { void startSummaryGeneration(true) }} onClose={() => setHomeDailySummaryOpen(false)} onChanged={() => { setSummaryChangedAt((v) => v + 1) }} />}
         {homeDailyDietOpen && <DailyDietDetailModal initialDate={todayLocalDate()} generating={todayDietGenerating} draft={todayDietDraft} aiUnavailable={todayDietAiUnavailable} refreshTick={dietChangedAt} onGenerate={() => { void startDietGeneration(true) }} onClose={() => setHomeDailyDietOpen(false)} onOpenProfile={() => setDietProfileOpen(true)} onChanged={() => { setDietChangedAt((v) => v + 1) }} />}
         {dietProfileOpen && <DailyDietProfileModal onClose={() => setDietProfileOpen(false)} />}
@@ -2930,7 +2956,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
                 </View>
               </View>
 
-              <View className={`method-draft ${methodDisclosureOpen ? 'expanded' : ''}`}>
+              {METHODS_ENABLED && <View className={`method-draft ${methodDisclosureOpen ? 'expanded' : ''}`}>
                 <View className='method-disclosure-toggle' onClick={toggleMethodDisclosure}>
                   <View><Text className='section-kicker'>方法处理（可选）</Text><Text>{methodDisclosureOpen ? '收起方法处理，继续完成事实复盘' : '完成事实复盘后，如有需要再沉淀方法'}</Text></View>
                   <Text>{methodDisclosureOpen ? '收起' : '展开'}</Text>
@@ -2965,9 +2991,9 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
                     </View>}
                   </>}
                 </>}
-              </View>
+              </View>}
               {reviewError && <Text className='form-error'>{reviewError}</Text>}
-              <Button className='action-button primary review-submit-button' disabled={busy} onClick={completeReview}>完成复盘{methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : ''}</Button>
+              <Button className='action-button primary review-submit-button' disabled={busy} onClick={completeReview}>完成复盘{METHODS_ENABLED && (methodMode === 'create' ? '并形成方法' : methodMode === 'validate' ? reviseMethod ? '并修订方法' : '并验证方法' : '')}</Button>
             </View>}
 
             {!showTrash && contentBelowFacts && selectedItem.status !== 'reviewed' && <View className={`action-context-summary detail-content-after-facts ${contentEditingItemId === selectedItem.id ? 'editing' : ''}`}>
@@ -3054,9 +3080,9 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
 
       {primaryModule === 'me' && myTab === 'storage' && <View className='settings-module module-panel'>
                 <View className='trash-panel'>
-          <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>已删除的事项、方法和长期探索</Text></View><View className='trash-heading-actions'><Text className='backup-description'>事项和方法保留 30 天；长期探索当前不自动清理。</Text><Button className='action-button secondary' aria-expanded={trashExpanded} onClick={() => setTrashExpanded((expanded) => !expanded)}>{trashExpanded ? '收起' : '展开'}</Button></View></View>
+          <View className='backup-heading'><View><Text className='section-kicker'>回收站</Text><Text className='panel-title'>{METHODS_ENABLED ? '已删除的事项、方法和长期探索' : '已删除的事项和长期探索'}</Text></View><View className='trash-heading-actions'><Text className='backup-description'>{METHODS_ENABLED ? '事项和方法保留 30 天；长期探索当前不自动清理。' : '事项保留 30 天；长期探索当前不自动清理。'}</Text><Button className='action-button secondary' aria-expanded={trashExpanded} onClick={() => setTrashExpanded((expanded) => !expanded)}>{trashExpanded ? '收起' : '展开'}</Button></View></View>
           {trashExpanded && <>
-            <View className='trash-filter-actions'>{(['all', 'item', 'method', 'exploration-track'] as TrashFilter[]).map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '长期探索' }[entry]}</Text></View>)}</View>
+            <View className='trash-filter-actions'>{TRASH_FILTERS.map((entry) => <View key={entry} className={`all-filter-button ${trashFilter === entry ? 'active' : ''}`} onClick={() => setTrashFilter(entry)}><Text>{{ all: '全部', item: '事项', method: '方法', 'exploration-track': '长期探索' }[entry]}</Text></View>)}</View>
             {trashEntries.length > 0 && <View className='trash-batch-actions'><View className='trash-batch-selection'><label className='trash-select-control'><input type='checkbox' checked={allTrashSelected} onChange={() => setSelectedTrashKeys(allTrashSelected ? new Set() : new Set(trashEntries.map((entry) => `${entry.type}:${entry.id}`)))} /><Text>全选当前筛选结果</Text></label><Text>已选 {selectedTrashEntries.length}</Text></View><View className={`trash-batch-action-slot ${selectedTrashEntries.length > 0 ? 'is-visible' : ''}`}><Button className='action-button secondary' disabled={busy || selectedTrashEntries.length === 0} onClick={() => setSelectedTrashKeys(new Set())}>清空选择</Button><Button className='action-button danger' disabled={busy || selectedTrashEntries.length === 0} onClick={() => setPendingTrashPurge(selectedTrashEntries.map(({ type, id }) => ({ type, id })))}>批量永久删除</Button></View></View>}
             {trashLoading ? <Text className='method-evidence-state'>正在读取回收站…</Text> : trashEntries.length === 0 ? <Text className='method-evidence-state'>回收站是空的。</Text> : <View className='trash-entry-list'>{trashEntries.map((entry) => { const key = `${entry.type}:${entry.id}`; const selected = selectedTrashKeys.has(key); return <View className='trash-entry' key={key}><label className='trash-entry-select' onClick={(event) => event.stopPropagation()}><input type='checkbox' checked={selected} onChange={() => setSelectedTrashKeys((current) => { const next = new Set(current); if (selected) next.delete(key); else next.add(key); return next })} /></label><View className={`trash-entry-copy ${entry.type === 'exploration-track' ? 'trash-entry-clickable' : ''}`} onClick={() => openTrashTrackDetail(entry)}><Text className='trash-entry-title'>{entry.title}</Text><Text className='trash-entry-meta'>{trashEntryTypeLabels[entry.type]} · 已删除 · {formatTime(entry.deletedAt)}</Text>{entry.type === 'exploration-track' && <Text className='trash-entry-hint'>点击查看绑定事项</Text>}</View><View className='trash-entry-actions' onClick={(event) => event.stopPropagation()}><View className='trash-entry-action'><Button className='action-button secondary' disabled={busy} onClick={() => setPendingTrashRestore(entry)}>恢复</Button></View><View className='trash-entry-action'><Button className='action-button danger' disabled={busy} onClick={() => setPendingTrashPurge([{ type: entry.type, id: entry.id }])}>永久删除</Button></View></View></View> })}</View>}
           </>}
@@ -3094,7 +3120,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
       </View>
       </View>}
 
-      {primaryModule === 'workbench' && workbenchTab === 'methods' && <View className='methods-panel module-panel'>
+      {METHODS_ENABLED && primaryModule === 'workbench' && workbenchTab === 'methods' && <View className='methods-panel module-panel'>
         <View className='methods-compact-heading'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View></View>
         <View className='methods-page-header'><View><Text className='section-kicker'>当前有效的方法</Text><Text className='panel-title'>{methods.length} 条方法</Text></View><Text>按最近更新排序</Text></View>
         <View className='methods-workbench'>
@@ -3368,7 +3394,7 @@ export default function IndexPage() {
 
   return <View className='auth-gate-shell' data-color-theme={colorTheme}>
     <DesktopAuthTitleBar />
-    <View className='auth-gate-brand'><Text>Muramura</Text><Text>圈圈 · 行动与方法</Text></View>
+    <View className='auth-gate-brand'><Text>Muramura</Text><Text>行动与记录</Text></View>
     <View className='auth-gate-card'>
       <Text className='auth-gate-kicker'>个人行动闭环</Text>
       <Text className='auth-gate-title'>{!sessionResolved ? '正在确认当前会话' : authMode === 'register' ? '创建账户' : '登录圈圈'}</Text>

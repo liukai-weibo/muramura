@@ -34,18 +34,20 @@
 .home-checkin-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
 .home-dynamic-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .home-custom-ai-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
-.home-mood-card { position: relative; display: flex; min-width: 0; min-height: 112px; padding: 20px 22px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 20px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F6E8C8 0%, #D5E2C8 100%); }
+.home-mood-card { position: relative; display: flex; min-width: 0; min-height: 112px; padding: 20px 24px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 20px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F6E8C8 0%, #D5E2C8 100%); }
 .home-mood-card-glow { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(circle at 22% 30%, rgba(255, 255, 255, .35) 0%, rgba(255, 255, 255, 0) 55%); }
-.home-mood-card-copy { position: relative; display: flex; min-width: 0; flex-direction: column; }
+.home-mood-card-copy { position: relative; display: flex; min-width: 0; flex-direction: column; justify-content: center; }
 .home-mood-card-kicker { color: rgba(43, 40, 37, .62); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
 .home-mood-card-title, .home-meal-card-title { margin-top: 7px; color: #2b2825; font-size: 20px; font-weight: 850; letter-spacing: 0; line-height: 1.25; }
-.home-mood-card-description, .home-meal-card-description { margin-top: 6px; color: rgba(43, 40, 37, .66); font-size: 12px; line-height: 1.55; }
+.home-mood-card-question { margin-top: 0; color: #2b2825; font-size: 18px; font-weight: 850; letter-spacing: 0; line-height: 1.45; }
+.home-mood-card-description, .home-meal-card-description { margin-top: 8px; color: rgba(43, 40, 37, .66); font-size: 12px; line-height: 1.55; }
 .home-mood-card-action { position: relative; flex: 0 0 auto; color: rgba(43, 40, 37, .86); font-size: 12px; font-weight: 800; }
 .home-mood-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(120, 90, 60, .16), 0 4px 10px rgba(0, 0, 0, .06); }
 .home-mood-card:hover .home-mood-card-glow { opacity: .85; }
 .app-shell[data-color-theme='dark'] .home-mood-card { background-image: linear-gradient(120deg, #8F7E54 0%, #667457 100%); border-color: rgba(255, 255, 255, .1); }
 .app-shell[data-color-theme='dark'] .home-mood-card-kicker { color: rgba(255, 253, 250, .62); }
 .app-shell[data-color-theme='dark'] .home-mood-card-title { color: #fffdfa; }
+.app-shell[data-color-theme='dark'] .home-mood-card-question { color: #fffdfa; }
 .app-shell[data-color-theme='dark'] .home-mood-card-description { color: rgba(255, 253, 250, .72); }
 .app-shell[data-color-theme='dark'] .home-mood-card-action { color: rgba(255, 253, 250, .9); }
 .home-meal-card { position: relative; display: flex; min-width: 0; min-height: 112px; padding: 20px 22px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 20px; overflow: hidden; border: 1px solid rgba(120, 90, 60, .16); border-radius: 22px; box-shadow: 0 6px 20px rgba(120, 90, 60, .1), 0 2px 6px rgba(0, 0, 0, .04); cursor: pointer; background-image: linear-gradient(120deg, #F6E0C8 0%, #EED9CF 100%); }

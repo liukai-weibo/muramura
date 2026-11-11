@@ -16,11 +16,11 @@ const tauriMain = readFileSync(new URL('../src-tauri/src/main.rs', import.meta.u
 // 钥匙串服务名、签名凭据名、localStorage 键）不在本用例范围内，且必须保持不变。
 describe('Muramura brand display', () => {
   it('uses the display names in the H5 title and navigation', () => {
-    expect(browserEntry).toContain('<title>Muramura｜圈圈</title>')
-    expect(appConfig).toContain("navigationBarTitleText: 'Muramura｜圈圈'")
-    expect(pageConfig).toContain("navigationBarTitleText: 'Muramura｜圈圈'")
+    expect(browserEntry).toContain('<title>Muramura</title>')
+    expect(appConfig).toContain("navigationBarTitleText: 'Muramura'")
+    expect(pageConfig).toContain("navigationBarTitleText: 'Muramura'")
     expect(page).toContain("<Text className='navigation-brand-name'>Muramura</Text>")
-    expect(page).toContain("<Text>Muramura</Text><Text>圈圈 · 行动与方法</Text>")
+    expect(page).toContain("<Text>Muramura</Text><Text>行动与记录</Text>")
     expect(mobilePage).toContain("<Text className='mobile-brand'>Muramura</Text>")
   })
 

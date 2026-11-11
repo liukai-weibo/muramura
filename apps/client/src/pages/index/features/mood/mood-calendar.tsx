@@ -66,7 +66,7 @@ export function MoodCalendar({ mode, year, month, entries, selectedDate, filterL
       className += ` mood-tier-${tier}`
       if (isSelected) className += ' selected'
       const tooltip = checks > 0
-        ? `${targetMonth}月${cell.day}日 · 共${dayEntries.length}条事件`
+        ? `${targetMonth}月${cell.day}日 · 共${dayEntries.length}条情绪记录`
         : undefined
       return (
         <View
