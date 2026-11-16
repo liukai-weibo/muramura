@@ -10,6 +10,9 @@ import { HomeDailyDietCard } from './home-daily-diet-card'
 import { HomeAiCardView } from '../features/home-ai-card/home-ai-card-view'
 import './home-dashboard.scss'
 
+/** 今日推进卡暂时隐藏，恢复时开启此开关。 */
+const HOME_PROGRESS_CARD_ENABLED = false
+
 interface HomeDashboardProps {
   items: Item[]
   backlog?: DashboardBacklog
@@ -40,9 +43,9 @@ export function HomeDashboard({ items, onOpenItem, onOpenBacklog, onOpenCapture,
   const focusItem = items.filter((item) => item.status === 'doing' && !item.deletedAt).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
 
   return <View className='home-dashboard'>
-    <View className='home-primary-row'>
+    <View className={`home-primary-row${HOME_PROGRESS_CARD_ENABLED ? '' : ' is-single'}`}>
       <HomeDailyNoteCard onOpenDailyNotes={onOpenDailyNotes} />
-      <HomeHeroBanner focusItem={focusItem} onOpenFocus={onOpenItem} onOpenIdeaPool={() => onOpenBacklog('idea_to_try')} onOpenCapture={onOpenCapture} />
+      {HOME_PROGRESS_CARD_ENABLED && <HomeHeroBanner focusItem={focusItem} onOpenFocus={onOpenItem} onOpenIdeaPool={() => onOpenBacklog('idea_to_try')} onOpenCapture={onOpenCapture} />}
     </View>
     <View className='home-checkin-row'>
       <HomeMoodCard onOpenMoodCreate={onOpenMoodCreate} />

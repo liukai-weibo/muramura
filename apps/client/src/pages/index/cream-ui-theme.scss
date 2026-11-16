@@ -296,8 +296,9 @@
   /* Keep the rendered workspace order explicit; JSX order alone is not enough
      because the navigation uses flex ordering for desktop layout. */
   .navigation-item-dailyNotes { order: 2; }
-  .navigation-item-workbench { order: 3; }
-  .navigation-item-ai { order: 4; }
+  .navigation-item-tasks { order: 3; }
+  .navigation-item-workbench { order: 4; }
+  .navigation-item-ai { order: 5; }
   .primary-navigation {
     background: var(--cream-sidebar);
     border-right-color: var(--cream-line);

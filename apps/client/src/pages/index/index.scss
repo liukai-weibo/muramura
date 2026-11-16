@@ -876,8 +876,9 @@
 .navigation-group { display: flex; flex-direction: column; gap: 5px; }
 .navigation-group-workspace .navigation-item-home { order: 1; }
 .navigation-group-workspace .navigation-item-dailyNotes { order: 2; }
-.navigation-group-workspace .navigation-item-workbench { order: 3; }
-.navigation-group-workspace .navigation-item-ai { order: 4; }
+.navigation-group-workspace .navigation-item-tasks { order: 3; }
+.navigation-group-workspace .navigation-item-workbench { order: 4; }
+.navigation-group-workspace .navigation-item-ai { order: 5; }
 .navigation-settings { margin-top: 24px; padding-top: 20px; border-top: 1px solid #45423c; }
 .navigation-item { display: flex; align-items: center; box-sizing: border-box; min-height: 44px; padding: 0 12px; border-radius: 9px; color: #c9c3b8; cursor: pointer; transition: color 160ms ease, background-color 160ms ease; }
 .navigation-item text { font-size: 14px; font-weight: 720; }
@@ -1050,6 +1051,10 @@
 .exploration-track-row:hover, .exploration-track-row.active { background: #eee7dc; }
 .exploration-row-name { display: block; overflow: hidden; color: #302c27; font-size: 14px; font-weight: 800; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .exploration-row-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.exploration-pinned-row-heading { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.exploration-pinned-row-heading .exploration-row-name { min-width: 0; flex: 1; }
+.exploration-pin-badge { flex: 0 0 auto; color: var(--cream-hint, #948e86); font-size: 10px; font-weight: 600; }
+.exploration-prototype .exploration-pin-button.is-pinned { color: #a47542; }
 .exploration-archived-restore { flex-shrink: 0; }
 .exploration-row-recent { overflow: hidden; margin-top: 3px; color: #81796e; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .exploration-list-pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 16px; gap: 8px; border-top: 1px solid #ece7df; color: #81796e; font-size: 12px; }

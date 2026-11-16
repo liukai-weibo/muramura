@@ -120,6 +120,7 @@ const moduleLabels: Record<AuditModule, string> = {
   mood: '情绪记录',
   meal: '三餐记录',
   sleep: '睡眠记录',
+  task: '任务记录',
   item: '灵感Todo',
   search: '全局搜索',
   exploration_track: '探索轨道',

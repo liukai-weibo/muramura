@@ -12,6 +12,7 @@ export {
   PlatformAdministrationApplicationService,
 } from './access'
 export { BackupApplicationService, parseAndValidateBackup } from './backup'
+export { TaskApplicationService } from './tasks'
 export {
   ExplorationTrackApplicationService,
   ItemApplicationService,

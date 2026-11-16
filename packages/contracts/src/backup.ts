@@ -18,6 +18,7 @@ import type { MealEntry } from './meals'
 import type { MoodEntry } from './mood'
 import type { DailySummary } from './daily-summary'
 import type { DailyDietRecommendation } from './daily-diet'
+import type { Task } from './tasks'
 import type { HomeAiCard, HomeAiCardCache } from './home-ai-card'
 import type { SleepEntry } from './sleep'
 /**
@@ -63,6 +64,8 @@ export interface BackupDataV11 extends BackupDataV10 { dailyNoteEntries: DailyNo
 export interface BackupDataV12 extends BackupDataV11 { sleepEntries: SleepEntry[] }
 /** V13：睡眠改为「当天起床 + 当天入睡」，单条记录不再跨天；旧 V12 在恢复时自动拆分。 */
 export interface BackupDataV13 extends BackupDataV12 {}
+/** V14：任务系统（今日任务 + 任务池，完成项也保留）。 */
+export interface BackupDataV14 extends BackupDataV13 { tasks: Task[] }
 
 export interface BackupDocumentV1 {
   format: 'knowledge-base-backup'
@@ -97,10 +100,11 @@ export interface BackupDocumentV10 { format: 'knowledge-base-backup'; version: 1
 export interface BackupDocumentV11 { format: 'knowledge-base-backup'; version: 11; exportedAt: string; appVersion: string; data: BackupDataV11 }
 export interface BackupDocumentV12 { format: 'knowledge-base-backup'; version: 12; exportedAt: string; appVersion: string; data: BackupDataV12 }
 export interface BackupDocumentV13 { format: 'knowledge-base-backup'; version: 13; exportedAt: string; appVersion: string; data: BackupDataV13 }
+export interface BackupDocumentV14 { format: 'knowledge-base-backup'; version: 14; exportedAt: string; appVersion: string; data: BackupDataV14 }
 
-export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5 | BackupDocumentV6 | BackupDocumentV7 | BackupDocumentV8 | BackupDocumentV9 | BackupDocumentV10 | BackupDocumentV11 | BackupDocumentV12 | BackupDocumentV13
+export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5 | BackupDocumentV6 | BackupDocumentV7 | BackupDocumentV8 | BackupDocumentV9 | BackupDocumentV10 | BackupDocumentV11 | BackupDocumentV12 | BackupDocumentV13 | BackupDocumentV14
 
 export interface BackupRepository {
-  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13>
-  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13): Promise<void>
+  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13 | BackupDataV14>
+  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13 | BackupDataV14): Promise<void>
 }

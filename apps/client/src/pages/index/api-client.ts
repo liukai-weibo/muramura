@@ -61,6 +61,8 @@ import type {
   SleepEntryPatch,
   SleepSettings,
   SleepSettingsWriteInput,
+  Task,
+  TaskVisibleStatus,
   MoodEntry,
   MoodEntryInput,
   WeatherCity,
@@ -349,7 +351,7 @@ export type ActivityAuditQuery = {
   pageSize: number
 }
 
-const auditModulesOrder = ['daily_note', 'mood', 'meal', 'sleep', 'item', 'search', 'exploration_track', 'method', 'review', 'daily_summary', 'daily_diet', 'home_ai_card', 'ai_preference', 'ai_conversation', 'ai_config'] as const
+const auditModulesOrder = ['daily_note', 'mood', 'meal', 'sleep', 'task', 'item', 'search', 'exploration_track', 'method', 'review', 'daily_summary', 'daily_diet', 'home_ai_card', 'ai_preference', 'ai_conversation', 'ai_config'] as const
 const auditActionsOrder = ['create', 'update', 'delete', 'search', 'assign', 'remove', 'restore', 'purge', 'archive', 'complete', 'append', 'refresh'] as const
 
 function parseActivityAuditEvent(value: unknown): ActivityAuditEvent {
@@ -650,6 +652,14 @@ export const apiClient = {
   readSleepSettings: (signal?: AbortSignal) => request<SleepSettings>('/sleep/settings', { signal }),
   saveSleepSettings: (input: SleepSettingsWriteInput) => request<SleepSettings>('/sleep/settings', { method: 'PUT', body: json(input) }),
   acknowledgeSleepReminder: (date: string) => request<SleepSettings>('/sleep/reminder/ack', { method: 'POST', body: json({ date }) }),
+  listTasks: (signal?: AbortSignal) => request<Task[]>('/tasks', { signal }),
+  listCompletedTasks: (signal?: AbortSignal) => request<Task[]>('/tasks/completed', { signal }),
+  createTask: (input: { title: string; bucket: TaskVisibleStatus }) => request<Task>('/tasks', { method: 'POST', body: json(input) }),
+  claimTask: (id: string) => request<Task>(`/tasks/${encodeURIComponent(id)}/claim`, { method: 'POST' }),
+  completeTask: (id: string) => request<Task>(`/tasks/${encodeURIComponent(id)}/complete`, { method: 'POST' }),
+  restoreTask: (id: string) => request<Task>(`/tasks/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
+  abandonTask: (id: string) => request<Task>(`/tasks/${encodeURIComponent(id)}/abandon`, { method: 'POST' }),
+  deleteTask: (id: string) => request<{ ok: boolean }>(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listDailySummaries: (range?: { from?: string; to?: string }, signal?: AbortSignal) => {
     const query = range && (range.from || range.to) ? `?${[range.from ? `from=${encodeURIComponent(range.from)}` : '', range.to ? `to=${encodeURIComponent(range.to)}` : ''].filter(Boolean).join('&')}` : ''
     return request<DailySummary[]>(`/daily-summaries${query}`, { signal })

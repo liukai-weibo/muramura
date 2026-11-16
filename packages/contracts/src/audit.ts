@@ -10,6 +10,7 @@ export const auditModules = [
   'mood',
   'meal',
   'sleep',
+  'task',
   'item',
   'search',
   'exploration_track',
@@ -125,6 +126,7 @@ export const AUDIT_SNAPSHOT_VALUE_LABELS: Record<string, string> = {
   item: '事项',
   search: '搜索',
   sleep: '睡眠',
+  task: '任务',
 }
 
 /**
@@ -150,6 +152,8 @@ export const AUDIT_SNAPSHOT_KEY_LABELS: Record<string, string> = {
   sleepDate: '睡眠日期',
   bedAt: '入睡时间',
   wakeAt: '起床时间',
+  status: '状态',
+  completedAt: '完成时间',
   content: '内容',
   feeling: '饱腹度',
   query: '搜索词',

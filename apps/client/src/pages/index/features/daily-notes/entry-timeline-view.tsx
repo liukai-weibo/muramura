@@ -212,7 +212,13 @@ export function EntryTimelineView({
               onPointerCancel={() => { dragRef.current = null; setDrag(null) }}
             >
               <span className='daily-note-timeline-card-content'>{item.entry.content}</span>
-              <button type='button' className='daily-note-timeline-card-remove' title='删除这条' onClick={event => { event.stopPropagation(); onDelete(item.id) }}>×</button>
+              <button
+                type='button'
+                className='daily-note-timeline-card-remove'
+                title='删除这条'
+                onPointerDown={event => event.stopPropagation()}
+                onClick={event => { event.stopPropagation(); onDelete(item.id) }}
+              >×</button>
             </div>
           })}
           {layout.hidden > 0 && <button

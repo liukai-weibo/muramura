@@ -70,7 +70,7 @@ describe('backup V13 sleep semantics', () => {
     }])
     const service = buildService(stubSleep().store)
     const parsed = service.parseAndValidate(JSON.stringify(legacy))
-    expect(parsed.version).toBe(13)
+    expect(parsed.version).toBe(14)
     const entries = (parsed as { data: { sleepEntries: SleepEntry[] } }).data.sleepEntries
     expect(entries.map(entry => entry.sleepDate)).toEqual(['2026-11-08', '2026-11-09'])
     expect(entries[0]).toMatchObject({ sleepDate: '2026-11-08', bedAt: '2026-11-08T15:40:00.000Z' })

@@ -3,6 +3,7 @@ import type { ExplorationTrackHistory, ExplorationTrackItem, ExplorationTrackLis
 import { createContext, memo, type MouseEvent as ReactMouseEvent, useContext, useEffect, useRef, useState } from 'react'
 import { apiClient, isApiClientAbort, isApiClientUnknownOutcome } from './api-client'
 import { captureDraftAfterWrite, explorationListReadState, isCurrentExplorationRequest, mayUnlockUnknownOutcome } from './exploration-session-state'
+import { explorationPinStorageKey, orderPinnedExplorations, parseExplorationPins, toggleExplorationPin } from './exploration-pin-state'
 
 const statusLabels: Record<string, string> = {
   doing: '进行中', idea_to_try: '历史状态', idea_later: '历史状态', paused: '历史状态', reviewed: '已复盘', abandoned: '历史状态',
@@ -52,8 +53,14 @@ const TrackItem = memo(function TrackItem({ item, onOpen }: { item: ExplorationT
   </View>
 })
 
-export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVersion, onRestoreFactsConfirmed, onRestoreFactsFailed, onExplorationTrackCountChange, onExplorationTracksChange, onItemsChanged, onRefresh, showManualRefresh = true, onOpenItem, itemUpdatedAtById }: { explorationFactsVersion: number; restoreFactsVersion: number; onRestoreFactsConfirmed: () => void; onRestoreFactsFailed: (message: string) => void; onExplorationTrackCountChange: (count: number) => void; onExplorationTracksChange?: (tracks: ExplorationTrackListEntry[]) => void; onItemsChanged: () => Promise<void>; onRefresh?: () => void | Promise<void>; showManualRefresh?: boolean; onOpenItem: (locator: ItemLocator) => void; itemUpdatedAtById: ReadonlyMap<string, string>; }) {
+export function ExplorationPrototype({ userId, explorationFactsVersion, restoreFactsVersion, onRestoreFactsConfirmed, onRestoreFactsFailed, onExplorationTrackCountChange, onExplorationTracksChange, onItemsChanged, onRefresh, showManualRefresh = true, onOpenItem, itemUpdatedAtById }: { userId: string; explorationFactsVersion: number; restoreFactsVersion: number; onRestoreFactsConfirmed: () => void; onRestoreFactsFailed: (message: string) => void; onExplorationTrackCountChange: (count: number) => void; onExplorationTracksChange?: (tracks: ExplorationTrackListEntry[]) => void; onItemsChanged: () => Promise<void>; onRefresh?: () => void | Promise<void>; showManualRefresh?: boolean; onOpenItem: (locator: ItemLocator) => void; itemUpdatedAtById: ReadonlyMap<string, string>; }) {
   const [tracks, setTracks] = useState<ExplorationTrackListEntry[]>([])
+  const [pinnedIds, setPinnedIds] = useState<string[]>(() => {
+    try { return parseExplorationPins(window.localStorage.getItem(explorationPinStorageKey(userId))) }
+    catch { return [] }
+  })
+  const pinnedIdsRef = useRef(pinnedIds)
+  pinnedIdsRef.current = pinnedIds
   const [selectedId, setSelectedId] = useState<string>()
   const [listPage, setListPage] = useState(1)
   const [history, setHistory] = useState<ExplorationTrackHistory>()
@@ -106,8 +113,8 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     try {
       const next = await apiClient.listExplorationTracks(controller.signal)
       if (!isCurrentExplorationRequest(requestId, listRequest.current)) return { succeeded: false }
-      const normalized = next
-      setTracks(normalized)
+      const normalized = orderPinnedExplorations(next, pinnedIdsRef.current)
+      setTracks(next)
       onExplorationTrackCountChange(normalized.length)
       onExplorationTracksChange?.(normalized)
       setListReadSucceeded(true)
@@ -423,13 +430,30 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     catch (cause) { preserveUnknownOutcome(cause, '删除主线未完成，请重试。') }
     finally { setCreating(false) }
   }
+  const togglePin = () => {
+    if (!history || history.track.archivedAt || archivedView) return
+    const id = history.track.id
+    const nextPins = toggleExplorationPin(pinnedIdsRef.current, id)
+    try {
+      window.localStorage.setItem(explorationPinStorageKey(userId), JSON.stringify(nextPins))
+    } catch {
+      setError('无法保存置顶设置，请检查浏览器存储后重试。')
+      return
+    }
+    pinnedIdsRef.current = nextPins
+    setPinnedIds(nextPins)
+    const ordered = orderPinnedExplorations(tracks, nextPins)
+    const index = ordered.findIndex(entry => entry.track.id === id)
+    setListPage(index >= 0 ? Math.floor(index / EXPLORATION_TRACK_PAGE_SIZE) + 1 : 1)
+  }
+  const orderedTracks = orderPinnedExplorations(tracks, pinnedIds)
   const listState = explorationListReadState({ loading: listLoading, hasSucceeded: listReadSucceeded, hasEntries: tracks.length > 0 })
   const visibleHistory = historyView === 'history' ? history?.history : history?.abandonedHistory
   const listPageCount = Math.ceil(tracks.length / EXPLORATION_TRACK_PAGE_SIZE)
-  const visibleTracks = tracks.slice((listPage - 1) * EXPLORATION_TRACK_PAGE_SIZE, listPage * EXPLORATION_TRACK_PAGE_SIZE)
+  const visibleTracks = orderedTracks.slice((listPage - 1) * EXPLORATION_TRACK_PAGE_SIZE, listPage * EXPLORATION_TRACK_PAGE_SIZE)
   const changeListPage = (nextPage: number) => {
     const page = Math.min(Math.max(nextPage, 1), listPageCount)
-    const nextTrack = tracks[(page - 1) * EXPLORATION_TRACK_PAGE_SIZE]
+    const nextTrack = orderedTracks[(page - 1) * EXPLORATION_TRACK_PAGE_SIZE]
     if (!nextTrack) return
     setListPage(page)
     setSelectedId(nextTrack.track.id)
@@ -440,12 +464,12 @@ export function ExplorationPrototype({ explorationFactsVersion, restoreFactsVers
     <View className='exploration-workspace'>
       <View className='exploration-list-panel'>
         <View className='exploration-list-heading'><View><Text className='section-kicker'>长期探索</Text><Text>记录长期兴趣与历程</Text></View>{listLoading && listReadSucceeded && <Text className='exploration-refreshing'>正在更新…</Text>}</View>
-        {archivedView ? (archivedLoading ? <Text className='exploration-state'>正在载入归档列表…</Text> : archivedTracks.length === 0 ? <View className='exploration-empty'><Text>还没有已归档的长期探索。</Text><Text>归档仅做展示收拢，可随时取消归档恢复。</Text></View> : <><View className='exploration-track-list'>{archivedTracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><View className='exploration-row-heading'><Text className='exploration-row-name'>{entry.track.name}</Text><Button className='exploration-inline-button exploration-archived-restore' disabled={creating || unknownOutcome} onClick={(event) => { event.stopPropagation(); void unarchive(entry.track.id) }}>取消归档</Button></View><Text className='exploration-row-recent'>{entry.track.archivedAt ? `归档于 ${formatArchiveDate(entry.track.archivedAt)}` : ''}{entry.latestAssociatedItem ? ` · 最近：${entry.latestAssociatedItem.title}` : ''}</Text></View>)}</View></>) : listState === 'loading' ? <Text className='exploration-state'>正在载入长期探索…</Text> : listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入长期探索。</Text></View> : listState === 'empty' ? <View className='exploration-empty'><Text>还没有长期探索。</Text><Text>长期探索用于串联独立行动与复盘事实，形成一段长期行动历程。</Text></View> : <><View className='exploration-track-list'>{visibleTracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><Text className='exploration-row-name'>{entry.track.name}</Text><Text className='exploration-row-recent'>{entry.latestAssociatedItem ? `最近：${entry.latestAssociatedItem.title} · ${statusLabels[entry.latestAssociatedItem.status] ?? entry.latestAssociatedItem.status}` : '暂无关联行动'}</Text></View>)}</View>{listPageCount > 1 && <View className='exploration-list-pagination'><Button className={`exploration-inline-button ${listPage === 1 ? 'is-disabled' : ''}`} disabled={listPage === 1} onClick={() => { if (listPage > 1) changeListPage(listPage - 1) }}>上一页</Button><Text>{listPage} / {listPageCount}</Text><Button className={`exploration-inline-button ${listPage === listPageCount ? 'is-disabled' : ''}`} disabled={listPage === listPageCount} onClick={() => { if (listPage < listPageCount) changeListPage(listPage + 1) }}>下一页</Button></View>}</>}
+        {archivedView ? (archivedLoading ? <Text className='exploration-state'>正在载入归档列表…</Text> : archivedTracks.length === 0 ? <View className='exploration-empty'><Text>还没有已归档的长期探索。</Text><Text>归档仅做展示收拢，可随时取消归档恢复。</Text></View> : <><View className='exploration-track-list'>{archivedTracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><View className='exploration-row-heading'><Text className='exploration-row-name'>{entry.track.name}</Text><Button className='exploration-inline-button exploration-archived-restore' disabled={creating || unknownOutcome} onClick={(event) => { event.stopPropagation(); void unarchive(entry.track.id) }}>取消归档</Button></View><Text className='exploration-row-recent'>{entry.track.archivedAt ? `归档于 ${formatArchiveDate(entry.track.archivedAt)}` : ''}{entry.latestAssociatedItem ? ` · 最近：${entry.latestAssociatedItem.title}` : ''}</Text></View>)}</View></>) : listState === 'loading' ? <Text className='exploration-state'>正在载入长期探索…</Text> : listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入长期探索。</Text></View> : listState === 'empty' ? <View className='exploration-empty'><Text>还没有长期探索。</Text><Text>长期探索用于串联独立行动与复盘事实，形成一段长期行动历程。</Text></View> : <><View className='exploration-track-list'>{visibleTracks.map((entry) => <View key={entry.track.id} className={`exploration-track-row ${selectedId === entry.track.id ? 'active' : ''}`} onClick={() => setSelectedId(entry.track.id)}><View className='exploration-pinned-row-heading'><Text className='exploration-row-name'>{entry.track.name}</Text>{pinnedIds.includes(entry.track.id) && <Text className='exploration-pin-badge'>置顶</Text>}</View><Text className='exploration-row-recent'>{entry.latestAssociatedItem ? `最近：${entry.latestAssociatedItem.title} · ${statusLabels[entry.latestAssociatedItem.status] ?? entry.latestAssociatedItem.status}` : '暂无关联行动'}</Text></View>)}</View>{listPageCount > 1 && <View className='exploration-list-pagination'><Button className={`exploration-inline-button ${listPage === 1 ? 'is-disabled' : ''}`} disabled={listPage === 1} onClick={() => { if (listPage > 1) changeListPage(listPage - 1) }}>上一页</Button><Text>{listPage} / {listPageCount}</Text><Button className={`exploration-inline-button ${listPage === listPageCount ? 'is-disabled' : ''}`} disabled={listPage === listPageCount} onClick={() => { if (listPage < listPageCount) changeListPage(listPage + 1) }}>下一页</Button></View>}</>}
         <View className='exploration-list-footer'><Button className='exploration-inline-button' disabled={creating || unknownOutcome} onClick={() => { if (archivedView) setArchivedView(false); else { setArchivedView(true); void loadArchived() } }}>{archivedView ? '返回' : '归档列表'}</Button>{!archivedView && <Button className='primary-button exploration-create-trigger' disabled={creating || unknownOutcome} onClick={() => setCreateDialogOpen(true)}>新建长期探索</Button>}</View>
       </View>
       <View className='exploration-detail-panel'>
         {detailLoading && !history ? <View className='exploration-state'><Text>正在载入长期探索历史…</Text></View> : !history && listState === 'error' ? <View className='exploration-state'><Text>暂时无法载入长期探索与长期探索历史。</Text></View> : !history ? <View className='exploration-state'><Text>选择一条长期探索，查看它串联的独立行动与复盘事实。</Text></View> : <View className='exploration-detail'>
-          <View className='exploration-detail-heading'><View>{editing ? <View className='exploration-edit'><Input value={renameName} onInput={(event) => setRenameName(event.detail.value)} /><Button className='secondary-button' disabled={creating} onClick={() => { setEditing(false); setEditingTrackId(undefined); editingTrackIdRef.current = undefined; setRenameName(history.track.name) }}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome} onClick={saveEditingTrack}>保存</Button></View> : <Text className='exploration-detail-title'>{history.track.name}</Text>}</View>{!editing && <View className='exploration-manage'>{history.track.archivedAt ? <Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => void unarchive(history.track.id)}>取消归档</Button> : <Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => { confirmArchiveIdRef.current = history.track.id; setConfirmArchive(true) }}>归档</Button>}<Button className='exploration-inline-button' disabled={unknownOutcome} onClick={beginEditingTrack}>改名</Button><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => setConfirmDelete(true)}>删除主线</Button></View>}</View>
+          <View className='exploration-detail-heading'><View>{editing ? <View className='exploration-edit'><Input value={renameName} onInput={(event) => setRenameName(event.detail.value)} /><Button className='secondary-button' disabled={creating} onClick={() => { setEditing(false); setEditingTrackId(undefined); editingTrackIdRef.current = undefined; setRenameName(history.track.name) }}>取消</Button><Button className='primary-button' disabled={creating || unknownOutcome} onClick={saveEditingTrack}>保存</Button></View> : <Text className='exploration-detail-title'>{history.track.name}</Text>}</View>{!editing && <View className='exploration-manage'>{!history.track.archivedAt && !archivedView && <Button className={`exploration-inline-button exploration-pin-button ${pinnedIds.includes(history.track.id) ? 'is-pinned' : ''}`} disabled={creating || unknownOutcome} onClick={togglePin}>{pinnedIds.includes(history.track.id) ? '取消置顶' : '置顶'}</Button>}{history.track.archivedAt ? <Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => void unarchive(history.track.id)}>取消归档</Button> : <Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => { confirmArchiveIdRef.current = history.track.id; setConfirmArchive(true) }}>归档</Button>}<Button className='exploration-inline-button' disabled={unknownOutcome} onClick={beginEditingTrack}>改名</Button><Button className='exploration-inline-button' disabled={unknownOutcome} onClick={() => setConfirmDelete(true)}>删除主线</Button></View>}</View>
           {detailLoading && <Text className='exploration-refreshing'>正在更新…</Text>}
           <View className={`action-context-summary exploration-description-card ${descriptionEditing ? 'editing' : ''}`}>
             <div className={`action-context-card action-context-content ${descriptionEditing ? 'editing' : ''} ${descriptionEditing ? '' : 'clickable'}`} ref={descriptionEditing ? descriptionEditorRef : undefined} role={descriptionEditing ? undefined : 'button'} tabIndex={descriptionEditing ? undefined : 0} onMouseDown={(event) => beginDescriptionEditingFromMouseDown(event)} onKeyDown={(event) => { if (!descriptionEditing && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); beginDescriptionEditing() } }}>

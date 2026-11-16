@@ -31,6 +31,7 @@ import './features/daily-summary/daily-summary.scss'
 import './features/daily-diet/daily-diet.scss'
 import './features/home-ai-card/home-ai-card.scss'
 import { DailyNotesPage } from './features/daily-notes/daily-notes-page'
+import { TasksPage } from './features/tasks/tasks-page'
 import { SleepReminder } from './features/daily-notes/sleep/sleep-reminder'
 import { notifyDailyNoteChanged, subscribeDailyNoteChanged } from './daily-note-sync'
 import { readColorTheme, readDisplayEffectMode, saveColorTheme, type ColorTheme, type DisplayEffectMode } from './display-effect-preference'
@@ -40,6 +41,7 @@ import '../../assets/help'
 import { SiteFilingFooter } from './site-filing-footer'
 const marumaruBrandIconUrl = new URL('../../assets/brand/marumaru-white-cat-transparent.png', import.meta.url).href
 const dailyNoteCatIconUrl = new URL('../../assets/home/guides/cat-forward-stretch.png', import.meta.url).href
+const taskCatIconUrl = new URL('../../assets/home/guides/cat-belly-up.png', import.meta.url).href
 const workbenchCatIconUrl = new URL('../../assets/home/guides/cat-playful-stretch.png', import.meta.url).href
 const aiCatIconUrl = new URL('../../assets/home/guides/cat-ball-roll.png', import.meta.url).href
 type ItemAction = ApiItemAction
@@ -81,7 +83,7 @@ const moreStatusNavigation: Array<{ label: string; status: ItemStatus }> = [
 
 type MethodMode = 'none' | 'create' | 'validate'
 type ContentModule = 'actions' | 'explorations' | 'methods' | 'insights' | 'ai' | 'settings' | 'administration' | 'aiConfiguration' | 'audit'
-type PrimaryModule = 'home' | 'workbench' | 'dailyNotes' | 'ai' | 'me'
+type PrimaryModule = 'home' | 'workbench' | 'dailyNotes' | 'tasks' | 'ai' | 'me'
 type WorkbenchTab = 'actions' | 'explorations' | 'methods' | 'mood' | 'meals'
 type MyTab = 'profile' | 'insights' | 'storage' | 'administration' | 'aiConfiguration' | 'audit'
 type GlobalTool = 'search' | 'capture'
@@ -119,6 +121,7 @@ const moduleLabels: Record<ContentModule, string> = {
 
 const primaryModuleLabels: Record<PrimaryModule, string> = {
   dailyNotes: '手记',
+  tasks: '任务',
   home: '首页',
   workbench: '灵感todo',
   ai: '圈圈 AI 助手',
@@ -2459,6 +2462,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
             onClick={() => { if (!restoring) openPrimaryModule(module) }}
           >{module === 'home' && <Text className='navigation-home-icon' aria-hidden='true'>🏠</Text>}{module === 'workbench' && <Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' />}{module === 'ai' && <Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' />}<Text>{label}</Text></View>)}
           <View className={`navigation-item navigation-transition navigation-item-dailyNotes ${primaryModule === 'dailyNotes' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('dailyNotes') }}><Image className='navigation-daily-note-icon' src={dailyNoteCatIconUrl} mode='aspectFit' /><Text>手记</Text>{dailyNoteEmpty && <Text className='navigation-daily-note-badge' aria-label='今日尚未记录' />}</View>
+          <View className={`navigation-item navigation-transition navigation-item-tasks ${primaryModule === 'tasks' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('tasks') }}><Image className='navigation-module-icon' src={taskCatIconUrl} mode='aspectFit' /><Text>任务</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-workbench ${primaryModule === 'workbench' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('workbench') }}><Image className='navigation-module-icon' src={workbenchCatIconUrl} mode='aspectFit' /><Text>灵感todo</Text></View>
           <View className={`navigation-item navigation-transition navigation-item-ai ${primaryModule === 'ai' ? 'active' : ''} ${restoring ? 'disabled' : ''}`} onClick={() => { if (!restoring) openPrimaryModule('ai') }}><Image className='navigation-module-icon' src={aiCatIconUrl} mode='aspectFit' /><Text>圈圈 AI 助手</Text></View>
         </View>
@@ -2551,6 +2555,7 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
           onAddHomeAiCard={() => { setHomeAiCardEditor({}); setHomeAiCardEditorError('') }}
         />}
         {dailyNotesMounted && <View className={`module-retained ${primaryModule === 'dailyNotes' ? '' : 'module-retained-hidden'}`}><DailyNotesPage onFlushReady={(flush) => { dailyNoteFlushRef.current = flush }} /></View>}
+        {primaryModule === 'tasks' && <TasksPage />}
         {(moodMounted && primaryModule === 'workbench' && workbenchTab === 'mood') && <View className='module-retained'><MoodPage colorTheme={colorTheme} /></View>}
         {(mealsMounted && primaryModule === 'workbench' && workbenchTab === 'meals') && <View className='module-retained'><MealsPage /></View>}
         {homeMealsOpen && <MealDayModal initialDate={todayLocalDate()} onClose={() => setHomeMealsOpen(false)} onSaved={() => { setHomeMealsOpen(false); setMessage('已记录今日三餐') }} />}
@@ -2697,6 +2702,8 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
       </View>}
 
       {(primaryModule === 'workbench' && workbenchTab === 'explorations' || explorationMounted) && <View className={`exploration-module ${primaryModule === 'workbench' && workbenchTab === 'explorations' ? '' : 'exploration-module-retained-hidden'}`}><ExplorationPrototype
+        key={session.user.id}
+        userId={session.user.id}
         explorationFactsVersion={explorationFactsVersion}
         restoreFactsVersion={restoreFactsVersion}
         onRestoreFactsConfirmed={() => restoreFactsConfirmationRef.current?.resolve()}

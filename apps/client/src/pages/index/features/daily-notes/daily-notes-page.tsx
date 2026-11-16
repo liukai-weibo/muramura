@@ -312,7 +312,6 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
           onDelete={entryId => {
             const row = rows.find(item => item.entryId === entryId)
             if (!row) return
-            if (!window.confirm('删除这条记录？')) return
             void removeRow(row.key)
           }}
           onOpenInText={entryId => void openInTextView(entryId)}
