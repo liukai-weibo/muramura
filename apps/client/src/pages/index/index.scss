@@ -2610,7 +2610,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, .3); }
   .app-shell { background: #faf8f5; }
   .app-main { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-  .desktop-title-bar { display: flex; flex: 0 0 44px; align-items: center; justify-content: space-between; gap: 18px; padding: 0 8px 0 16px; border-bottom: 1px solid rgba(80, 70, 59, .12); background: rgba(255, 253, 249, .9); color: #302b26; }
+  .desktop-title-bar { display: flex; flex: 0 0 44px; align-items: center; justify-content: space-between; gap: 18px; padding: 0 0 0 16px; border-bottom: 1px solid rgba(80, 70, 59, .12); background: rgba(255, 253, 249, .9); color: #302b26; }
   .desktop-title-bar-brand, .desktop-title-bar-actions, .desktop-window-controls { display: flex; align-items: center; }
   .desktop-title-bar-brand { min-width: 190px; gap: 10px; }
   .desktop-title-bar-logo { font-size: 15px; font-weight: 850; letter-spacing: .02em; }

@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.3",
-    "notes":  "登录页与任务添加行的深色方框修复：输入框改为浅色圆角边框，登录页切换与按钮统一为胶囊；窗口圆角由系统合成器裁形。",
+    "version":  "0.3.4",
+    "notes":  "桌面窗口加入系统投影；标题栏右侧留白去掉，关闭按钮悬停底色铺满右上圆角；登录页与任务添加框的深色方框修复一并包含。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1VncjFpZ0RpUFR0SE4xalgwQ2xhbncxcjNTOERxV3E1UkIrM1pacW1SRXMrb1RPNFk4WVFWSTJ2dEwrNEhsYk5YSUE1SG5JVUZxLzB0UHJmRGZLN2cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODE4MTczCWZpbGU6TXVyYW11cmFfMC4zLjNfeDY0LXNldHVwLmV4ZQpPN0xDU0wycFl0YzVkb3pJT2lmZU5uSDRwL1lYaDdNS2V0RnlaMzVBR1ZMMFJJWmdyWElkVVVKMVRZMExURVd6WmViUjl3WnhqTlJuSzVGdUw1VnZCQT09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.3/Muramura_0.3.3_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2V2WXpwK1ByZkxGaVY1WnBjRFNabGk5bUhud2pJQTlwa1J6R0F3UmUwNlVYc3oyOXBoeHZCajFFdk51UzRtWGNxYkRQMTZXNHZyWWNVd3B6dFpUQ1FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODE4ODQ0CWZpbGU6TXVyYW11cmFfMC4zLjRfeDY0LXNldHVwLmV4ZQo2M3E2bmVPTWVhYmxOdEp4WlRtMUQyS0U4MnA4cWhRZkNSeExvMFFTdWhibmdwazdyM2tWZllDWGZVR2pycVBBeTEvcnFqV09yY0Mxem9uSklrTVVDdz09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.4/Muramura_0.3.4_x64-setup.exe"
                                          }
                   }
 }
