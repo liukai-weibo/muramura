@@ -10,12 +10,28 @@ describe('daily note row auto height', () => {
   it('sizes the row input with border-box so one line stays one line', () => {
     const rule = theme.match(/^\.daily-note-row-input \{[^}]*\}/m)?.[0] ?? ''
     expect(rule).toContain('box-sizing: border-box;')
-    expect(rule).toContain('min-height: 24px;')
-    expect(rule).toContain('line-height: 1.45;')
+    expect(rule).toContain('min-height: 22px;')
+    expect(rule).toContain('line-height: 1.4;')
   })
 
   it('keeps the shared auto-grow helper used by the row input', () => {
     expect(textView).toContain('element.style.height = \'auto\'')
     expect(textView).toContain('element.style.height = `${element.scrollHeight}px`')
+  })
+})
+// Taro 的 rem 基准会把根字号设成 40px，行与时间标签包裹层若继承它，
+// 空文本也会撑出 64px 的行盒——单行看起来就像两行高。
+describe('note row inherits a sane font size', () => {
+  it('resets the row font so the chip line box cannot stretch it', () => {
+    const rowRule = theme.match(/^\.daily-note-row \{[^}]*\}/m)?.[0] ?? ''
+    expect(rowRule).toContain('font-size: 14px;')
+    expect(rowRule).toContain('line-height: 1.4;')
+  })
+
+  it('makes the chip wrapper a flex box with its own small type', () => {
+    const wrapRule = theme.match(/^\.daily-note-time-chip-wrap \{[^}]*\}/m)?.[0] ?? ''
+    expect(wrapRule).toContain('display: flex;')
+    expect(wrapRule).toContain('font-size: 10px;')
+    expect(wrapRule).toContain('line-height: 1;')
   })
 })
