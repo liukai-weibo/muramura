@@ -470,7 +470,7 @@ textarea,
 .exploration-edit input,
 .exploration-capture-input,
 .method-action-input {
-  border-color: var(--cream-line) !important;
+  border-color: var(--cream-line, #eae6e0) !important;
   border-radius: 14px;
   background: #fff !important;
   color: var(--cream-body) !important;
@@ -966,13 +966,13 @@ textarea:focus,
   .app-shell .desktop-title-bar .global-tool-button,
   .app-shell .desktop-title-bar .global-tool-button text,
   .app-shell .desktop-title-bar .global-tool-button .global-search-shortcut {
-    border-color: var(--cream-line) !important;
+    border-color: var(--cream-line, #eae6e0) !important;
     background: #f3efe9 !important;
     color: var(--cream-body) !important;
   }
   .app-shell .desktop-title-bar .global-tool-button .global-search-shortcut { color: var(--cream-hint) !important; }
   .app-shell .desktop-title-bar .global-search-expanded {
-    border-color: var(--cream-line) !important;
+    border-color: var(--cream-line, #eae6e0) !important;
     background: #f3efe9 !important;
   }
   .app-shell .desktop-title-bar .global-search-expanded .global-search-input,

@@ -3420,7 +3420,7 @@ export default function IndexPage() {
         <View className='auth-field'>
           <Text>用户名</Text>
           <View className='auth-username-wrap'>
-            <Input value={authUsername} maxlength={80} disabled={authenticationLocked} placeholder='输入用户名' onClick={() => { if (rememberedAccounts.length && !authenticationLocked && !accountMenuOpen) setAccountMenuOpen(true) }} onInput={(event) => { setAuthUsername(event.detail.value); setAuthError('') }} />
+            <Input className='auth-input' value={authUsername} maxlength={80} disabled={authenticationLocked} placeholder='输入用户名' onClick={() => { if (rememberedAccounts.length && !authenticationLocked && !accountMenuOpen) setAccountMenuOpen(true) }} onInput={(event) => { setAuthUsername(event.detail.value); setAuthError('') }} />
             {rememberedAccounts.length > 0 && !authenticationLocked && <View className='auth-account-trigger' onClick={() => setAccountMenuOpen(open => !open)}><Text>▾</Text></View>}
             {accountMenuOpen && rememberedAccounts.length > 0 && (
               <>
@@ -3439,7 +3439,7 @@ export default function IndexPage() {
         </View>
         <View className='auth-field'>
           <Text>密码</Text>
-          <Input value={authPassword} maxlength={256} disabled={authenticationLocked} password placeholder='至少 8 个字符' onInput={(event) => setAuthPassword(event.detail.value)} onConfirm={() => { if (canSubmitAuthentication) void submitAuthentication() }} />
+          <Input className='auth-input' value={authPassword} maxlength={256} disabled={authenticationLocked} password placeholder='至少 8 个字符' onInput={(event) => setAuthPassword(event.detail.value)} onConfirm={() => { if (canSubmitAuthentication) void submitAuthentication() }} />
           {authMode === 'login' && <View className='auth-remember-row' onClick={() => { setAuthError(''); setRememberPassword(checked => !checked) }}>
             <View className={`auth-remember-checkbox ${rememberPassword ? 'active' : ''}`}><Text>{rememberPassword ? '✓' : ''}</Text></View>
             <Text>记住密码</Text>
