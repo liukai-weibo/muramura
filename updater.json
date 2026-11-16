@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.12",
-    "notes":  "窗口圆角放大到 18px（透明窗口 + 界面自绘），关闭系统投影避免顶部光边；其余界面不变。",
+    "version":  "0.3.13",
+    "notes":  "窗口回到 24px 大圆角（系统区域裁剪），接受四角的锯齿；其余界面不变。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1F6K1V0RU9jU0tFamo3K3FuZDl3QU4zVDNpYmUxUjhOem1ua1I2Q3pNcWdJOWxjam5mVUlwK0REZTJDT1lYNzEwa21tRlRqdkJITjZzWThoVXJ3QVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODI5OTQwCWZpbGU6TXVyYW11cmFfMC4zLjEyX3g2NC1zZXR1cC5leGUKNit2VkhHMWRMN20rMVNDdGpGL0VXOG5CRjNaYW1PK2l3eW5SS0RvVjk1VEZCbEh4MWNoNG12bmROaXoyWnJDUTdlOFhaWXE0all6UzJ4T082TjcyQlE9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.12/Muramura_0.3.12_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2FISXJqM2pmbnlUVlQrclkxQ0tqTHlmWHlld3ZlSEdMckVkL1BNMVliZVJxaTVoMFVXeU9ZU2NseVU1eXJIck1CTzE2MEU1dHMzZkxLSkRUVjU1c1FVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODMwMzEzCWZpbGU6TXVyYW11cmFfMC4zLjEzX3g2NC1zZXR1cC5leGUKeFFKYkppckpZcVhwMXhRZkJjWGxMRG9uUkw2bXRhMEVoY1cvQnlLVzlSMk9pZWd2b2ZIV21ERVRadHZ2Q1hJM002RStWWnZxVFN3VTRKcFlVem9KQ3c9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.13/Muramura_0.3.13_x64-setup.exe"
                                          }
                   }
 }

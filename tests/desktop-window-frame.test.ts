@@ -8,26 +8,24 @@ const cargoToml = readFileSync(new URL('../src-tauri/Cargo.toml', import.meta.ur
 
 const window = tauriConf.app.windows[0]
 
-// 窗口圆角交给系统合成器裁形：抗锯齿、带投影、最大化自动直角。
-// 区域裁剪（SetWindowRgn）不做抗锯齿，只保留给不支持该属性的旧系统。
+// 窗口外观回到「系统区域裁剪 + 不透明窗口」这套稳定实现，不再做透明窗口自绘圆角。
 describe('desktop window frame', () => {
-  it('rounds the window through the compositor instead of a hard region clip', () => {
+  it('keeps the opaque window and the system region clip', () => {
     expect(window.transparent).toBe(false)
+    expect(window.shadow).toBe(false)
     expect(window.decorations).toBe(false)
-    expect(window.shadow).toBe(true)
-    expect(window.backgroundColor).toBe('#faf8f5')
-    expect(cargoToml).toContain('Win32_Graphics_Dwm')
-    expect(mainRs).toContain('DWMWA_WINDOW_CORNER_PREFERENCE')
-    expect(mainRs).toContain('let preference = if maximized { DWMWCP_DONOTROUND } else { DWMWCP_ROUND };')
+    expect(window.backgroundColor).toBe('#f2eee7')
+    expect(mainRs).toContain('CreateRoundRectRgn')
+    expect(mainRs).toContain('let radius = 24;')
   })
 
-  it('keeps the region clip only as the fallback for older systems', () => {
-    const dispatcher = mainRs.slice(mainRs.indexOf('fn apply_window_corners'))
-    expect(dispatcher).toContain('dwm_round_window_corners')
-    expect(dispatcher.indexOf('apply_window_region_hwnd')).toBeGreaterThan(dispatcher.indexOf('dwm_round_window_corners'))
+  it('does not depend on the DWM corner API any more', () => {
+    expect(cargoToml).not.toContain('Win32_Graphics_Dwm')
+    expect(mainRs).not.toContain('DwmSetWindowAttribute')
+    expect(mainRs).not.toContain('DWMWA_WINDOW_CORNER_PREFERENCE')
   })
 
-  it('does not paint a self-drawn window radius', () => {
+  it('renders no self-drawn window radius in the client', () => {
     expect(appScss).not.toContain('--window-radius')
     expect(appScss).not.toContain("html[data-window='desktop']")
   })

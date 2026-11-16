@@ -10,12 +10,7 @@ use std::thread;
 use std::time::Duration;
 
 #[cfg(windows)]
-use windows_sys::Win32::Foundation::{HWND, RECT};
-#[cfg(windows)]
-use windows_sys::Win32::Graphics::Dwm::{
-    DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE, DWMWA_WINDOW_CORNER_PREFERENCE,
-    DWMWCP_DONOTROUND, DWMWCP_ROUND,
-};
+use windows_sys::Win32::Foundation::RECT;
 #[cfg(windows)]
 use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn};
 #[cfg(windows)]
@@ -132,45 +127,8 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-/// Windows 10 fallback only. `SetWindowRgn` cannot antialias, so the radius is
-/// kept close to the Windows 11 system radius instead of a large 24px arc.
 #[cfg(windows)]
-const FALLBACK_WINDOW_RADIUS: i32 = 10;
-
-/// The界面 draws a large radius itself (Windows only offers an 8px system round),
-/// so the window keeps square corners and the CSS arc stays intact.
-/// Older builds reject attribute 33, so the return value doubles as a probe.
-#[cfg(windows)]
-fn dwm_round_window_corners(hwnd: HWND, _maximized: bool) -> bool {
-    let preference = DWMWCP_DONOTROUND;
-    let status = unsafe {
-        DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_WINDOW_CORNER_PREFERENCE as u32,
-            &preference as *const _ as *const core::ffi::c_void,
-            std::mem::size_of_val(&preference) as u32,
-        )
-    };
-    status >= 0
-}
-
-/// Undecorated windows still get a hairline frame from DWM; making it invisible
-/// keeps the rounded silhouette clean against any wallpaper colour.
-#[cfg(windows)]
-fn dwm_hide_window_border(hwnd: HWND) {
-    let color = DWMWA_COLOR_NONE;
-    unsafe {
-        DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_BORDER_COLOR as u32,
-            &color as *const _ as *const core::ffi::c_void,
-            std::mem::size_of_val(&color) as u32,
-        );
-    }
-}
-
-#[cfg(windows)]
-fn apply_window_region_hwnd(hwnd: HWND) {
+fn apply_window_region_hwnd(hwnd: windows_sys::Win32::Foundation::HWND) {
     unsafe {
         if IsZoomed(hwnd) != 0 {
             SetWindowRgn(hwnd, std::ptr::null_mut(), 1);
@@ -185,26 +143,12 @@ fn apply_window_region_hwnd(hwnd: HWND) {
         if width <= 0 || height <= 0 {
             return;
         }
-        let radius = FALLBACK_WINDOW_RADIUS;
+        let radius = 24;
         let region = CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
         if !region.is_null() && SetWindowRgn(hwnd, region, 1) == 0 {
             DeleteObject(region);
         }
     }
-}
-
-/// Single entry point for the window outline: compositor rounding on Windows 11,
-/// region clipping only where the DWM attribute is unsupported.
-#[cfg(windows)]
-fn apply_window_corners(hwnd: HWND) {
-    let maximized = unsafe { IsZoomed(hwnd) } != 0;
-    if dwm_round_window_corners(hwnd, maximized) {
-        // Clear a region left by a previous build or by the Windows 10 fallback.
-        unsafe { SetWindowRgn(hwnd, std::ptr::null_mut(), 1) };
-        dwm_hide_window_border(hwnd);
-        return;
-    }
-    apply_window_region_hwnd(hwnd);
 }
 
 fn main() {
@@ -244,8 +188,8 @@ fn main() {
         )
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_background_color(Some((0, 0, 0, 0).into()));
-                if let Ok(hwnd) = window.hwnd() { apply_window_corners(hwnd.0 as _); }
+                let _ = window.set_background_color(Some((242, 238, 231, 255).into()));
+                if let Ok(hwnd) = window.hwnd() { apply_window_region_hwnd(hwnd.0 as _); }
             }
             let open = MenuItem::with_id(app, "open", "打开 Muramura", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出 Muramura", true, None::<&str>)?;
@@ -297,14 +241,14 @@ fn main() {
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }) {
                 if let Ok(hwnd) = window.hwnd() {
-                    apply_window_corners(hwnd.0 as _);
+                    apply_window_region_hwnd(hwnd.0 as _);
                     // Maximize/restore updates the client rect asynchronously on Windows.
                     #[cfg(windows)]
                     {
                         let hwnd = hwnd.0 as usize;
                         thread::spawn(move || {
                             thread::sleep(Duration::from_millis(40));
-                            apply_window_corners(hwnd as HWND);
+                            apply_window_region_hwnd(hwnd as windows_sys::Win32::Foundation::HWND);
                         });
                     }
                 }
