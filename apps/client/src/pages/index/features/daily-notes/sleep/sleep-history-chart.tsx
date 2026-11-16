@@ -9,6 +9,7 @@ import {
   yearMonthTicks,
 } from './sleep-detail-layout'
 import { smoothSegmentPath } from './sleep-chart'
+import { useSleepChartPreferences } from './sleep-chart-preferences'
 
 const VIEW_WIDTH = 840
 const VIEW_HEIGHT = 360
@@ -87,7 +88,7 @@ export function SleepHistoryChart({ dates, entries, today, mode, ariaLabel }: Sl
   const pointRadius = hourly ? 3 : 1.2
   const lineWidth = hourly ? 2.2 : 1.6
   const lineOpacity = hourly ? 0.82 : 0.55
-  const curveTension = hourly ? 0.8 : 0.65
+  const { curveRoundness: curveTension } = useSleepChartPreferences()
 
   const handleMove = (event: ReactMouseEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect()

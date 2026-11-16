@@ -12,6 +12,7 @@ export interface SleepChartProps {
   /** 东八区今天，用来在横轴标出「今天」。 */
   today?: string
   style?: SleepChartStyle
+  curveRoundness?: number
   /** 点击图表或按 Enter 时打开详情。 */
   onExpand?: () => void
   /** 供读屏与测试定位；默认「睡眠折线图」。 */
@@ -24,7 +25,7 @@ const formatMonthDay = (date: string) => date.slice(5).replace('-', '/')
  * 睡眠折线图：单根连续轴 06:00 → 次日 06:00，起床在上、入睡在下。
  * 鼠标悬停显示当天两个时间；点击打开 30 天 / 全年详情。
  */
-export function SleepChart({ series, today, style = 'linear', onExpand, ariaLabel = '睡眠折线图' }: SleepChartProps) {
+export function SleepChart({ series, today, style = 'smooth', curveRoundness = 0.95, onExpand, ariaLabel = '睡眠折线图' }: SleepChartProps) {
   const layout = sleepChartLayout(series, { width: CHART_WIDTH, height: CHART_HEIGHT })
   const [active, setActive] = useState<number>()
 
@@ -34,7 +35,7 @@ export function SleepChart({ series, today, style = 'linear', onExpand, ariaLabe
     if (segment.length < 2) return null
     const className = `sleep-chart-line is-${kind}`
     if (style === 'smooth') {
-      return <path key={key} d={smoothSegmentPath(segment, layout.height, undefined, 0.8)} className={className} fill='none' />
+      return <path key={key} d={smoothSegmentPath(segment, layout.height, undefined, curveRoundness)} className={className} fill='none' />
     }
     return <polyline key={key} points={points(segment)} className={className} fill='none' />
   }

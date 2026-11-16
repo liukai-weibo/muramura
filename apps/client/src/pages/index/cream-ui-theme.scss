@@ -1674,6 +1674,8 @@ textarea:focus,
 .sleep-action:disabled { cursor: default; opacity: .55; }
 .sleep-settings-hint { margin: 0; color: var(--cream-hint); font-size: 11px; line-height: 1.5; }
 .sleep-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--cream-body); font-size: 12px; }
+.sleep-roundness-row input { flex: 1; min-width: 60px; accent-color: #b48a5a; }
+.sleep-roundness-row output { min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .sleep-range-inputs { display: flex; align-items: center; gap: 4px; color: var(--cream-hint); font-size: 11px; }
 .sleep-range-inputs > input { width: 44px; height: 28px; padding: 0 6px; border: 1px solid var(--cream-line); border-radius: 8px; background: var(--cream-surface); color: var(--cream-ink); font-family: inherit; font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
 .sleep-range-dash { padding: 0 2px; }

@@ -5,14 +5,9 @@ import { apiClient } from '../../../api-client'
 import { shanghaiDate } from '../daily-note-date'
 import type { SleepChartStyle } from './sleep-chart'
 
+import { useSleepChartPreferences } from './sleep-chart-preferences'
+export { SLEEP_CHART_STYLE_STORAGE_KEY } from './sleep-chart-preferences'
 export const SLEEP_CHANGED_EVENT = 'marumaru:sleep-changed'
-/** 图表连线样式是显示偏好，按设备保存，不进数据库。 */
-export const SLEEP_CHART_STYLE_STORAGE_KEY = 'marumaru.sleep-chart-style'
-
-const readChartStyle = (): SleepChartStyle => {
-  try { return window.localStorage.getItem(SLEEP_CHART_STYLE_STORAGE_KEY) === 'smooth' ? 'smooth' : 'linear' }
-  catch { return 'linear' }
-}
 
 /** 睡眠写入后广播，卡片、提醒、图表都靠它刷新；跨页面用 window 事件，成本最低。 */
 export function notifySleepChanged(): void {
@@ -30,6 +25,8 @@ export interface SleepController {
   setRange: (range: 7 | 14 | 30) => void
   chartStyle: SleepChartStyle
   setChartStyle: (style: SleepChartStyle) => void
+  curveRoundness: number
+  setCurveRoundness: (value: number) => void
   refresh: () => Promise<void>
   saveEntry: (sleepDate: string, patch: SleepEntryPatch) => Promise<{ deleted: boolean; entry?: SleepEntry }>
   removeEntry: (sleepDate: string) => Promise<void>
@@ -44,12 +41,7 @@ export function useSleep(): SleepController {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [range, setRange] = useState<7 | 14 | 30>(14)
-  const [chartStyle, setChartStyleState] = useState<SleepChartStyle>(readChartStyle)
-
-  const setChartStyle = useCallback((style: SleepChartStyle) => {
-    setChartStyleState(style)
-    try { window.localStorage.setItem(SLEEP_CHART_STYLE_STORAGE_KEY, style) } catch { /* 记住样式失败不影响使用 */ }
-  }, [])
+  const { chartStyle, setChartStyle, curveRoundness, setCurveRoundness } = useSleepChartPreferences()
 
   const refresh = useCallback(async () => {
     try {
@@ -112,6 +104,8 @@ export function useSleep(): SleepController {
     setRange,
     chartStyle,
     setChartStyle,
+    curveRoundness,
+    setCurveRoundness,
     refresh,
     saveEntry,
     removeEntry,

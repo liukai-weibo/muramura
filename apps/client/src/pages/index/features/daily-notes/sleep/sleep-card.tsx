@@ -53,7 +53,7 @@ export function SleepCard({ sleep, onRecord, onSettings, onExpand }: SleepCardPr
     </div>
 
     {hasData
-      ? <SleepChart series={series} today={today} style={sleep.chartStyle} onExpand={onExpand} ariaLabel={`近 ${sleep.range} 天睡眠折线图`} />
+      ? <SleepChart series={series} today={today} style={sleep.chartStyle} curveRoundness={sleep.curveRoundness} onExpand={onExpand} ariaLabel={`近 ${sleep.range} 天睡眠折线图`} />
       : <p className='sleep-card-empty'>记下当天起床和入睡后，这里会出现按天的折线。</p>}
 
     <div className='sleep-card-legend'>

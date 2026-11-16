@@ -7,12 +7,14 @@ export interface SleepSettingsDialogProps {
   settings: SleepSettings
   chartStyle: SleepChartStyle
   onChangeChartStyle: (style: SleepChartStyle) => void
+  curveRoundness: number
+  onChangeCurveRoundness: (value: number) => void
   onSave: (input: SleepSettingsWriteInput) => Promise<unknown>
   onClose: () => void
 }
 
 /** 睡眠设置：提醒开关、提醒时间段、输入精度、图表连线样式。保存后立即作用于提醒与记录弹窗。 */
-export function SleepSettingsDialog({ settings, chartStyle, onChangeChartStyle, onSave, onClose }: SleepSettingsDialogProps) {
+export function SleepSettingsDialog({ settings, chartStyle, onChangeChartStyle, curveRoundness, onChangeCurveRoundness, onSave, onClose }: SleepSettingsDialogProps) {
   const [enabled, setEnabled] = useState(settings.remindEnabled)
   const [startHour, setStartHour] = useState(String(Math.floor(settings.remindStartMinute / 60)))
   const [startMinute, setStartMinute] = useState(String(settings.remindStartMinute % 60))
@@ -116,7 +118,14 @@ export function SleepSettingsDialog({ settings, chartStyle, onChangeChartStyle, 
           <button type='button' role='radio' aria-checked={chartStyle === 'smooth'} className={chartStyle === 'smooth' ? 'is-active' : ''} onClick={() => onChangeChartStyle('smooth')}>曲线</button>
         </div>
       </div>
-      <p className='sleep-settings-hint'>折线是点到点；曲线更顺滑。切换立即生效，按设备记住。</p>
+      <p className='sleep-settings-hint'>默认曲线。切换立即生效，按设备记住。</p>
+      <label className='sleep-settings-row sleep-roundness-row'>
+        <span>曲线圆润程度</span>
+        <input type='range' min={0.3} max={1} step={0.05} value={curveRoundness}
+          aria-label='曲线圆润程度' onChange={event => onChangeCurveRoundness(Number(event.currentTarget.value))} />
+        <output>{Math.round(curveRoundness * 100)}%</output>
+      </label>
+      <p className='sleep-settings-hint'>同步调整睡眠小图、放大的月／年曲线；不影响首页迷你图。仅改变连线，不改变每日时间点。</p>
 
       {error && <p className='sleep-error' role='status'>{error}</p>}
 

@@ -338,6 +338,8 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
       settings={sleep.settings}
       chartStyle={sleep.chartStyle}
       onChangeChartStyle={sleep.setChartStyle}
+      curveRoundness={sleep.curveRoundness}
+      onChangeCurveRoundness={sleep.setCurveRoundness}
       onSave={sleep.saveSettings}
       onClose={() => setSleepSettingsOpen(false)}
     />}
