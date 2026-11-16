@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.10",
-    "notes":  "窗口圆角改回系统合成器裁形（抗锯齿、带投影），不再有锯齿边缘；含手记单行 24px、输入框与字体修复。",
+    "version":  "0.3.11",
+    "notes":  "关闭窗口系统投影，去掉标题栏上沿那条浅色光边；圆角仍由系统合成器平滑裁形。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1h1cThKVzI2WjhLUlJub2VLYmd1bXR0aTlXaE1ZV0J0bzgvTStlZmx2bVhSSEVFVHU4OW9tVEZ2YTNDMExBNkR4d3J6MlpVRnJFTmFqaklWSFhYdWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODI5MDAyCWZpbGU6TXVyYW11cmFfMC4zLjEwX3g2NC1zZXR1cC5leGUKOEc4YlZuNE1GVVhXcTlPMU82OENDcDE3aGZmS2EwQ2FDMzM5azN5K252Vit3cXErRFFPd2xtUFBDMk1NaGc0M0tsL0lNWXo3SWdvdVFuL3NqbWtBRFE9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.10/Muramura_0.3.10_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1plODhvS3ZyUUUwVTdVaUpDeXNNSDlIY1VXbC9Gays1M0IwcTI5Y3NSOE52NDhJclFqSHJrdGdOWnhtSUxQWXhQMzFrbFkzei9kcWNXTzc5cTVwVUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODI5NDAzCWZpbGU6TXVyYW11cmFfMC4zLjExX3g2NC1zZXR1cC5leGUKWU8wY1I4N2IwWnQ3OEFUaDFCQkpjQWx0c2ZraDhuak1JOXlKeEppVStCOEZnRTg4eDE3cWEyL1VKVzk2bTdGemJMUi9CMFhkYjQrenROa1hGWjZWQkE9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.11/Muramura_0.3.11_x64-setup.exe"
                                          }
                   }
 }
