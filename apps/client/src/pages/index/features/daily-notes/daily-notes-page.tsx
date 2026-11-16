@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Text, View } from '@tarojs/components'
-import type { DailyNote } from '@knowledge-base/contracts'
-import { dailyNoteClock } from '@knowledge-base/contracts'
+import type { DailyNote, SleepEntry } from '@knowledge-base/contracts'
+import { addDays, dailyNoteClock } from '@knowledge-base/contracts'
 import { DAILY_NOTE_PAGE_ORIGIN, subscribeDailyNoteChanged } from '../../daily-note-sync'
 import { isTauriDesktop } from '../../../../desktop/desktop-native-bridge'
+import { apiClient } from '../../api-client'
 import { EntryTextView } from './entry-text-view'
 import { EntryTimelineView } from './entry-timeline-view'
 import { useDailyNoteEntries } from './use-daily-note-entries'
@@ -15,7 +16,8 @@ import { SleepCard } from './sleep/sleep-card'
 import { SleepEntryModal } from './sleep/sleep-entry-modal'
 import { SleepSettingsDialog } from './sleep/sleep-settings-dialog'
 import { SleepDetailModal } from './sleep/sleep-detail-modal'
-import { useSleep } from './sleep/use-sleep'
+import { SLEEP_LOAD_DAYS, useSleep } from './sleep/use-sleep'
+import { sleepBandFill, sleepShadeWindows } from './sleep/sleep-timeline-shade'
 
 /** 右侧 AI 复盘面板已隐藏，宽度让给时间轴；面板组件本身保留，随时能接回来。 */
 export interface DailyNotesPageProps { onFlushReady: (flush: () => Promise<boolean>) => void }
@@ -60,6 +62,24 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
   const [weatherOpen, setWeatherOpen] = useState(false)
   const weather = useWeather()
   const sleep = useSleep()
+  // useSleep 只拉近 30 天 + 明天；翻到更早的手记时按需补取那一天和前一天，
+  // 用来还原「昨晚入睡 → 今早起床」的时段，失败就安静地不画阴影。
+  const [olderSleepEntries, setOlderSleepEntries] = useState<SleepEntry[]>([])
+  const sleepRangeStart = addDays(shanghaiDate(), -(SLEEP_LOAD_DAYS - 1))
+  const sleepRangeEnd = addDays(shanghaiDate(), 1)
+  const sleepEntryInRange = noteDate >= sleepRangeStart && noteDate <= sleepRangeEnd
+  useEffect(() => {
+    if (sleepEntryInRange || !noteDate) { setOlderSleepEntries([]); return }
+    let cancelled = false
+    void apiClient.listSleepEntries({ from: addDays(noteDate, -1), to: noteDate })
+      .then(list => { if (!cancelled) setOlderSleepEntries(list) })
+      .catch(() => { if (!cancelled) setOlderSleepEntries([]) })
+    return () => { cancelled = true }
+  }, [noteDate, sleepEntryInRange])
+  const sleepShades = useMemo(() => {
+    const entries = sleepEntryInRange ? sleep.entries : olderSleepEntries
+    return sleepBandFill(sleepShadeWindows(entries, noteDate))
+  }, [sleepEntryInRange, sleep.entries, olderSleepEntries, noteDate])
   const [sleepRecording, setSleepRecording] = useState(false)
   const [sleepSettingsOpen, setSleepSettingsOpen] = useState(false)
   const [sleepDetailOpen, setSleepDetailOpen] = useState(false)
@@ -305,6 +325,7 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
           isToday={isToday}
           ready={!loading && Boolean(current)}
           entryDate={noteDate}
+          sleepShades={sleepShades}
           selectedEntryId={activeEntryId}
           onSelect={setActiveEntryId}
           onAdd={(time, content) => createEntryAt(noteDate, time, content)}

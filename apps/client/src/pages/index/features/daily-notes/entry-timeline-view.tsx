@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { DailyNoteEntry } from '@knowledge-base/contracts'
 import { dailyNoteMinuteOfDay } from '@knowledge-base/contracts'
 import { EntryRecordModal } from './entry-record-modal'
@@ -27,6 +28,8 @@ export interface EntryTimelineViewProps {
   ready?: boolean
   /** 当前手记的日期，弹窗里要显示给人确认。 */
   entryDate: string
+  /** 这一天已记录的睡眠时段，按小时给出需要压阴影的比例。 */
+  sleepShades?: Map<number, { from: number; to: number; estimated: boolean }>
   selectedEntryId?: string
   onSelect: (entryId?: string) => void
   onAdd: (time: string, content: string) => Promise<boolean>
@@ -53,6 +56,7 @@ export function EntryTimelineView({
   isToday,
   ready = true,
   entryDate,
+  sleepShades,
   selectedEntryId,
   onSelect,
   onAdd,
@@ -126,16 +130,20 @@ export function EntryTimelineView({
   >
     {ROWS.map(row => {
       const hour = bandHourOf(row, side)
+      const shade = sleepShades?.get(hour)
       const classes = [
         'daily-note-band',
         isToday && nowHour === hour ? 'is-now' : '',
         drag && drag.side === side && drag.hour === hour ? 'is-drop-target' : '',
+        shade ? 'is-sleeping' : '',
+        shade?.estimated ? 'is-sleep-estimated' : '',
       ].filter(Boolean).join(' ')
       return <button
         key={row}
         type='button'
         className={classes}
         disabled={!ready}
+        style={shade ? ({ '--sleep-from': shade.from, '--sleep-to': shade.to } as CSSProperties) : undefined}
         title={`在 ${pad(hour)} 点补记`}
         aria-label={`在 ${pad(hour)} 点补记`}
         onClick={() => setRecord({ hour })}
@@ -283,6 +291,10 @@ export function EntryTimelineView({
       </div>
       {isEmpty && !record && <div className='daily-note-bands-empty'>
         {ready ? '点任意时段，就能按那个时间补一条' : '正在读取这一天的手记…'}
+      </div>}
+      {sleepShades && sleepShades.size > 0 && <div className='daily-note-sleep-legend'>
+        <span className='daily-note-sleep-swatch' aria-hidden='true' />
+        <span>阴影为已记录的睡眠时段</span>
       </div>}
     </div>
 
