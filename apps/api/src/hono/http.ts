@@ -11,6 +11,7 @@ const allowedApiOrigins = new Set([
   'http://[::1]:10086',
   'http://47.116.6.111:10086',
   'https://www.muramura.icu',
+  'https://muramura.icu',
   'http://tauri.localhost',
   'tauri://localhost',
 ])

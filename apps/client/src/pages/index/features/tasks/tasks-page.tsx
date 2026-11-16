@@ -145,7 +145,7 @@ export function TasksPage() {
                   className='tasks-row-action'
                   disabled={tasks.busyId === task.id}
                   onClick={() => void tasks.abandon(task.id)}
-                >放弃</button>
+                >移入长期</button>
                 <button
                   type='button'
                   className='tasks-row-delete'
