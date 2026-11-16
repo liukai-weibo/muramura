@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.2",
-    "notes":  "窗口圆角改为系统合成器裁形，四角平滑无硬切口；统一边缘底色去掉亮色缝；修复裸域名登录与任务拖入长期池；最大化与还原自动切换圆角。",
+    "version":  "0.3.3",
+    "notes":  "登录页与任务添加行的深色方框修复：输入框改为浅色圆角边框，登录页切换与按钮统一为胶囊；窗口圆角由系统合成器裁形。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1ZQdWFhdktnbzlWK2RDb2Q0dzJERlRYU1NYcmo4cEZXUEhHZTdUMGpSdVd2ZzdBMkZ6ZHEvTmR2KzMwUmNvR2wzRm1WdnpXMGhEUC9pa0VFcDhibGd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODE1Mzk5CWZpbGU6TXVyYW11cmFfMC4zLjJfeDY0LXNldHVwLmV4ZQpvR3JOVDE2d3IzY3BSODk4S3dHR3FDY3d3TXQ3MW4vT0orN2psL2RlL1ZGODY0b0tDdVNsSDMrV2QrYW5icVFPTTVVeGRhTnB4YUxZUHQwUE5JQ1ZEdz09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.2/Muramura_0.3.2_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1VncjFpZ0RpUFR0SE4xalgwQ2xhbncxcjNTOERxV3E1UkIrM1pacW1SRXMrb1RPNFk4WVFWSTJ2dEwrNEhsYk5YSUE1SG5JVUZxLzB0UHJmRGZLN2cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODE4MTczCWZpbGU6TXVyYW11cmFfMC4zLjNfeDY0LXNldHVwLmV4ZQpPN0xDU0wycFl0YzVkb3pJT2lmZU5uSDRwL1lYaDdNS2V0RnlaMzVBR1ZMMFJJWmdyWElkVVVKMVRZMExURVd6WmViUjl3WnhqTlJuSzVGdUw1VnZCQT09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.3/Muramura_0.3.3_x64-setup.exe"
                                          }
                   }
 }
