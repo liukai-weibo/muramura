@@ -10,7 +10,8 @@ describe('daily note row auto height', () => {
   it('sizes the row input with border-box so one line stays one line', () => {
     const rule = theme.match(/^\.daily-note-row-input \{[^}]*\}/m)?.[0] ?? ''
     expect(rule).toContain('box-sizing: border-box;')
-    expect(rule).toContain('min-height: 28px;')
+    expect(rule).toContain('min-height: 24px;')
+    expect(rule).toContain('line-height: 1.45;')
   })
 
   it('keeps the shared auto-grow helper used by the row input', () => {

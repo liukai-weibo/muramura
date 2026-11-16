@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.7",
-    "notes":  "事件记录弹窗字体统一为项目字体（Taro textarea 内层继承）；含 0.3.6 的 18px 大圆角与之前的修复。",
+    "version":  "0.3.8",
+    "notes":  "手记单行行高收紧到 24px；拉伸/最大化窗口后圆角能正确恢复；含 18px 大圆角与事件弹窗字体统一。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1VPUTlBSjkrbklZRVpTaG55ZGhJQnFyT0FISUdXMERMR2JEUlFrbjRTTDA1Y1BtSTNoZGpzU0dTNDcxVjE1djBheU4xWEg3TzR5U05xRUxBZS9ubXc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIwOTQ1CWZpbGU6TXVyYW11cmFfMC4zLjdfeDY0LXNldHVwLmV4ZQpmRUg2QW9XSnYrM1BZZVY1Uzd1Sk1zL3hQK0NYdHhlbGhTeHZPL1FOamFpd0c0LzdwdGVsa09uWWN6Q2VybkhQOUlBRWdyY2p4MFFGUWk4QlFSLzlCdz09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.7/Muramura_0.3.7_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1hvYnNSSlR2aVFGbmRjSmJ0WmN3djVMRzZmZ2U2L2hxbDR0UHV5NnJGR3JMbE1VRzFhWEdjY1JmeGtLcmUwVjV2NHduLytJQVlsMjJvNHhuempCU1FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIxNjE4CWZpbGU6TXVyYW11cmFfMC4zLjhfeDY0LXNldHVwLmV4ZQpJcy9TQWplSkdOc0Jmd3lPQWc1dWF3UXMwSnZFNzEwMWh6YkkrVmNGZUd4STlxbkFSaFFJZjN2cWNVZXp6WTA2VnVSOWtuUGYyTWxxeUlVdnlETkREZz09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.8/Muramura_0.3.8_x64-setup.exe"
                                          }
                   }
 }

@@ -14,16 +14,29 @@ export default function App({ children }: PropsWithChildren) {
     const root = document.documentElement
     root.dataset.window = 'desktop'
     let cancelled = false
+    let settleTimer: number | undefined
     const sync = () => {
       void isDesktopWindowMaximized()
         .then(maximized => { if (!cancelled) root.dataset.windowMaximized = maximized ? 'true' : 'false' })
         .catch(() => undefined)
     }
-    sync()
-    window.addEventListener('resize', sync)
+    // 拖拽改尺寸时最大化状态是异步更新的：立刻查一次，再等一拍复查，
+    // 否则「拖成最大化 → 还原」会残留方角。
+    const scheduleSync = () => {
+      sync()
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer)
+      settleTimer = window.setTimeout(sync, 160)
+    }
+    scheduleSync()
+    window.addEventListener('resize', scheduleSync)
+    window.addEventListener('focus', scheduleSync)
+    document.addEventListener('visibilitychange', scheduleSync)
     return () => {
       cancelled = true
-      window.removeEventListener('resize', sync)
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer)
+      window.removeEventListener('resize', scheduleSync)
+      window.removeEventListener('focus', scheduleSync)
+      document.removeEventListener('visibilitychange', scheduleSync)
     }
   }, [])
   return children
