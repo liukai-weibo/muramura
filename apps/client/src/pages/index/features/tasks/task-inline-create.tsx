@@ -55,7 +55,7 @@ export function TaskInlineCreate({ bucket, onCreate }: {
         <span aria-hidden='true'>＋</span>{label}
       </button>
       {expanded && <div className='task-inline-fields'>
-        <input ref={input} aria-label={bucket === 'active' ? '任务内容' : '长期任务内容'}
+        <input ref={input} className='task-inline-input' aria-label={bucket === 'active' ? '任务内容' : '长期任务内容'}
           value={title} maxLength={120} disabled={saving}
           placeholder={bucket === 'active' ? '想做点什么？' : '放一件长期想做的事…'}
           onCompositionStart={() => { composing.current = true }}
