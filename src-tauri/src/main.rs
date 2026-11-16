@@ -137,13 +137,12 @@ fn show_main_window(app: &tauri::AppHandle) {
 #[cfg(windows)]
 const FALLBACK_WINDOW_RADIUS: i32 = 10;
 
-/// Ask the compositor for native rounded corners. Windows 11 antialiases the
-/// glyph-shaped clip and composites the corners over the desktop, which removes
-/// both the stair-stepped edge and the light fringe a region clip leaves behind.
+/// The界面 draws a large radius itself (Windows only offers an 8px system round),
+/// so the window keeps square corners and the CSS arc stays intact.
 /// Older builds reject attribute 33, so the return value doubles as a probe.
 #[cfg(windows)]
-fn dwm_round_window_corners(hwnd: HWND, maximized: bool) -> bool {
-    let preference = if maximized { DWMWCP_DONOTROUND } else { DWMWCP_ROUND };
+fn dwm_round_window_corners(hwnd: HWND, _maximized: bool) -> bool {
+    let preference = DWMWCP_DONOTROUND;
     let status = unsafe {
         DwmSetWindowAttribute(
             hwnd,
@@ -245,7 +244,7 @@ fn main() {
         )
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_background_color(Some((250, 248, 245, 255).into()));
+                let _ = window.set_background_color(Some((0, 0, 0, 0).into()));
                 if let Ok(hwnd) = window.hwnd() { apply_window_corners(hwnd.0 as _); }
             }
             let open = MenuItem::with_id(app, "open", "打开 Muramura", true, None::<&str>)?;
