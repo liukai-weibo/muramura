@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.6",
-    "notes":  "桌面窗口改为 18px 大圆角（透明窗口 + 界面自绘，保留系统投影）；含 0.3.5 的手记单行高度修复与之前的深色方框修复。",
+    "version":  "0.3.7",
+    "notes":  "事件记录弹窗字体统一为项目字体（Taro textarea 内层继承）；含 0.3.6 的 18px 大圆角与之前的修复。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1JvMDlvS2QrTGJLSVNLd0JlYmRSWjMwZlJDYUlGTTViZStaNnhDQ1dMMDNnVTZXYjdOQllwb2UxWENjd3l3RmJzYTNSSDRlbzgvZEVxZEJGMi9wK3dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIwNTI2CWZpbGU6TXVyYW11cmFfMC4zLjZfeDY0LXNldHVwLmV4ZQo4WDBnd0w2MG8vYjAyZ3pxZ01yNjR4a0hmVzdDOWZvVW80eTE3dmJub2ZOUjM1bmlRd1VlUERodW5qc2tjTHhDOHMxWi8zRzdJNjFmOUMxekdRbDNEQT09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.6/Muramura_0.3.6_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1VPUTlBSjkrbklZRVpTaG55ZGhJQnFyT0FISUdXMERMR2JEUlFrbjRTTDA1Y1BtSTNoZGpzU0dTNDcxVjE1djBheU4xWEg3TzR5U05xRUxBZS9ubXc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIwOTQ1CWZpbGU6TXVyYW11cmFfMC4zLjdfeDY0LXNldHVwLmV4ZQpmRUg2QW9XSnYrM1BZZVY1Uzd1Sk1zL3hQK0NYdHhlbGhTeHZPL1FOamFpd0c0LzdwdGVsa09uWWN6Q2VybkhQOUlBRWdyY2p4MFFGUWk4QlFSLzlCdz09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.7/Muramura_0.3.7_x64-setup.exe"
                                          }
                   }
 }

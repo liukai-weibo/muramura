@@ -473,11 +473,27 @@
   border-radius: 12px;
   background: var(--cream-canvas);
   color: var(--cream-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
   font-size: 13px;
   line-height: 1.6;
   resize: vertical;
   outline: none;
   transition: border-color .2s ease, background-color .2s ease;
+}
+
+/* Taro 把 <Textarea> 渲染成外层 taro-textarea-core + 内层 textarea.taro-textarea，
+   字体要落在内层节点上，否则浏览器会用默认等宽字体。 */
+.mood-field-textarea .taro-textarea {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--cream-ink);
+}
+
+.mood-field-textarea .taro-textarea::placeholder {
+  color: var(--cream-hint);
+  opacity: 1;
+  font-size: 13px;
 }
 
 .mood-modal-card textarea:focus {

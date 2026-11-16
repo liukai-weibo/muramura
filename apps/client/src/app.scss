@@ -85,6 +85,17 @@ page {
   --shadow-soft: 0 12px 30px rgba(71, 56, 40, .08);
 }
 
+/* 浏览器给 input/textarea 的默认字体是 Arial / 等宽字体，不会继承页面字体；
+   Taro 的 .weui-input 与 .taro-textarea 是真正承载文字的内层节点，这里统一继承，
+   避免某些弹窗里出现和整体风格不一致的字体。 */
+.weui-input,
+.taro-textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
 button {
   border-radius: 12px;
 }
