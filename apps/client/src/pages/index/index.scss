@@ -1,6 +1,6 @@
 @media (min-width: 981px) {
   html, body, #app, page, .app-shell { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
-  page, #app, .app-shell { max-width: none; max-height: none; background: #f2eee7 !important; }
+  page, #app, .app-shell { max-width: none; max-height: none; background: #faf8f5 !important; }
 }
 
 .platform-administration {
@@ -828,8 +828,8 @@
     flex: 1;
   }
 }
-.app-shell { display: flex; box-sizing: border-box; width: 100%; min-width: 0; height: 100%; min-height: 0; flex-direction: column; overflow: hidden; border-radius: 0; background: #f7f4ed; color: #302c27; }
-.auth-gate-shell { position: fixed; inset: 0; display: grid; box-sizing: border-box; width: auto; min-width: 0; height: auto; min-height: 0; padding: 32px; place-items: center; overflow: hidden; border-radius: 0; background: #f7f4ed; color: #302c27; }
+.app-shell { display: flex; box-sizing: border-box; width: 100%; min-width: 0; height: 100%; min-height: 0; flex-direction: column; overflow: hidden; background: #faf8f5; color: #302c27; }
+.auth-gate-shell { position: fixed; inset: 0; display: grid; box-sizing: border-box; width: auto; min-width: 0; height: auto; min-height: 0; padding: 32px; place-items: center; overflow: hidden; background: #faf8f5; color: #302c27; }
 .desktop-auth-title-bar { position: fixed; z-index: 50; top: 0; right: 0; left: 0; display: flex; height: 44px; align-items: center; -webkit-app-region: drag; }
 .desktop-auth-title-bar-drag { height: 44px; flex: 1 1 auto; -webkit-app-region: drag; }
 .desktop-auth-window-controls { -webkit-app-region: no-drag; }
@@ -2155,7 +2155,7 @@ button:not(:disabled):active { transform: translateY(1px); }
 .status-badge { letter-spacing: .01em; }
 
 /* fast-ui navigation shell */
-.app-shell { background: #f5f1e9; }
+.app-shell { background: #faf8f5; }
 .primary-navigation { width: 220px; padding: 28px 16px 22px; background: #2b2825; }
 .navigation-brand { padding-bottom: 28px; }
 .navigation-brand-name { font-size: 20px; font-weight: 800; letter-spacing: .02em; }
@@ -2608,9 +2608,9 @@ button:not(:disabled):active { transform: translateY(1px); }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(0, 0, 0, .15); }
   ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, .3); }
-  .app-shell { background: #f7f4ed; border-radius: 0; }
+  .app-shell { background: #faf8f5; }
   .app-main { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-  .desktop-title-bar { display: flex; flex: 0 0 44px; align-items: center; justify-content: space-between; gap: 18px; padding: 0 8px 0 16px; border-bottom: 1px solid rgba(80, 70, 59, .12); background: rgba(255, 253, 249, .9); color: #302b26; }
+  .desktop-title-bar { display: flex; flex: 0 0 44px; align-items: center; justify-content: space-between; gap: 18px; padding: 0 0 0 16px; border-bottom: 1px solid rgba(80, 70, 59, .12); background: rgba(255, 253, 249, .9); color: #302b26; }
   .desktop-title-bar-brand, .desktop-title-bar-actions, .desktop-window-controls { display: flex; align-items: center; }
   .desktop-title-bar-brand { min-width: 190px; gap: 10px; }
   .desktop-title-bar-logo { font-size: 15px; font-weight: 850; letter-spacing: .02em; }
@@ -2669,7 +2669,7 @@ button:not(:disabled):active { transform: translateY(1px); }
     box-sizing: border-box !important;
   }
 
-  .desktop-title-bar { position: fixed; z-index: 50; top: 0; right: 0; left: 0; height: 44px; flex: none; background: #2b2825; color: #f8f4ec; -webkit-app-region: drag; }
+  .desktop-title-bar { position: fixed; z-index: 50; top: 0; right: 0; left: 0; height: 44px; flex: none; border-bottom-color: rgba(255, 255, 255, .07); background: #2b2825; color: #f8f4ec; -webkit-app-region: drag; }
   .desktop-title-bar button, .desktop-title-bar input, .desktop-title-bar taro-button-core, .desktop-title-bar taro-view-core.interactive { -webkit-app-region: no-drag; }
   .desktop-title-bar-tabs, .desktop-title-bar-actions, .desktop-window-controls, .global-search-control { -webkit-app-region: no-drag; }
   .desktop-title-bar-drag-spacer { min-width: 24px; flex: 1 1 auto; height: 44px; -webkit-app-region: drag; }

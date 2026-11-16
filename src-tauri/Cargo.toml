@@ -1,6 +1,6 @@
 [package]
 name = "marumaru"
-version = "0.3.9"
+version = "0.3.4"
 description = "Muramura desktop client"
 authors = ["Muramura"]
 edition = "2021"
@@ -15,7 +15,7 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 serde_json = "1"
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
 default = ["custom-protocol"]

@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.9",
-    "notes":  "窗口边框回退到系统区域裁剪 + 不透明窗口（今天改动前状态）；保留登录/任务输入框、字体与手记行高修复。",
+    "version":  "0.3.10",
+    "notes":  "窗口圆角改回系统合成器裁形（抗锯齿、带投影），不再有锯齿边缘；含手记单行 24px、输入框与字体修复。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2ZoUHlrcEhHRDJhbmhLZGJvNDdFcmJjc2hpSmlGMy96SEcxVnZrcTdSakExc1laMm1BRXFldWFSSG5BTzB5UHB2a2c3Z2JtNjhmaGlIVDFwSHV2YWdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIyMDAwCWZpbGU6TXVyYW11cmFfMC4zLjlfeDY0LXNldHVwLmV4ZQplV3JiTnJ0S0k1SS80bmhlK1JqclZWTzNCZjZ6cmg5bmVkSkxmS1VBWWFwamI5cEI3cG5ualNiTWVGQ1lQMEpuOHcwUmR6a0JvVTROVXh0MUpnL2ZDdz09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.9/Muramura_0.3.9_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1h1cThKVzI2WjhLUlJub2VLYmd1bXR0aTlXaE1ZV0J0bzgvTStlZmx2bVhSSEVFVHU4OW9tVEZ2YTNDMExBNkR4d3J6MlpVRnJFTmFqaklWSFhYdWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODI5MDAyCWZpbGU6TXVyYW11cmFfMC4zLjEwX3g2NC1zZXR1cC5leGUKOEc4YlZuNE1GVVhXcTlPMU82OENDcDE3aGZmS2EwQ2FDMzM5azN5K252Vit3cXErRFFPd2xtUFBDMk1NaGc0M0tsL0lNWXo3SWdvdVFuL3NqbWtBRFE9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.10/Muramura_0.3.10_x64-setup.exe"
                                          }
                   }
 }
