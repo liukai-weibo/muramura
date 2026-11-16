@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.8",
-    "notes":  "手记单行行高收紧到 24px；拉伸/最大化窗口后圆角能正确恢复；含 18px 大圆角与事件弹窗字体统一。",
+    "version":  "0.3.9",
+    "notes":  "窗口边框回退到系统区域裁剪 + 不透明窗口（今天改动前状态）；保留登录/任务输入框、字体与手记行高修复。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1hvYnNSSlR2aVFGbmRjSmJ0WmN3djVMRzZmZ2U2L2hxbDR0UHV5NnJGR3JMbE1VRzFhWEdjY1JmeGtLcmUwVjV2NHduLytJQVlsMjJvNHhuempCU1FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIxNjE4CWZpbGU6TXVyYW11cmFfMC4zLjhfeDY0LXNldHVwLmV4ZQpJcy9TQWplSkdOc0Jmd3lPQWc1dWF3UXMwSnZFNzEwMWh6YkkrVmNGZUd4STlxbkFSaFFJZjN2cWNVZXp6WTA2VnVSOWtuUGYyTWxxeUlVdnlETkREZz09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.8/Muramura_0.3.8_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2ZoUHlrcEhHRDJhbmhLZGJvNDdFcmJjc2hpSmlGMy96SEcxVnZrcTdSakExc1laMm1BRXFldWFSSG5BTzB5UHB2a2c3Z2JtNjhmaGlIVDFwSHV2YWdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIyMDAwCWZpbGU6TXVyYW11cmFfMC4zLjlfeDY0LXNldHVwLmV4ZQplV3JiTnJ0S0k1SS80bmhlK1JqclZWTzNCZjZ6cmg5bmVkSkxmS1VBWWFwamI5cEI3cG5ualNiTWVGQ1lQMEpuOHcwUmR6a0JvVTROVXh0MUpnL2ZDdz09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.9/Muramura_0.3.9_x64-setup.exe"
                                          }
                   }
 }
