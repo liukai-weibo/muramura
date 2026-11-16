@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.5",
-    "notes":  "手记正文单行不再多出一行空白（改 border-box，单行 28px、多行照常自增）；含 0.3.4 的窗口投影与关闭按钮铺满圆角，以及登录页、任务添加框的深色方框修复。",
+    "version":  "0.3.6",
+    "notes":  "桌面窗口改为 18px 大圆角（透明窗口 + 界面自绘，保留系统投影）；含 0.3.5 的手记单行高度修复与之前的深色方框修复。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1ZsU0N4QWQ3R3U0UEFCaFdGNXRwV1RjN2RoNHVUOTNoMHJ4ZEpQeFZBSHpGK1B4K2RsRFRVVGRWNGJoeHQyTjc3T1pIVGdkdXdta2hkVGFUengydndRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODE5NjIzCWZpbGU6TXVyYW11cmFfMC4zLjVfeDY0LXNldHVwLmV4ZQpITEsxK29sSC9CRGxOVUQyOTM4RjRWU0VTRUpBUk85cGROSEFxd2d1M2NzWkt3M1pQdXN4anUxamg4amhJM3VkSE9zQWg4MmNpaHM1c2srS3lMSDRCQT09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.5/Muramura_0.3.5_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1JvMDlvS2QrTGJLSVNLd0JlYmRSWjMwZlJDYUlGTTViZStaNnhDQ1dMMDNnVTZXYjdOQllwb2UxWENjd3l3RmJzYTNSSDRlbzgvZEVxZEJGMi9wK3dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODIwNTI2CWZpbGU6TXVyYW11cmFfMC4zLjZfeDY0LXNldHVwLmV4ZQo4WDBnd0w2MG8vYjAyZ3pxZ01yNjR4a0hmVzdDOWZvVW80eTE3dmJub2ZOUjM1bmlRd1VlUERodW5qc2tjTHhDOHMxWi8zRzdJNjFmOUMxekdRbDNEQT09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.6/Muramura_0.3.6_x64-setup.exe"
                                          }
                   }
 }

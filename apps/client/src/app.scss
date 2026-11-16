@@ -122,3 +122,43 @@ body,
   width: 0 !important;
   height: 0 !important;
 }
+
+/* 桌面端：窗口透明，圆角由界面自己画（Windows 只给 8px 系统圆角）。
+   --window-radius 同时决定标题栏、侧栏与内容区的外轮廓，四角必须一致。 */
+:root {
+  --window-radius: 18px;
+}
+
+html[data-window='desktop'],
+html[data-window='desktop'] body,
+html[data-window='desktop'] #app,
+html[data-window='desktop'] page,
+html[data-window='desktop'] .taro_page,
+html[data-window='desktop'] .taro_navigation_page,
+html[data-window='desktop'] .taro_page_container {
+  background: transparent !important;
+}
+
+html[data-window='desktop'] .app-shell {
+  background: #faf8f5;
+  border-radius: var(--window-radius);
+}
+
+html[data-window='desktop']:not([data-window-maximized='true']) .desktop-title-bar {
+  border-top-left-radius: var(--window-radius);
+  border-top-right-radius: var(--window-radius);
+}
+
+html[data-window='desktop']:not([data-window-maximized='true']) .primary-navigation {
+  border-bottom-left-radius: var(--window-radius);
+}
+
+html[data-window='desktop']:not([data-window-maximized='true']) .app-main {
+  border-bottom-right-radius: var(--window-radius);
+  overflow: hidden;
+}
+
+html[data-window='desktop']:not([data-window-maximized='true']) .auth-gate-shell {
+  border-radius: var(--window-radius);
+  overflow: hidden;
+}

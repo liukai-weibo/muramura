@@ -43,11 +43,19 @@ describe('desktop window frame', () => {
     expect(indexScss).toContain(`background: ${canvas};`)
     expect(indexScss).not.toContain('#f2eee7')
     expect(creamTheme).not.toContain('#f2eee7')
-    expect(mainRs).toContain('(250, 248, 245, 255)')
+    expect(mainRs).toContain('(0, 0, 0, 0)')
   })
 
-  it('does not reintroduce a transparent window, which leaked white edges on restore', () => {
-    expect(window.transparent).toBe(false)
+  it('paints a large CSS radius on a transparent window instead of the 8px system clip', () => {
+    // Windows 只给 8px 系统圆角；要更大的圆角只能让窗口透明、由界面自绘。
+    expect(window.transparent).toBe(true)
     expect(window.decorations).toBe(false)
+    const appScss = readFileSync(new URL('../apps/client/src/app.scss', import.meta.url), 'utf8')
+    expect(appScss).toContain('--window-radius: 18px;')
+    expect(appScss).toContain("html[data-window='desktop'] .app-shell {")
+  })
+
+  it('keeps the system corner preference off so the CSS arc is not clipped', () => {
+    expect(mainRs).toContain('let preference = DWMWCP_DONOTROUND;')
   })
 })
