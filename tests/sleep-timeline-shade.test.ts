@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { SleepEntry } from '@knowledge-base/contracts'
-import { sleepBandFill, sleepShadeWindows } from '../apps/client/src/pages/index/features/daily-notes/sleep/sleep-timeline-shade'
+import { sleepShadeWindows, sleepSideIntervals, sleepShadeLabel, snapSleepWindowToHours } from '../apps/client/src/pages/index/features/daily-notes/sleep/sleep-timeline-shade'
 
 /** 用东八区时间造记录，避免测试受运行机器时区影响。 */
 const at = (isoLocal: string): string => new Date(`${isoLocal}+08:00`).toISOString()
@@ -74,28 +75,91 @@ describe('sleepShadeWindows', () => {
   })
 })
 
-describe('sleepBandFill', () => {
-  it('splits a 06:40–08:30 sleep into partial hour bands', () => {
-    const fills = sleepBandFill([{ startMinute: 400, endMinute: 510 }])
-    expect(fills.get(6)).toMatchObject({ from: 40 / 60, to: 1 })
-    expect(fills.get(7)).toMatchObject({ from: 0, to: 1 })
-    expect(fills.get(8)).toMatchObject({ from: 0, to: 30 / 60 })
-    expect(fills.size).toBe(3)
+describe('snapSleepWindowToHours', () => {
+  it('starts at the hour that contains the bedtime and ends after the wake hour', () => {
+    expect(snapSleepWindowToHours({ startMinute: 390, endMinute: 420 })).toMatchObject({ startMinute: 360, endMinute: 480 })
+    expect(snapSleepWindowToHours({ startMinute: 400, endMinute: 510 })).toMatchObject({ startMinute: 360, endMinute: 540 })
+    expect(snapSleepWindowToHours({ startMinute: 60, endMinute: 360 })).toMatchObject({ startMinute: 60, endMinute: 420 })
   })
 
-  it('stops at an exact hour boundary', () => {
-    const fills = sleepBandFill([{ startMinute: 0, endMinute: 480 }])
-    expect(fills.get(7)).toMatchObject({ from: 0, to: 1 })
-    expect(fills.has(8)).toBe(false)
+  it('keeps the estimated flag and clamps at midnight', () => {
+    expect(snapSleepWindowToHours({ startMinute: 0, endMinute: 510, estimated: true })).toMatchObject({ estimated: true })
+    expect(snapSleepWindowToHours({ startMinute: 1390, endMinute: 1440 })).toMatchObject({ startMinute: 1380, endMinute: 1440 })
+  })
+})
+
+describe('sleepSideIntervals', () => {
+  it('snaps to whole hours and lifts the block by a third of a row', () => {
+    expect(sleepSideIntervals([{ startMinute: 390, endMinute: 420 }], 'am')).toEqual([{ from: 340, to: 460 }])
+    expect(sleepSideIntervals([{ startMinute: 400, endMinute: 510 }], 'am')).toEqual([{ from: 340, to: 520 }])
+    expect(sleepSideIntervals([{ startMinute: 60, endMinute: 360 }], 'am')).toEqual([{ from: 40, to: 400 }])
   })
 
-  it('keeps the estimated flag only when every overlapping window is estimated', () => {
-    const fills = sleepBandFill([
-      { startMinute: 0, endMinute: 120, estimated: true },
-      { startMinute: 60, endMinute: 180 },
-    ])
-    expect(fills.get(0)?.estimated).toBe(true)
-    expect(fills.get(1)?.estimated).toBe(false)
-    expect(fills.get(1)).toMatchObject({ from: 0, to: 1 })
+  it('clamps the lifted start at midnight', () => {
+    expect(sleepSideIntervals([{ startMinute: 0, endMinute: 510 }], 'am')).toEqual([{ from: 0, to: 520 }])
+  })
+
+  it('keeps an evening window that reaches midnight ending at 24:00', () => {
+    expect(sleepSideIntervals([{ startMinute: 1390, endMinute: 1440 }], 'pm')).toEqual([{ from: 640, to: 720 }])
+  })
+
+  it('splits a window that crosses noon into the two columns after snapping and lifting', () => {
+    expect(sleepSideIntervals([{ startMinute: 690, endMinute: 780 }], 'am')).toEqual([{ from: 640, to: 720 }])
+    expect(sleepSideIntervals([{ startMinute: 690, endMinute: 780 }], 'pm')).toEqual([{ from: 0, to: 100 }])
+  })
+
+  it('returns nothing without windows', () => {
+    expect(sleepSideIntervals([], 'am')).toEqual([])
+  })
+})
+
+describe('sleepShadeLabel', () => {
+  it('formats a single window', () => {
+    expect(sleepShadeLabel([{ startMinute: 400, endMinute: 510 }])).toBe('06:40–08:30')
+  })
+
+  it('joins both windows of the day', () => {
+    expect(sleepShadeLabel([
+      { startMinute: 0, endMinute: 510 },
+      { startMinute: 1390, endMinute: 1440 },
+    ])).toBe('00:00–08:30 · 23:10–24:00')
+  })
+
+  it('marks a wake-only window as estimated', () => {
+    expect(sleepShadeLabel([{ startMinute: 0, endMinute: 510, estimated: true }])).toBe('00:00–08:30 · 估计')
+  })
+
+  it('returns an empty label without windows', () => {
+    expect(sleepShadeLabel([])).toBe('')
+  })
+})
+describe('timeline sleep haze styles', () => {
+  const theme = readFileSync(new URL('../apps/client/src/pages/index/cream-ui-theme.scss', import.meta.url), 'utf8')
+
+  it('feathers the span on every edge instead of drawing borders', () => {
+    const rule = theme.match(/\.daily-note-sleep-span \{[^}]*\}/)?.[0] ?? ''
+    expect(rule).toContain('linear-gradient(to bottom')
+    expect(rule).toContain('transparent 0')
+    expect(rule).toContain('min(28px, 25%)')
+    expect(rule).toContain('calc(100% - min(28px, 25%))')
+    expect(rule).toContain('mask-image: linear-gradient(to right, transparent 0, #000 6px')
+    expect(rule).toContain('pointer-events: none;')
+    expect(rule).not.toMatch(/border-(top|right|bottom|left)\b/)
+    expect(theme).not.toContain('.daily-note-sleep-block')
+    expect(theme).not.toContain('repeating-linear-gradient(90deg, rgba(120, 105, 140')
+  })
+
+  it('keeps a soft spine on the axis side for both columns', () => {
+    expect(theme).toContain('.daily-note-sleep-span::after {')
+    expect(theme).toContain('.daily-note-band-side.is-am .daily-note-sleep-span::after { right: 0; }')
+    expect(theme).toContain('.daily-note-band-side.is-pm .daily-note-sleep-span::after { left: 0; }')
+    expect(theme).toContain('border-radius: 999px;')
+  })
+
+  it('defines the Morandi haze and spine tokens for both themes', () => {
+    expect(theme).toContain('--sleep-haze: rgba(148, 140, 160, .15);')
+    expect(theme).toContain('--sleep-spine: rgba(148, 140, 160, .38);')
+    expect(theme).toContain('--sleep-haze: rgba(168, 158, 184, .20);')
+    expect(theme).toContain('--sleep-spine: rgba(178, 166, 196, .46);')
   })
 })

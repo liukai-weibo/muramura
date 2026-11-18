@@ -17,7 +17,7 @@ import { SleepEntryModal } from './sleep/sleep-entry-modal'
 import { SleepSettingsDialog } from './sleep/sleep-settings-dialog'
 import { SleepDetailModal } from './sleep/sleep-detail-modal'
 import { SLEEP_LOAD_DAYS, useSleep } from './sleep/use-sleep'
-import { sleepBandFill, sleepShadeWindows } from './sleep/sleep-timeline-shade'
+import { sleepShadeWindows } from './sleep/sleep-timeline-shade'
 
 /** 右侧 AI 复盘面板已隐藏，宽度让给时间轴；面板组件本身保留，随时能接回来。 */
 export interface DailyNotesPageProps { onFlushReady: (flush: () => Promise<boolean>) => void }
@@ -76,9 +76,9 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
       .catch(() => { if (!cancelled) setOlderSleepEntries([]) })
     return () => { cancelled = true }
   }, [noteDate, sleepEntryInRange])
-  const sleepShades = useMemo(() => {
+  const sleepWindows = useMemo(() => {
     const entries = sleepEntryInRange ? sleep.entries : olderSleepEntries
-    return sleepBandFill(sleepShadeWindows(entries, noteDate))
+    return sleepShadeWindows(entries, noteDate)
   }, [sleepEntryInRange, sleep.entries, olderSleepEntries, noteDate])
   const [sleepRecording, setSleepRecording] = useState(false)
   const [sleepSettingsOpen, setSleepSettingsOpen] = useState(false)
@@ -325,7 +325,7 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
           isToday={isToday}
           ready={!loading && Boolean(current)}
           entryDate={noteDate}
-          sleepShades={sleepShades}
+          sleepWindows={sleepWindows}
           selectedEntryId={activeEntryId}
           onSelect={setActiveEntryId}
           onAdd={(time, content) => createEntryAt(noteDate, time, content)}

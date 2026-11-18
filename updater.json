@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.15",
-    "notes":  "手记时间轴新增睡眠时段阴影：按真实睡眠时间给对应小时格加淡紫灰薄雾，只有起床时间时用更淡的估计态。",
+    "version":  "0.3.16",
+    "notes":  "手记时间轴睡眠区间改为莫兰迪柔雾 + 贴轴脊线：无硬边、边缘渐隐，按整点吸附并整体上移 1/3 格。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1V1c2NDZ0Zid2UxYWI2anBwMVFMc2ROSDRjMkpMdXFVSTZLQi9YNG1DTUpzUGxhcHVMaS9ubVZoNDczTDR5MGtod0xTU0ZCYUsxQW9pZ0wwN0VYY2dVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODMyNTg5CWZpbGU6TXVyYW11cmFfMC4zLjE1X3g2NC1zZXR1cC5leGUKVEhmZVFEK09QMG93M3FveElYdHpUdUdCV1R6Zk43enBOTnNXck40UGdibUZRZTZ6amZmSXJ4UzVrQWtjNUdMdTVpVEg3K2YzZnBYamlscEhtQnhKQlE9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.15/Muramura_0.3.15_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1FWYTBPSXpNMTNMVjJwNTVKZWF3SUVhbVRFVFZJK2FYbktjeTJtZ1pvbHRqNEZTK0xLOHV5cDRrM1JSbE9ZVi9FWmgraTVIL2xGNGk1VnBFa2wzL0FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MDA2Mjg5CWZpbGU6TXVyYW11cmFfMC4zLjE2X3g2NC1zZXR1cC5leGUKY1hLMjAvdUpqUld2T3gwYzYveUpicnRRU2cwM3UzV2ZoVzUzalk0VmdSQ2dweXdNY3BPbEdvUHN5dVE1Q3NxeGc1ajdVUTVGVHFYQlNSTDhuT0Q4Q2c9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.16/Muramura_0.3.16_x64-setup.exe"
                                          }
                   }
 }

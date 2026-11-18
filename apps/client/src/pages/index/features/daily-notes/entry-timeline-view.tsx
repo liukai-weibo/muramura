@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react'
 import type { DailyNoteEntry } from '@knowledge-base/contracts'
 import { dailyNoteMinuteOfDay } from '@knowledge-base/contracts'
 import { EntryRecordModal } from './entry-record-modal'
+import type { SleepShadeWindow } from './sleep/sleep-timeline-shade'
+import { sleepShadeLabel, sleepSideIntervals } from './sleep/sleep-timeline-shade'
 import { bandTintIndexes, tintClassOf } from './entry-tint'
 import {
   TIMELINE_BAND_COUNT,
@@ -28,8 +30,8 @@ export interface EntryTimelineViewProps {
   ready?: boolean
   /** 当前手记的日期，弹窗里要显示给人确认。 */
   entryDate: string
-  /** 这一天已记录的睡眠时段，按小时给出需要压阴影的比例。 */
-  sleepShades?: Map<number, { from: number; to: number; estimated: boolean }>
+  /** 这一天已记录的睡眠时段（分钟区间），用于画虚线标记。 */
+  sleepWindows?: SleepShadeWindow[]
   selectedEntryId?: string
   onSelect: (entryId?: string) => void
   onAdd: (time: string, content: string) => Promise<boolean>
@@ -56,7 +58,7 @@ export function EntryTimelineView({
   isToday,
   ready = true,
   entryDate,
-  sleepShades,
+  sleepWindows,
   selectedEntryId,
   onSelect,
   onAdd,
@@ -123,6 +125,12 @@ export function EntryTimelineView({
   )
   const isEmpty = timed.length === 0
 
+  // 睡眠标记：每段区间一层柔雾 + 贴轴脊线，四周渐隐，按真实分钟定位。
+  const sideSleepSpans = useMemo(() => {
+    const build = (side: TimelineBandSide) => (sleepWindows ? sleepSideIntervals(sleepWindows, side) : [])
+    return { am: build('am'), pm: build('pm') }
+  }, [sleepWindows])
+
   const sideColumn = (side: TimelineBandSide) => <div
     key={side}
     ref={side === 'am' ? amSideRef : undefined}
@@ -130,25 +138,28 @@ export function EntryTimelineView({
   >
     {ROWS.map(row => {
       const hour = bandHourOf(row, side)
-      const shade = sleepShades?.get(hour)
       const classes = [
         'daily-note-band',
         isToday && nowHour === hour ? 'is-now' : '',
         drag && drag.side === side && drag.hour === hour ? 'is-drop-target' : '',
-        shade ? 'is-sleeping' : '',
-        shade?.estimated ? 'is-sleep-estimated' : '',
       ].filter(Boolean).join(' ')
       return <button
         key={row}
         type='button'
         className={classes}
         disabled={!ready}
-        style={shade ? ({ '--sleep-from': shade.from, '--sleep-to': shade.to } as CSSProperties) : undefined}
         title={`在 ${pad(hour)} 点补记`}
         aria-label={`在 ${pad(hour)} 点补记`}
         onClick={() => setRecord({ hour })}
       ><span className='daily-note-band-add' aria-hidden='true'>＋</span></button>
     })}
+
+    {sideSleepSpans[side].map((span, index) => <div
+      key={`sleep-${index}`}
+      className='daily-note-sleep-span'
+      style={{ top: `${(span.from / 720) * 100}%`, height: `${((span.to - span.from) / 720) * 100}%` }}
+      aria-hidden='true'
+    />)}
 
     <div className='daily-note-band-cards'>
       {ROWS.map(row => {
@@ -292,9 +303,9 @@ export function EntryTimelineView({
       {isEmpty && !record && <div className='daily-note-bands-empty'>
         {ready ? '点任意时段，就能按那个时间补一条' : '正在读取这一天的手记…'}
       </div>}
-      {sleepShades && sleepShades.size > 0 && <div className='daily-note-sleep-legend'>
+      {sleepWindows && sleepWindows.length > 0 && <div className='daily-note-sleep-legend'>
         <span className='daily-note-sleep-swatch' aria-hidden='true' />
-        <span>阴影为已记录的睡眠时段</span>
+        <span>睡眠 {sleepShadeLabel(sleepWindows)}</span>
       </div>}
     </div>
 

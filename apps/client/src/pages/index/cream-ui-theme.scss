@@ -24,7 +24,8 @@
   --meal-done: #7fa88a;
   --meal-done-ink: #fffdfa;
   /* 手记卡片：宽度封顶 300px（约 20 个字），底色按条目 id 稳定分配，不落库。 */
-  --note-sleep-wash: rgba(138, 122, 176, .13);
+  --sleep-haze: rgba(148, 140, 160, .15);
+  --sleep-spine: rgba(148, 140, 160, .38);
   --note-card-width: 300px;
   --note-tint-1: #fbeef1;
   --note-tint-2: #fdf0e3;
@@ -643,7 +644,8 @@ textarea:focus,
   --meal-done: #5f7f6b;
   --meal-done-ink: #fffdfa;
   /* 手记卡片底色：深色态压暗提饱和，保证文字仍在暖褐层级里。 */
-  --note-sleep-wash: rgba(158, 143, 196, .20);
+  --sleep-haze: rgba(168, 158, 184, .20);
+  --sleep-spine: rgba(178, 166, 196, .46);
   --note-card-width: 300px;
   --note-tint-1: #4b343a;
   --note-tint-2: #4a3d2f;
@@ -1485,18 +1487,38 @@ textarea:focus,
 .daily-note-band:disabled { cursor: default; }
 .daily-note-band.is-now { background: rgba(235, 203, 209, .16); }
 .daily-note-band.is-drop-target { background: rgba(226, 202, 130, .26); }
-/* 睡眠时段：整格薄雾，用渐变表达真实分钟（6:40 入睡时 6 点只压下面 1/3）。
-   画在 background-image 上，hover / 当前时段的 background-color 仍然可见。 */
-.daily-note-band.is-sleeping {
+/* 睡眠时段：没有边、只有呼吸。整段铺一层莫兰迪紫灰薄雾，上下各 14px 渐隐、
+   左右用遮罩化开，再由贴轴的 2px 脊线点出"从轴上长出来的一段"。 */
+.daily-note-sleep-span {
+  position: absolute;
+  z-index: 0;
+  min-height: 8px;
+  border-radius: 10px;
+  pointer-events: none;
   background-image: linear-gradient(to bottom,
-    transparent calc(var(--sleep-from) * 100%),
-    var(--note-sleep-wash) calc(var(--sleep-from) * 100%),
-    var(--note-sleep-wash) calc(var(--sleep-to) * 100%),
-    transparent calc(var(--sleep-to) * 100%));
+    transparent 0,
+    var(--sleep-haze) min(28px, 25%),
+    var(--sleep-haze) calc(100% - min(28px, 25%)),
+    transparent 100%);
+  /* 左右各 6px 渐隐：抹掉直边，但不至于形成明显的白缝。 */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 6px, #000 calc(100% - 6px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 6px, #000 calc(100% - 6px), transparent 100%);
 }
-.daily-note-band.is-sleeping.is-sleep-estimated { --note-sleep-wash: rgba(138, 122, 176, .07); }
+.daily-note-sleep-span::after {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  content: "";
+  border-radius: 999px;
+  background-image: linear-gradient(to bottom, transparent 0, var(--sleep-spine) 18%, var(--sleep-spine) 82%, transparent 100%);
+}
+.daily-note-band-side.is-am .daily-note-sleep-span { left: -12px; right: -28px; border-radius: 0; }
+.daily-note-band-side.is-pm .daily-note-sleep-span { left: -28px; right: -12px; border-radius: 0; }
+.daily-note-band-side.is-am .daily-note-sleep-span::after { right: 0; }
+.daily-note-band-side.is-pm .daily-note-sleep-span::after { left: 0; }
 .daily-note-sleep-legend { display: flex; align-items: center; gap: 6px; color: var(--cream-hint); font-size: 10px; }
-.daily-note-sleep-swatch { width: 14px; height: 8px; border-radius: 3px; background: rgba(138, 122, 176, .13); }
+.daily-note-sleep-swatch { width: 16px; height: 8px; border-radius: 999px; background-image: linear-gradient(to bottom, transparent 0, var(--sleep-haze) 3px, var(--sleep-haze) calc(100% - 3px), transparent 100%); }
 .daily-note-band-add { position: absolute; top: 3px; color: var(--cream-hint); font-size: 10px; line-height: 1; opacity: 0; transition: opacity .15s ease; }
 .daily-note-band-side.is-am .daily-note-band-add { left: 6px; }
 .daily-note-band-side.is-pm .daily-note-band-add { right: 6px; }
@@ -1504,7 +1526,7 @@ textarea:focus,
 .daily-note-band-cards { position: absolute; inset: 0; pointer-events: none; }
 .daily-note-band-stack { position: absolute; inset: 0; }
 .daily-note-band-axis { position: relative; display: flex; min-height: 0; flex-direction: column; }
-.daily-note-band-axis::before { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--cream-line); content: ""; }
+.daily-note-band-axis::before { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(120, 105, 140, .18); content: ""; }
 .daily-note-band-axis-row { display: flex; min-height: 0; flex: 1 1 0; align-items: flex-start; justify-content: space-between; }
 .daily-note-band-axis-label { padding: 1px 8px; border: 0; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 10px; font-variant-numeric: tabular-nums; line-height: 1; }
 .daily-note-band-axis-label:hover:not(:disabled) { background: rgba(226, 202, 130, .16); color: #a4566a; }

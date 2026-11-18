@@ -79,40 +79,61 @@ export function sleepShadeWindows(entries: SleepEntry[], date: string): SleepSha
 
   return mergeWindows(windows)
 }
-
-export interface SleepBandFill {
-  /** 这一格里从什么比例开始压阴影（0 = 格子上沿）。 */
+export interface SleepSideSpan {
+  /** 本列内的起始分钟（上午列 0–720 对应 00:00–12:00）。 */
   from: number
-  /** 到什么比例结束（1 = 格子下沿）。 */
+  /** 本列内的结束分钟。 */
   to: number
-  estimated: boolean
 }
 
-/** 把睡眠区间摊到 24 个小时格上，得到每格要画的比例。 */
-export function sleepBandFill(windows: SleepShadeWindow[]): Map<number, SleepBandFill> {
-  const fills = new Map<number, SleepBandFill>()
-  for (const window of windows) {
-    const startMinute = clampMinute(window.startMinute)
-    const endMinute = clampMinute(window.endMinute)
-    if (endMinute <= startMinute) continue
-    const firstHour = Math.floor(startMinute / 60)
-    const lastHour = Math.min(23, Math.ceil(endMinute / 60) - 1)
-    for (let hour = firstHour; hour <= lastHour; hour += 1) {
-      const hourStart = hour * 60
-      const from = Math.max(0, (startMinute - hourStart) / 60)
-      const to = Math.min(1, (endMinute - hourStart) / 60)
-      if (to <= from) continue
-      const current = fills.get(hour)
-      if (!current) {
-        fills.set(hour, { from, to, estimated: Boolean(window.estimated) })
-        continue
-      }
-      fills.set(hour, {
-        from: Math.min(current.from, from),
-        to: Math.max(current.to, to),
-        estimated: Boolean(current.estimated && window.estimated),
-      })
-    }
+const SIDE_MINUTES = 12 * 60
+
+/**
+ * 纯视觉抬升：让阴影整体上移约 1/3 格（20 分钟），与小时刻度读起来更贴。
+ * 只影响底色位置，图例与数据仍是真实时间。
+ */
+const SLEEP_SPAN_LIFT_MINUTES = 20
+
+/**
+ * 视觉上按整点吸附：只要某个小时被睡眠碰到，整格都算进来。
+ * 6:30 入睡 → 从 6 点整开始；7:00 起床 → 连 7–8 这一格也算。
+ * 图例仍用真实时间，这里只影响底色铺到哪。
+ */
+export function snapSleepWindowToHours(window: SleepShadeWindow): SleepShadeWindow {
+  const startHour = Math.floor(clampMinute(window.startMinute) / 60)
+  const endHour = Math.floor(clampMinute(window.endMinute) / 60)
+  return {
+    startMinute: startHour * 60,
+    endMinute: Math.min(DAY_MINUTES, (endHour + 1) * 60),
+    ...(window.estimated ? { estimated: true } : {}),
   }
-  return fills
+}
+
+/** 把睡眠窗口按 12:00 拆到上午列 / 下午列，供时间轴的分列遮罩使用。 */
+export function sleepSideIntervals(windows: SleepShadeWindow[], side: 'am' | 'pm'): SleepSideSpan[] {
+  const offset = side === 'pm' ? SIDE_MINUTES : 0
+  const spans: SleepSideSpan[] = []
+  for (const window of windows) {
+    const snapped = snapSleepWindowToHours(window)
+    const liftedStart = Math.max(0, snapped.startMinute - SLEEP_SPAN_LIFT_MINUTES)
+    // 压着 24:00 的晚间区间保持到收口，不在末尾留出空档。
+    const liftedEnd = snapped.endMinute >= DAY_MINUTES
+      ? DAY_MINUTES
+      : Math.max(liftedStart + 1, snapped.endMinute - SLEEP_SPAN_LIFT_MINUTES)
+    const from = Math.max(offset, liftedStart) - offset
+    const to = Math.min(offset + SIDE_MINUTES, liftedEnd) - offset
+    if (to > from) spans.push({ from, to })
+  }
+  return spans
+}
+
+const pad = (value: number): string => String(value).padStart(2, '0')
+const clock = (minute: number): string => `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`
+
+/** 图例文案：06:40–08:30；有两段时用 · 连接；全部为估计时追加说明。 */
+export function sleepShadeLabel(windows: SleepShadeWindow[]): string {
+  if (windows.length === 0) return ''
+  const parts = windows.map(window => `${clock(clampMinute(window.startMinute))}–${clock(clampMinute(window.endMinute))}`)
+  const estimated = windows.every(window => window.estimated)
+  return `${parts.join(' · ')}${estimated ? ' · 估计' : ''}`
 }
