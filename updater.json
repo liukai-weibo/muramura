@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.16",
-    "notes":  "手记时间轴睡眠区间改为莫兰迪柔雾 + 贴轴脊线：无硬边、边缘渐隐，按整点吸附并整体上移 1/3 格。",
+    "version":  "0.3.17",
+    "notes":  "首页两张 AI 分析卡暂时下线；时间轴当前时刻改为随实时移动的虚线；点当前小时补记默认用真实分钟；空态提示不再压刻度。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U1FWYTBPSXpNMTNMVjJwNTVKZWF3SUVhbVRFVFZJK2FYbktjeTJtZ1pvbHRqNEZTK0xLOHV5cDRrM1JSbE9ZVi9FWmgraTVIL2xGNGk1VnBFa2wzL0FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MDA2Mjg5CWZpbGU6TXVyYW11cmFfMC4zLjE2X3g2NC1zZXR1cC5leGUKY1hLMjAvdUpqUld2T3gwYzYveUpicnRRU2cwM3UzV2ZoVzUzalk0VmdSQ2dweXdNY3BPbEdvUHN5dVE1Q3NxeGc1ajdVUTVGVHFYQlNSTDhuT0Q4Q2c9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.16/Muramura_0.3.16_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2U2Nm94c1JDbnEzRW4yVnZDNDI4dGJqUklVSGZPN2Q1VTh2anIvcGJ4MlkvRkZHdFR6TXp3NFdMVHJBa1FqSTJZK24wUGszaXBZVHRNUmpkVitUNlEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MDU4NzcwCWZpbGU6TXVyYW11cmFfMC4zLjE3X3g2NC1zZXR1cC5leGUKVUR1QW1FaEtnWHMvdWxaV2JlaVl5NHBZVnFsTlVUSisxcDIzdnhTb1JRKzV1aENKblUyQXlNcFZXamdyMDdlL0FwS2JvUW5TSzhIc2had0lLOTFKQlE9PQo=",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.17/Muramura_0.3.17_x64-setup.exe"
                                          }
                   }
 }

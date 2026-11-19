@@ -11,6 +11,7 @@ import {
   TIMELINE_MORE_HEIGHT,
   bandColumns,
   bandSlot,
+  nowLinePosition,
   type TimelineBandSide,
   bandCardTop,
   bandHourOf,
@@ -71,7 +72,7 @@ export function EntryTimelineView({
   const dragRef = useRef<{ entryId: string; startY: number; minute: number; moved: boolean } | null>(null)
   const [height, setHeight] = useState(estimateHeight)
   const [sideWidth, setSideWidth] = useState(0)
-  const [record, setRecord] = useState<{ hour: number } | null>(null)
+  const [record, setRecord] = useState<{ hour: number; minute?: number } | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const [clock, setClock] = useState(currentMinute)
 
@@ -115,6 +116,7 @@ export function EntryTimelineView({
   const rowHeight = bandRowHeight(height)
   const columns = bandColumns(sideWidth)
   const nowHour = Math.floor(clock / 60)
+  const now = nowLinePosition(clock)
   const timed = useMemo(() => entries
     .filter(entry => entry.timePrecision === 'minute')
     .map(entry => ({ entry, minute: dailyNoteMinuteOfDay(entry.recordedAt) ?? 0 })), [entries])
@@ -140,7 +142,6 @@ export function EntryTimelineView({
       const hour = bandHourOf(row, side)
       const classes = [
         'daily-note-band',
-        isToday && nowHour === hour ? 'is-now' : '',
         drag && drag.side === side && drag.hour === hour ? 'is-drop-target' : '',
       ].filter(Boolean).join(' ')
       return <button
@@ -150,7 +151,7 @@ export function EntryTimelineView({
         disabled={!ready}
         title={`在 ${pad(hour)} 点补记`}
         aria-label={`在 ${pad(hour)} 点补记`}
-        onClick={() => setRecord({ hour })}
+        onClick={() => setRecord({ hour, minute: isToday && hour === nowHour ? clock % 60 : 0 })}
       ><span className='daily-note-band-add' aria-hidden='true'>＋</span></button>
     })}
 
@@ -250,6 +251,12 @@ export function EntryTimelineView({
         </div>
       })}
     </div>
+
+    {isToday && now.side === side && <div
+      className='daily-note-now-line'
+      style={{ top: `${now.topPercent}%` }}
+      aria-hidden='true'
+    ><span className='daily-note-now-line-label'>{pad(Math.floor(clock / 60))}:{pad(clock % 60)}</span></div>}
   </div>
 
   return <div className='daily-note-timeline-view'>
@@ -264,6 +271,9 @@ export function EntryTimelineView({
     </div>}
 
     <div className='daily-note-bands-frame'>
+      {isEmpty && !record && <div className='daily-note-bands-empty'>
+        {ready ? '点任意时段，就能按那个时间补一条' : '正在读取这一天的手记…'}
+      </div>}
       <div className='daily-note-bands' ref={gridRef}>
         {sideColumn('am')}
         <div className='daily-note-band-axis'>
@@ -276,7 +286,7 @@ export function EntryTimelineView({
                 disabled={!ready}
                 title={`在 ${pad(row)} 点补记`}
                 aria-label={`在 ${pad(row)} 点补记`}
-                onClick={() => setRecord({ hour: row })}
+                onClick={() => setRecord({ hour: row, minute: isToday && row === nowHour ? clock % 60 : 0 })}
               >{pad(row)}</button>
               <button
                 type='button'
@@ -284,7 +294,7 @@ export function EntryTimelineView({
                 disabled={!ready}
                 title={`在 ${pad(row + 12)} 点补记`}
                 aria-label={`在 ${pad(row + 12)} 点补记`}
-                onClick={() => setRecord({ hour: row + 12 })}
+                onClick={() => setRecord({ hour: row + 12, minute: isToday && row + 12 === nowHour ? clock % 60 : 0 })}
               >{pad(row + 12)}</button>
             </div>
           })}
@@ -300,9 +310,6 @@ export function EntryTimelineView({
         </div>
         <span />
       </div>
-      {isEmpty && !record && <div className='daily-note-bands-empty'>
-        {ready ? '点任意时段，就能按那个时间补一条' : '正在读取这一天的手记…'}
-      </div>}
       {sleepWindows && sleepWindows.length > 0 && <div className='daily-note-sleep-legend'>
         <span className='daily-note-sleep-swatch' aria-hidden='true' />
         <span>睡眠 {sleepShadeLabel(sleepWindows)}</span>
@@ -316,6 +323,7 @@ export function EntryTimelineView({
     {record && <EntryRecordModal
       entryDate={entryDate}
       hour={record.hour}
+      {...(record.minute !== undefined ? { initialMinute: record.minute } : {})}
       onSubmit={(time, content) => onAdd(time, content)}
       onClose={() => setRecord(null)}
     />}

@@ -26,6 +26,8 @@ export const clampMinute = (minute: number): number => Math.min(MINUTES_PER_DAY 
 export const hourOfMinute = (minute: number): number => Math.floor(clampMinute(minute) / 60)
 export const minuteOfHour = (minute: number): number => clampMinute(minute) % 60
 
+const SIDE_MINUTES = 12 * 60
+
 export const bandSideOfHour = (hour: number): TimelineBandSide => (hour >= 12 ? 'pm' : 'am')
 export const bandRowOfHour = (hour: number): number => Math.min(23, Math.max(0, Math.floor(hour))) % TIMELINE_BAND_COUNT
 export const bandHourOf = (row: number, side: TimelineBandSide): number =>
@@ -45,6 +47,14 @@ export function bandOfMinute(minute: number): BandPosition {
   const side = bandSideOfHour(hour)
   const row = bandRowOfHour(hour)
   return { hour, side, row, key: bandKey(side, row) }
+}
+
+/** 当前时刻在某一列里的位置：左侧 0–11 点、右侧 12–23 点，按真实分钟换算百分比。 */
+export function nowLinePosition(minuteOfDay: number): { side: TimelineBandSide; topPercent: number } {
+  const minute = Math.min(MINUTES_PER_DAY - 1, Math.max(0, Math.round(minuteOfDay)))
+  const side: TimelineBandSide = minute >= SIDE_MINUTES ? 'pm' : 'am'
+  const within = minute - (side === 'pm' ? SIDE_MINUTES : 0)
+  return { side, topPercent: (within / SIDE_MINUTES) * 100 }
 }
 
 /** 一屏 12 行，行高就是可用高度除以 12。 */

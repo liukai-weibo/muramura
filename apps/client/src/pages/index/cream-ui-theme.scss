@@ -1485,7 +1485,31 @@ textarea:focus,
 .daily-note-band:hover:not(:disabled) { background: rgba(226, 202, 130, .1); }
 .daily-note-band:focus-visible { outline: 2px solid #dfc984; outline-offset: -2px; }
 .daily-note-band:disabled { cursor: default; }
-.daily-note-band.is-now { background: rgba(235, 203, 209, .16); }
+/* 当前时刻：一条跟随真实时间的虚线，替代原先整格粉色底。 */
+.daily-note-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  border-top: 1px dashed rgba(217, 132, 149, .72);
+  pointer-events: none;
+}
+.daily-note-now-line-label {
+  position: absolute;
+  top: -14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(250, 248, 245, .92);
+  color: #b3596b;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  line-height: 12px;
+  pointer-events: none;
+}
+.daily-note-band-side.is-am .daily-note-now-line-label { right: 6px; }
+.daily-note-band-side.is-pm .daily-note-now-line-label { left: 6px; }
+.app-shell[data-color-theme='dark'] .daily-note-now-line { border-top-color: rgba(232, 167, 174, .78); }
+.app-shell[data-color-theme='dark'] .daily-note-now-line-label { background: rgba(41, 37, 33, .92); color: #f0b7bf; }
 .daily-note-band.is-drop-target { background: rgba(226, 202, 130, .26); }
 /* 睡眠时段：没有边、只有呼吸。整段铺一层莫兰迪紫灰薄雾，上下各 14px 渐隐、
    左右用遮罩化开，再由贴轴的 2px 脊线点出"从轴上长出来的一段"。 */
@@ -1532,7 +1556,7 @@ textarea:focus,
 .daily-note-band-axis-label:hover:not(:disabled) { background: rgba(226, 202, 130, .16); color: #a4566a; }
 .daily-note-band-axis-label:disabled { cursor: default; }
 .daily-note-band-axis-row.is-now .daily-note-band-axis-label { color: #a4566a; font-weight: 700; }
-.daily-note-bands-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--cream-hint); font-size: 11px; pointer-events: none; }
+.daily-note-bands-empty { margin: 0 0 2px; padding: 0 4px; color: var(--cream-hint); font-size: 11px; line-height: 1.5; text-align: center; pointer-events: none; }
 .daily-note-timeline-card { position: absolute; display: flex; box-sizing: border-box; width: min(var(--note-card-width), 100%); align-items: center; gap: 6px; padding: 0 6px; overflow: hidden; border: 1px solid var(--cream-line); border-radius: 8px; background: var(--cream-surface); cursor: grab; pointer-events: auto; touch-action: none; user-select: none; }
 .daily-note-band-side.is-am .daily-note-timeline-card { right: 0; }
 .daily-note-band-side.is-pm .daily-note-timeline-card { left: 0; }

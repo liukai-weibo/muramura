@@ -5,6 +5,8 @@ export interface EntryRecordModalProps {
   entryDate: string
   /** 点中的时段小时，0–23。 */
   hour: number
+  /** 点中的是当前这一小时时，用真实分钟预填（例如 7:43 而不是 7:00）。 */
+  initialMinute?: number
   onSubmit: (time: string, content: string) => Promise<boolean>
   onClose: () => void
 }
@@ -16,8 +18,8 @@ const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/
  * 时间轴点时段后的快速补记：时间取自点中的那个时段（不是「现在」），
  * 具体分钟可以改，回车即存，有内容时关掉先问一句免得白敲。
  */
-export function EntryRecordModal({ entryDate, hour, onSubmit, onClose }: EntryRecordModalProps) {
-  const initialTime = `${pad(hour)}:00`
+export function EntryRecordModal({ entryDate, hour, initialMinute, onSubmit, onClose }: EntryRecordModalProps) {
+  const initialTime = `${pad(hour)}:${pad(initialMinute ?? 0)}`
   const [time, setTime] = useState(initialTime)
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)

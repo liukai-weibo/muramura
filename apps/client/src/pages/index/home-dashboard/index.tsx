@@ -8,6 +8,7 @@ import { HomeSleepCard } from './home-sleep-card'
 import { HomeDailySummaryCard } from './home-daily-summary-card'
 import { HomeDailyDietCard } from './home-daily-diet-card'
 import { HomeAiCardView } from '../features/home-ai-card/home-ai-card-view'
+import { HOME_INSIGHT_CARDS_ENABLED } from './home-insight-feature'
 import './home-dashboard.scss'
 
 /** 今日推进卡暂时隐藏，恢复时开启此开关。 */
@@ -52,10 +53,10 @@ export function HomeDashboard({ items, onOpenItem, onOpenBacklog, onOpenCapture,
       <HomeMealCard onOpenMeals={onOpenMeals} />
       <HomeSleepCard />
     </View>
-    <View className='home-dynamic-row'>
+    {HOME_INSIGHT_CARDS_ENABLED && <View className='home-dynamic-row'>
       <HomeDailySummaryCard summary={dailySummary} loading={dailySummaryLoading} streamPreview={dailySummaryStreamPreview} onOpen={onOpenDailySummary} />
       <HomeDailyDietCard recommendation={dailyDiet} loading={dailyDietLoading} streamPreview={dailyDietStreamPreview} onOpen={onOpenDailyDiet} />
-    </View>
+    </View>}
     <View className='home-custom-ai-row'>
       {homeAiCards.filter(card => !card.isHidden).map(card => (
         <HomeAiCardView
