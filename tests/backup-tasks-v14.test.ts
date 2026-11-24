@@ -59,9 +59,9 @@ const documentWith = (version: number, tasks?: unknown[]) => ({
 })
 
 describe('backup V14 tasks', () => {
-  it('exports version 14 with tasks', async () => {
+  it('exports the current version with tasks', async () => {
     const backup = await buildService(stubTasks([task, completed]).store).createBackup()
-    expect(backup.version).toBe(14)
+    expect(backup.version).toBe(16)
     expect((backup as { data: { tasks: Task[] } }).data.tasks).toHaveLength(2)
   })
 
@@ -75,9 +75,9 @@ describe('backup V14 tasks', () => {
     expect(target.tasks.find(item => item.id === 'task-2')?.completedAt).toBe(completed.completedAt)
   })
 
-  it('upgrades a V13 backup to V14 with an empty task list', async () => {
+  it('upgrades a V13 backup to V15 with an empty task list', async () => {
     const parsed = buildService(stubTasks().store).parseAndValidate(JSON.stringify(documentWith(13)))
-    expect(parsed.version).toBe(14)
+    expect(parsed.version).toBe(16)
     expect((parsed as { data: { tasks: Task[] } }).data.tasks).toEqual([])
   })
 

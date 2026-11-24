@@ -8,7 +8,6 @@ type MealEntryRow = RowDataPacket & {
   entry_date: string
   meal_type: string
   content: string
-  feeling: number
   created_at: string | Date
   updated_at: string | Date
 }
@@ -21,12 +20,11 @@ const map = (row: MealEntryRow): MealEntry => ({
   entryDate: String(row.entry_date),
   mealType: row.meal_type as MealEntry['mealType'],
   content: row.content,
-  feeling: row.feeling,
   createdAt: iso(row.created_at),
   updatedAt: iso(row.updated_at),
 })
 
-const mealColumns = "id, DATE_FORMAT(entry_date, '%Y-%m-%d') AS entry_date, meal_type, content, feeling, created_at, updated_at"
+const mealColumns = "id, DATE_FORMAT(entry_date, '%Y-%m-%d') AS entry_date, meal_type, content, created_at, updated_at"
 
 export class MySqlMealEntryRepository implements MealEntryRepository, MealEntryBackupStore {
   constructor(private readonly pool: Pool, private readonly scope: CurrentUserScope) {}
@@ -70,13 +68,11 @@ export class MySqlMealEntryRepository implements MealEntryRepository, MealEntryB
       [this.scope.userId, input.entryDate, ...keptTypes] as string[],
     )
     for (const slot of input.meals) {
-      // 饱腹度已停止采集：更新既有记录时只改 content，保留历史 feeling。
-      // 新记录仍按传入值写入（前端回传原值或 0）。
       await connection.execute(
-        `INSERT INTO meal_entries(id, owner_user_id, entry_date, meal_type, content, feeling, created_at, updated_at)
-         VALUES(?,?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))
+        `INSERT INTO meal_entries(id, owner_user_id, entry_date, meal_type, content, created_at, updated_at)
+         VALUES(?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))
          ON DUPLICATE KEY UPDATE content=VALUES(content), updated_at=UTC_TIMESTAMP(3)`,
-        [crypto.randomUUID(), this.scope.userId, input.entryDate, slot.mealType, slot.content, slot.feeling],
+        [crypto.randomUUID(), this.scope.userId, input.entryDate, slot.mealType, slot.content],
       )
     }
   }
@@ -88,8 +84,8 @@ export class MySqlMealEntryRepository implements MealEntryRepository, MealEntryB
       await connection.execute('DELETE FROM meal_entries WHERE owner_user_id=?', [this.scope.userId])
       for (const value of values) {
         await connection.execute(
-          'INSERT INTO meal_entries(id, owner_user_id, entry_date, meal_type, content, feeling, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?)',
-          [value.id || crypto.randomUUID(), this.scope.userId, value.entryDate, value.mealType, value.content, value.feeling, sqlDate(value.createdAt), sqlDate(value.updatedAt)],
+          'INSERT INTO meal_entries(id, owner_user_id, entry_date, meal_type, content, created_at, updated_at) VALUES(?,?,?,?,?,?,?)',
+          [value.id || crypto.randomUUID(), this.scope.userId, value.entryDate, value.mealType, value.content, sqlDate(value.createdAt), sqlDate(value.updatedAt)],
         )
       }
     })

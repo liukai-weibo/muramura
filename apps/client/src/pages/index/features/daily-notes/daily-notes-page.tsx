@@ -116,6 +116,8 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
       void refreshList()
         .then(() => reloadNote(id))
         .catch(() => undefined)
+      // 其它窗口/首页快速记录可能刚补了睡眠记录，顺手刷新阴影。
+      void sleep.refresh()
     }
     return subscribeDailyNoteChanged(syncExternalChange, DAILY_NOTE_PAGE_ORIGIN)
   }, [refreshList, reloadNote])
@@ -328,7 +330,12 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
           sleepWindows={sleepWindows}
           selectedEntryId={activeEntryId}
           onSelect={setActiveEntryId}
-          onAdd={(time, content) => createEntryAt(noteDate, time, content)}
+          onAdd={async (time, content) => {
+            const ok = await createEntryAt(noteDate, time, content)
+            // 手记里的「起床/睡觉」会写进睡眠记录，阴影要跟着变。
+            if (ok) void sleep.refresh()
+            return ok
+          }}
           onMove={(entryId, time) => moveEntry(entryId, noteDate, time)}
           onDelete={entryId => {
             const row = rows.find(item => item.entryId === entryId)

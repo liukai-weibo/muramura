@@ -11,6 +11,8 @@ export interface Task {
   id: string
   title: string
   status: TaskStatus
+  /** 承接自哪一个已完成任务；仅「完成并派生下一步」创建的任务有值。 */
+  parentTaskId?: string
   /** 仅 completed 有值。 */
   completedAt?: string
   createdAt: string
@@ -20,6 +22,7 @@ export interface Task {
 export interface TaskCreateInput {
   title: string
   bucket: TaskVisibleStatus
+  parentTaskId?: string
 }
 
 export interface TaskRepository {

@@ -1,11 +1,11 @@
 {
-    "version":  "0.3.17",
-    "notes":  "首页两张 AI 分析卡暂时下线；时间轴当前时刻改为随实时移动的虚线；点当前小时补记默认用真实分钟；空态提示不再压刻度。",
+    "version":  "0.4.0",
+    "notes":  "三餐饱腹度彻底删除；手记关键词自动同步三餐与睡眠；完成任务后可派生下一步。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2U2Nm94c1JDbnEzRW4yVnZDNDI4dGJqUklVSGZPN2Q1VTh2anIvcGJ4MlkvRkZHdFR6TXp3NFdMVHJBa1FqSTJZK24wUGszaXBZVHRNUmpkVitUNlEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MDU4NzcwCWZpbGU6TXVyYW11cmFfMC4zLjE3X3g2NC1zZXR1cC5leGUKVUR1QW1FaEtnWHMvdWxaV2JlaVl5NHBZVnFsTlVUSisxcDIzdnhTb1JRKzV1aENKblUyQXlNcFZXamdyMDdlL0FwS2JvUW5TSzhIc2had0lLOTFKQlE9PQo=",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.3.17/Muramura_0.3.17_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2VVWnlISTc2dGI1dVcvMUxDR2RxMldkT0g2LzJWRUdhZ0l1b0k2T2dqRzE5Q2NrL1RsUWVKRitUSWZkMGEzbEdTSFkxRkJGNFpmckFac04yUGZ2dGc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTI3MzMxCWZpbGU6TXVyYW11cmFfMC40LjBfeDY0LXNldHVwLmV4ZQpiaVZEeVVhcUY3eXdiQnJjQkRYVm1mRGJVSDhNNG1aTllXZWYwRmRnWFdqOWM0SGIxb05xSmVCdXNnWXEzcWdqclk0SGNvbGN4V2srYnYrd2Rmb0xDZz09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.4.0/Muramura_0.4.0_x64-setup.exe"
                                          }
                   }
 }

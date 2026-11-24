@@ -13,9 +13,13 @@ class StubTaskRepository implements TaskRepository {
     return [...this.tasks.values()].filter(task => task.status === 'completed')
   }
   async get(id: string): Promise<Task | undefined> { return this.tasks.get(id) }
-  async create(input: { title: string; bucket: 'active' | 'pool' }): Promise<Task> {
+  async create(input: { title: string; bucket: 'active' | 'pool'; parentTaskId?: string }): Promise<Task> {
     const now = new Date().toISOString()
-    const task: Task = { id: `task-${++this.sequence}`, title: input.title, status: input.bucket, createdAt: now, updatedAt: now }
+    const task: Task = {
+      id: `task-${++this.sequence}`, title: input.title, status: input.bucket,
+      ...(input.parentTaskId ? { parentTaskId: input.parentTaskId } : {}),
+      createdAt: now, updatedAt: now,
+    }
     this.tasks.set(task.id, task)
     return task
   }
@@ -48,6 +52,24 @@ describe('task application', () => {
     const { service } = await create()
     await expect(service.create({ title: '   ', bucket: 'active' })).rejects.toMatchObject({ code: 'TASK_INVALID' })
     await expect(service.create({ title: 'x'.repeat(121), bucket: 'active' })).rejects.toMatchObject({ code: 'TASK_INVALID' })
+  })
+
+  it('derives a next task from a completed task', async () => {
+    const { service } = await create()
+    const parent = await service.create({ title: '完成流水线切换', bucket: 'active' })
+    await service.complete(parent.id)
+    const next = await service.create({ title: 'agent 任务冒烟测试', bucket: 'pool', parentTaskId: parent.id })
+    expect(next.parentTaskId).toBe(parent.id)
+    expect(next.status).toBe('pool')
+  })
+
+  it('rejects a parent that is missing or still unfinished', async () => {
+    const { service } = await create()
+    await expect(service.create({ title: '下一步', bucket: 'active', parentTaskId: 'missing' }))
+      .rejects.toMatchObject({ code: 'TASK_INVALID' })
+    const active = await service.create({ title: '还没做完', bucket: 'active' })
+    await expect(service.create({ title: '下一步', bucket: 'active', parentTaskId: active.id }))
+      .rejects.toMatchObject({ code: 'TASK_INVALID' })
   })
 
   it('claims a pool task into today', async () => {

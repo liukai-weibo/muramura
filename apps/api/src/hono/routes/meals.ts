@@ -1,5 +1,4 @@
 import { z, createRoute } from '@hono/zod-openapi'
-import { MEAL_SATIETY_VALUES } from '@knowledge-base/contracts'
 import { requireJson } from '../http'
 import { requireServices } from '../auth-middleware'
 import { ApiError } from '../errors'
@@ -10,7 +9,6 @@ const mealEntrySchema = z.object({
   entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   mealType: z.enum(['breakfast', 'lunch', 'dinner']),
   content: z.string(),
-  feeling: z.number().int().refine(value => MEAL_SATIETY_VALUES.has(value), { message: '饱腹度须为 0、5、7 或 9' }),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -18,7 +16,6 @@ const mealEntrySchema = z.object({
 const mealSlotInputSchema = z.object({
   mealType: z.enum(['breakfast', 'lunch', 'dinner']),
   content: z.string().max(1000),
-  feeling: z.number().int().refine(value => MEAL_SATIETY_VALUES.has(value), { message: '饱腹度须为 0、5、7 或 9' }),
 })
 
 const mealDayInputSchema = z.object({

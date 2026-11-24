@@ -139,7 +139,7 @@ export function createDailyNoteRoutes() {
       const noteClock = (iso: string | undefined) => { const at = formatInTimeZone(iso, typeof body?.timeZone === 'string' ? body.timeZone : undefined); return at ? ` ${at}` : '' }
       const dayFacts = [
         command === 'daily_actions' ? `服务端筛选的当天事项事实：\n${JSON.stringify(facts)}` : '',
-        mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, feeling: e.feeling, at: noteClock(e.createdAt) })))}` : '',
+        mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, at: noteClock(e.createdAt) })))}` : '',
       ].filter(Boolean).join('\n\n')
       const userContent = [
         `这是 ${note.entryDate} 的个人小记专属请求：${aiCommands[command]}`,,
@@ -199,7 +199,7 @@ export function createDailyNoteRoutes() {
       const noteClock = (iso: string | undefined) => { const at = formatInTimeZone(iso, typeof body?.timeZone === 'string' ? body.timeZone : undefined); return at ? ` ${at}` : '' }
       const dayFacts = [
         `鏈嶅姟绔寜涓婃捣鏃ユ湡绛涢€夌殑浠婃棩琛屽姩浜嬪疄锛歕n${JSON.stringify(facts)}`,
-        mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, feeling: e.feeling, at: noteClock(e.createdAt) })))}` : '',
+        mealFacts.length ? `当天三餐：\n${JSON.stringify(mealFacts.map(e => ({ mealType: e.mealType, content: e.content, at: noteClock(e.createdAt) })))}` : '',
       ].filter(Boolean).join('\n\n')
       const userContent = [
         `褰撳墠鏄 ${note.entryDate} 鐨勬墜璁伴噸鏂板鐩樿姹傦細${message.trim()}`,

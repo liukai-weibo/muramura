@@ -105,3 +105,25 @@
 @media (prefers-reduced-motion: reduce) {
   .tasks-pool-drawer, .tasks-pool-toggle { transition: none; }
 }
+
+/* 「完成并派生下一步」：入口沿用行内小按钮，弹层复用已完成面板的遮罩。 */
+.tasks-row-next { flex: 0 0 auto; padding: 4px 8px; border: 1px solid var(--cream-line); border-radius: 9999px; background: var(--cream-surface); color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; white-space: nowrap; opacity: 0; transition: opacity .15s ease, border-color .15s ease, color .15s ease; }
+.tasks-row:hover .tasks-row-next, .tasks-row:focus-within .tasks-row-next, .tasks-row.is-done .tasks-row-next { opacity: 1; }
+.tasks-row-next:hover { border-color: #d9a0a8; color: #ad5965; }
+.tasks-row-next:disabled { cursor: default; opacity: .4; }
+.tasks-row-origin { margin-left: 8px; color: var(--cream-hint); font-size: 11px; font-weight: 500; text-decoration: none; }
+.tasks-derive-panel { display: flex; width: min(100%, 420px); flex-direction: column; gap: 10px; padding: 22px; border: 1px solid var(--cream-line); border-radius: 22px; background: var(--cream-surface); box-shadow: 0 18px 48px rgba(60, 50, 40, .18); }
+.tasks-derive-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.tasks-derive-heading h2 { margin: 2px 0 0; color: var(--cream-ink); font-size: 15px; font-weight: 800; line-height: 1.45; }
+.tasks-derive-label { color: var(--cream-hint); font-size: 12px; }
+.tasks-derive-input { width: 100%; box-sizing: border-box; }
+.tasks-derive-buckets { display: flex; gap: 8px; }
+.tasks-derive-bucket { padding: 5px 12px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 12px; }
+.tasks-derive-bucket.is-selected { border-color: #d9a0a8; background: rgba(217, 132, 149, .12); color: #ad5965; }
+.tasks-derive-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.tasks-derive-cancel, .tasks-derive-submit { padding: 7px 16px; border-radius: 9999px; cursor: pointer; font-family: inherit; font-size: 12px; }
+.tasks-derive-cancel { border: 1px solid var(--cream-line); background: transparent; color: var(--cream-body); }
+.tasks-derive-submit { border: 1px solid #c9838f; background: #c9838f; color: #fffdfa; }
+.tasks-derive-submit:disabled, .tasks-derive-cancel:disabled { cursor: default; opacity: .5; }
+.app-shell[data-color-theme='dark'] .tasks-derive-panel { background: #2f2b26; }
+.app-shell[data-color-theme='dark'] .tasks-row-next { background: transparent; }

@@ -13,15 +13,12 @@ interface MealDayModalProps {
 
 interface SlotDraft {
   content: string
-  // 饱腹度已停止采集：该字段仅用于回传当天已有原值，不在界面展示，
-  // 避免保存内容时把历史值静默改写。
-  feeling: number
 }
 
 const emptySlots = (): Record<MealType, SlotDraft> => ({
-  breakfast: { content: '', feeling: 0 },
-  lunch: { content: '', feeling: 0 },
-  dinner: { content: '', feeling: 0 },
+  breakfast: { content: '' },
+  lunch: { content: '' },
+  dinner: { content: '' },
 })
 
 export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProps) {
@@ -38,7 +35,7 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
       if (!active) return
       const next = emptySlots()
       for (const entry of entries) {
-        next[entry.mealType] = { content: entry.content, feeling: entry.feeling }
+        next[entry.mealType] = { content: entry.content }
       }
       setSlots(next)
       setLoading(false)
@@ -56,7 +53,7 @@ export function MealDayModal({ initialDate, onClose, onSaved }: MealDayModalProp
 
   const handleSubmit = async () => {
     const meals: MealDayInput['meals'] = mealTypeOrder
-      .map(mealType => ({ mealType, content: slots[mealType].content.trim(), feeling: slots[mealType].feeling }))
+      .map(mealType => ({ mealType, content: slots[mealType].content.trim() }))
       .filter(slot => slot.content.length > 0)
     setBusy(true); setError(''); setUnknownOutcome(false)
     try {

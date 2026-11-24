@@ -6,13 +6,14 @@ import { runInMySqlTransaction } from './index'
 type TaskRow = RowDataPacket & {
   id: string
   title: string
+  parent_task_id: string | null
   status: string
   completed_at: string | Date | null
   created_at: string | Date
   updated_at: string | Date
 }
 
-const TASK_COLUMNS = 'id, title, status, completed_at, created_at, updated_at'
+const TASK_COLUMNS = 'id, title, parent_task_id, status, completed_at, created_at, updated_at'
 
 const iso = (value: string | Date): string => {
   if (value instanceof Date) return value.toISOString()
@@ -24,6 +25,7 @@ const sqlDate = (value: string): string => value.replace('T', ' ').replace('Z', 
 const mapTask = (row: TaskRow): Task => ({
   id: row.id,
   title: row.title,
+  ...(row.parent_task_id ? { parentTaskId: row.parent_task_id } : {}),
   status: row.status as TaskStatus,
   ...(row.completed_at ? { completedAt: iso(row.completed_at) } : {}),
   createdAt: iso(row.created_at),
@@ -61,10 +63,10 @@ export class MySqlTaskRepository implements TaskRepository, TaskBackupStore {
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
     await this.pool.execute(
-      'INSERT INTO tasks (id, owner_user_id, title, status, completed_at, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, ?, ?)',
-      [id, this.scope.userId, input.title, input.bucket, sqlDate(now), sqlDate(now)],
+      'INSERT INTO tasks (id, owner_user_id, title, parent_task_id, status, completed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)',
+      [id, this.scope.userId, input.title, input.parentTaskId ?? null, input.bucket, sqlDate(now), sqlDate(now)],
     )
-    return { id, title: input.title, status: input.bucket, createdAt: now, updatedAt: now }
+    return { id, title: input.title, ...(input.parentTaskId ? { parentTaskId: input.parentTaskId } : {}), status: input.bucket, createdAt: now, updatedAt: now }
   }
 
   async updateStatus(id: string, status: TaskStatus, completedAt?: string): Promise<Task | undefined> {
@@ -95,11 +97,12 @@ export class MySqlTaskRepository implements TaskRepository, TaskBackupStore {
       await connection.execute('DELETE FROM tasks WHERE owner_user_id = ?', [this.scope.userId])
       for (const task of tasks) {
         await connection.execute(
-          'INSERT INTO tasks (id, owner_user_id, title, status, completed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO tasks (id, owner_user_id, title, parent_task_id, status, completed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           [
             task.id,
             this.scope.userId,
             task.title,
+            task.parentTaskId ?? null,
             task.status,
             task.status === 'completed' ? sqlDate(task.completedAt ?? task.updatedAt) : null,
             sqlDate(task.createdAt),

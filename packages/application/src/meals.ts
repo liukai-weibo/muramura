@@ -1,5 +1,4 @@
 import type { ActivityAuditRecorder, MealDayInput, MealEntry, MealEntryRepository, MealType } from '@knowledge-base/contracts'
-import { MEAL_SATIETY_VALUES } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { safeAuditRecord } from './audit'
 import { utcDatePlusDays } from './date-utils'
@@ -43,15 +42,13 @@ export class MealEntryApplicationService {
       seen.add(slot.mealType)
       const content = typeof slot.content === 'string' ? slot.content.trim() : ''
       if (content.length > MAX_CONTENT) throw invalid('单餐内容超出长度限制')
-      const feeling = slot.feeling
-      if (typeof feeling !== 'number' || !Number.isFinite(feeling) || !MEAL_SATIETY_VALUES.has(feeling)) throw invalid('饱腹度须为 0、5、7 或 9（0=未填写）')
-      return { mealType: slot.mealType as MealType, content, feeling }
+      return { mealType: slot.mealType as MealType, content }
     })
     const saved = await this.repository.saveDay({ entryDate, meals })
     await safeAuditRecord(this.auditRecorder, {
       module: 'meal',
       action: 'update',
-      snapshot: JSON.stringify({ entryDate, meals: saved.map((meal) => ({ mealType: meal.mealType, content: meal.content, feeling: meal.feeling })) }),
+      snapshot: JSON.stringify({ entryDate, meals: saved.map((meal) => ({ mealType: meal.mealType, content: meal.content })) }),
     })
     return saved
   }

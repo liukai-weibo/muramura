@@ -3,6 +3,7 @@ import type { DragEvent as ReactDragEvent } from 'react'
 import type { Task, TaskStatus } from '@knowledge-base/contracts'
 import { useTasks } from './use-tasks'
 import { TaskInlineCreate } from './task-inline-create'
+import { TaskDeriveSheet } from './task-derive-sheet'
 import { taskTintClass } from './task-colors'
 import './tasks-page.scss'
 
@@ -20,6 +21,7 @@ interface DraggingTask {
 export function TasksPage() {
   const tasks = useTasks()
   const [completedOpen, setCompletedOpen] = useState(false)
+  const [deriving, setDeriving] = useState<Task>()
   const [poolPinned, setPoolPinned] = useState(false)
   const [dragging, setDragging] = useState<DraggingTask>()
   const dragRef = useRef<DraggingTask>()
@@ -31,6 +33,19 @@ export function TasksPage() {
   const finish = (id: string) => {
     if (tasks.busyId) return
     void tasks.complete(id)
+  }
+
+  /** 承接关系只显示一层：父任务标题从已完成列表里查，查不到就退回「上一步」。 */
+  const originOf = (task: Task): string | undefined => {
+    if (!task.parentTaskId) return undefined
+    const parent = tasks.completed.find(item => item.id === task.parentTaskId)
+    return parent ? parent.title : '上一步'
+  }
+
+  const deriveNext = async (title: string, bucket: 'active' | 'pool') => {
+    if (!deriving) return false
+    const ok = await tasks.create(title, bucket, deriving.id)
+    return ok
   }
 
   const startDrag = (event: ReactDragEvent<HTMLDivElement>, task: Task) => {
@@ -86,7 +101,8 @@ export function TasksPage() {
           {tasks.completed.map((task: Task) => <div key={task.id} className={`tasks-completed-row ${taskTintClass(task.id)}`}>
             <button type='button' role='checkbox' aria-checked={true} aria-label={`取消完成：${task.title}`}
               className='tasks-check is-checked' disabled={Boolean(tasks.busyId)} onClick={() => void tasks.restore(task.id)}><span /></button>
-            <span className='tasks-completed-title'>{task.title}</span>
+            <span className='tasks-completed-title'>{task.title}{originOf(task) && <span className='tasks-row-origin'>承接：{originOf(task)}</span>}</span>
+            <button type='button' className='tasks-row-next' disabled={Boolean(tasks.busyId)} onClick={() => setDeriving(task)}>＋ 下一步</button>
             <span className='tasks-completed-time'>{formatCompletedAt(task.completedAt)}</span>
           </div>)}
         </div>}
@@ -122,6 +138,7 @@ export function TasksPage() {
                 <button type='button' role='checkbox' aria-checked={true} aria-label={`取消完成：${item.task.title}`}
                   className='tasks-check is-checked' disabled={Boolean(tasks.busyId)} onClick={() => void tasks.restore(item.task.id)}><span /></button>
                 <span className='tasks-row-title'>{item.task.title}</span>
+                <button type='button' className='tasks-row-next' disabled={Boolean(tasks.busyId)} onClick={() => setDeriving(item.task)}>＋ 下一步</button>
               </div>)}
               {tasks.active.map(task => <div
                 key={task.id}
@@ -139,7 +156,7 @@ export function TasksPage() {
                   disabled={tasks.busyId === task.id}
                   onClick={() => finish(task.id)}
                 ><span /></button>
-                <span className='tasks-row-title'>{task.title}</span>
+                <span className='tasks-row-title'>{task.title}{originOf(task) && <span className='tasks-row-origin'>承接：{originOf(task)}</span>}</span>
                 <button
                   type='button'
                   className='tasks-row-action'
@@ -214,5 +231,11 @@ export function TasksPage() {
     {tasks.error && <p className='tasks-error' role='status'>{tasks.error}</p>}
     {completedEntry}
     {completedPanel}
+    {deriving && <TaskDeriveSheet
+      parent={deriving}
+      busy={Boolean(tasks.busyId)}
+      onClose={() => setDeriving(undefined)}
+      onCreate={deriveNext}
+    />}
   </div>
 }

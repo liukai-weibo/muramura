@@ -43,11 +43,11 @@ export function useTasks() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const create = useCallback(async (title: string, bucket: TaskVisibleStatus) => {
+  const create = useCallback(async (title: string, bucket: TaskVisibleStatus, parentTaskId?: string) => {
     setCreating(true)
     setError('')
     try {
-      const task = await apiClient.createTask({ title: title.trim(), bucket })
+      const task = await apiClient.createTask({ title: title.trim(), bucket, ...(parentTaskId ? { parentTaskId } : {}) })
       setTasks(list => [...list, task])
       return true
     } catch (cause) {

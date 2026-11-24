@@ -18,6 +18,8 @@ import {
   DietProfileApplicationService,
   DailyNoteApplicationService,
   MealEntryApplicationService,
+  MealNoteSyncService,
+  SleepNoteSyncService,
   SleepApplicationService,
   TaskApplicationService,
   MoodEntryApplicationService,
@@ -97,10 +99,19 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
   const aiConversationRepository = userId ? new MySqlAiConversationRepository(pool, { userId }) : undefined
   const aiPreferenceRepository = userId ? new MySqlAiPreferenceRepository(pool, { userId }) : undefined
   const dailyNoteRepository = userId ? new MySqlDailyNoteRepository(pool, { userId }) : undefined
-  const dailyNoteService = dailyNoteRepository ? new DailyNoteApplicationService(dailyNoteRepository, auditRecorder) : undefined
   const moodEntryRepository = userId ? new MySqlMoodEntryRepository(pool, { userId }) : undefined
   const mealEntryRepository = userId ? new MySqlMealEntryRepository(pool, { userId }) : undefined
+  const mealEntryService = mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository, auditRecorder) : undefined
   const sleepRepository = userId ? new MySqlSleepRepository(pool, { userId }) : undefined
+  const sleepService = sleepRepository ? new SleepApplicationService(sleepRepository, auditRecorder) : undefined
+  const dailyNoteService = dailyNoteRepository
+    ? new DailyNoteApplicationService(
+      dailyNoteRepository,
+      auditRecorder,
+      mealEntryService ? new MealNoteSyncService(mealEntryService) : undefined,
+      sleepService ? new SleepNoteSyncService(sleepService) : undefined,
+    )
+    : undefined
   const taskRepository = userId ? new MySqlTaskRepository(pool, { userId }) : undefined
   const dailySummaryRepository = userId ? new MySqlDailySummaryRepository(pool, { userId }) : undefined
   const dailyDietRepository = userId ? new MySqlDailyDietRecommendationRepository(pool, { userId }) : undefined
@@ -135,7 +146,7 @@ export function createScopedHonoServices(pool: Pool, userId?: string, aiConfig?:
     backup: new BackupApplicationService(new MySqlBackupRepository(pool, undefined, scope), aiConversationRepository, aiPreferenceRepository, dailyNoteRepository, moodEntryRepository, mealEntryRepository, dailySummaryRepository, dailyDietRepository, homeAiCardRepository, sleepRepository, taskRepository),
     dailyNotes: dailyNoteService,
     moodEntries: moodEntryRepository ? new MoodEntryApplicationService(moodEntryRepository, auditRecorder, dailyNoteService) : undefined,
-    meals: mealEntryRepository ? new MealEntryApplicationService(mealEntryRepository, auditRecorder) : undefined,
+    meals: mealEntryService,
     sleep: sleepRepository ? new SleepApplicationService(sleepRepository, auditRecorder) : undefined,
     tasks: taskRepository ? new TaskApplicationService(taskRepository, auditRecorder) : undefined,
     dailySummaries: dailySummaryRepository ? new DailySummaryApplicationService(dailySummaryRepository) : undefined,

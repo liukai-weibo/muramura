@@ -7,8 +7,21 @@ const maxContentLength = 100_000
 const entryTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/
 const dailyNoteDatePattern = /^\d{4}-\d{2}-\d{2}$/
 
+export interface SleepNoteSyncPort {
+  syncFromNote(content: string, recordedAt: string): Promise<void>
+}
+
+export interface MealNoteSyncPort {
+  syncFromNote(entryDate: string, content: string): Promise<void>
+}
+
 export class DailyNoteApplicationService {
-  constructor(private readonly repository: DailyNoteRepository, private readonly auditRecorder?: ActivityAuditRecorder) {}
+  constructor(
+    private readonly repository: DailyNoteRepository,
+    private readonly auditRecorder?: ActivityAuditRecorder,
+    private readonly mealSync?: MealNoteSyncPort,
+    private readonly sleepSync?: SleepNoteSyncPort,
+  ) {}
 
   async getOrCreateToday(): Promise<DailyNote> {
     const existing = await this.repository.getToday()
@@ -60,6 +73,9 @@ export class DailyNoteApplicationService {
     }
     const updated = await this.repository.appendToday(normalized)
     await safeAuditRecord(this.auditRecorder, { module: 'daily_note', action: 'update', entityId: updated.id, snapshot: updated.content })
+    // 首页 / 手机端的「快速记录」也走这里，三餐关键词同样要同步。
+    await this.syncMeals(updated.entryDate, normalized)
+    await this.syncSleep(normalized, new Date().toISOString())
     return updated
   }
 
@@ -82,6 +98,8 @@ export class DailyNoteApplicationService {
     const created = await this.repository.createEntry(id, { content: normalized, ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }) })
     if (!created) throw new BusinessError('DAILY_NOTE_NOT_FOUND', 'not-found', '手记不存在')
     await safeAuditRecord(this.auditRecorder, { module: 'daily_note', action: 'update', entityId: id, snapshot: JSON.stringify({ entryAdded: created.id, recordedAt: created.recordedAt, content: created.content }) })
+    await this.syncMeals(note.entryDate, created.content)
+    await this.syncSleep(created.content, created.recordedAt)
     return created
   }
 
@@ -100,6 +118,8 @@ export class DailyNoteApplicationService {
     const updated = await this.repository.updateEntry(id, entryId, { content: normalized, ...(input.recordedAt === undefined ? {} : { recordedAt: input.recordedAt }) })
     if (!updated) throw new BusinessError('DAILY_NOTE_ENTRY_NOT_FOUND', 'not-found', '记录不存在')
     await safeAuditRecord(this.auditRecorder, { module: 'daily_note', action: 'update', entityId: id, snapshot: JSON.stringify({ entryUpdated: updated.id, recordedAt: updated.recordedAt, content: updated.content }) })
+    await this.syncMeals(note.entryDate, updated.content)
+    await this.syncSleep(updated.content, updated.recordedAt)
     return updated
   }
 
@@ -114,6 +134,26 @@ export class DailyNoteApplicationService {
     if (!note) throw new BusinessError('DAILY_NOTE_NOT_FOUND', 'not-found', '手记不存在')
     await this.repository.clearEntries(id)
     await safeAuditRecord(this.auditRecorder, { module: 'daily_note', action: 'update', entityId: id, snapshot: JSON.stringify({ cleared: true }) })
+  }
+
+  /** 手记内容里出现「起床/睡觉」时补睡眠记录；失败不影响手记本身。 */
+  private async syncSleep(content: string, recordedAt: string): Promise<void> {
+    if (!this.sleepSync) return
+    try {
+      await this.sleepSync.syncFromNote(content, recordedAt)
+    } catch {
+      // 睡眠同步同样只是附带动作。
+    }
+  }
+
+  /** 手记内容里出现三餐关键词时同步到当天三餐；失败不影响手记本身。 */
+  private async syncMeals(entryDate: string, content: string): Promise<void> {
+    if (!this.mealSync) return
+    try {
+      await this.mealSync.syncFromNote(entryDate, content)
+    } catch {
+      // 同步是附带动作，失败不回滚手记写入。
+    }
   }
 
   /** 入参时间必须是 `'HH:MM'` 或不早于 2000 年、可解析的完整 ISO。 */

@@ -90,7 +90,7 @@ export class AiKnowledgeOverviewApplicationService implements AiKnowledgeOvervie
       reviews: recentReviews.map(({ id, itemId, result, createdAt }) => ({ id, itemId, result, createdAt })),
       methods: snapshot.methods.map(({ id, title, steps, version, validationCount, createdAt, updatedAt }) => ({ id, title, steps, version, validationCount, createdAt, updatedAt })),
       moodEntries: [],
-      mealEntries: mealEntries.map(({ entryDate, mealType, content, feeling, createdAt }) => ({ entryDate, mealType, content, feeling, createdAt })),
+      mealEntries: mealEntries.map(({ entryDate, mealType, content, createdAt }) => ({ entryDate, mealType, content, createdAt })),
       trash: [
         ...deletedItems.map(({ title, deletedAt }) => ({ type: 'item' as const, title, deletedAt: deletedAt! })),
         ...deletedMethods.map(({ title, deletedAt }) => ({ type: 'method' as const, title, deletedAt: deletedAt! })),

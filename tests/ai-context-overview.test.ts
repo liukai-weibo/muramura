@@ -22,7 +22,7 @@ function explorationsStub() {
   }
 }
 
-function mealStub(rows: Array<{ entryDate: string; mealType: string; content: string; feeling: number }>) {
+function mealStub(rows: Array<{ entryDate: string; mealType: string; content: string }>) {
   return { async listRange() { return rows } }
 }
 
@@ -30,12 +30,12 @@ describe('ai knowledge overview includes meal/daily summaries but excludes mood'
   it('reads all-dates meal summaries and never exposes mood entries', async () => {
     const service = new AiKnowledgeOverviewApplicationService(
       dashboardStub() as any, explorationsStub() as any, undefined, undefined,
-      mealStub([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7 }]) as any,
+      mealStub([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面' }]) as any,
     )
     const overview = await service.read(user)
     // 状态信息已停止采集：overview 恒定不含 mood 条目。
     expect(overview.moodEntries).toEqual([])
-    expect(overview.mealEntries).toMatchObject([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7 }])
+    expect(overview.mealEntries).toMatchObject([{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面' }])
   })
 
   it('drops meal sections when repositories are absent', async () => {
@@ -70,7 +70,7 @@ describe('ai knowledge overview includes meal/daily summaries but excludes mood'
       itemStatusCounts: {},
       items: [], explorations: [], reviews: [], methods: [],
       moodEntries: [{ entryDate: '2026-08-24', moodLevel: 4, content: '今天心情不错', createdAt: '2026-08-24T05:10:00.000Z' }],
-      mealEntries: [{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', feeling: 7, createdAt: '2026-08-23T04:05:00.000Z' }],
+      mealEntries: [{ entryDate: '2026-08-23', mealType: 'lunch', content: '牛肉面', createdAt: '2026-08-23T04:05:00.000Z' }],
       dashboard: { metrics: { newItems: 0, startedExecutions: 0, completedReviews: 0, newMethods: 0, methodValidations: 0, methodRevisions: 0, methodApplications: 0 }, backlog: { ideaToTry: 0, doing: 0, waitingReview: 0, paused: 0, ideaLater: 0 }, unreviewedMethodActions: 0, facts: [] },
     } as AiKnowledgeOverview
     const context = formatKnowledgeContext(overview, '', undefined, [], 24000, [], 'UTC')

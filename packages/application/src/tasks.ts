@@ -28,7 +28,7 @@ async function audit(recorder: ActivityAuditRecorder | undefined, action: 'creat
   await safeAuditRecord(recorder, {
     module: 'task',
     action,
-    snapshot: JSON.stringify({ title: task.title, status: task.status, ...(task.completedAt ? { completedAt: task.completedAt } : {}) }),
+    snapshot: JSON.stringify({ title: task.title, status: task.status, ...(task.parentTaskId ? { parentTaskId: task.parentTaskId } : {}), ...(task.completedAt ? { completedAt: task.completedAt } : {}) }),
   })
 }
 
@@ -45,9 +45,19 @@ export class TaskApplicationService {
     return this.repository.list()
   }
 
-  async create(input: { title?: unknown; bucket?: unknown }): Promise<Task> {
+  async create(input: { title?: unknown; bucket?: unknown; parentTaskId?: unknown }): Promise<Task> {
     const bucket: TaskVisibleStatus = isVisibleTaskStatus(input.bucket) ? input.bucket : 'active'
-    const task = await this.repository.create({ title: requireTitle(input.title), bucket } satisfies TaskCreateInput)
+    const parentTaskId = typeof input.parentTaskId === 'string' && input.parentTaskId.trim() ? input.parentTaskId.trim() : undefined
+    if (parentTaskId) {
+      const parent = await this.repository.get(parentTaskId)
+      if (!parent) throw invalid('承接的任务不存在')
+      if (parent.status !== 'completed') throw invalid('只能承接已完成的任务')
+    }
+    const task = await this.repository.create({
+      title: requireTitle(input.title),
+      bucket,
+      ...(parentTaskId ? { parentTaskId } : {}),
+    } satisfies TaskCreateInput)
     await audit(this.auditRecorder, 'create', task)
     return task
   }

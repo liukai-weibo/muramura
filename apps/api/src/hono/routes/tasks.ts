@@ -9,6 +9,7 @@ const taskSchema = z.object({
   id: z.string(),
   title: z.string(),
   status: z.enum(['active', 'pool', 'completed']),
+  parentTaskId: z.string().optional(),
   completedAt: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -17,6 +18,7 @@ const taskSchema = z.object({
 const taskCreateSchema = z.object({
   title: z.string().min(1).max(120),
   bucket: z.enum(TASK_VISIBLE_STATUSES).optional(),
+  parentTaskId: z.string().min(1).optional(),
 })
 
 const taskParamsSchema = z.object({ id: z.string().min(1) })
