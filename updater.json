@@ -1,11 +1,11 @@
 {
-    "version":  "0.4.0",
-    "notes":  "三餐饱腹度彻底删除；手记关键词自动同步三餐与睡眠；完成任务后可派生下一步。",
+    "version":  "0.5.0",
+    "notes":  "任务四象限与弹窗详情；手记工具栏收敛；保存链路补强。",
     "pub_date":  "2026-11-16T02:37:31.693Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2VVWnlISTc2dGI1dVcvMUxDR2RxMldkT0g2LzJWRUdhZ0l1b0k2T2dqRzE5Q2NrL1RsUWVKRitUSWZkMGEzbEdTSFkxRkJGNFpmckFac04yUGZ2dGc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTI3MzMxCWZpbGU6TXVyYW11cmFfMC40LjBfeDY0LXNldHVwLmV4ZQpiaVZEeVVhcUY3eXdiQnJjQkRYVm1mRGJVSDhNNG1aTllXZWYwRmRnWFdqOWM0SGIxb05xSmVCdXNnWXEzcWdqclk0SGNvbGN4V2srYnYrd2Rmb0xDZz09Cg==",
-                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.4.0/Muramura_0.4.0_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSOC9YNWtWNlM0U2VFRVhaMXdUbklVQm94V3FveHFLYzdFbklTM1NaL3h4VlVJWGNyOWdPSW92TTRwRC95bXlEVHN3RGVZZ0NqZnlqS05zY2czNjMzT1RYZ1dJM0tsbGc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NzgyNzcxCWZpbGU6TXVyYW11cmFfMC41LjBfeDY0LXNldHVwLmV4ZQorMDVmMXUwT1FVd2l2NGxGZkJQeUQycTFka1RCYWZSSzBoTG5xZ3ZRTUY2cStyV0tBYjRLTUNNdlRJbkkyL0dGcHArSlRiVm44L3VkOWxXaU53SzNEUT09Cg==",
+                                             "url":  "https://gh-proxy.com/https://github.com/liukai-weibo/muramura/releases/download/v0.5.0/Muramura_0.5.0_x64-setup.exe"
                                          }
                   }
 }

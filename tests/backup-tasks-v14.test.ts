@@ -18,6 +18,8 @@ const task: Task = {
   id: 'task-1',
   title: '写周报',
   status: 'active',
+  isUrgent: false,
+  isImportant: true,
   createdAt: '2026-11-11T08:00:00.000Z',
   updatedAt: '2026-11-11T08:00:00.000Z',
 }
@@ -26,6 +28,8 @@ const completed: Task = {
   id: 'task-2',
   title: '整理照片',
   status: 'completed',
+  isUrgent: false,
+  isImportant: true,
   completedAt: '2026-11-11T09:00:00.000Z',
   createdAt: '2026-11-11T08:00:00.000Z',
   updatedAt: '2026-11-11T09:00:00.000Z',
@@ -61,7 +65,7 @@ const documentWith = (version: number, tasks?: unknown[]) => ({
 describe('backup V14 tasks', () => {
   it('exports the current version with tasks', async () => {
     const backup = await buildService(stubTasks([task, completed]).store).createBackup()
-    expect(backup.version).toBe(16)
+    expect(backup.version).toBe(17)
     expect((backup as { data: { tasks: Task[] } }).data.tasks).toHaveLength(2)
   })
 
@@ -77,7 +81,7 @@ describe('backup V14 tasks', () => {
 
   it('upgrades a V13 backup to V15 with an empty task list', async () => {
     const parsed = buildService(stubTasks().store).parseAndValidate(JSON.stringify(documentWith(13)))
-    expect(parsed.version).toBe(16)
+    expect(parsed.version).toBe(17)
     expect((parsed as { data: { tasks: Task[] } }).data.tasks).toEqual([])
   })
 

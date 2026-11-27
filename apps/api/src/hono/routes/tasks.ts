@@ -10,6 +10,9 @@ const taskSchema = z.object({
   title: z.string(),
   status: z.enum(['active', 'pool', 'completed']),
   parentTaskId: z.string().optional(),
+  isUrgent: z.boolean(),
+  isImportant: z.boolean(),
+  detail: z.string().optional(),
   completedAt: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -19,6 +22,16 @@ const taskCreateSchema = z.object({
   title: z.string().min(1).max(120),
   bucket: z.enum(TASK_VISIBLE_STATUSES).optional(),
   parentTaskId: z.string().min(1).optional(),
+  isUrgent: z.boolean().optional(),
+  isImportant: z.boolean().optional(),
+  detail: z.string().max(2000).optional(),
+})
+
+const taskUpdateSchema = z.object({
+  title: z.string().min(1).max(120).optional(),
+  detail: z.string().max(2000).optional(),
+  isUrgent: z.boolean().optional(),
+  isImportant: z.boolean().optional(),
 })
 
 const taskParamsSchema = z.object({ id: z.string().min(1) })
@@ -56,6 +69,21 @@ export function createTaskRoutes() {
       const service = requireServices(context).tasks
       if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'tasks unavailable')
       return context.json(await service.listCompleted(), 200)
+    })
+    .openapi(createRoute({
+      method: 'put',
+      path: '/{id}',
+      tags: ['Tasks'],
+      middleware: [requireJson],
+      request: {
+        params: taskParamsSchema,
+        body: { required: true, content: { 'application/json': { schema: taskUpdateSchema } } },
+      },
+      responses: { 200: jsonSuccess(taskSchema, 'updated task'), 400: commonErrorResponses[400], 401: commonErrorResponses[401], 404: commonErrorResponses[404] },
+    }), async context => {
+      const service = requireServices(context).tasks
+      if (!service) throw new ApiError(503, 'MYSQL_SCHEMA_NOT_READY', 'tasks unavailable')
+      return context.json(await service.update(context.req.valid('param').id, context.req.valid('json')), 200)
     })
     .openapi(createRoute({
       method: 'post',

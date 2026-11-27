@@ -138,6 +138,17 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
     return () => { stopped = true; unlistens.forEach(stop => stop()) }
   }, [flush])
 
+  // 浏览器里直接关标签页/刷新时也尽力保存一次（Tauri 关窗由上面的隐藏事件兜底）。
+  useEffect(() => {
+    const flushNow = () => { void flush() }
+    window.addEventListener('pagehide', flushNow)
+    window.addEventListener('beforeunload', flushNow)
+    return () => {
+      window.removeEventListener('pagehide', flushNow)
+      window.removeEventListener('beforeunload', flushNow)
+    }
+  }, [flush])
+
   useEffect(() => {
     const check = () => {
       const today = shanghaiDate()
@@ -153,6 +164,13 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
     const timer = window.setTimeout(() => setNotice(''), 4000)
     return () => window.clearTimeout(timer)
   }, [notice, setNotice])
+
+  // 保存失败不再弹红字，改为静默重试；成功前状态停在「待保存」。
+  useEffect(() => {
+    if (saveState !== 'error' && !saveError) return
+    const timer = window.setTimeout(() => { void flush() }, 3000)
+    return () => window.clearTimeout(timer)
+  }, [saveState, saveError, flush])
 
   const switchView = async (next: NoteView) => {
     if (next === view) return
@@ -252,10 +270,6 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
     <View className='daily-notes-sidebar'>
       <View className='daily-note-sidebar-head'>
         <Text className='daily-note-sidebar-title'>手记</Text>
-        <label className='daily-note-backfill' title='为还没有手记的日子补录'>
-          <Text>＋ 补记</Text>
-          <input type='date' className='daily-note-backfill-input' max={shanghaiDate()} onChange={event => { const value = event.currentTarget.value; if (value) void openByDate(value) }} />
-        </label>
       </View>
       {groupsConfig.map(([key, label, groupNotes]) => <View key={key} className='daily-note-group'>
         <View className='daily-note-group-heading' onClick={() => setCollapsed(value => ({ ...value, [key]: !value[key] }))}>
@@ -280,19 +294,18 @@ export function DailyNotesPage({ onFlushReady }: DailyNotesPageProps) {
           {saveState === 'saving'
             ? <Text className='is-saving'>保存中</Text>
             : saveState === 'error' || saveError
-              ? <><Text className='is-save-error'>保存失败</Text><Button className='control-transition' onClick={() => void flush()}>重试</Button></>
+              ? <Text className='is-pending'>待保存</Text>
               : dirty
                 ? <Text className='is-pending'>待保存</Text>
                 : <><Text className='daily-note-save-emoji' aria-hidden='true'>{dailyStatusEmoji}</Text><Text>已保存</Text></>}
         </View>
         <View className='daily-note-view-switch' role='tablist'>
-          <button type='button' role='tab' aria-selected={view === 'text'} className={`daily-note-view-tab ${view === 'text' ? 'is-active' : ''}`} onClick={() => void switchView('text')}>文本</button>
           <button type='button' role='tab' aria-selected={view === 'timeline'} className={`daily-note-view-tab ${view === 'timeline' ? 'is-active' : ''}`} onClick={() => void switchView('timeline')}>时间轴</button>
+          <button type='button' role='tab' aria-selected={view === 'text'} className={`daily-note-view-tab ${view === 'text' ? 'is-active' : ''}`} onClick={() => void switchView('text')}>文本</button>
         </View>
         <View className='daily-note-editor-actions'>
           <Button className='control-transition' onClick={exportNote}>导出记录</Button>
           <Button className='control-transition' onClick={() => void clearNote()}>清空当天</Button>
-          <Button className='control-transition' onClick={() => setWeatherOpen(true)}>天气设置</Button>
         </View>
       </View>
 

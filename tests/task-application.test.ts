@@ -13,11 +13,12 @@ class StubTaskRepository implements TaskRepository {
     return [...this.tasks.values()].filter(task => task.status === 'completed')
   }
   async get(id: string): Promise<Task | undefined> { return this.tasks.get(id) }
-  async create(input: { title: string; bucket: 'active' | 'pool'; parentTaskId?: string }): Promise<Task> {
+  async create(input: { title: string; bucket: 'active' | 'pool'; parentTaskId?: string; isUrgent?: boolean; isImportant?: boolean }): Promise<Task> {
     const now = new Date().toISOString()
     const task: Task = {
       id: `task-${++this.sequence}`, title: input.title, status: input.bucket,
       ...(input.parentTaskId ? { parentTaskId: input.parentTaskId } : {}),
+      isUrgent: Boolean(input.isUrgent), isImportant: input.isImportant !== false,
       createdAt: now, updatedAt: now,
     }
     this.tasks.set(task.id, task)
@@ -29,6 +30,20 @@ class StubTaskRepository implements TaskRepository {
     const next: Task = { ...task, status, updatedAt: new Date().toISOString() }
     if (status === 'completed') next.completedAt = completedAt ?? next.updatedAt
     else delete next.completedAt
+    this.tasks.set(id, next)
+    return next
+  }
+  async update(id: string, input: { title?: string; detail?: string; isUrgent?: boolean; isImportant?: boolean }): Promise<Task | undefined> {
+    const task = this.tasks.get(id)
+    if (!task) return undefined
+    const next: Task = {
+      ...task,
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.detail !== undefined ? { detail: input.detail } : {}),
+      ...(input.isUrgent !== undefined ? { isUrgent: input.isUrgent } : {}),
+      ...(input.isImportant !== undefined ? { isImportant: input.isImportant } : {}),
+      updatedAt: new Date().toISOString(),
+    }
     this.tasks.set(id, next)
     return next
   }
@@ -70,6 +85,34 @@ describe('task application', () => {
     const active = await service.create({ title: '还没做完', bucket: 'active' })
     await expect(service.create({ title: '下一步', bucket: 'active', parentTaskId: active.id }))
       .rejects.toMatchObject({ code: 'TASK_INVALID' })
+  })
+
+  it('creates a task straight into a quadrant', async () => {
+    const { service } = await create()
+    const task = await service.create({ title: '修告警', bucket: 'active', isUrgent: true, isImportant: false })
+    expect(task).toMatchObject({ isUrgent: true, isImportant: false })
+  })
+
+  it('defaults a new task to 重要不紧急', async () => {
+    const { service } = await create()
+    const task = await service.create({ title: '写复盘', bucket: 'active' })
+    expect(task).toMatchObject({ isUrgent: false, isImportant: true })
+  })
+
+  it('updates the title, detail and quadrant', async () => {
+    const { service } = await create()
+    const task = await service.create({ title: '写周报', bucket: 'active' })
+    const updated = await service.update(task.id, { title: '写季度周报', detail: '先列数据', isUrgent: true })
+    expect(updated).toMatchObject({ title: '写季度周报', detail: '先列数据', isUrgent: true, isImportant: true })
+  })
+
+  it('rejects blank titles, over-long detail and empty patches', async () => {
+    const { service } = await create()
+    const task = await service.create({ title: '写周报', bucket: 'active' })
+    await expect(service.update(task.id, { title: '   ' })).rejects.toMatchObject({ code: 'TASK_INVALID' })
+    await expect(service.update(task.id, { detail: 'x'.repeat(2001) })).rejects.toMatchObject({ code: 'TASK_INVALID' })
+    await expect(service.update(task.id, {})).rejects.toMatchObject({ code: 'TASK_INVALID' })
+    await expect(service.update('missing', { title: 'x' })).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' })
   })
 
   it('claims a pool task into today', async () => {

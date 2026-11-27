@@ -17,13 +17,13 @@ function stubRepository(): BackupRepository {
 }
 
 const parent: Task = {
-  id: 'task-1', title: '完成流水线切换', status: 'completed',
+  id: 'task-1', title: '完成流水线切换', status: 'completed', isUrgent: false, isImportant: true,
   completedAt: '2026-11-24T03:00:00.000Z',
   createdAt: '2026-11-23T02:00:00.000Z', updatedAt: '2026-11-24T03:00:00.000Z',
 }
 
 const child: Task = {
-  id: 'task-2', title: 'agent 任务冒烟测试', status: 'active', parentTaskId: 'task-1',
+  id: 'task-2', title: 'agent 任务冒烟测试', status: 'active', parentTaskId: 'task-1', isUrgent: false, isImportant: true,
   createdAt: '2026-11-24T03:01:00.000Z', updatedAt: '2026-11-24T03:01:00.000Z',
 }
 
@@ -49,7 +49,7 @@ const baseCollections = {
 describe('backup V16 task chain', () => {
   it('exports version 16 with the parent link', async () => {
     const backup = await service(stubTasks([parent, child]).store).createBackup()
-    expect(backup.version).toBe(16)
+    expect(backup.version).toBe(17)
     const tasks = (backup as unknown as { data: { tasks: Task[] } }).data.tasks
     expect(tasks.find(task => task.id === 'task-2')?.parentTaskId).toBe('task-1')
   })
@@ -61,7 +61,7 @@ describe('backup V16 task chain', () => {
       data: { ...baseCollections, tasks: [parent] },
     }
     const parsed = service(stubTasks().store).parseAndValidate(JSON.stringify(legacy))
-    expect(parsed.version).toBe(16)
+    expect(parsed.version).toBe(17)
     const tasks = (parsed as unknown as { data: { tasks: Task[] } }).data.tasks
     expect(tasks[0]).toMatchObject({ id: 'task-1', status: 'completed' })
     expect(tasks[0]!.parentTaskId).toBeUndefined()

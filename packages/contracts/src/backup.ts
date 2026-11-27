@@ -70,6 +70,8 @@ export interface BackupDataV14 extends BackupDataV13 { tasks: Task[] }
 export interface BackupDataV15 extends BackupDataV14 {}
 /** V16：任务可承接自一个已完成任务（parentTaskId）。 */
 export interface BackupDataV16 extends BackupDataV15 {}
+/** V17：任务带四象限标记与可折叠详情。 */
+export interface BackupDataV17 extends BackupDataV16 {}
 
 export interface BackupDocumentV1 {
   format: 'knowledge-base-backup'
@@ -107,10 +109,11 @@ export interface BackupDocumentV13 { format: 'knowledge-base-backup'; version: 1
 export interface BackupDocumentV14 { format: 'knowledge-base-backup'; version: 14; exportedAt: string; appVersion: string; data: BackupDataV14 }
 export interface BackupDocumentV15 { format: 'knowledge-base-backup'; version: 15; exportedAt: string; appVersion: string; data: BackupDataV15 }
 export interface BackupDocumentV16 { format: 'knowledge-base-backup'; version: 16; exportedAt: string; appVersion: string; data: BackupDataV16 }
+export interface BackupDocumentV17 { format: 'knowledge-base-backup'; version: 17; exportedAt: string; appVersion: string; data: BackupDataV17 }
 
-export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5 | BackupDocumentV6 | BackupDocumentV7 | BackupDocumentV8 | BackupDocumentV9 | BackupDocumentV10 | BackupDocumentV11 | BackupDocumentV12 | BackupDocumentV13 | BackupDocumentV14 | BackupDocumentV15 | BackupDocumentV16
+export type BackupDocument = BackupDocumentV1 | BackupDocumentV2 | BackupDocumentV3 | BackupDocumentV4 | BackupDocumentV5 | BackupDocumentV6 | BackupDocumentV7 | BackupDocumentV8 | BackupDocumentV9 | BackupDocumentV10 | BackupDocumentV11 | BackupDocumentV12 | BackupDocumentV13 | BackupDocumentV14 | BackupDocumentV15 | BackupDocumentV16 | BackupDocumentV17
 
 export interface BackupRepository {
-  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13 | BackupDataV14 | BackupDataV15 | BackupDataV16>
-  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13 | BackupDataV14 | BackupDataV15 | BackupDataV16): Promise<void>
+  exportData(): Promise<BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13 | BackupDataV14 | BackupDataV15 | BackupDataV16 | BackupDataV17>
+  replaceData(data: BackupData | BackupDataV3 | BackupDataV4 | BackupDataV5 | BackupDataV6 | BackupDataV7 | BackupDataV8 | BackupDataV9 | BackupDataV10 | BackupDataV11 | BackupDataV12 | BackupDataV13 | BackupDataV14 | BackupDataV15 | BackupDataV16 | BackupDataV17): Promise<void>
 }

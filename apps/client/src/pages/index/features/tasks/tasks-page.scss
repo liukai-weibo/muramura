@@ -127,3 +127,55 @@
 .tasks-derive-submit:disabled, .tasks-derive-cancel:disabled { cursor: default; opacity: .5; }
 .app-shell[data-color-theme='dark'] .tasks-derive-panel { background: #2f2b26; }
 .app-shell[data-color-theme='dark'] .tasks-row-next { background: transparent; }
+/* 列表 / 四象限切换 */
+.tasks-view-switch { display: inline-flex; margin-left: auto; padding: 2px; gap: 2px; border-radius: 9999px; background: var(--cream-soft-surface); border: 1px solid var(--cream-line); }
+.tasks-view-switch button { padding: 4px 12px; border: 0; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 12px; }
+.tasks-view-switch button.is-selected { background: var(--cream-surface); color: var(--cream-ink); box-shadow: 0 1px 4px rgba(120, 90, 60, .12); }
+
+/* 四象限 */
+.tasks-quadrants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 12px; min-height: max(480px, calc(100vh - 300px)); }
+.tasks-quadrant { cursor: text; display: flex; min-height: 0; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--cream-line); border-radius: 18px; }
+.tasks-quadrant.is-urgent-important { background: linear-gradient(150deg, #FBEDE9, #F7E3DE); }
+.tasks-quadrant.is-important { background: linear-gradient(150deg, #F4F1E4, #EFEBD8); }
+.tasks-quadrant.is-urgent { background: linear-gradient(150deg, #F1EFE6, #EAE7DA); }
+.tasks-quadrant.is-normal { background: linear-gradient(150deg, #EEF1EC, #E7ECE4); }
+.tasks-quadrant-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--cream-ink); font-size: 13px; font-weight: 800; }
+.tasks-quadrant-emoji { margin-right: 6px; }
+.tasks-quadrant-hint { margin-left: 6px; color: var(--cream-hint); font-size: 11px; font-weight: 600; }
+/* 悬停/拖动到某一格：边框亮起，提示这格可以放任务。 */
+.tasks-quadrant { transition: border-color .18s ease, box-shadow .18s ease; }
+.tasks-quadrant:hover { border-color: rgba(180, 138, 90, .48); box-shadow: 0 6px 18px rgba(120, 90, 60, .1); }
+.tasks-quadrant.is-drop-target { border-color: #b48a5a; box-shadow: 0 0 0 3px rgba(180, 138, 90, .16), 0 6px 18px rgba(120, 90, 60, .12); }
+.tasks-quadrant-tools { display: inline-flex; align-items: center; gap: 6px; }
+.tasks-quadrant-add { width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 9999px; background: transparent; color: var(--cream-hint); cursor: pointer; font-family: inherit; font-size: 15px; line-height: 1; opacity: 0; transition: opacity .15s ease, border-color .15s ease; }
+.tasks-quadrant:hover .tasks-quadrant-add, .tasks-quadrant:focus-within .tasks-quadrant-add { opacity: 1; border-color: rgba(180, 138, 90, .35); }
+.tasks-quadrant-add:hover { color: #8a6234; }
+.tasks-quadrant-input { width: 100%; padding: 6px 9px; box-sizing: border-box; border: 1px solid rgba(180, 138, 90, .45); border-radius: 10px; background: var(--cream-surface); color: var(--cream-ink); font-family: inherit; font-size: 13px; outline: none; }
+/* 空格子：居中、低对比的象限格言，放第一个任务后消失。 */
+.tasks-quadrant-empty { display: flex; min-height: 76px; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: rgba(120, 108, 96, .34); font-size: 12px; letter-spacing: .04em; text-align: center; }
+.tasks-quadrant-empty-icon { font-size: 22px; opacity: .34; filter: grayscale(.65); }
+/* 任务改成小卡片：按内容伸缩、一行多条。 */
+.tasks-list.is-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tasks-quadrant .tasks-row { cursor: pointer; }
+.tasks-list.is-chips .tasks-row { flex: 0 1 auto; width: auto; min-width: 88px; max-width: min(100%, 260px); min-height: 32px; padding: 0 10px; gap: 7px; background: rgba(255, 253, 250, .82); border-radius: 9999px; }
+.tasks-list.is-chips .tasks-row-title { flex: 0 1 auto; max-width: 190px; font-size: 12.5px; }
+.tasks-list.is-chips .tasks-row-origin { display: none; }
+.tasks-list.is-chips .tasks-row-action, .tasks-list.is-chips .tasks-row-delete { display: none; }
+.tasks-list.is-chips .tasks-row-next { opacity: 0; padding: 2px 7px; }
+.tasks-list.is-chips .tasks-row:hover .tasks-row-next, .tasks-list.is-chips .tasks-row:focus-within .tasks-row-next, .tasks-list.is-chips .tasks-row.is-done .tasks-row-next { opacity: 1; }
+.tasks-row.is-selected { border-color: #c9a06a; box-shadow: 0 0 0 2px rgba(201, 160, 106, .16); }
+
+/* 任务详情：默认折叠，点击任务后在下方展开 */
+.task-detail-backdrop { position: fixed; z-index: 96; inset: 0; display: flex; padding: 24px; align-items: center; justify-content: center; background: rgba(43, 40, 35, .28); }
+.task-detail-panel { display: flex; width: min(920px, 94vw); max-height: 86vh; flex-direction: column; gap: 12px; padding: 22px 24px 24px; box-sizing: border-box; border: 1px solid rgba(180, 138, 90, .3); border-radius: 22px; background: var(--cream-surface); box-shadow: 0 24px 60px rgba(60, 45, 30, .22); }
+.task-detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.task-detail-title { min-width: 160px; flex: 1 1 220px; padding: 6px 4px; border: 0; border-bottom: 1px solid transparent; background: transparent; color: var(--cream-ink); font-family: inherit; font-size: 15px; font-weight: 800; outline: none; }
+.task-detail-title:focus { border-bottom-color: rgba(180, 138, 90, .4); }
+.task-detail-status { min-width: 44px; color: var(--cream-hint); font-size: 11px; }
+.task-detail-status.is-failed { color: #ad5965; }
+.task-detail-close { padding: 4px 12px; border: 1px solid var(--cream-line); border-radius: 9999px; background: transparent; color: var(--cream-body); cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 800; }
+.task-detail-body { width: 100%; flex: 1 1 auto; min-height: 240px; resize: none; padding: 10px 12px; box-sizing: border-box; resize: vertical; border: 1px solid var(--cream-line); border-radius: 12px; background: var(--cream-surface); color: var(--cream-body); font-family: inherit; font-size: 13px; line-height: 1.6; outline: none; }
+.task-detail-body:focus { border-color: rgba(180, 138, 90, .45); }
+.app-shell[data-color-theme='dark'] .task-detail-panel { background: #2f2b26; }
+.app-shell[data-color-theme='dark'] .task-detail-body { background: #262320; }
+@media (max-width: 720px) { .tasks-quadrants { grid-template-columns: minmax(0, 1fr); } }

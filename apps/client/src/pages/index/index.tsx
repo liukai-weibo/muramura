@@ -2306,7 +2306,22 @@ const [dietProfileOpen, setDietProfileOpen] = useState(false)
   const cancelSignalClear = () => setPendingSignalClear(undefined)
 
   const openPrimaryModule = (target: PrimaryModule) => {
-    if (primaryModule === 'dailyNotes' && target !== 'dailyNotes') void dailyNoteFlushRef.current?.()
+    if (primaryModule === 'dailyNotes' && target !== 'dailyNotes') {
+      // 离开手记再回来时默认回到时间轴，不保留上次停在文本视图的偏好。
+      try { window.localStorage.setItem('marumaru.daily-note-view.v2', 'timeline') } catch { /* 偏好写入失败不影响切换 */ }
+      // 先把手记里未落盘的改动发出去，再卸载页面，避免切模块时丢字。
+      const pending = dailyNoteFlushRef.current?.() ?? Promise.resolve(true)
+      void pending.finally(() => {
+        requestLeaveAllDrafts(() => {
+          setPrimaryModule(target)
+          if (target === 'workbench' && workbenchTab !== 'mood' && workbenchTab !== 'meals') setActiveModule(workbenchTab)
+          else if (target === 'ai') setActiveModule('ai')
+          else if (target === 'me' && (myTab === 'insights' || myTab === 'storage')) setActiveModule(myTab === 'insights' ? 'insights' : 'settings')
+          else if (target === 'me' && (myTab === 'administration' || myTab === 'aiConfiguration' || myTab === 'audit')) setActiveModule(myTab)
+        })
+      })
+      return
+    }
     requestLeaveAllDrafts(() => {
       setPrimaryModule(target)
       if (target === 'workbench' && workbenchTab !== 'mood' && workbenchTab !== 'meals') setActiveModule(workbenchTab)

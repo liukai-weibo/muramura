@@ -2,10 +2,11 @@ import type {
   ActivityAuditRecorder,
   Task,
   TaskCreateInput,
+  TaskUpdateInput,
   TaskRepository,
   TaskVisibleStatus,
 } from '@knowledge-base/contracts'
-import { TASK_TITLE_MAX_LENGTH, isVisibleTaskStatus } from '@knowledge-base/contracts'
+import { TASK_DETAIL_MAX_LENGTH, TASK_TITLE_MAX_LENGTH, isVisibleTaskStatus } from '@knowledge-base/contracts'
 import { BusinessError } from '@knowledge-base/domain'
 import { safeAuditRecord } from './audit'
 
@@ -45,7 +46,7 @@ export class TaskApplicationService {
     return this.repository.list()
   }
 
-  async create(input: { title?: unknown; bucket?: unknown; parentTaskId?: unknown }): Promise<Task> {
+  async create(input: { title?: unknown; bucket?: unknown; parentTaskId?: unknown; isUrgent?: unknown; isImportant?: unknown }): Promise<Task> {
     const bucket: TaskVisibleStatus = isVisibleTaskStatus(input.bucket) ? input.bucket : 'active'
     const parentTaskId = typeof input.parentTaskId === 'string' && input.parentTaskId.trim() ? input.parentTaskId.trim() : undefined
     if (parentTaskId) {
@@ -57,11 +58,37 @@ export class TaskApplicationService {
       title: requireTitle(input.title),
       bucket,
       ...(parentTaskId ? { parentTaskId } : {}),
+      ...(typeof input.isUrgent === 'boolean' ? { isUrgent: input.isUrgent } : {}),
+      ...(typeof input.isImportant === 'boolean' ? { isImportant: input.isImportant } : {}),
     } satisfies TaskCreateInput)
     await audit(this.auditRecorder, 'create', task)
     return task
   }
 
+  /** 改标题、详情或四象限，只写传进来的字段。 */
+  async update(id: string, input: { title?: unknown; detail?: unknown; isUrgent?: unknown; isImportant?: unknown }): Promise<Task> {
+    await this.requireTask(id)
+    const patch: TaskUpdateInput = {}
+    if (input.title !== undefined) patch.title = requireTitle(input.title)
+    if (input.detail !== undefined) {
+      if (typeof input.detail !== 'string') throw invalid('任务详情无效')
+      if (input.detail.length > TASK_DETAIL_MAX_LENGTH) throw invalid(`任务详情不能超过 ${TASK_DETAIL_MAX_LENGTH} 个字`)
+      patch.detail = input.detail
+    }
+    if (input.isUrgent !== undefined) {
+      if (typeof input.isUrgent !== 'boolean') throw invalid('紧急标记无效')
+      patch.isUrgent = input.isUrgent
+    }
+    if (input.isImportant !== undefined) {
+      if (typeof input.isImportant !== 'boolean') throw invalid('重要标记无效')
+      patch.isImportant = input.isImportant
+    }
+    if (Object.keys(patch).length === 0) throw invalid('没有要修改的内容')
+    const updated = await this.repository.update(id, patch)
+    if (!updated) throw notFound()
+    await audit(this.auditRecorder, 'update', updated)
+    return updated
+  }
   async claim(id: string): Promise<Task> {
     const task = await this.requireTask(id)
     if (task.status !== 'pool') throw invalid('只有任务池里的任务可以领取')

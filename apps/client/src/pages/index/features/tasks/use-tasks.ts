@@ -43,11 +43,11 @@ export function useTasks() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const create = useCallback(async (title: string, bucket: TaskVisibleStatus, parentTaskId?: string) => {
+  const create = useCallback(async (title: string, bucket: TaskVisibleStatus, parentTaskId?: string, priority?: { isUrgent: boolean; isImportant: boolean }) => {
     setCreating(true)
     setError('')
     try {
-      const task = await apiClient.createTask({ title: title.trim(), bucket, ...(parentTaskId ? { parentTaskId } : {}) })
+      const task = await apiClient.createTask({ title: title.trim(), bucket, ...(parentTaskId ? { parentTaskId } : {}), ...(priority ?? {}) })
       setTasks(list => [...list, task])
       return true
     } catch (cause) {
@@ -93,6 +93,34 @@ export function useTasks() {
     }
   }, [])
 
+  const update = useCallback(async (id: string, input: { title?: string; detail?: string; isUrgent?: boolean; isImportant?: boolean }) => {
+    setError('')
+    try {
+      const task = await apiClient.updateTask(id, input)
+      setTasks(list => list.map(item => item.id === id ? task : item))
+      setCompleted(list => list.map(item => item.id === id ? task : item))
+      setRecent(list => list.map(item => item.task.id === id ? { ...item, task } : item))
+      return task
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '保存失败，请重试')
+      return undefined
+    }
+  }, [])
+
+  /** 只改本地状态，不动服务端：详情区输入时让列表立刻跟着变。 */
+  const patchLocal = useCallback((id: string, patch: { title?: string; detail?: string; isUrgent?: boolean; isImportant?: boolean }) => {
+    const apply = (task: Task): Task => ({
+      ...task,
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.detail !== undefined ? { detail: patch.detail } : {}),
+      ...(patch.isUrgent !== undefined ? { isUrgent: patch.isUrgent } : {}),
+      ...(patch.isImportant !== undefined ? { isImportant: patch.isImportant } : {}),
+    })
+    setTasks(list => list.map(item => item.id === id ? apply(item) : item))
+    setCompleted(list => list.map(item => item.id === id ? apply(item) : item))
+    setRecent(list => list.map(item => item.task.id === id ? { ...item, task: apply(item.task) } : item))
+  }, [])
+
   const restore = useCallback(async (id: string) => {
     setBusyId(id)
     setError('')
@@ -128,5 +156,5 @@ export function useTasks() {
   const active = useMemo(() => tasks.filter(task => task.status === 'active'), [tasks])
   const pool = useMemo(() => tasks.filter(task => task.status === 'pool'), [tasks])
 
-  return { active, pool, completed, recent, loading, error, busyId, creating, create, claim, abandon, complete, restore, remove, reload: load }
+  return { active, pool, completed, recent, loading, error, busyId, creating, create, claim, abandon, complete, restore, remove, update, patchLocal, reload: load }
 }
